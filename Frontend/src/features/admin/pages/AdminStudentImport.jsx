@@ -1,0 +1,209 @@
+import React, { useState } from 'react';
+import { ArrowLeft, Upload, Loader2, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import adminStudentService from '../../../services/adminStudentService';
+
+function parseCsv(text) {
+    const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^\ufeff/, ''));
+    return lines.slice(1).map((line) => {
+        const cells = line.split(',').map((c) => c.trim());
+        const row = {};
+        headers.forEach((h, i) => {
+            row[h] = cells[i] ?? '';
+        });
+        return row;
+    });
+}
+
+function normalizeRow(raw) {
+    return {
+        name: raw.name || '',
+        email: raw.email || '',
+        studentId: raw.studentid || raw.student_id || raw.id || '',
+        password: raw.password || '',
+        passcode: raw.passcode || '',
+        classCode: raw.classcode || raw.class || '',
+        classId: raw.classid || '',
+        faculty: raw.faculty || '',
+        program: raw.program || '',
+        score: raw.score || raw.currentscore || '',
+        gpa: raw.gpa || raw.currentgpa || '',
+    };
+}
+
+const AdminStudentImport = () => {
+    const navigate = useNavigate();
+    const [text, setText] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState('');
+
+    const onFile = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            setText(String(reader.result || ''));
+            setResult(null);
+            setError('');
+        };
+        reader.readAsText(file);
+    };
+
+    const handleSubmit = async () => {
+        setError('');
+        setResult(null);
+        const rows = parseCsv(text).map(normalizeRow);
+        if (!rows.length) {
+            setError('Add a CSV with a header row and at least one data row (name, email required).');
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const res = await adminStudentService.importStudents(rows);
+            if (res.success) {
+                setResult(res.data);
+            } else {
+                setError(res.message || 'Import failed');
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || err.message || 'Import failed');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="min-h-full w-full py-2 font-sans">
+            <button
+                type="button"
+                onClick={() => navigate('/admin/students')}
+                className="inline-flex items-center gap-2 text-[14px] font-bold text-slate-600 hover:text-slate-900 mb-6"
+            >
+                <ArrowLeft className="h-4 w-4" />
+                Back to students
+            </button>
+
+            <h1 className="text-[26px] font-extrabold text-slate-900 tracking-tight mb-2">Import students</h1>
+            <p className="text-[15px] text-slate-500 mb-6">
+                Upload a CSV or paste rows below. Header row required. Columns:{' '}
+                <code className="text-[13px] bg-slate-200/80 px-1.5 py-0.5 rounded">
+                    name, email, studentId, password, classCode, faculty, program, score, gpa
+                </code>
+                . If <code className="text-[13px]">password</code> is omitted, a random login passcode is generated per row.
+            </p>
+
+            <div className="rounded-3xl bg-white shadow ring-1 ring-slate-200/60 p-6 md:p-8 space-y-4">
+                <div>
+                    <label className="block text-[13px] font-bold text-slate-600 mb-2">CSV file</label>
+                    <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        onChange={onFile}
+                        className="block w-full text-[14px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700"
+                    />
+                </div>
+                <div>
+                    <label className="block text-[13px] font-bold text-slate-600 mb-2">Or paste CSV</label>
+                    <textarea
+                        value={text}
+                        onChange={(e) => {
+                            setText(e.target.value);
+                            setResult(null);
+                            setError('');
+                        }}
+                        rows={12}
+                        placeholder={`name,email,studentId,classCode,faculty,score,gpa
+Jane Doe,jane@school.edu,S-1001,CS401,Computer Science,88,3.4`}
+                        className="w-full rounded-2xl border border-slate-200 p-4 text-[14px] font-mono text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/30"
+                    />
+                </div>
+
+                {error && (
+                    <div className="flex items-start gap-2 rounded-xl bg-red-50 text-red-800 px-4 py-3 text-[14px] font-semibold">
+                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                        {error}
+                    </div>
+                )}
+
+                {result && (
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-[14px] text-emerald-900">
+                        <div className="flex items-center gap-2 font-bold mb-2">
+                            <CheckCircle2 className="h-5 w-5" />
+                            Import finished: {result.created?.length ?? 0} created, {result.failed?.length ?? 0} failed (of{' '}
+                            {result.total ?? 0} rows)
+                        </div>
+                        {result.failed?.length > 0 && (
+                            <ul className="list-disc pl-5 mt-2 space-y-1 text-[13px] font-medium text-red-800">
+                                {result.failed.slice(0, 15).map((f, i) => (
+                                    <li key={i}>
+                                        Row {f.index + 1}: {f.message}
+                                        {f.email ? ` (${f.email})` : ''}
+                                    </li>
+                                ))}
+                                {result.failed.length > 15 && <li>…and {result.failed.length - 15} more</li>}
+                            </ul>
+                        )}
+                        {result.created?.length > 0 && (
+                            <div className="mt-4 pt-3 border-t border-emerald-200/80">
+                                <p className="text-[12px] font-bold uppercase tracking-wide text-emerald-800 mb-2">
+                                    Login passcodes (copy and share with each student)
+                                </p>
+                                <div className="max-h-56 overflow-y-auto rounded-lg border border-emerald-100 bg-white/80 divide-y divide-emerald-100">
+                                    {result.created.map((c, i) => (
+                                        <div
+                                            key={`${c._id ?? c.email ?? i}`}
+                                            className="flex flex-wrap items-center gap-2 px-3 py-2 text-[13px]"
+                                        >
+                                            <span className="font-semibold text-slate-800 truncate max-w-[200px]" title={c.email}>
+                                                {c.email}
+                                            </span>
+                                            <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-900">
+                                                {c.loginPasscode ?? '—'}
+                                            </code>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const t = String(c.loginPasscode ?? '');
+                                                    if (t) navigator.clipboard.writeText(t);
+                                                }}
+                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[12px] font-bold text-slate-600 hover:bg-slate-50"
+                                                title="Copy passcode"
+                                            >
+                                                <Copy className="h-3.5 w-3.5" />
+                                                Copy
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="flex flex-wrap gap-3 pt-2">
+                    <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={submitting || !text.trim()}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-6 py-3.5 text-[14px] font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {submitting ? 'Importing…' : 'Run import'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/admin/students')}
+                        className="rounded-2xl border border-slate-200 px-6 py-3.5 text-[14px] font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default AdminStudentImport;

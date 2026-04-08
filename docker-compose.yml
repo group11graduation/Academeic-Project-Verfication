@@ -1,0 +1,43 @@
+# Dual backend + MongoDB — development / demo stack
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: academic_verification
+
+  orchestration:
+    build:
+      context: ./backend-node
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://mongo:27017/academic_verification
+      JWT_SECRET: ${JWT_SECRET:-dev-change-me-use-long-secret-in-prod}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      AI_SERVICE_URL: http://analytics:8000
+    depends_on:
+      - mongo
+      - analytics
+
+  analytics:
+    build:
+      context: ./backend-python
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      CORS_ORIGINS: "*"
+      PORT: 8000
+
+volumes:
+  mongo_data:

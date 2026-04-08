@@ -1,0 +1,23 @@
+# Web
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+
+# Numerics & classical similarity
+numpy>=2.0.0
+scikit-learn>=1.5.0
+scipy>=1.11.0
+
+# Proposal semantics (sentence-transformers pulls torch)
+sentence-transformers>=3.0.0
+torch>=2.0.0
+
+# Code: AST (optional; regex fallback if grammars unavailable — e.g. Py3.14 has no tree-sitter-languages wheel)
+tree-sitter>=0.21.0
+# tree-sitter-languages — omit on Python 3.13+ until wheels exist; use regex fallback in code_ast.py
+transformers>=4.40.0
+
+# Screenshots
+pillow>=10.0.0
+ImageHash>=4.3.0

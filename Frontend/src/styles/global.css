@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    @apply bg-[#0B1120] text-slate-100 antialiased transition-colors duration-300;
+  }
+}
+
+@layer components {
+  /* Role-based theme colors or shared components */
+}

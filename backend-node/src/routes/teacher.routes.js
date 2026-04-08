@@ -1,0 +1,24 @@
+import { Router } from 'express';
+import { requireRoles } from '../middleware/auth.js';
+import * as teacher from '../controllers/teacherProposal.controller.js';
+import * as teacherPreview from '../controllers/teacherPreview.controller.js';
+
+const router = Router();
+
+router.use(requireRoles('teacher'));
+
+router.get('/classes', teacher.listMyClasses);
+router.get('/catalog', teacher.getCatalog);
+router.get('/assignments', teacher.listAssignments);
+router.post('/assignments', teacher.createAssignment);
+router.get('/assignments/:id', teacher.getAssignment);
+router.get('/assignments/:assignmentId/proposals', teacher.listProposals);
+router.get('/assignments/:assignmentId/groups', teacher.listGroups);
+router.post('/assignments/:assignmentId/groups', teacher.createGroup);
+router.patch('/proposals/:proposalId/review', teacher.reviewProposal);
+
+router.post('/proposals/:proposalId/preview/start', teacherPreview.startPreview);
+router.post('/preview-sessions/:sessionId/stop', teacherPreview.stopPreview);
+router.get('/preview-sessions/:sessionId', teacherPreview.getPreviewSession);
+
+export default router;
