@@ -12,6 +12,14 @@ const assignmentSchema = new mongoose.Schema(
     academicYear: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear', required: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
+    /** Teacher-defined project requirements text */
+    requirementText: { type: String, default: '' },
+    /** Optional structured requirement hints used in pre-check gate */
+    requiredKeywords: [{ type: String, trim: true }],
+    allowedTechnologies: [{ type: String, trim: true }],
+    /** Optional teacher-uploaded requirements file */
+    assignmentFile: { type: String, default: '' },
+    originalFileName: { type: String, default: '' },
     submissionMode: { type: String, enum: SUBMISSION_MODES, default: 'single' },
     groupModeType: {
       type: String,

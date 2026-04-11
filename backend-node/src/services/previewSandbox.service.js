@@ -35,6 +35,168 @@ function appendLog(session, level, message) {
   session.logs.push({ level, message, at: new Date() });
 }
 
+function rewriteLocalDbHostForContainer(value) {
+  if (!value) return value;
+  // Container cannot reach host DB via localhost/127.0.0.1.
+  return String(value).replace(/(localhost|127\.0\.0\.1)/g, 'host.docker.internal');
+}
+
+function buildPreviewEnv(runtime, containerPort) {
+  const env = [`PORT=${containerPort}`];
+
+  if (runtime.mode === 'fullstack' && runtime.backendPort) {
+    env.push(`PREVIEW_BACKEND_PORT=${runtime.backendPort}`);
+    env.push(`VITE_API_URL=http://localhost:${runtime.backendPort}`);
+  }
+
+  // Pass DB/app env for student backend inside preview container.
+  // Priority: explicit PREVIEW_* overrides, then host process env.
+  const mongoUri = process.env.PREVIEW_MONGODB_URI || process.env.MONGODB_URI;
+  const databaseUrl = process.env.PREVIEW_DATABASE_URL || process.env.DATABASE_URL;
+  const dbHost = process.env.PREVIEW_DB_HOST || process.env.DB_HOST;
+  const dbPort = process.env.PREVIEW_DB_PORT || process.env.DB_PORT;
+  const dbName = process.env.PREVIEW_DB_NAME || process.env.DB_NAME;
+  const nodeEnv = process.env.PREVIEW_NODE_ENV || process.env.NODE_ENV || 'development';
+
+  if (mongoUri) env.push(`MONGODB_URI=${rewriteLocalDbHostForContainer(mongoUri)}`);
+  if (databaseUrl) env.push(`DATABASE_URL=${rewriteLocalDbHostForContainer(databaseUrl)}`);
+  if (dbHost) env.push(`DB_HOST=${rewriteLocalDbHostForContainer(dbHost)}`);
+  if (dbPort) env.push(`DB_PORT=${dbPort}`);
+  if (dbName) env.push(`DB_NAME=${dbName}`);
+  env.push(`NODE_ENV=${nodeEnv}`);
+
+  return env;
+}
+
+async function pathExists(p) {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function findFirstPackageJsonDir(baseDir) {
+  const candidates = [
+    baseDir,
+    path.join(baseDir, 'frontend'),
+    path.join(baseDir, 'client'),
+    path.join(baseDir, 'bms-frontend'),
+  ];
+
+  for (const c of candidates) {
+    if (await pathExists(path.join(c, 'package.json'))) return c;
+  }
+
+  const top = await fs.readdir(baseDir, { withFileTypes: true });
+  for (const d of top) {
+    if (!d.isDirectory()) continue;
+    const sub = path.join(baseDir, d.name);
+    if (await pathExists(path.join(sub, 'package.json'))) return sub;
+  }
+  return null;
+}
+
+async function findPackageDirByNames(baseDir, names) {
+  for (const n of names) {
+    const p = path.join(baseDir, n);
+    if (await pathExists(path.join(p, 'package.json'))) return p;
+  }
+  return null;
+}
+
+async function detectPreviewRuntime(extractDir, session) {
+  // If zip contains a single wrapper folder, prefer it as working root.
+  const topEntries = await fs.readdir(extractDir, { withFileTypes: true });
+  const dirs = topEntries.filter((e) => e.isDirectory());
+  let root = extractDir;
+  if (dirs.length === 1) {
+    const candidate = path.join(extractDir, dirs[0].name);
+    // Wrapper folder heuristic: use it when root has no app entry file.
+    const hasRootIndex = await pathExists(path.join(extractDir, 'index.html'));
+    const hasRootPkg = await pathExists(path.join(extractDir, 'package.json'));
+    if (!hasRootIndex && !hasRootPkg) root = candidate;
+  }
+
+  // Full-stack mode: detect common frontend + backend folders and run both.
+  const frontendDir = await findPackageDirByNames(root, ['frontend', 'bms-frontend', 'client', 'web', 'app']);
+  const backendDir = await findPackageDirByNames(root, ['backend', 'backend-node', 'server', 'api']);
+  if (frontendDir && backendDir) {
+    const frontendRel = path.relative(root, frontendDir).replace(/\\/g, '/');
+    const backendRel = path.relative(root, backendDir).replace(/\\/g, '/');
+    appendLog(session, 'info', `Detected full-stack project. frontend=${frontendRel}, backend=${backendRel}`);
+    return {
+      mode: 'fullstack',
+      workdir: root,
+      image: process.env.PREVIEW_NODE_IMAGE || 'node:20-alpine',
+      backendPort: String(process.env.PREVIEW_BACKEND_PORT || '18080'),
+      command: [
+        'sh',
+        '-lc',
+        [
+          'set -e',
+          `cd "${backendRel}"`,
+          'npm install --no-audit --no-fund',
+          '(npm run dev || npm run start) &',
+          `cd "/workspace/${frontendRel}"`,
+          'npm install --no-audit --no-fund',
+          'npm run dev -- --host 0.0.0.0 --port "$PORT"',
+        ].join(' && '),
+      ],
+    };
+  }
+
+  const packageDir = await findFirstPackageJsonDir(root);
+  if (packageDir) {
+    const packageJsonPath = path.join(packageDir, 'package.json');
+    let pkg = {};
+    try {
+      pkg = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+    } catch {
+      pkg = {};
+    }
+    const scripts = pkg.scripts || {};
+    const hasPreview = Boolean(scripts.preview);
+    const hasDev = Boolean(scripts.dev);
+    const hasStart = Boolean(scripts.start);
+    const relativeWorkdir = path.relative(extractDir, packageDir).replace(/\\/g, '/');
+    appendLog(
+      session,
+      'info',
+      `Detected Node project at ${relativeWorkdir || '.'}; scripts: ${Object.keys(scripts).join(', ') || 'none'}`
+    );
+    return {
+      mode: 'node',
+      workdir: packageDir,
+      image: process.env.PREVIEW_NODE_IMAGE || 'node:20-alpine',
+      command: [
+        'sh',
+        '-lc',
+        [
+          'set -e',
+          'npm install --no-audit --no-fund',
+          hasPreview
+            ? 'npm run preview -- --host 0.0.0.0 --port "$PORT"'
+            : hasDev
+              ? 'npm run dev -- --host 0.0.0.0 --port "$PORT"'
+              : hasStart
+                ? 'npm run start -- --host 0.0.0.0 --port "$PORT"'
+                : 'npx --yes serve -s . -l "$PORT"',
+        ].join(' && '),
+      ],
+    };
+  }
+
+  appendLog(session, 'info', 'No Node app detected. Falling back to static file server.');
+  return {
+    mode: 'static',
+    workdir: root,
+    image: process.env.PREVIEW_IMAGE || 'python:3.12-alpine',
+    command: ['sh', '-lc', 'python -m http.server "$PORT" --bind 0.0.0.0 --directory .'],
+  };
+}
+
 function safeExtractZip(zipAbs, destDir) {
   const zip = new AdmZip(zipAbs);
   const entries = zip.getEntries();
@@ -170,12 +332,12 @@ export async function startPreviewForProposal(teacherId, proposalId) {
 
   await stopActiveSessionsForProposal(proposal._id, docker);
 
-  const IMAGE = process.env.PREVIEW_IMAGE || 'python:3.12-alpine';
   const CONTAINER_PORT = String(process.env.PREVIEW_CONTAINER_PORT || '8080');
   const memory = Number(process.env.PREVIEW_MEMORY_BYTES || 268435456);
   const nanoCpus = Number(process.env.PREVIEW_NANO_CPUS || 500000000);
   const ttl = Number(process.env.PREVIEW_TTL_MS || 600000);
-  const publicHost = (process.env.PREVIEW_PUBLIC_HOST || 'http://127.0.0.1').replace(/\/$/, '');
+  const rawPreviewHost = (process.env.PREVIEW_PUBLIC_HOST || 'http://localhost').replace(/\/$/, '');
+  const publicHost = rawPreviewHost.replace('127.0.0.1', 'localhost');
 
   const zipAbs = path.join(process.cwd(), 'uploads', submission.storedRelativePath);
   if (!fsSync.existsSync(zipAbs)) {
@@ -187,6 +349,7 @@ export async function startPreviewForProposal(teacherId, proposalId) {
   const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scholar-preview-'));
   const bindHostPath =
     process.platform === 'win32' ? path.resolve(extractDir).replace(/\\/g, '/') : path.resolve(extractDir);
+  const runtime = await detectPreviewRuntime(extractDir, { logs: [] });
 
   const session = await PreviewSession.create({
     teacher: teacherId,
@@ -198,7 +361,7 @@ export async function startPreviewForProposal(teacherId, proposalId) {
     nanoCpus,
     ttlMs: ttl,
     extractDirPath: extractDir,
-    previewImage: IMAGE,
+    previewImage: runtime.image,
     logs: [{ level: 'info', message: 'Session created; extracting archive.' }],
     startedAt: new Date(),
   });
@@ -216,35 +379,45 @@ export async function startPreviewForProposal(teacherId, proposalId) {
     await session.save();
     throw e;
   }
-
-  await ensureImage(docker, IMAGE);
+  // Re-detect with live session logger to capture useful diagnostics.
+  const runtimeDetected = await detectPreviewRuntime(extractDir, session);
+  runtime.mode = runtimeDetected.mode;
+  runtime.workdir = runtimeDetected.workdir;
+  runtime.image = runtimeDetected.image;
+  runtime.command = runtimeDetected.command;
+  runtime.backendPort = runtimeDetected.backendPort;
+  session.previewImage = runtime.image;
+  await session.save();
+  await ensureImage(docker, runtime.image);
 
   const containerName = `sv-preview-${session._id.toString().slice(-10)}`;
   const exposed = `${CONTAINER_PORT}/tcp`;
+  const extraExposed = runtime.mode === 'fullstack' && runtime.backendPort
+    ? [`${runtime.backendPort}/tcp`]
+    : [];
 
   let container;
   try {
     container = await docker.createContainer({
       name: containerName,
-      Image: IMAGE,
-      Cmd: [
-        'python',
-        '-m',
-        'http.server',
-        CONTAINER_PORT,
-        '--bind',
-        '0.0.0.0',
-        '--directory',
-        '/workspace',
-      ],
-      ExposedPorts: { [exposed]: {} },
+      Image: runtime.image,
+      Cmd: runtime.command,
+      WorkingDir: `/workspace/${path.relative(extractDir, runtime.workdir).replace(/\\/g, '/') || ''}`,
+      Env: buildPreviewEnv(runtime, CONTAINER_PORT),
+      ExposedPorts: {
+        [exposed]: {},
+        ...Object.fromEntries(extraExposed.map((p) => [p, {}])),
+      },
       HostConfig: {
-        Binds: [`${bindHostPath}:/workspace:ro`],
+        Binds: [`${bindHostPath}:/workspace`],
         Memory: memory,
         MemorySwap: memory,
         ...(nanoCpus > 0 ? { NanoCpus: nanoCpus } : {}),
         AutoRemove: true,
-        PortBindings: { [exposed]: [{ HostIp: '0.0.0.0', HostPort: '0' }] },
+        PortBindings: {
+          [exposed]: [{ HostIp: '0.0.0.0', HostPort: '0' }],
+          ...Object.fromEntries(extraExposed.map((p) => [p, [{ HostIp: '0.0.0.0', HostPort: runtime.backendPort }]])),
+        },
         SecurityOpt: ['no-new-privileges:true'],
       },
       Labels: {
@@ -306,7 +479,7 @@ export async function startPreviewForProposal(teacherId, proposalId) {
   session.hostPort = hostPort;
   session.previewUrl = `${publicHost}:${hostPort}/`;
   session.status = 'running';
-  appendLog(session, 'info', `Container running; preview at ${session.previewUrl}`);
+  appendLog(session, 'info', `Container running (${runtime.mode}); preview at ${session.previewUrl}`);
   await session.save();
 
   const timer = setTimeout(async () => {

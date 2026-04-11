@@ -13,36 +13,49 @@ function aiBaseUrl() {
   return (process.env.AI_SERVICE_URL || 'http://localhost:8000').replace(/\/$/, '');
 }
 
-function aiTimeoutMs() {
-  return Number(process.env.AI_SERVICE_TIMEOUT_MS || 120000);
+function aiTimeoutMs(path) {
+  // Proposal analysis can be slow on first run (model download / warm-up).
+  const perPath =
+    path === '/analyze/proposal'
+      ? process.env.AI_PROPOSAL_TIMEOUT_MS
+      : process.env.AI_SERVICE_TIMEOUT_MS;
+  return Number(perPath || process.env.AI_SERVICE_TIMEOUT_MS || 600000);
 }
 
 async function postJson(path, body) {
   const url = `${aiBaseUrl()}${path}`;
-  const timeout = aiTimeoutMs();
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    if (!res.ok) {
-      const t = await res.text();
-      logger.error(`AI service error ${res.status} ${path}: ${t}`);
-      throw new Error('AI analysis service unavailable');
+  const timeout = aiTimeoutMs(path);
+  const retries = Number(process.env.AI_SERVICE_RETRIES || 1);
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+      if (!res.ok) {
+        const t = await res.text();
+        logger.error(`AI service error ${res.status} ${path}: ${t}`);
+        throw new Error('AI analysis service unavailable');
+      }
+      return res.json();
+    } catch (e) {
+      clearTimeout(id);
+      if (e.name === 'AbortError') {
+        const lastTry = attempt === retries;
+        logger.error(`AI timeout ${path} after ${timeout}ms (attempt ${attempt + 1}/${retries + 1})`);
+        if (!lastTry) continue;
+        throw new Error(`AI analysis timed out after ${Math.round(timeout / 1000)}s`);
+      }
+      throw e;
     }
-    return res.json();
-  } catch (e) {
-    clearTimeout(id);
-    if (e.name === 'AbortError') {
-      throw new Error('AI analysis timed out');
-    }
-    throw e;
   }
+  throw new Error('AI analysis service unavailable');
 }
 
 /**

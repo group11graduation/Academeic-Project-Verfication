@@ -16,6 +16,10 @@ const AssignmentCreate = () => {
     const [submissionMode, setSubmissionMode] = useState('single');
     const [proposalDeadline, setProposalDeadline] = useState('');
     const [projectDeadline, setProjectDeadline] = useState('');
+    const [requirementText, setRequirementText] = useState('');
+    const [requiredKeywordsText, setRequiredKeywordsText] = useState('');
+    const [allowedTechnologiesText, setAllowedTechnologiesText] = useState('');
+    const [requirementsFile, setRequirementsFile] = useState(null);
 
     useEffect(() => {
         const loadCatalog = async () => {
@@ -49,20 +53,24 @@ const AssignmentCreate = () => {
 
         try {
             setSubmitting(true);
-            const body = {
-                classId: row.class._id,
-                subjectId,
-                semesterId: row.semester?._id || row.semester,
-                academicYearId: row.academicYear?._id || row.academicYear,
-                title: title.trim(),
-                description: description.trim(),
-                submissionMode,
-                proposalPhaseOpen: true,
-                projectPhaseOpen: false,
-                proposalDeadline: proposalDeadline || null,
-                projectDeadline: projectDeadline || null,
-            };
-            const res = await teacherService.createAssignmentJson(body);
+            const fd = new FormData();
+            fd.append('classId', row.class._id);
+            fd.append('subjectId', subjectId);
+            fd.append('semesterId', row.semester?._id || row.semester || '');
+            fd.append('academicYearId', row.academicYear?._id || row.academicYear || '');
+            fd.append('title', title.trim());
+            fd.append('description', description.trim());
+            fd.append('submissionMode', submissionMode);
+            fd.append('proposalPhaseOpen', 'true');
+            fd.append('projectPhaseOpen', 'false');
+            if (proposalDeadline) fd.append('proposalDeadline', proposalDeadline);
+            if (projectDeadline) fd.append('projectDeadline', projectDeadline);
+            if (requirementText.trim()) fd.append('requirementText', requirementText.trim());
+            if (requiredKeywordsText.trim()) fd.append('requiredKeywordsText', requiredKeywordsText.trim());
+            if (allowedTechnologiesText.trim()) fd.append('allowedTechnologiesText', allowedTechnologiesText.trim());
+            if (requirementsFile) fd.append('requirementsFile', requirementsFile);
+
+            const res = await teacherService.createAssignment(fd);
             if (res.success) navigate('/teacher/assignments');
         } catch (err) {
             console.error(err);
@@ -148,6 +156,50 @@ const AssignmentCreate = () => {
                                 rows={4}
                                 className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Teacher requirements (optional)</label>
+                            <textarea
+                                value={requirementText}
+                                onChange={(e) => setRequirementText(e.target.value)}
+                                rows={4}
+                                placeholder="Example: Must include authentication, dashboard, and API integration."
+                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Required keywords (optional)</label>
+                                <input
+                                    type="text"
+                                    value={requiredKeywordsText}
+                                    onChange={(e) => setRequiredKeywordsText(e.target.value)}
+                                    placeholder="authentication, api, dashboard"
+                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Allowed technologies (optional)</label>
+                                <input
+                                    type="text"
+                                    value={allowedTechnologiesText}
+                                    onChange={(e) => setAllowedTechnologiesText(e.target.value)}
+                                    placeholder="react, node, mongodb"
+                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Requirements file (optional)</label>
+                            <input
+                                type="file"
+                                onChange={(e) => setRequirementsFile(e.target.files?.[0] || null)}
+                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                            />
+                            <p className="mt-2 text-xs text-slate-500">You can upload now or later from assignment detail page.</p>
                         </div>
 
                         <div>

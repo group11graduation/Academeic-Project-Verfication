@@ -76,7 +76,9 @@ async function mapEnrolledStudents(classCode) {
         studentId: p.studentId || '',
         name: p.user.name || '',
         email: p.user.email || '',
+        username: p.user.username || '',
         photo: p.user.photo || '',
+        hasAccount: true,
         accountStatus: p.user.isActive === false ? 'inactive' : 'active',
         createdAt: p.createdAt,
       };

@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import fs from 'fs/promises';
+import path from 'path';
+import mammoth from 'mammoth';
 import { Assignment } from '../models/Assignment.js';
 import { Group } from '../models/Group.js';
 import { Proposal, PROPOSAL_STATUSES } from '../models/Proposal.js';
@@ -6,26 +9,124 @@ import { LegacyProject } from '../models/LegacyProject.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { Enrollment } from '../models/Enrollment.js';
 import { StudentProfile } from '../models/StudentProfile.js';
+import { Class } from '../models/Class.js';
 import { analyzeProposalPayload } from './aiClient.service.js';
+import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
 
 function buildProposalText(title, description, features) {
   const f = Array.isArray(features) ? features.filter(Boolean).join(', ') : '';
   return `${title || ''}\n${description || ''}\nFeatures: ${f}`;
 }
 
-async function assertStudentAccess(userId, assignment) {
-  const subId = assignment.subject;
-  const enr = await Enrollment.findOne({
-    student: userId,
-    class: assignment.class,
-    subjects: subId,
-    status: 'active',
-  });
-  if (!enr) {
-    const err = new Error('You are not enrolled in this class for this subject');
-    err.status = 403;
+function parseStructuredProposalText(rawText) {
+  const text = String(rawText || '').replace(/\r/g, '');
+  const lines = text.split('\n');
+  let title = '';
+  let description = '';
+  const features = [];
+  let section = '';
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('title:')) {
+      section = 'title';
+      title = trimmed.slice(6).trim();
+      continue;
+    }
+    if (lower.startsWith('description:')) {
+      section = 'description';
+      const v = trimmed.slice(12).trim();
+      if (v) description += `${description ? ' ' : ''}${v}`;
+      continue;
+    }
+    if (lower.startsWith('features:')) {
+      section = 'features';
+      const v = trimmed.slice(9).trim();
+      if (v) features.push(v);
+      continue;
+    }
+    if (section === 'features') {
+      const cleaned = trimmed.replace(/^[-*]\s*/, '').trim();
+      if (cleaned) features.push(cleaned);
+    } else if (section === 'description') {
+      description += `${description ? ' ' : ''}${trimmed}`;
+    } else if (!title) {
+      title = trimmed;
+    } else {
+      description += `${description ? ' ' : ''}${trimmed}`;
+    }
+  }
+  return {
+    title: title.trim(),
+    description: description.trim(),
+    features: features.map((f) => f.trim()).filter(Boolean),
+  };
+}
+
+async function readProposalFileText(file) {
+  if (!file?.path) return '';
+  const ext = path.extname(file.originalname || file.filename || '').toLowerCase();
+  const allowed = new Set(['.txt', '.md', '.json', '.csv', '.docx']);
+  if (!allowed.has(ext)) {
+    const err = new Error('Unsupported proposal file type. Use .txt, .md, .json, .csv, or .docx');
+    err.status = 400;
     throw err;
   }
+  if (ext === '.docx') {
+    const result = await mammoth.extractRawText({ path: file.path });
+    return String(result.value || '').trim();
+  }
+  const data = await fs.readFile(file.path, 'utf8');
+  return data || '';
+}
+
+async function assertStudentAccess(userId, assignment) {
+  const subId = String(assignment.subject?._id || assignment.subject);
+  const classId = String(assignment.class?._id || assignment.class);
+
+  // Primary: active enrollment with subject directly assigned.
+  let enr = await Enrollment.findOne({
+    student: userId,
+    class: classId,
+    subjects: assignment.subject,
+    status: 'active',
+  }).lean();
+  if (enr) return;
+
+  // Secondary: enrollment exists for class but subjects array is missing/empty; fallback to class subjects.
+  const classEnrollment = await Enrollment.findOne({
+    student: userId,
+    class: classId,
+    status: 'active',
+  }).lean();
+  if (classEnrollment) {
+    const hasSubjectOnEnrollment = Array.isArray(classEnrollment.subjects) && classEnrollment.subjects
+      .map((s) => String(s))
+      .includes(subId);
+    if (hasSubjectOnEnrollment) return;
+
+    const cls = await Class.findById(classId).select('subjects').lean();
+    const classSubjects = (cls?.subjects || []).map((s) => String(s));
+    if (classSubjects.includes(subId)) return;
+  }
+
+  // Final fallback: student linked by StudentProfile.classCode to this class code.
+  const profile = await StudentProfile.findOne({ user: userId }).select('classCode').lean();
+  if (profile?.classCode) {
+    const cls = await Class.findById(classId).select('code subjects').lean();
+    const profileCode = String(profile.classCode || '').trim().toUpperCase();
+    const classCode = String(cls?.code || '').trim().toUpperCase();
+    if (profileCode && classCode && profileCode === classCode) {
+      const classSubjects = (cls?.subjects || []).map((s) => String(s));
+      if (classSubjects.includes(subId)) return;
+    }
+  }
+
+  const err = new Error('You are not enrolled in this class for this subject');
+  err.status = 403;
+  throw err;
 }
 
 async function assertLeaderOrSingle(userId, assignment, groupId) {
@@ -55,10 +156,17 @@ async function assertLeaderOrSingle(userId, assignment, groupId) {
 /**
  * Create or update draft / submit with AI + status rules.
  */
-export async function upsertAndSubmitProposal(userId, assignmentId, body) {
-  const { title, description, features, groupId, finalize } = body;
+export async function upsertAndSubmitProposal(userId, assignmentId, body, proposalFile = null) {
+  let { title, description, features, groupId, finalize } = body;
+  if ((!title || !String(title).trim()) && proposalFile) {
+    const extractedText = await readProposalFileText(proposalFile);
+    const parsed = parseStructuredProposalText(extractedText);
+    title = parsed.title;
+    description = parsed.description;
+    features = parsed.features;
+  }
   if (!title?.trim()) {
-    const err = new Error('Title is required');
+    const err = new Error('Title is required (or upload a structured proposal file).');
     err.status = 400;
     throw err;
   }
@@ -105,6 +213,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body) {
       status: 'draft',
     });
   } else {
+    if (finalize && proposal.status === 'teacher_approved') {
+      const err = new Error('Proposal already approved. You cannot submit another one for this assignment.');
+      err.status = 400;
+      throw err;
+    }
     proposal.title = title.trim();
     proposal.description = description?.trim() || '';
     proposal.features = Array.isArray(features) ? features.map((x) => String(x).trim()).filter(Boolean) : [];
@@ -129,6 +242,23 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body) {
   }
 
   await proposal.save();
+
+  // Requirement pre-check gate (runs BEFORE semantic AI checks)
+  const requirementCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
+  proposal.requirementCheckPassed = requirementCheck.passed;
+  proposal.requirementCheckSummary = requirementCheck.summary;
+  proposal.requirementMissingKeywords = requirementCheck.missingKeywords;
+  proposal.requirementAllowedTechMatched = requirementCheck.matchedAllowedTech;
+  if (!requirementCheck.passed) {
+    proposal.status = 'requirements_rejected';
+    proposal.submittedAt = new Date();
+    await proposal.save();
+    return {
+      proposal,
+      ai: null,
+      message: `Rejected automatically: ${requirementCheck.summary}`,
+    };
+  }
 
   // Finalize: run AI pipeline
   const text = buildProposalText(proposal.title, proposal.description, proposal.features);
@@ -247,6 +377,12 @@ export async function teacherReviewProposal(teacherId, proposalId, { action, com
     throw err;
   }
 
+  if (action === 'comment') {
+    proposal.teacherComment = comment || '';
+    await proposal.save();
+    return proposal;
+  }
+
   const reviewable = ['pending_teacher_approval'];
   if (!reviewable.includes(proposal.status)) {
     const err = new Error('Proposal is not awaiting teacher review in its current state');
@@ -258,6 +394,11 @@ export async function teacherReviewProposal(teacherId, proposalId, { action, com
 
   if (action === 'approve') {
     proposal.status = 'teacher_approved';
+    // Auto-open project phase once a proposal is approved so student can proceed to Step 2.
+    if (proposal.assignment && proposal.assignment.projectPhaseOpen === false) {
+      proposal.assignment.projectPhaseOpen = true;
+      await proposal.assignment.save();
+    }
   } else if (action === 'reject') {
     proposal.status = 'teacher_rejected';
   } else if (action === 'revision') {
@@ -298,7 +439,24 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     ? await ProjectSubmission.distinct('proposal', { proposal: { $in: ids } })
     : [];
   const subSet = new Set(withSub.map(String));
-  return list.map((p) => ({ ...p, hasProjectSubmission: subSet.has(String(p._id)) }));
+  const studentUserIds = list
+    .map((p) => p?.submittedBy?._id)
+    .filter(Boolean);
+  const profiles = studentUserIds.length
+    ? await StudentProfile.find({ user: { $in: studentUserIds } }).select('user studentId').lean()
+    : [];
+  const studentIdByUser = new Map(profiles.map((sp) => [String(sp.user), sp.studentId || '']));
+
+  return list.map((p) => ({
+    ...p,
+    hasProjectSubmission: subSet.has(String(p._id)),
+    submittedBy: p.submittedBy
+      ? {
+          ...p.submittedBy,
+          studentId: studentIdByUser.get(String(p.submittedBy._id)) || '',
+        }
+      : p.submittedBy,
+  }));
 }
 
 export async function getProposalForStudent(userId, proposalId) {
@@ -331,9 +489,6 @@ export async function getProposalForStudent(userId, proposalId) {
 /** Whether student may start project submission */
 export async function canAccessProjectSubmission(userId, assignmentId) {
   const assignment = await Assignment.findById(assignmentId);
-  if (!assignment?.projectPhaseOpen) {
-    return { allowed: false, reason: 'Project phase is not open yet.' };
-  }
 
   let prop;
   if (assignment.submissionMode === 'single') {
@@ -361,6 +516,14 @@ export async function canAccessProjectSubmission(userId, assignmentId) {
       allowed: false,
       reason: 'Your proposal must be teacher-approved before you can submit the project.',
     };
+  }
+  // Backward-compatible unlock: once teacher approves proposal, allow project phase
+  // even if assignment.projectPhaseOpen was not toggled previously.
+  if (!assignment?.projectPhaseOpen && prop.status === 'teacher_approved') {
+    return { allowed: true, proposal: prop };
+  }
+  if (!assignment?.projectPhaseOpen) {
+    return { allowed: false, reason: 'Project phase is not open yet.' };
   }
   return { allowed: true, proposal: prop };
 }

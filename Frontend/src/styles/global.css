@@ -6,6 +6,20 @@
   body {
     @apply bg-[#0B1120] text-slate-100 antialiased transition-colors duration-300;
   }
+
+  /* Global form text readability rule: always black text in fields */
+  input,
+  textarea,
+  select,
+  option {
+    color: #000 !important;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #6b7280 !important;
+    opacity: 1;
+  }
 }
 
 @layer components {

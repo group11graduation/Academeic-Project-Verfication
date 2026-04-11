@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRoles } from '../middleware/auth.js';
 import * as teacher from '../controllers/teacherProposal.controller.js';
 import * as teacherPreview from '../controllers/teacherPreview.controller.js';
+import { uploadAssignmentRequirement } from '../middleware/assignmentRequirementUpload.js';
 
 const router = Router();
 
@@ -10,8 +11,9 @@ router.use(requireRoles('teacher'));
 router.get('/classes', teacher.listMyClasses);
 router.get('/catalog', teacher.getCatalog);
 router.get('/assignments', teacher.listAssignments);
-router.post('/assignments', teacher.createAssignment);
+router.post('/assignments', uploadAssignmentRequirement.single('requirementsFile'), teacher.createAssignment);
 router.get('/assignments/:id', teacher.getAssignment);
+router.post('/assignments/:id/requirements-file', uploadAssignmentRequirement.single('requirementsFile'), teacher.uploadRequirementsFile);
 router.get('/assignments/:assignmentId/proposals', teacher.listProposals);
 router.get('/assignments/:assignmentId/groups', teacher.listGroups);
 router.post('/assignments/:assignmentId/groups', teacher.createGroup);

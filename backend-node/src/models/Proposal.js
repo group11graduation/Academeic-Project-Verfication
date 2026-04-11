@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 export const PROPOSAL_STATUSES = [
   'draft',
   'submitted',
+  'requirements_rejected',
   'ai_rejected_same_semester',
   'ai_flagged_previous_semester',
   'revision_required',
@@ -31,6 +32,11 @@ const proposalSchema = new mongoose.Schema(
     aiMatchedProposalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proposal' },
     aiMatchedLegacyId: { type: mongoose.Schema.Types.ObjectId, ref: 'LegacyProject' },
     aiSummary: { type: String, default: '' },
+    /** Requirement pre-check snapshot (runs before AI similarity checks) */
+    requirementCheckPassed: { type: Boolean, default: true },
+    requirementCheckSummary: { type: String, default: '' },
+    requirementMissingKeywords: [{ type: String }],
+    requirementAllowedTechMatched: [{ type: String }],
     /** After previous-semester warning: student must add features before resubmit */
     requiredNewFeaturesCount: { type: Number, default: 0 },
     /** Snapshot when AI flagged previous-semester match (for diff on resubmit) */

@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import { Assignment } from '../models/Assignment.js';
 import * as proposalWorkflow from './proposalWorkflow.service.js';
+import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
 
 /**
  * Save uploaded ZIP and record submission. Requires same gates as project phase access
@@ -26,6 +28,16 @@ export async function submitProjectZip(userId, assignmentId, file) {
     const err = new Error('Your proposal must be teacher-approved before submitting project code.');
     err.status = 400;
     throw err;
+  }
+
+  const assignment = await Assignment.findById(proposal.assignment).lean();
+  if (assignment) {
+    const reqCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
+    if (!reqCheck.passed) {
+      const err = new Error(`Project submission blocked: ${reqCheck.summary}`);
+      err.status = 400;
+      throw err;
+    }
   }
 
   const relDir = path.join('project-code', String(proposal._id));

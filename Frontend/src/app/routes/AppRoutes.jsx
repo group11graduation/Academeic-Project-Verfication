@@ -101,6 +101,8 @@ const AppRoutes = () => {
             >
                 <Route index element={<StudentMyProject />} />
                 <Route path="projects" element={<StudentMyProject />} />
+                <Route path="assignments" element={<StudentAssignments />} />
+                <Route path="assignments/:id" element={<StudentAssignmentDetail />} />
                 <Route path="assignments/:assignmentId/proposal" element={<StudentProposalSubmit />} />
                 <Route path="profile" element={<StudentProfile />} />
                 <Route path="project" element={<StudentMyProjectDetail />} />

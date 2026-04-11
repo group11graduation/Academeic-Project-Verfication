@@ -116,7 +116,7 @@ const DashboardLayout = ({ children }) => {
                     className="hidden h-screen shrink-0 lg:sticky lg:top-0 lg:block"
                     style={{ width: isSidebarCollapsed ? RAIL_W : SIDEBAR_W, minWidth: isSidebarCollapsed ? RAIL_W : SIDEBAR_W }}
                 >
-                    <div className="flex h-screen overflow-hidden border-r border-slate-200 bg-white shadow-[6px_0_24px_-18px_rgba(15,23,42,0.2)]">
+                    <div className="flex h-screen overflow-hidden rounded-r-[16px] bg-white shadow-[6px_0_24px_-18px_rgba(15,23,42,0.2)] ring-1 ring-slate-200">
                         <div className="flex w-[100px] shrink-0 flex-col items-center bg-gradient-to-b from-[#2a3fa4] to-[#223688] px-3 py-5 text-white">
                             <button
                                 type="button"
@@ -139,6 +139,7 @@ const DashboardLayout = ({ children }) => {
                                             title={section.name}
                                             onClick={() => {
                                                 setActiveSectionKey(section.key);
+                                                setIsSidebarCollapsed(false);
                                                 if (firstLink?.path) navigate(firstLink.path);
                                             }}
                                             className={`flex w-full items-center justify-center rounded-[20px] px-2 py-3 transition-all ${
@@ -179,7 +180,9 @@ const DashboardLayout = ({ children }) => {
                             </button>
                         </div>
 
-                        {!isSidebarCollapsed && <div className="flex min-w-0 flex-1 flex-col bg-[#fbfcff]">
+                        {!isSidebarCollapsed && <>
+                            <div className="w-[2px] bg-[#eaf0ff] shadow-[1px_0_0_rgba(15,23,42,0.10)]" />
+                            <div className="flex min-w-0 flex-1 flex-col bg-gradient-to-b from-[#f4f7ff] via-white to-[#f4f7ff] rounded-r-[16px] overflow-hidden">
                             <button
                                 type="button"
                                 onClick={() => navigate('/teacher')}
@@ -236,15 +239,16 @@ const DashboardLayout = ({ children }) => {
                                     Logout
                                 </button>
                             </div>
-                        </div>}
+                        </div>
+                        </>}
                     </div>
                 </aside>
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f8fafc]" style={{ backgroundColor: CONTENT_BG }}>
-                    <header className="flex h-[72px] shrink-0 items-center justify-between gap-4 border-b border-slate-200/80 bg-white px-4 sm:px-6 lg:px-8">
+                    <header className="flex h-[76px] shrink-0 items-center justify-between gap-4 bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-4 sm:px-6 lg:px-8">
                         <div className="min-w-0">
-                            <div className="text-[15px] font-bold leading-tight text-slate-900">Welcome back</div>
-                            <div className="text-[12px] font-semibold text-slate-500">Teacher Dashboard</div>
+                            <div className="text-[15px] font-extrabold leading-tight text-[#1d2f82]">Welcome back</div>
+                            <div className="text-[12px] font-semibold text-[#51628f]">Teacher Dashboard</div>
                         </div>
 
                         <div className="mx-2 hidden min-w-0 max-w-2xl flex-1 md:block">
@@ -253,7 +257,7 @@ const DashboardLayout = ({ children }) => {
                                 <input
                                     type="text"
                                     placeholder="Search"
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-[14px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#1e56e3] focus:bg-white focus:ring-2 focus:ring-[#1e56e3]/15"
+                                    className="w-full rounded-xl border border-[#cfdbfb] bg-white/90 py-2.5 pl-10 pr-4 text-[14px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:bg-white focus:ring-2 focus:ring-[#2a3fa4]/15"
                                 />
                             </div>
                         </div>
@@ -261,12 +265,12 @@ const DashboardLayout = ({ children }) => {
                         <div className="flex items-center gap-2 sm:gap-3">
                             <button
                                 type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50"
+                                className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#cfdbfb] bg-white text-[#53638f] transition-colors hover:bg-[#f5f8ff]"
                                 title="Notifications"
                             >
                                 <Bell className="h-5 w-5" strokeWidth={2} />
                             </button>
-                            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white py-1.5 pl-2 pr-3 shadow-sm">
+                            <div className="flex items-center gap-3 rounded-xl border border-[#cfdbfb] bg-white py-1.5 pl-2 pr-3 shadow-sm">
                                 <div
                                     className="flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-extrabold text-white"
                                     style={{ backgroundColor: TEACHER_BLUE }}

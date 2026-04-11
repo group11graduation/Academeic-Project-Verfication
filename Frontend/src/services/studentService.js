@@ -27,6 +27,20 @@ const studentService = {
         return response.data;
     },
 
+    submitProposalWithFile: async (assignmentId, payload) => {
+        const fd = new FormData();
+        if (payload?.title) fd.append('title', payload.title);
+        if (payload?.description) fd.append('description', payload.description);
+        if (Array.isArray(payload?.features)) {
+            payload.features.forEach((f) => fd.append('features[]', f));
+        }
+        if (payload?.groupId) fd.append('groupId', payload.groupId);
+        fd.append('finalize', payload?.finalize ? 'true' : 'false');
+        if (payload?.file) fd.append('proposalFile', payload.file);
+        const response = await api.post(`${base}/assignments/${assignmentId}/proposals`, fd);
+        return response.data;
+    },
+
     getProposal: async (proposalId) => {
         const response = await api.get(`${base}/proposals/${proposalId}`);
         return response.data;

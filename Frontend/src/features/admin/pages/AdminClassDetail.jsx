@@ -34,6 +34,8 @@ const AdminClassDetail = () => {
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [savingClassInfo, setSavingClassInfo] = useState(false);
+    const [generatingStudentPasscodeFor, setGeneratingStudentPasscodeFor] = useState('');
+    const [generatedPasscodes, setGeneratedPasscodes] = useState({});
     const [classForm, setClassForm] = useState({
         name: '',
         description: '',
@@ -203,6 +205,23 @@ const AdminClassDetail = () => {
             alert(error.response?.data?.message || error.message || 'Could not update class');
         } finally {
             setSavingClassInfo(false);
+        }
+    };
+
+    const handleGenerateStudentAccount = async (studentProfileId, studentLabel) => {
+        try {
+            setGeneratingStudentPasscodeFor(String(studentProfileId));
+            const res = await adminStudentService.generatePasscode(studentProfileId);
+            if (!res.success) throw new Error(res.message || 'Failed to generate account');
+            const passcode = res.data?.passcode || '';
+            setGeneratedPasscodes((prev) => ({ ...prev, [String(studentProfileId)]: passcode }));
+            alert(`New passcode for ${studentLabel}: ${passcode}`);
+            await fetchClassDetails();
+        } catch (error) {
+            console.error('Error generating student account:', error);
+            alert(error.response?.data?.message || error.message || 'Could not generate account');
+        } finally {
+            setGeneratingStudentPasscodeFor('');
         }
     };
 
@@ -478,8 +497,9 @@ const AdminClassDetail = () => {
                             <tr className="border-t border-b border-slate-50 dark:border-slate-700 uppercase tracking-widest text-[11px] font-black text-slate-400 dark:text-slate-500 transition-colors">
                                 <th className="px-8 py-5">Name</th>
                                 <th className="px-8 py-5">ID / Department</th>
-                                <th className="px-8 py-5">{activeTab === 'students' ? 'Enrollment Date' : 'Faculty Email'}</th>
+                                <th className="px-8 py-5">{activeTab === 'students' ? 'Username / Email' : 'Faculty Email'}</th>
                                 <th className="px-8 py-5">Status</th>
+                                {activeTab === 'students' && <th className="px-8 py-5">Account</th>}
                                 <th className="px-8 py-5 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -514,7 +534,9 @@ const AdminClassDetail = () => {
                                     </td>
                                     <td className="px-8 py-5">
                                         <span className="text-[14px] font-medium text-slate-500 dark:text-slate-400 transition-colors">
-                                            {activeTab === 'students' ? new Date(item.createdAt).toLocaleDateString() : item.email}
+                                            {activeTab === 'students'
+                                                ? (item.username ? `${item.username} / ${item.email}` : item.email)
+                                                : item.email}
                                         </span>
                                     </td>
                                     <td className="px-8 py-5">
@@ -523,10 +545,32 @@ const AdminClassDetail = () => {
                                             {(item.accountStatus || 'active').charAt(0).toUpperCase() + (item.accountStatus || 'active').slice(1)}
                                         </span>
                                     </td>
+                                    {activeTab === 'students' && (
+                                        <td className="px-8 py-5">
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-black ${(item.hasAccount ?? Boolean(item.userId)) ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                {(item.hasAccount ?? Boolean(item.userId)) ? 'Has Account' : 'No Account'}
+                                            </span>
+                                            {generatedPasscodes[String(item._id)] && (
+                                                <div className="mt-1 text-[11px] font-mono text-slate-700">
+                                                    Passcode: {generatedPasscodes[String(item._id)]}
+                                                </div>
+                                            )}
+                                        </td>
+                                    )}
                                     <td className="px-8 py-5 text-right">
-                                        <button className="p-2 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                            <MoreVertical className="h-5 w-5" />
-                                        </button>
+                                        {activeTab === 'students' ? (
+                                            <button
+                                                onClick={() => handleGenerateStudentAccount(item._id, item.name || item.studentId)}
+                                                disabled={generatingStudentPasscodeFor === String(item._id)}
+                                                className="px-3 py-2 text-[12px] font-bold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                            >
+                                                {generatingStudentPasscodeFor === String(item._id) ? 'Generating...' : 'Generate/Reset'}
+                                            </button>
+                                        ) : (
+                                            <button className="p-2 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                                                <MoreVertical className="h-5 w-5" />
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

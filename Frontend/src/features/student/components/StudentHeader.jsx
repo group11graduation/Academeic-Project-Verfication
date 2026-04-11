@@ -2,26 +2,26 @@ import React from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
     Rocket,
-    LayoutDashboard,
     BookOpen,
-    FileText,
-    Users,
+    GalleryHorizontal,
+    Home,
     LogOut,
-    Settings,
-    Bell
+    Bell,
+    Search,
+    UserRound
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 
 const StudentHeader = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const accent = '#2a3fa4';
 
     const navItems = [
-        { label: 'HOME', path: '/' },
-        { label: 'GALLERY', path: '/gallery' },
-        { label: 'MY PROJECTS', path: '/student', end: true },
-        { label: 'ASSIGNMENTS', path: '/assignments' },
-        { label: 'ABOUT', path: '/about' },
+        { label: 'Home', path: '/', icon: Home },
+        { label: 'Gallery', path: '/gallery', icon: GalleryHorizontal },
+        { label: 'My Projects', path: '/student', end: true, icon: Rocket },
+        { label: 'Assignments', path: '/student/assignments', icon: BookOpen },
     ];
 
     const handleLogout = () => {
@@ -30,79 +30,89 @@ const StudentHeader = () => {
     };
 
     return (
-        <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
-            <div className="max-w-[1600px] mx-auto px-8 h-24 flex items-center justify-between">
-                {/* Logo */}
-                <Link to="/" className="flex items-center gap-3 min-w-[200px]">
-                    <div className="w-10 h-10 bg-[#1D68E3] rounded-xl flex items-center justify-center shadow-lg shadow-blue-100">
-                        <Rocket className="text-white h-6 w-6" />
-                    </div>
-                    <span className="text-[22px] font-black text-[#0F172A] tracking-tighter hidden sm:block">
-                        ProjectVerify
-                    </span>
-                </Link>
-
-                {/* Centered Navigation */}
-                <nav className="hidden lg:flex items-center gap-12 h-full">
-                    {navItems.map((item, i) => (
-                        <NavLink
-                            key={i}
-                            to={item.path}
-                            end={item.end || item.path === '/'}
-                            className={({ isActive }) => `
-                                relative h-full flex items-center text-[13px] font-black tracking-[0.1em] transition-all
-                                ${isActive
-                                    ? 'text-[#1D68E3]'
-                                    : 'text-slate-400 hover:text-slate-600'}
-                            `}
+        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 border-b border-slate-100">
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
+                <div className="min-h-[56px] h-14 sm:h-[58px] rounded-2xl border border-slate-200/90 bg-[#fafbff] shadow-[0_4px_20px_rgba(29,47,130,0.05)] px-3 sm:px-4 lg:px-5 flex items-center justify-between gap-2 sm:gap-3">
+                    <Link to="/" className="flex items-center gap-2 min-w-fit shrink-0">
+                        <div
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shadow-sm"
+                            style={{ backgroundColor: accent }}
                         >
-                            {({ isActive }) => (
-                                <>
-                                    <span>{item.label}</span>
-                                    {isActive && (
-                                        <div className="absolute -bottom-1 left-0 right-0 h-[3px] bg-[#1D68E3] rounded-full scale-x-110"></div>
-                                    )}
-                                </>
-                            )}
-                        </NavLink>
-                    ))}
-                </nav>
+                            <Rocket className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+                        </div>
+                        <span className="hidden md:block text-[15px] font-extrabold tracking-tight text-slate-900">ProjectVerify</span>
+                    </Link>
 
-                {/* Profile and Actions */}
-                <div className="flex items-center gap-3 min-w-[200px] justify-end">
+                    <nav className="hidden lg:flex flex-1 justify-center max-w-2xl mx-2 items-center rounded-[12px] border border-slate-200/80 bg-white px-1.5 py-1 gap-0.5 shadow-sm">
+                        {navItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                                <NavLink
+                                    key={item.path}
+                                    to={item.path}
+                                    end={item.end || item.path === '/'}
+                                    className={({ isActive }) =>
+                                        `inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] text-[13px] font-bold transition-all ${
+                                            isActive ? 'text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                                        }`
+                                    }
+                                    style={({ isActive }) => (isActive ? { backgroundColor: accent } : undefined)}
+                                >
+                                    <Icon className="h-4 w-4 shrink-0" />
+                                    {item.label}
+                                </NavLink>
+                            );
+                        })}
+                    </nav>
+
                     {user ? (
-                        <div className="flex items-center gap-3">
-                            <Link 
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                className="hidden sm:inline-flex w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 items-center justify-center hover:bg-slate-50 transition-colors"
+                                title="Search"
+                            >
+                                <Search className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                className="hidden sm:inline-flex w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 items-center justify-center hover:bg-slate-50 transition-colors"
+                                title="Notifications"
+                            >
+                                <Bell className="h-4 w-4" />
+                            </button>
+                            <Link
                                 to="/student/profile"
-                                className="w-11 h-11 rounded-full overflow-hidden border-2 border-white shadow-sm hover:shadow-lg hover:border-blue-200 transition-all active:scale-95 group relative"
+                                className="h-9 sm:h-10 pl-1 pr-2 rounded-xl border border-slate-200 bg-white flex items-center gap-2 hover:shadow-sm transition-shadow"
                                 title="My Profile"
                             >
-                                <img 
-                                    src={user.photo || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e"} 
-                                    alt="Profile" 
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                />
-                                <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/10 transition-colors"></div>
+                                <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
+                                    {user.photo ? (
+                                        <img src={user.photo} alt="Profile" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <UserRound className="h-4 w-4 text-slate-500" />
+                                    )}
+                                </div>
+                                <span className="hidden xl:block text-[11px] font-black text-slate-700 max-w-[120px] truncate">
+                                    {user.name || 'Student'}
+                                </span>
                             </Link>
-                            
-                            <button 
+
+                            <button
                                 onClick={handleLogout}
-                                className="group w-11 h-11 flex items-center justify-center rounded-2xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 border border-slate-100 hover:border-rose-100 transition-all active:scale-90 shadow-sm hover:shadow-md"
+                                className="w-9 h-9 rounded-xl border border-rose-200 bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors"
                                 title="Logout"
                             >
-                                <div className="relative">
-                                    <LogOut className="h-5 w-5 transition-transform group-hover:rotate-12" />
-                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                </div>
+                                <LogOut className="h-4 w-4" />
                             </button>
                         </div>
                     ) : (
-                        <button 
+                        <button
                             onClick={() => navigate('/login')}
-                            className="bg-[#1D68E3] text-white px-8 py-2.5 rounded-xl font-bold text-sm hover:shadow-lg hover:shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+                            className="text-white px-4 sm:px-5 py-2 rounded-xl text-[11px] sm:text-xs font-bold tracking-widest hover:opacity-90 transition-opacity shrink-0"
+                            style={{ backgroundColor: accent }}
                         >
-                            <Rocket className="h-4 w-4" />
-                            <span>LOGIN</span>
+                            LOGIN
                         </button>
                     )}
                 </div>

@@ -2,10 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft, Download, Calendar, Users,
-    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck
+    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, MessageSquare, AlertTriangle, XCircle
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
+
+const proposalStatusLabel = (s) => {
+    const map = {
+        draft: 'Draft',
+        submitted: 'Submitted',
+        ai_rejected_same_semester: 'AI rejected (same semester)',
+        ai_flagged_previous_semester: 'AI warning (legacy similarity)',
+        revision_required: 'Revision required',
+        pending_teacher_approval: 'Pending your approval',
+        teacher_approved: 'Approved',
+        teacher_rejected: 'Rejected',
+        requirements_rejected: 'Requirements rejected'
+    };
+    return map[s] || s;
+};
+
+const proposalStudentLabel = (p) => {
+    const name = p?.submittedBy?.name || 'Student';
+    const sid = p?.submittedBy?.studentId || p?.submittedBy?.email || '';
+    return sid ? `${name} (${sid})` : name;
+};
 
 const AssignmentDetail = () => {
     const { id } = useParams();
@@ -13,16 +34,31 @@ const AssignmentDetail = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all'); // all | submitted | pending
+    const [uploadingRequirement, setUploadingRequirement] = useState(false);
+    const [proposals, setProposals] = useState([]);
+    const [loadingProposals, setLoadingProposals] = useState(true);
+    const [openProposalId, setOpenProposalId] = useState(null);
+    const [reviewBusyKey, setReviewBusyKey] = useState(null);
+    const [commentByProposal, setCommentByProposal] = useState({});
 
     useEffect(() => {
         const fetch = async () => {
             try {
-                const res = await teacherService.getAssignmentById(id);
+                const [res, pRes] = await Promise.all([
+                    teacherService.getAssignmentById(id),
+                    teacherService.getProposalsForAssignment(id)
+                ]);
                 if (res.success) setData(res.data);
+                if (pRes.success) {
+                    const rows = pRes.data || [];
+                    setProposals(rows);
+                    setOpenProposalId(rows[0]?._id || null);
+                }
             } catch (err) {
                 console.error(err);
             } finally {
                 setLoading(false);
+                setLoadingProposals(false);
             }
         };
         fetch();
@@ -67,6 +103,38 @@ const AssignmentDetail = () => {
         : filter === 'pending'
             ? pending
             : students;
+
+    const handleUploadRequirementFile = async (file) => {
+        if (!file) return;
+        try {
+            setUploadingRequirement(true);
+            const res = await teacherService.uploadAssignmentRequirements(id, file);
+            if (res.success) {
+                setData(res.data);
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to upload requirements file.');
+        } finally {
+            setUploadingRequirement(false);
+        }
+    };
+
+    const runReview = async (proposalId, action) => {
+        const busyKey = `${proposalId}:${action}`;
+        setReviewBusyKey(busyKey);
+        try {
+            const payload = { action, comment: (commentByProposal[proposalId] || '').trim() };
+            const r = await teacherService.reviewProposal(proposalId, payload);
+            if (r.success) {
+                const refreshed = await teacherService.getProposalsForAssignment(id);
+                if (refreshed.success) setProposals(refreshed.data || []);
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Review action failed');
+        } finally {
+            setReviewBusyKey(null);
+        }
+    };
 
     return (
         <div className="p-4 md:p-10 max-w-[1400px] mx-auto min-h-screen">
@@ -128,6 +196,21 @@ const AssignmentDetail = () => {
                             <Download className="h-4 w-4" /> Download File
                         </a>
                     ) : null}
+                </div>
+                <div className="mt-4 flex items-center gap-3">
+                    <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5">
+                        {uploadingRequirement ? 'Uploading...' : (data.assignmentFile ? 'Replace requirements file' : 'Upload requirements file')}
+                        <input
+                            type="file"
+                            className="hidden"
+                            onChange={(e) => handleUploadRequirementFile(e.target.files?.[0])}
+                        />
+                    </label>
+                    {data.originalFileName ? (
+                        <span className="text-xs font-bold text-slate-500">Current file: {data.originalFileName}</span>
+                    ) : (
+                        <span className="text-xs font-bold text-slate-400">No requirements file uploaded yet.</span>
+                    )}
                 </div>
 
                 {/* Progress Bar */}
@@ -258,6 +341,111 @@ const AssignmentDetail = () => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Actual proposal review in this page */}
+            <div className="mt-6 bg-white dark:bg-[#0F172A] rounded-[28px] border border-slate-100 dark:border-white/5 p-6 md:p-7 shadow-xl">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                    <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">Proposal review in this page</h2>
+                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        {proposals.length} proposals
+                    </span>
+                </div>
+                {loadingProposals ? (
+                    <div className="py-8 flex items-center justify-center">
+                        <Loader2 className="h-6 w-6 text-[#1D68E3] animate-spin" />
+                    </div>
+                ) : proposals.length === 0 ? (
+                    <p className="text-sm font-semibold text-slate-500">No proposals submitted yet for this assignment.</p>
+                ) : (
+                    <div className="space-y-4">
+                        {proposals.map((p) => {
+                            const open = openProposalId === p._id;
+                            return (
+                                <div key={p._id} className="rounded-2xl border border-slate-200 dark:border-white/10 p-4 md:p-5">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-black text-slate-900 dark:text-slate-100">{proposalStudentLabel(p)}</p>
+                                            <p className="text-xs font-bold text-slate-500">{proposalStatusLabel(p.status)}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpenProposalId((prev) => (prev === p._id ? null : p._id))}
+                                            className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                                        >
+                                            {open ? 'Hide review' : 'Open review'}
+                                        </button>
+                                    </div>
+
+                                    {open && (
+                                        <div className="mt-4">
+                                            <h3 className="text-base font-black text-slate-900 dark:text-slate-100 mb-1">{p.title || 'Untitled proposal'}</h3>
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap mb-3">{p.description || 'No description'}</p>
+                                            <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 mb-3">
+                                                {(p.features || []).map((f, idx) => <li key={idx}>{f}</li>)}
+                                            </ul>
+
+                                            {p.teacherComment && (
+                                                <div className="mb-3 text-xs font-semibold text-amber-700 dark:text-amber-300 inline-flex items-start gap-2">
+                                                    <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
+                                                    {p.teacherComment}
+                                                </div>
+                                            )}
+
+                                            <>
+                                                <textarea
+                                                    value={commentByProposal[p._id] || ''}
+                                                    onChange={(e) => setCommentByProposal((prev) => ({ ...prev, [p._id]: e.target.value }))}
+                                                    rows={2}
+                                                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2.5 text-sm mb-2"
+                                                    placeholder="Optional comment for this student..."
+                                                />
+                                                <button
+                                                    type="button"
+                                                    disabled={!!reviewBusyKey || !(commentByProposal[p._id] || '').trim()}
+                                                    onClick={() => runReview(p._id, 'comment')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-bold disabled:opacity-50 mb-3"
+                                                >
+                                                    <MessageSquare className="h-4 w-4" /> Send feedback
+                                                </button>
+                                            </>
+                                            {(p.status === 'pending_teacher_approval' || p.status === 'revision_required') && (
+                                                <>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            disabled={!!reviewBusyKey}
+                                                            onClick={() => runReview(p._id, 'approve')}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-50"
+                                                        >
+                                                            <CheckCircle2 className="h-4 w-4" /> Approve
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={!!reviewBusyKey}
+                                                            onClick={() => runReview(p._id, 'revision')}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-50"
+                                                        >
+                                                            <AlertTriangle className="h-4 w-4" /> Revision
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={!!reviewBusyKey}
+                                                            onClick={() => runReview(p._id, 'reject')}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold disabled:opacity-50"
+                                                        >
+                                                            <XCircle className="h-4 w-4" /> Reject
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -204,7 +204,7 @@ const StudentMyProjectDetail = () => {
                     <p className="font-bold text-slate-400 uppercase tracking-widest text-xs">Loading Project details...</p>
                 </div>
             ) : accessDenied ? (
-                <main className="max-w-[640px] mx-auto px-8 py-16 text-center">
+                <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
                     <div className="bg-white rounded-2xl border border-slate-200 p-10 shadow-sm">
                         <ShieldCheck className="h-12 w-12 text-amber-500 mx-auto mb-4" />
                         <h1 className="text-xl font-black text-[#0F172A] mb-3">Project submission locked</h1>
@@ -228,11 +228,11 @@ const StudentMyProjectDetail = () => {
                     </div>
                 </main>
             ) : !project ? (
-                <main className="max-w-[640px] mx-auto px-8 py-16 text-center text-slate-500 font-bold">
+                <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center text-slate-500 font-bold">
                     No assignment data loaded.
                 </main>
             ) : (
-                <main className="max-w-[1300px] mx-auto px-8 py-10">
+                <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
                 
                 {/* Page Header */}
                 <div className="mb-6">

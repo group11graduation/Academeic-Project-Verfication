@@ -25,8 +25,18 @@ export const getAssignment = asyncHandler(async (req, res) => {
 });
 
 export const createAssignment = asyncHandler(async (req, res) => {
-  const row = await assignmentTeacher.createAssignment(req.userId, req.body);
+  const payload = { ...req.body };
+  if (req.file?.filename) {
+    payload._requirementsFilePath = `/uploads/assignment-requirements/${req.file.filename}`;
+    payload._requirementsOriginalName = req.file.originalname || req.file.filename;
+  }
+  const row = await assignmentTeacher.createAssignment(req.userId, payload, req.file || null);
   return success(res, row, 201);
+});
+
+export const uploadRequirementsFile = asyncHandler(async (req, res) => {
+  const row = await assignmentTeacher.attachRequirementsFile(req.userId, req.params.id, req.file || null);
+  return success(res, row);
 });
 
 export const listProposals = asyncHandler(async (req, res) => {

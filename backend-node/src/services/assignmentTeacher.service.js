@@ -3,6 +3,7 @@ import { Assignment } from '../models/Assignment.js';
 import { Group } from '../models/Group.js';
 import { Class } from '../models/Class.js';
 import { StudentProfile } from '../models/StudentProfile.js';
+import { Semester } from '../models/Semester.js';
 
 export async function listClassesForTeacher(teacherId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
@@ -98,24 +99,78 @@ export async function createAssignment(teacherId, payload) {
     throw err;
   }
 
+  const semesterResolved = semesterId || classDoc.semester || null;
+  let academicYearResolved = classDoc.academicYear || null;
+  if (!academicYearResolved && semesterResolved) {
+    const sem = await Semester.findById(semesterResolved).lean();
+    academicYearResolved = sem?.academicYear || null;
+  }
+  if (!semesterResolved) {
+    const err = new Error('semesterId is required for assignment');
+    err.status = 400;
+    throw err;
+  }
+  if (!academicYearResolved) {
+    const err = new Error('academicYear is required; assign class semester/academic year first');
+    err.status = 400;
+    throw err;
+  }
+
+  const parseList = (v) => {
+    if (Array.isArray(v)) return v.map((x) => String(x || '').trim()).filter(Boolean);
+    if (typeof v === 'string') return v.split(',').map((x) => x.trim()).filter(Boolean);
+    return [];
+  };
+  const parseBool = (v, fallback = false) => {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') {
+      if (v.toLowerCase() === 'true') return true;
+      if (v.toLowerCase() === 'false') return false;
+    }
+    return fallback;
+  };
+
   const doc = new Assignment({
     teacher: teacherId,
     class: classId,
     subject: subjectId,
-    semester: semesterId,
-    academicYear: academicYearId,
+    semester: semesterResolved,
+    academicYear: academicYearResolved,
     title: title?.trim(),
     description: description?.trim() || '',
+    requirementText: String(payload.requirementText || '').trim(),
+    requiredKeywords: parseList(payload.requiredKeywords || payload.requiredKeywordsText),
+    allowedTechnologies: parseList(payload.allowedTechnologies || payload.allowedTechnologiesText),
+    assignmentFile: payload._requirementsFilePath || '',
+    originalFileName: payload._requirementsOriginalName || '',
     submissionMode: submissionMode || 'single',
     groupModeType: groupModeType || 'teacher_manual',
     maxGroupSize: maxGroupSize || 4,
-    proposalPhaseOpen: proposalPhaseOpen !== false,
-    projectPhaseOpen: !!projectPhaseOpen,
+    proposalPhaseOpen: parseBool(proposalPhaseOpen, true),
+    projectPhaseOpen: parseBool(projectPhaseOpen, false),
     proposalDeadline: proposalDeadline ? new Date(proposalDeadline) : null,
     projectDeadline: projectDeadline ? new Date(projectDeadline) : null,
   });
   await doc.save();
   return getAssignmentForTeacher(teacherId, doc._id);
+}
+
+export async function attachRequirementsFile(teacherId, assignmentId, file) {
+  if (!file?.filename) {
+    const err = new Error('No requirements file uploaded');
+    err.status = 400;
+    throw err;
+  }
+  const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId });
+  if (!a) {
+    const err = new Error('Assignment not found');
+    err.status = 404;
+    throw err;
+  }
+  a.assignmentFile = `/uploads/assignment-requirements/${file.filename}`;
+  a.originalFileName = file.originalname || file.filename;
+  await a.save();
+  return getAssignmentForTeacher(teacherId, assignmentId);
 }
 
 export async function createGroupForAssignment(teacherId, assignmentId, { name, leaderUserId, memberUserIds }) {

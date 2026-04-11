@@ -85,6 +85,15 @@ const teacherService = {
         return response.data;
     },
 
+    uploadAssignmentRequirements: async (assignmentId, file) => {
+        const fd = new FormData();
+        fd.append('requirementsFile', file);
+        const response = await api.post(`${base}/assignments/${assignmentId}/requirements-file`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
     getProposalsForAssignment: async (assignmentId) => {
         const response = await api.get(`${base}/assignments/${assignmentId}/proposals`);
         return response.data;

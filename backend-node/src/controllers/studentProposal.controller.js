@@ -10,7 +10,7 @@ export const dashboard = asyncHandler(async (req, res) => {
 });
 
 export const listAssignments = asyncHandler(async (req, res) => {
-  const data = await assignmentStudent.listAssignmentsWithProposalsForStudent(req.userId);
+  const data = await assignmentStudent.getStudentAssignmentsOverview(req.userId);
   return success(res, data);
 });
 
@@ -20,7 +20,12 @@ export const getAssignment = asyncHandler(async (req, res) => {
 });
 
 export const submitProposal = asyncHandler(async (req, res) => {
-  const result = await proposalWorkflow.upsertAndSubmitProposal(req.userId, req.params.assignmentId, req.body);
+  const result = await proposalWorkflow.upsertAndSubmitProposal(
+    req.userId,
+    req.params.assignmentId,
+    req.body,
+    req.file || null
+  );
   return success(res, result);
 });
 

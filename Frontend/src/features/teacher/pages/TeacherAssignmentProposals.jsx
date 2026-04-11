@@ -28,6 +28,23 @@ const statusLabel = (s) => {
     return map[s] || s;
 };
 
+const studentIdentityLabel = (proposal) => {
+    const name = proposal?.submittedBy?.name || 'Student';
+    const sid = proposal?.submittedBy?.studentId || proposal?.submittedBy?.email || '';
+    return sid ? `${name} (${sid})` : name;
+};
+
+const safePreviewUrl = (url) => {
+    if (!url) return '';
+    try {
+        const u = new URL(url);
+        if (u.hostname === '127.0.0.1') u.hostname = 'localhost';
+        return u.toString();
+    } catch {
+        return String(url).replace('127.0.0.1', 'localhost');
+    }
+};
+
 const TeacherAssignmentProposals = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -39,6 +56,7 @@ const TeacherAssignmentProposals = () => {
     /** proposalId -> latest preview session doc */
     const [previewSessionByProposal, setPreviewSessionByProposal] = useState({});
     const [previewBusyId, setPreviewBusyId] = useState(null);
+    const [openProposalId, setOpenProposalId] = useState(null);
     const previewMapRef = useRef({});
 
     useEffect(() => {
@@ -71,7 +89,11 @@ const TeacherAssignmentProposals = () => {
                 teacherService.getProposalsForAssignment(id)
             ]);
             if (aRes.success) setAssignment(aRes.data);
-            if (pRes.success) setProposals(pRes.data || []);
+            if (pRes.success) {
+                const rows = pRes.data || [];
+                setProposals(rows);
+                setOpenProposalId((prev) => prev || rows[0]?._id || null);
+            }
         } catch (e) {
             console.error(e);
         } finally {
@@ -136,6 +158,8 @@ const TeacherAssignmentProposals = () => {
         );
     }
 
+    const selectedProposal = proposals.find((p) => p._id === openProposalId) || proposals[0] || null;
+
     return (
         <div className="p-6 md:p-10 max-w-[1200px] mx-auto">
             <button
@@ -154,74 +178,109 @@ const TeacherAssignmentProposals = () => {
                 {assignment?.title || 'Assignment'} — approve, reject, or request revision when status is pending.
             </p>
 
-            <div className="mb-6">
-                <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Optional comment (all actions)</label>
-                <textarea
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    rows={2}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm"
-                    placeholder="Feedback for the student..."
-                />
+            <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-900">
+                <p className="font-bold">Step 1: Select a student card</p>
+                <p className="text-xs mt-1">Step 2: Review that student&apos;s proposal and project preview below.</p>
             </div>
 
-            <div className="space-y-4">
-                {proposals.length === 0 ? (
-                    <p className="text-slate-500">No proposals yet.</p>
-                ) : (
-                    proposals.map((p) => (
-                        <div
-                            key={p._id}
-                            className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm"
-                        >
+            {proposals.length === 0 ? (
+                <p className="text-slate-500">No proposals yet.</p>
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                        {proposals.map((p) => (
+                            <button
+                                key={p._id}
+                                type="button"
+                                onClick={() => setOpenProposalId(p._id)}
+                                className={`text-left rounded-xl border p-4 transition-all ${
+                                    selectedProposal?._id === p._id
+                                        ? 'border-[#1D68E3] bg-blue-50/70 shadow-sm'
+                                        : 'border-slate-200 bg-white hover:border-slate-300'
+                                }`}
+                            >
+                                <p className="text-sm font-black text-slate-900">{studentIdentityLabel(p)}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">{statusLabel(p.status)}</p>
+                                <p className="text-xs font-semibold text-slate-600 mt-1 truncate">{p.title || 'Untitled proposal'}</p>
+                            </button>
+                        ))}
+                    </div>
+
+                    {selectedProposal && (
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
                             <div className="flex flex-wrap justify-between gap-4 mb-4">
                                 <div>
-                                    <h2 className="text-lg font-black text-slate-900 dark:text-white">{p.title}</h2>
+                                    <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                                        {selectedProposal.title || 'Proposal'}
+                                    </h2>
                                     <p className="text-sm text-slate-500">
-                                        By {p.submittedBy?.name || 'Student'} · {statusLabel(p.status)}
+                                        By {studentIdentityLabel(selectedProposal)} · {statusLabel(selectedProposal.status)}
                                     </p>
                                 </div>
-                                {p.aiSummary && (
+                                {selectedProposal.aiSummary && (
                                     <span className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
-                                        {p.aiSummary}
+                                        {selectedProposal.aiSummary}
                                     </span>
                                 )}
                             </div>
-                            <p className="text-slate-700 dark:text-slate-300 text-sm mb-3 whitespace-pre-wrap">{p.description}</p>
-                            <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-400 mb-4">
-                                {(p.features || []).map((f, i) => (
-                                    <li key={i}>{f}</li>
-                                ))}
-                            </ul>
-                            {p.teacherComment && (
-                                <p className="text-sm text-amber-700 dark:text-amber-300 mb-4 flex items-start gap-2">
-                                    <MessageSquare className="h-4 w-4 shrink-0 mt-0.5" />
-                                    {p.teacherComment}
-                                </p>
-                            )}
 
-                            {p.status === 'teacher_approved' && !p.hasProjectSubmission && (
-                                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 dark:bg-amber-950/20 p-3 text-xs font-bold text-amber-800 dark:text-amber-200">
-                                    Sandbox preview will be available after the student uploads a project <code className="text-[10px]">.zip</code> from
-                                    their project submission page.
+                            <div className="mb-6">
+                                <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
+                                    Optional comment for this student
+                                </label>
+                                <textarea
+                                    value={comment}
+                                    onChange={(e) => setComment(e.target.value)}
+                                    rows={2}
+                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm"
+                                    placeholder="Feedback for the student..."
+                                />
+                                <div className="mt-2">
+                                    <button
+                                        type="button"
+                                        disabled={!!actionId || !comment.trim()}
+                                        onClick={() => runReview(selectedProposal._id, 'comment')}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-bold disabled:opacity-50"
+                                    >
+                                        <MessageSquare className="h-3.5 w-3.5" />
+                                        Send feedback
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-200 p-4 mb-4">
+                                <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Step 2A: Proposal details</p>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm mb-3 whitespace-pre-wrap">
+                                    {selectedProposal.description}
+                                </p>
+                                <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-400 mb-2">
+                                    {(selectedProposal.features || []).map((f, i) => (
+                                        <li key={i}>{f}</li>
+                                    ))}
+                                </ul>
+                                {selectedProposal.teacherComment && (
+                                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-2 flex items-start gap-2">
+                                        <MessageSquare className="h-4 w-4 shrink-0 mt-0.5" />
+                                        {selectedProposal.teacherComment}
+                                    </p>
+                                )}
+                            </div>
+
+                            {selectedProposal.status === 'teacher_approved' && !selectedProposal.hasProjectSubmission && (
+                                <div className="rounded-xl border border-amber-200 bg-amber-50/80 dark:bg-amber-950/20 p-3 text-xs font-bold text-amber-800 dark:text-amber-200 mb-4">
+                                    <p className="font-black uppercase tracking-widest mb-1">Step 2B: Project preview</p>
+                                    Sandbox preview will be available after the student uploads a project <code className="text-[10px]">.zip</code>.
                                 </div>
                             )}
 
-                            {p.status === 'teacher_approved' && p.hasProjectSubmission && (
-                                <div className="mt-4 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/20 p-4">
+                            {selectedProposal.status === 'teacher_approved' && selectedProposal.hasProjectSubmission && (
+                                <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/20 p-4 mb-4">
                                     <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 text-xs font-black uppercase tracking-widest mb-2">
                                         <Shield className="h-4 w-4" />
-                                        Docker sandbox preview
+                                        Step 2B: Docker sandbox project preview
                                     </div>
-                                    <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 leading-relaxed">
-                                        Only you can start this. The student&apos;s ZIP is extracted with path-traversal checks,
-                                        mounted read-only into a short-lived container with memory and CPU caps,{' '}
-                                        <code className="text-[10px] bg-white/80 dark:bg-slate-800 px-1 rounded">no-new-privileges</code>, and
-                                        auto-stop when the TTL expires. Session events are stored for audit.
-                                        Serve static files (HTML/CSS/JS); dynamic stacks need a custom preview image.
-                                    </p>
                                     {(() => {
-                                        const sess = previewSessionByProposal[p._id];
+                                        const sess = previewSessionByProposal[selectedProposal._id];
                                         const terminal = ['stopped', 'failed', 'expired'].includes(sess?.status);
                                         const running = sess?.status === 'running';
                                         const starting = sess?.status === 'starting';
@@ -231,11 +290,11 @@ const TeacherAssignmentProposals = () => {
                                                     <button
                                                         type="button"
                                                         disabled={!!previewBusyId}
-                                                        onClick={() => startPreview(p._id)}
+                                                        onClick={() => startPreview(selectedProposal._id)}
                                                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 disabled:opacity-50"
                                                     >
                                                         <PlayCircle className="h-4 w-4" />
-                                                        {previewBusyId === p._id ? 'Starting…' : 'Start preview'}
+                                                        {previewBusyId === selectedProposal._id ? 'Starting…' : 'Start preview'}
                                                     </button>
                                                 )}
                                                 {starting && (
@@ -247,7 +306,7 @@ const TeacherAssignmentProposals = () => {
                                                 {running && sess.previewUrl && (
                                                     <>
                                                         <a
-                                                            href={sess.previewUrl}
+                                                            href={safePreviewUrl(sess.previewUrl)}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1D68E3] text-white font-bold text-sm hover:bg-blue-700"
@@ -258,7 +317,7 @@ const TeacherAssignmentProposals = () => {
                                                         <button
                                                             type="button"
                                                             disabled={!!previewBusyId}
-                                                            onClick={() => stopPreview(p._id)}
+                                                            onClick={() => stopPreview(selectedProposal._id)}
                                                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-sm disabled:opacity-50"
                                                         >
                                                             <Square className="h-4 w-4" />
@@ -269,9 +328,9 @@ const TeacherAssignmentProposals = () => {
                                             </div>
                                         );
                                     })()}
-                                    {previewSessionByProposal[p._id]?.logs?.length > 0 && (
+                                    {previewSessionByProposal[selectedProposal._id]?.logs?.length > 0 && (
                                         <div className="mt-3 max-h-32 overflow-y-auto rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 p-2 text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                                            {previewSessionByProposal[p._id].logs.slice(-12).map((log, i) => (
+                                            {previewSessionByProposal[selectedProposal._id].logs.slice(-12).map((log, i) => (
                                                 <div key={i} className="truncate">
                                                     <span className="text-slate-400">{log.level}</span> {log.message}
                                                 </div>
@@ -281,12 +340,12 @@ const TeacherAssignmentProposals = () => {
                                 </div>
                             )}
 
-                            {(p.status === 'pending_teacher_approval' || p.status === 'revision_required') && (
+                            {(selectedProposal.status === 'pending_teacher_approval' || selectedProposal.status === 'revision_required') && (
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         type="button"
                                         disabled={!!actionId}
-                                        onClick={() => runReview(p._id, 'approve')}
+                                        onClick={() => runReview(selectedProposal._id, 'approve')}
                                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 disabled:opacity-50"
                                     >
                                         <CheckCircle2 className="h-4 w-4" />
@@ -295,7 +354,7 @@ const TeacherAssignmentProposals = () => {
                                     <button
                                         type="button"
                                         disabled={!!actionId}
-                                        onClick={() => runReview(p._id, 'revision')}
+                                        onClick={() => runReview(selectedProposal._id, 'revision')}
                                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 disabled:opacity-50"
                                     >
                                         <AlertTriangle className="h-4 w-4" />
@@ -304,7 +363,7 @@ const TeacherAssignmentProposals = () => {
                                     <button
                                         type="button"
                                         disabled={!!actionId}
-                                        onClick={() => runReview(p._id, 'reject')}
+                                        onClick={() => runReview(selectedProposal._id, 'reject')}
                                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 disabled:opacity-50"
                                     >
                                         <XCircle className="h-4 w-4" />
@@ -313,9 +372,9 @@ const TeacherAssignmentProposals = () => {
                                 </div>
                             )}
                         </div>
-                    ))
-                )}
-            </div>
+                    )}
+                </>
+            )}
         </div>
     );
 };
