@@ -21,6 +21,10 @@ class ProposalPeerItem(BaseModel):
 
     id: str = Field(..., description="Mongo ObjectId string")
     text: str = Field(..., description="Flattened title + description + features")
+    # Optional metadata for server-side filtering (reduces comparisons before embedding).
+    subject: str | None = Field(default=None, description="Course/subject key; must match submission filter when set")
+    assignment_type: str | None = Field(default=None, description="e.g. project | thesis")
+    semester: str | None = Field(default=None, description="Cohort label, e.g. 2025-Spring")
 
 
 class ProposalAnalyzeIn(BaseModel):
@@ -37,6 +41,16 @@ class ProposalAnalyzeIn(BaseModel):
     text: str = Field(..., min_length=1)
     same_semester: list[ProposalPeerItem] = Field(default_factory=list)
     legacy: list[ProposalPeerItem] = Field(default_factory=list)
+
+    # Dataset filtering: only peers matching these (when provided) participate in similarity.
+    filter_subject: str | None = None
+    filter_assignment_type: str | None = None
+    # When True, drop legacy peers whose semester equals submission_semester (keeps prior cohorts only).
+    legacy_previous_semesters_only: bool = False
+    submission_semester: str | None = Field(
+        default=None,
+        description="Current cohort label; used with legacy_previous_semesters_only",
+    )
 
 
 class ProposalAnalyzeOut(BaseModel):
@@ -73,7 +87,12 @@ class CodeAnalyzeIn(BaseModel):
 class CodeAnalyzeOut(BaseModel):
     max_similarity: float = Field(..., ge=0.0, le=1.0)
     matched_id: str | None = None
-    method: Literal["tree_sitter_tfidf", "codebert", "fallback_char"] = "tree_sitter_tfidf"
+    method: Literal[
+        "tree_sitter_tfidf",
+        "two_stage_token_ast",
+        "codebert",
+        "fallback_char",
+    ] = "two_stage_token_ast"
     warning: bool = Field(False, description="True if max_similarity >= threshold")
     detail: str = ""
 
@@ -104,3 +123,36 @@ class ScreenshotAnalyzeOut(BaseModel):
     min_hamming_distance: int | None = None
     warning: bool = False
     message: str = ""
+
+
+# --- Combined analyze (runs modalities concurrently server-side) ---
+class FullAnalyzeIn(BaseModel):
+    """Provide any subset; omitted sections are skipped."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    proposal: ProposalAnalyzeIn | None = None
+    code: CodeAnalyzeIn | None = None
+    screenshot: ScreenshotAnalyzeIn | None = None
+
+
+class FullAnalyzeOut(BaseModel):
+    proposal: ProposalAnalyzeOut | None = None
+    code: CodeAnalyzeOut | None = None
+    screenshot: ScreenshotAnalyzeOut | None = None
+    timings_ms: dict[str, float] = Field(default_factory=dict)
+
+
+# --- Async job lifecycle (optional integration; sync endpoints unchanged) ---
+class ProposalJobAccepted(BaseModel):
+    job_id: str
+    status: Literal["processing"] = "processing"
+
+
+class AnalysisJobStatus(BaseModel):
+    """GET /analysis-result/{id} — shape varies by completion state."""
+
+    status: Literal["processing", "completed", "failed", "not_found"]
+    job_kind: str | None = Field(default=None, description="proposal | code | screenshot | full")
+    result: ProposalAnalyzeOut | CodeAnalyzeOut | ScreenshotAnalyzeOut | FullAnalyzeOut | None = None
+    error: str | None = None

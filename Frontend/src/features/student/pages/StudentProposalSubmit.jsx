@@ -4,6 +4,114 @@ import { ArrowLeft, Loader2, Plus, X, Send, Save, UploadCloud } from 'lucide-rea
 import studentService from '../../../services/studentService';
 import StudentHeader from '../components/StudentHeader';
 
+const toList = (value) => {
+    if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
+    if (typeof value === 'string') {
+        return value
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean);
+    }
+    return [];
+};
+
+const TECH_ALIASES = [
+    { key: 'php', aliases: ['php'] },
+    { key: 'mysql', aliases: ['mysql', 'my sql'] },
+    { key: 'postgresql', aliases: ['postgresql', 'postgres', 'postgre sql'] },
+    { key: 'mongodb', aliases: ['mongodb', 'mongo db'] },
+    { key: 'node.js', aliases: ['node.js', 'nodejs', 'node js'] },
+    { key: 'react', aliases: ['react', 'reactjs', 'react.js'] },
+    { key: 'flutter', aliases: ['flutter'] },
+    { key: 'java', aliases: ['java'] },
+    { key: 'python', aliases: ['python'] },
+    { key: 'laravel', aliases: ['laravel'] },
+    { key: 'spring boot', aliases: ['spring boot'] },
+    { key: 'django', aliases: ['django'] },
+];
+
+const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const hasAlias = (text, alias) => {
+    const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(String(alias || '').toLowerCase())}([^a-z0-9]|$)`, 'i');
+    return pattern.test(String(text || ''));
+};
+
+const canonicalizeTechList = (techList) => {
+    const canonical = [];
+    for (const raw of techList) {
+        const term = String(raw || '').trim().toLowerCase();
+        if (!term) continue;
+        const mapped = TECH_ALIASES.find((t) => t.key === term || t.aliases.some((a) => a === term));
+        canonical.push(mapped ? mapped.key : term);
+    }
+    return [...new Set(canonical)];
+};
+
+const detectMentionedTechnologies = (text) => {
+    const src = String(text || '').toLowerCase();
+    const mentioned = [];
+    for (const item of TECH_ALIASES) {
+        if (item.aliases.some((alias) => hasAlias(src, alias))) {
+            mentioned.push(item.key);
+        }
+    }
+    return [...new Set(mentioned)];
+};
+
+const buildImplicitRequiredTerms = (requirementText) => {
+    const text = String(requirementText || '').toLowerCase();
+    if (!text) return [];
+    return detectMentionedTechnologies(text);
+};
+
+const evaluateRequirementCoverage = (assignment, payload) => {
+    const requiredKeywords = toList(assignment?.requiredKeywords);
+    const allowedTechnologies = toList(assignment?.allowedTechnologies);
+    const requirementText = String(assignment?.requirementText || '').trim();
+    const implicitRequiredTerms = buildImplicitRequiredTerms(requirementText);
+    const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
+
+    const proposalText = [
+        payload?.title || '',
+        payload?.description || '',
+        ...(Array.isArray(payload?.features) ? payload.features : []),
+    ]
+        .join(' ')
+        .toLowerCase();
+
+    const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
+    const missingAllowedTech = allowedTechnologies.filter((t) => !proposalText.includes(t.toLowerCase()));
+    const missingImplicitTerms = implicitRequiredTerms.filter((t) => !proposalText.includes(t.toLowerCase()));
+    const mentionedTechnologies = detectMentionedTechnologies(proposalText);
+    const disallowedMentionedTech =
+        allowedTechnologies.length > 0
+            ? mentionedTechnologies.filter((t) => !canonicalAllowedTech.includes(t))
+            : [];
+    const hasRules =
+        Boolean(requirementText) ||
+        requiredKeywords.length > 0 ||
+        allowedTechnologies.length > 0 ||
+        implicitRequiredTerms.length > 0;
+
+    return {
+        hasRules,
+        requiredKeywords,
+        allowedTechnologies,
+        requirementText,
+        missingKeywords,
+        missingAllowedTech,
+        missingImplicitTerms,
+        disallowedMentionedTech,
+        passed:
+            !hasRules ||
+            (missingKeywords.length === 0 &&
+                missingAllowedTech.length === 0 &&
+                missingImplicitTerms.length === 0 &&
+                disallowedMentionedTech.length === 0),
+    };
+};
+
 const StudentProposalSubmit = () => {
     const { assignmentId } = useParams();
     const navigate = useNavigate();
@@ -14,6 +122,7 @@ const StudentProposalSubmit = () => {
     const [features, setFeatures] = useState(['']);
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState(null);
+    const [recommendation, setRecommendation] = useState(null);
     const [error, setError] = useState(null);
     const [proposalFile, setProposalFile] = useState(null);
     const [inputMode, setInputMode] = useState('text'); // text | file
@@ -52,6 +161,7 @@ const StudentProposalSubmit = () => {
 
     const saveDraft = async () => {
         setError(null);
+        setRecommendation(null);
         setSubmitting(true);
         try {
             const payload = {
@@ -80,6 +190,11 @@ const StudentProposalSubmit = () => {
     const submitFinal = async () => {
         setError(null);
         setMessage(null);
+        setRecommendation(null);
+        if (!canSubmitFinal) {
+            setError('Proposal does not satisfy teacher requirements yet. Please fix the missing items first.');
+            return;
+        }
         setSubmitting(true);
         try {
             const payload = {
@@ -95,6 +210,7 @@ const StudentProposalSubmit = () => {
                 : await studentService.submitProposal(assignmentId, payload);
             if (res.success) {
                 setMessage(res.data?.message || 'Submitted.');
+                setRecommendation(res.data?.recommendation || null);
                 const p = res.data?.proposal;
                 if (p) setRow((prev) => ({ ...prev, proposal: p }));
             }
@@ -133,6 +249,18 @@ const StudentProposalSubmit = () => {
     const beforeDeadline = !proposalDeadlineDate || now <= proposalDeadlineDate;
     const alreadyFinalSubmitted = Boolean(proposal && proposal.status && proposal.status !== 'draft');
     const lockedByApproval = proposal?.status === 'teacher_approved';
+    const normalizedFeatures = features.map((f) => String(f || '').trim()).filter(Boolean);
+    const hasAnyTextInput =
+        Boolean(String(title || '').trim()) ||
+        Boolean(String(description || '').trim()) ||
+        normalizedFeatures.length > 0;
+    const requirementCheck = evaluateRequirementCoverage(assignment, {
+        title,
+        description,
+        features: normalizedFeatures,
+    });
+    const showRequirementWarning = inputMode === 'text' && requirementCheck.hasRules && hasAnyTextInput;
+    const canSubmitFinal = !lockedByApproval && beforeDeadline && (inputMode === 'file' || requirementCheck.passed);
 
     if (!canEdit) {
         return (
@@ -199,6 +327,62 @@ const StudentProposalSubmit = () => {
 
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Submit proposal</h1>
                 <p className="text-slate-500 dark:text-slate-400 mb-8">{assignment.title}</p>
+
+                {showRequirementWarning && (
+                    <div
+                        className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
+                            requirementCheck.passed
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                : 'border-rose-200 bg-rose-50 text-rose-800'
+                        }`}
+                    >
+                        <p className="font-black uppercase tracking-wider text-[11px] mb-1.5">
+                            Teacher Requirement Check
+                        </p>
+                        {!!requirementCheck.requirementText && (
+                            <p className="font-semibold mb-2">
+                                Requirement: {requirementCheck.requirementText}
+                            </p>
+                        )}
+                        {requirementCheck.passed ? (
+                            <p className="font-semibold">
+                                Good to submit. Your proposal currently matches teacher requirements.
+                            </p>
+                        ) : (
+                            <>
+                                <p className="font-semibold mb-2">
+                                    Missing items found. Final submit is disabled until you add them.
+                                </p>
+                                {requirementCheck.missingAllowedTech.length > 0 && (
+                                    <p className="font-semibold">
+                                        Missing required technologies: {requirementCheck.missingAllowedTech.join(', ')}
+                                    </p>
+                                )}
+                                {requirementCheck.missingImplicitTerms.length > 0 && (
+                                    <p className="font-semibold">
+                                        Missing technologies from teacher text:{' '}
+                                        {requirementCheck.missingImplicitTerms.join(', ')}
+                                    </p>
+                                )}
+                                {requirementCheck.missingKeywords.length > 0 && (
+                                    <p className="font-semibold">
+                                        Missing required keywords: {requirementCheck.missingKeywords.join(', ')}
+                                    </p>
+                                )}
+                                {requirementCheck.disallowedMentionedTech.length > 0 && (
+                                    <p className="font-semibold">
+                                        Disallowed technologies detected: {requirementCheck.disallowedMentionedTech.join(', ')}
+                                    </p>
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+                {inputMode === 'file' && (
+                    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-sm font-semibold">
+                        File mode note: missing-technology pre-check is not shown locally. Requirements will still be enforced by the server after upload.
+                    </div>
+                )}
 
                 {alreadyFinalSubmitted && (
                     <div className="mb-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-4 py-3 text-sm font-semibold">
@@ -287,11 +471,31 @@ const StudentProposalSubmit = () => {
                 {proposal?.teacherComment && (
                     <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
                         <p className="text-[11px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-200 mb-1.5">
-                            Teacher Feedback To Student
+                            Teacher feedback
                         </p>
                         <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 whitespace-pre-wrap">
                             {proposal.teacherComment}
                         </p>
+                    </div>
+                )}
+
+                {(proposal?.teacherProposalScore != null || (proposal?.teacherVsAi && proposal.teacherVsAi !== 'not_set')) && (
+                    <div className="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
+                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5">
+                            Teacher review (separate from AI similarity)
+                        </p>
+                        {proposal.teacherProposalScore != null && (
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                Teacher quality score: {proposal.teacherProposalScore} / 100
+                            </p>
+                        )}
+                        {proposal.teacherVsAi && proposal.teacherVsAi !== 'not_set' && (
+                            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                                {proposal.teacherVsAi === 'aligns' && 'Your teacher agreed with the AI risk assessment.'}
+                                {proposal.teacherVsAi === 'stricter' && 'Your teacher applied a stricter standard than the AI hint.'}
+                                {proposal.teacherVsAi === 'lenient' && 'Your teacher considered the AI too harsh and accepted the direction of your work.'}
+                            </p>
+                        )}
                     </div>
                 )}
 
@@ -303,6 +507,11 @@ const StudentProposalSubmit = () => {
                 {message && (
                     <div className="mb-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 px-4 py-3 text-sm font-semibold">
                         {message}
+                    </div>
+                )}
+                {recommendation && (
+                    <div className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 px-4 py-3 text-sm font-semibold">
+                        Recommendation: {recommendation}
                     </div>
                 )}
 
@@ -384,7 +593,7 @@ const StudentProposalSubmit = () => {
                         </button>
                         <button
                             type="button"
-                            disabled={submitting || lockedByApproval || !beforeDeadline}
+                            disabled={submitting || !canSubmitFinal}
                             onClick={submitFinal}
                             className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#1D68E3] text-white font-bold text-sm hover:bg-blue-700 disabled:opacity-50"
                         >

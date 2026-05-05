@@ -4,6 +4,63 @@ import { Group } from '../models/Group.js';
 import { Class } from '../models/Class.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Semester } from '../models/Semester.js';
+import { Proposal } from '../models/Proposal.js';
+import { ProjectSubmission } from '../models/ProjectSubmission.js';
+
+function normalizeAssignmentClasses(assignment) {
+  const rawClasses = Array.isArray(assignment?.classes) && assignment.classes.length
+    ? assignment.classes
+    : assignment?.class
+      ? [assignment.class]
+      : [];
+  const classes = rawClasses.filter(Boolean);
+  return {
+    ...assignment,
+    classes,
+    class: classes[0] || assignment?.class || null,
+    classNames: classes.map((c) => [c?.code, c?.name].filter(Boolean).join(' - ')).filter(Boolean),
+    assignedClasses: classes.map((c) => c?.code || c?.name).filter(Boolean),
+    classAssignmentMode: assignment?.classAssignmentMode || (classes.length > 1 ? 'multiple' : 'single'),
+    assignmentType: assignment?.assignmentType || 'normal',
+  };
+}
+
+function parseObjectIdList(value) {
+  if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
+  if (typeof value === 'string') {
+    return value.split(',').map((x) => x.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
+ * For assignments spanning multiple classes, all classes must share the same
+ * semester and academic year so AI same-/cross-semester checks stay consistent.
+ */
+function assertClassSemesterAlignment(classDocs) {
+  if (!classDocs || classDocs.length <= 1) return;
+  const sems = classDocs.map((c) => c.semester).filter(Boolean);
+  const ays = classDocs.map((c) => c.academicYear).filter(Boolean);
+  if (sems.length !== classDocs.length || ays.length !== classDocs.length) {
+    const err = new Error(
+      'When an assignment includes multiple classes, every class must have a semester and academic year set in admin (Class setup), or use a single class for this assignment.'
+    );
+    err.status = 400;
+    throw err;
+  }
+  if (new Set(sems.map(String)).size > 1) {
+    const err = new Error(
+      'All selected classes must be in the same semester. Unify semester in admin or select classes from one term only.'
+    );
+    err.status = 400;
+    throw err;
+  }
+  if (new Set(ays.map(String)).size > 1) {
+    const err = new Error('All selected classes must belong to the same academic year.');
+    err.status = 400;
+    throw err;
+  }
+}
 
 export async function listClassesForTeacher(teacherId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
@@ -23,24 +80,72 @@ export async function listClassesForTeacher(teacherId) {
   );
   return rows;
 }
-export async function listAssignmentsForTeacher(teacherId) {
-  return Assignment.find({ teacher: teacherId, isActive: true })
+
+export async function getClassDetailsForTeacher(teacherId, classCodeOrId) {
+  const tid = new mongoose.Types.ObjectId(teacherId);
+  const raw = String(classCodeOrId || '').trim();
+  if (!raw) return null;
+
+  const byCode = raw.toUpperCase();
+  const classQuery = mongoose.Types.ObjectId.isValid(raw)
+    ? { _id: raw, 'teacherAssignments.teacher': tid }
+    : { code: byCode, 'teacherAssignments.teacher': tid };
+
+  const cls = await Class.findOne(classQuery).lean();
+  if (!cls) return null;
+
+  const studentCount = await StudentProfile.countDocuments({ classCode: cls.code });
+  const assignmentIds = await Assignment.find({ teacher: tid, class: cls._id, isActive: true }).distinct('_id');
+
+  let projectsSubmitted = 0;
+  let similarityAlerts = 0;
+  if (assignmentIds.length > 0) {
+    [projectsSubmitted, similarityAlerts] = await Promise.all([
+      ProjectSubmission.countDocuments({ assignment: { $in: assignmentIds } }),
+      Proposal.countDocuments({
+        assignment: { $in: assignmentIds },
+        status: { $in: ['ai_rejected_same_semester', 'ai_flagged_previous_semester', 'requirements_rejected'] },
+      }),
+    ]);
+  }
+
+  return {
+    _id: cls._id,
+    code: cls.code,
+    title: cls.name || cls.code,
+    section: 'A',
+    studentCount,
+    projectsSubmitted,
+    similarityAlerts,
+    timing: 'CURRENT TERM',
+  };
+}
+
+export async function listAssignmentsForTeacher(teacherId, { semesterId: semesterFilter } = {}) {
+  const q = { teacher: teacherId, isActive: true };
+  if (semesterFilter && mongoose.Types.ObjectId.isValid(String(semesterFilter))) {
+    q.semester = new mongoose.Types.ObjectId(String(semesterFilter));
+  }
+  const rows = await Assignment.find(q)
     .populate('class', 'code name')
+    .populate('classes', 'code name')
     .populate('subject', 'code name')
     .populate('semester', 'name')
     .populate('academicYear', 'label')
     .sort({ createdAt: -1 })
     .lean();
+  return rows.map(normalizeAssignmentClasses);
 }
 
 export async function getAssignmentForTeacher(teacherId, assignmentId) {
   const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId })
     .populate('class')
+    .populate('classes')
     .populate('subject')
     .populate('semester')
     .populate('academicYear')
     .lean();
-  return a;
+  return a ? normalizeAssignmentClasses(a) : null;
 }
 
 export async function getTeacherCatalog(teacherId) {
@@ -65,6 +170,7 @@ export async function getTeacherCatalog(teacherId) {
 export async function createAssignment(teacherId, payload) {
   const {
     classId,
+    classIds,
     subjectId,
     semesterId,
     academicYearId,
@@ -77,30 +183,57 @@ export async function createAssignment(teacherId, payload) {
     projectPhaseOpen,
     proposalDeadline,
     projectDeadline,
+    assignmentType,
+    classAssignmentMode,
   } = payload;
 
-  const classDoc = await Class.findById(classId).populate('teacherAssignments.subjects');
-  if (!classDoc) {
-    const err = new Error('Class not found');
+  const selectedClassIds = [...new Set(parseObjectIdList(classIds).concat(classId ? [String(classId)] : []))];
+  if (!selectedClassIds.length) {
+    const err = new Error('At least one class is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const normalizedClassAssignmentMode =
+    String(classAssignmentMode || (selectedClassIds.length > 1 ? 'multiple' : 'single')).trim().toLowerCase() === 'multiple'
+      ? 'multiple'
+      : 'single';
+  if (normalizedClassAssignmentMode === 'single' && selectedClassIds.length > 1) {
+    const err = new Error('Single class assignment mode allows only one class');
+    err.status = 400;
+    throw err;
+  }
+
+  const tid = new mongoose.Types.ObjectId(teacherId);
+  const classDocsRaw = await Class.find({ _id: { $in: selectedClassIds } }).populate('teacherAssignments.subjects');
+  const classDocs = selectedClassIds
+    .map((id) => classDocsRaw.find((doc) => String(doc._id) === String(id)))
+    .filter(Boolean);
+  if (classDocs.length !== selectedClassIds.length) {
+    const err = new Error('One or more selected classes were not found');
     err.status = 404;
     throw err;
   }
-  const tid = new mongoose.Types.ObjectId(teacherId);
-  const ta = classDoc.teacherAssignments?.find((x) => tid.equals(x.teacher));
-  if (!ta) {
-    const err = new Error('You are not assigned to teach this class');
-    err.status = 403;
-    throw err;
-  }
-  const subjOk = ta.subjects?.some((s) => s._id.equals(subjectId));
-  if (!subjOk) {
-    const err = new Error('You are not assigned to this subject in this class');
-    err.status = 403;
-    throw err;
+  for (const classDoc of classDocs) {
+    const ta = classDoc.teacherAssignments?.find((x) => tid.equals(x.teacher));
+    if (!ta) {
+      const err = new Error(`You are not assigned to teach class ${classDoc.code || classDoc.name || ''}`.trim());
+      err.status = 403;
+      throw err;
+    }
+    const subjOk = ta.subjects?.some((s) => s._id.equals(subjectId));
+    if (!subjOk) {
+      const err = new Error(`You are not assigned to this subject in class ${classDoc.code || classDoc.name || ''}`.trim());
+      err.status = 403;
+      throw err;
+    }
   }
 
-  const semesterResolved = semesterId || classDoc.semester || null;
-  let academicYearResolved = classDoc.academicYear || null;
+  assertClassSemesterAlignment(classDocs);
+
+  const primaryClassDoc = classDocs[0];
+  const semesterResolved = semesterId || primaryClassDoc.semester || null;
+  let academicYearResolved = academicYearId || primaryClassDoc.academicYear || null;
   if (!academicYearResolved && semesterResolved) {
     const sem = await Semester.findById(semesterResolved).lean();
     academicYearResolved = sem?.academicYear || null;
@@ -112,6 +245,11 @@ export async function createAssignment(teacherId, payload) {
   }
   if (!academicYearResolved) {
     const err = new Error('academicYear is required; assign class semester/academic year first');
+    err.status = 400;
+    throw err;
+  }
+  if (semesterId && primaryClassDoc.semester && String(semesterResolved) !== String(semesterId)) {
+    const err = new Error('semesterId does not match the selected class semester(s)');
     err.status = 400;
     throw err;
   }
@@ -132,7 +270,8 @@ export async function createAssignment(teacherId, payload) {
 
   const doc = new Assignment({
     teacher: teacherId,
-    class: classId,
+    class: primaryClassDoc._id,
+    classes: classDocs.map((c) => c._id),
     subject: subjectId,
     semester: semesterResolved,
     academicYear: academicYearResolved,
@@ -143,6 +282,8 @@ export async function createAssignment(teacherId, payload) {
     allowedTechnologies: parseList(payload.allowedTechnologies || payload.allowedTechnologiesText),
     assignmentFile: payload._requirementsFilePath || '',
     originalFileName: payload._requirementsOriginalName || '',
+    assignmentType: String(assignmentType || 'normal').trim().toLowerCase() === 'final' ? 'final' : 'normal',
+    classAssignmentMode: normalizedClassAssignmentMode,
     submissionMode: submissionMode || 'single',
     groupModeType: groupModeType || 'teacher_manual',
     maxGroupSize: maxGroupSize || 4,
@@ -153,6 +294,101 @@ export async function createAssignment(teacherId, payload) {
   });
   await doc.save();
   return getAssignmentForTeacher(teacherId, doc._id);
+}
+
+export async function updateAssignment(teacherId, assignmentId, payload) {
+  const assignment = await Assignment.findOne({ _id: assignmentId, teacher: teacherId });
+  if (!assignment) {
+    const err = new Error('Assignment not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const nextClassIds = [...new Set(parseObjectIdList(payload.classIds).concat(payload.classId ? [String(payload.classId)] : []))];
+  if (!nextClassIds.length) {
+    const err = new Error('At least one class is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const normalizedClassAssignmentMode =
+    String(payload.classAssignmentMode || (nextClassIds.length > 1 ? 'multiple' : 'single')).trim().toLowerCase() === 'multiple'
+      ? 'multiple'
+      : 'single';
+  if (normalizedClassAssignmentMode === 'single' && nextClassIds.length > 1) {
+    const err = new Error('Single class assignment mode allows only one class');
+    err.status = 400;
+    throw err;
+  }
+
+  const tid = new mongoose.Types.ObjectId(teacherId);
+  const classDocsRaw = await Class.find({ _id: { $in: nextClassIds } }).populate('teacherAssignments.subjects');
+  const classDocs = nextClassIds
+    .map((id) => classDocsRaw.find((doc) => String(doc._id) === String(id)))
+    .filter(Boolean);
+  if (classDocs.length !== nextClassIds.length) {
+    const err = new Error('One or more selected classes were not found');
+    err.status = 404;
+    throw err;
+  }
+  for (const classDoc of classDocs) {
+    const ta = classDoc.teacherAssignments?.find((x) => tid.equals(x.teacher));
+    if (!ta) {
+      const err = new Error(`You are not assigned to teach class ${classDoc.code || classDoc.name || ''}`.trim());
+      err.status = 403;
+      throw err;
+    }
+    const subjOk = ta.subjects?.some((s) => s._id.equals(assignment.subject));
+    if (!subjOk) {
+      const err = new Error(`You are not assigned to this subject in class ${classDoc.code || classDoc.name || ''}`.trim());
+      err.status = 403;
+      throw err;
+    }
+  }
+
+  assertClassSemesterAlignment(classDocs);
+
+  const parseList = (v, fallback = []) => {
+    if (Array.isArray(v)) return v.map((x) => String(x || '').trim()).filter(Boolean);
+    if (typeof v === 'string') return v.split(',').map((x) => x.trim()).filter(Boolean);
+    return fallback;
+  };
+  const parseBool = (v, fallback) => {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') {
+      if (v.toLowerCase() === 'true') return true;
+      if (v.toLowerCase() === 'false') return false;
+    }
+    return fallback;
+  };
+
+  assignment.class = classDocs[0]._id;
+  assignment.classes = classDocs.map((c) => c._id);
+  if (typeof payload.title === 'string') assignment.title = payload.title.trim();
+  if (typeof payload.description === 'string') assignment.description = payload.description.trim();
+  if (typeof payload.requirementText === 'string') assignment.requirementText = payload.requirementText.trim();
+  if ('requiredKeywords' in payload || 'requiredKeywordsText' in payload) {
+    assignment.requiredKeywords = parseList(payload.requiredKeywords || payload.requiredKeywordsText);
+  }
+  if ('allowedTechnologies' in payload || 'allowedTechnologiesText' in payload) {
+    assignment.allowedTechnologies = parseList(payload.allowedTechnologies || payload.allowedTechnologiesText);
+  }
+  if (typeof payload.submissionMode === 'string') assignment.submissionMode = payload.submissionMode;
+  if (typeof payload.assignmentType === 'string') {
+    assignment.assignmentType = payload.assignmentType.trim().toLowerCase() === 'final' ? 'final' : 'normal';
+  }
+  assignment.classAssignmentMode = normalizedClassAssignmentMode;
+  if (typeof payload.groupModeType === 'string') assignment.groupModeType = payload.groupModeType;
+  if (payload.maxGroupSize !== undefined && payload.maxGroupSize !== null && payload.maxGroupSize !== '') {
+    assignment.maxGroupSize = Number(payload.maxGroupSize);
+  }
+  if ('proposalPhaseOpen' in payload) assignment.proposalPhaseOpen = parseBool(payload.proposalPhaseOpen, assignment.proposalPhaseOpen);
+  if ('projectPhaseOpen' in payload) assignment.projectPhaseOpen = parseBool(payload.projectPhaseOpen, assignment.projectPhaseOpen);
+  if ('proposalDeadline' in payload) assignment.proposalDeadline = payload.proposalDeadline ? new Date(payload.proposalDeadline) : null;
+  if ('projectDeadline' in payload) assignment.projectDeadline = payload.projectDeadline ? new Date(payload.projectDeadline) : null;
+
+  await assignment.save();
+  return getAssignmentForTeacher(teacherId, assignment._id);
 }
 
 export async function attachRequirementsFile(teacherId, assignmentId, file) {
@@ -210,4 +446,179 @@ export async function listGroupsForAssignment(teacherId, assignmentId) {
     .populate('leader', 'name email')
     .populate('members.user', 'name email')
     .lean();
+}
+
+export async function getTeacherDashboardStats(teacherId) {
+  const classes = await listClassesForTeacher(teacherId);
+  const assignmentIds = await Assignment.find({ teacher: teacherId, isActive: true }).distinct('_id');
+  const [pendingReviews, reviewed, similarityAlerts] = assignmentIds.length
+    ? await Promise.all([
+        Proposal.countDocuments({ assignment: { $in: assignmentIds }, status: 'pending_teacher_approval' }),
+        Proposal.countDocuments({
+          assignment: { $in: assignmentIds },
+          status: { $in: ['teacher_approved', 'teacher_rejected', 'revision_required'] },
+        }),
+        Proposal.countDocuments({
+          assignment: { $in: assignmentIds },
+          status: { $in: ['ai_rejected_same_semester', 'ai_flagged_previous_semester', 'requirements_rejected'] },
+        }),
+      ])
+    : [0, 0, 0];
+
+  const activeClasses = await Promise.all(
+    classes.slice(0, 8).map(async (cls) => {
+      const classAssignmentIds = await Assignment.find({
+        teacher: teacherId,
+        isActive: true,
+        $or: [{ class: cls._id }, { classes: cls._id }],
+      }).distinct('_id');
+      const pending = classAssignmentIds.length
+        ? await Proposal.countDocuments({ assignment: { $in: classAssignmentIds }, status: 'pending_teacher_approval' })
+        : 0;
+      return { ...cls, pending };
+    })
+  );
+
+  return {
+    totalProjectsReviewed: reviewed,
+    pendingReviews,
+    similarityAlerts,
+    activeClasses,
+  };
+}
+
+export async function softDeleteAssignmentForTeacher(teacherId, assignmentId) {
+  const assignment = await Assignment.findOne({ _id: assignmentId, teacher: teacherId, isActive: true });
+  if (!assignment) {
+    const err = new Error('Assignment not found');
+    err.status = 404;
+    throw err;
+  }
+  assignment.isActive = false;
+  await assignment.save();
+  return { _id: assignment._id, isActive: assignment.isActive };
+}
+
+export async function listAllGroupsForTeacher(teacherId) {
+  const assignments = await Assignment.find({ teacher: teacherId, isActive: true })
+    .populate('class', 'code name')
+    .populate('subject', 'code name')
+    .lean();
+  if (!assignments.length) return [];
+
+  const assignmentIds = assignments.map((a) => a._id);
+  const assignmentMap = new Map(assignments.map((a) => [String(a._id), a]));
+
+  const [groups, proposals] = await Promise.all([
+    Group.find({ assignment: { $in: assignmentIds } })
+      .populate('leader', 'name photo')
+      .populate('members.user', 'name photo')
+      .lean(),
+    Proposal.find({ assignment: { $in: assignmentIds } }).lean(),
+  ]);
+
+  const proposalByGroup = new Map(
+    proposals
+      .filter((p) => p.group)
+      .map((p) => [String(p.group), p])
+  );
+  const memberUserIds = groups.flatMap((g) => [
+    g.leader,
+    ...(g.members || []).map((m) => m.user),
+  ]).map((u) => String(u?._id || u)).filter(Boolean);
+  const memberProfiles = memberUserIds.length
+    ? await StudentProfile.find({ user: { $in: memberUserIds } }).select('user studentId').lean()
+    : [];
+  const studentIdByUser = new Map(memberProfiles.map((p) => [String(p.user), p.studentId || '']));
+
+  const groupedByClass = new Map();
+  for (const group of groups) {
+    const assignment = assignmentMap.get(String(group.assignment));
+    if (!assignment) continue;
+    const classCode = assignment.class?.code || assignment.class?.name || 'CLASS';
+    if (!groupedByClass.has(classCode)) {
+      groupedByClass.set(classCode, {
+        code: assignment.class?.code || 'CLASS',
+        title: assignment.class?.name || 'Class',
+        semester: '',
+        projects: [],
+      });
+    }
+    const proposal = proposalByGroup.get(String(group._id));
+    const members = [
+      group.leader ? { ...group.leader, user: group.leader } : null,
+      ...(group.members || []).map((m) => ({ ...(m.user || {}), user: m.user })),
+    ].filter(Boolean).map((member) => ({
+      _id: member._id || member.user?._id || member.user,
+      name: member.name || 'Student',
+      photo: member.photo || '',
+      studentId: studentIdByUser.get(String(member._id || member.user?._id || member.user)) || '',
+    }));
+    const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
+    groupedByClass.get(classCode).projects.push({
+      _id: group._id,
+      title: proposal?.title || assignment.title || group.name || 'Project',
+      members,
+      type: assignment.submissionMode === 'single' ? 'individual' : 'group',
+      assignmentNumber: String(group._id).slice(-4).toUpperCase(),
+      status: proposal?.status || 'draft',
+      similarity,
+      similarityLevel: similarity >= 58 ? 'High' : 'Low',
+    });
+  }
+
+  return Array.from(groupedByClass.values());
+}
+
+export async function getGroupDetailsForTeacher(teacherId, groupId) {
+  const group = await Group.findById(groupId)
+    .populate({
+      path: 'assignment',
+      populate: { path: 'class', select: 'code name' },
+    })
+    .populate('leader', 'name photo email')
+    .populate('members.user', 'name photo email');
+  if (!group) return null;
+  if (!group.assignment?.teacher?.equals?.(teacherId) && String(group.assignment?.teacher) !== String(teacherId)) {
+    const err = new Error('Forbidden');
+    err.status = 403;
+    throw err;
+  }
+
+  const proposal = await Proposal.findOne({ assignment: group.assignment._id, group: group._id }).lean();
+  const submission = proposal?._id
+    ? await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 }).lean()
+    : null;
+  const memberUserIds = [
+    String(group.leader?._id || group.leader),
+    ...(group.members || []).map((m) => String(m.user?._id || m.user)),
+  ].filter(Boolean);
+  const profiles = memberUserIds.length
+    ? await StudentProfile.find({ user: { $in: memberUserIds } }).select('user studentId').lean()
+    : [];
+  const studentIdByUser = new Map(profiles.map((p) => [String(p.user), p.studentId || '']));
+  const members = [
+    group.leader ? { ...(group.leader.toObject ? group.leader.toObject() : group.leader) } : null,
+    ...(group.members || []).map((m) => (m.user?.toObject ? m.user.toObject() : m.user)),
+  ].filter(Boolean).map((member) => ({
+    _id: member._id,
+    name: member.name || 'Student',
+    photo: member.photo || '',
+    studentId: studentIdByUser.get(String(member._id)) || '',
+  }));
+  const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
+
+  return {
+    _id: group._id,
+    title: proposal?.title || group.assignment?.title || group.name || 'Project',
+    assignmentNumber: String(group._id).slice(-4).toUpperCase(),
+    type: group.assignment?.submissionMode === 'single' ? 'individual' : 'group',
+    classCode: group.assignment?.class?.code || group.assignment?.class?.name || '',
+    members,
+    similarity,
+    similarityLevel: similarity >= 58 ? 'High' : 'Low',
+    status: submission ? 'SUBMITTED' : (proposal?.status || 'DRAFT').toUpperCase(),
+    originalFileName: submission?.originalFilename || '',
+    documentUrl: submission?.storedRelativePath ? `/uploads/${submission.storedRelativePath}` : '',
+  };
 }

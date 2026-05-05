@@ -10,6 +10,8 @@ import { Proposal } from '../models/Proposal.js';
 
 const MAX_FILES = Number(process.env.PREVIEW_MAX_EXTRACT_FILES || 500);
 const MAX_TOTAL_BYTES = Number(process.env.PREVIEW_MAX_EXTRACT_BYTES || 52_428_800);
+const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 300000);
+const PREVIEW_STARTUP_POLL_MS = Number(process.env.PREVIEW_STARTUP_POLL_MS || 1500);
 
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const activeTimers = new Map();
@@ -33,6 +35,37 @@ function getDocker() {
 
 function appendLog(session, level, message) {
   session.logs.push({ level, message, at: new Date() });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function containerIsRunning(container) {
+  const inspect = await container.inspect();
+  return Boolean(inspect?.State?.Running);
+}
+
+async function waitForPreviewReady(container, previewUrl, startupTimeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < startupTimeoutMs) {
+    try {
+      const res = await fetch(previewUrl, { method: 'GET' });
+      if (res && res.status >= 200 && res.status < 500) {
+        return true;
+      }
+    } catch {
+      // Not ready yet.
+    }
+    try {
+      const running = await containerIsRunning(container);
+      if (!running) return false;
+    } catch {
+      return false;
+    }
+    await sleep(PREVIEW_STARTUP_POLL_MS);
+  }
+  return false;
 }
 
 function rewriteLocalDbHostForContainer(value) {
@@ -79,10 +112,12 @@ async function pathExists(p) {
 
 async function findFirstPackageJsonDir(baseDir) {
   const candidates = [
-    baseDir,
+    path.join(baseDir, 'bms-frontend'),
     path.join(baseDir, 'frontend'),
     path.join(baseDir, 'client'),
-    path.join(baseDir, 'bms-frontend'),
+    path.join(baseDir, 'web'),
+    path.join(baseDir, 'app'),
+    baseDir,
   ];
 
   for (const c of candidates) {
@@ -478,8 +513,39 @@ export async function startPreviewForProposal(teacherId, proposalId) {
 
   session.hostPort = hostPort;
   session.previewUrl = `${publicHost}:${hostPort}/`;
+  appendLog(session, 'info', `Container started (${runtime.mode}); waiting for app readiness at ${session.previewUrl}`);
+  await session.save();
+
+  const ready = await waitForPreviewReady(container, session.previewUrl, PREVIEW_STARTUP_TIMEOUT_MS);
+  if (!ready) {
+    let tailLogs = '';
+    try {
+      const raw = await container.logs({ stdout: true, stderr: true, tail: 80 });
+      tailLogs = raw?.toString?.() || '';
+    } catch {
+      tailLogs = '';
+    }
+    try {
+      await container.stop({ t: 8 });
+    } catch {
+      /* ignore */
+    }
+    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+    session.status = 'failed';
+    session.errorMessage = `Preview app did not become ready within ${Math.round(PREVIEW_STARTUP_TIMEOUT_MS / 1000)}s`;
+    session.endedAt = new Date();
+    appendLog(session, 'error', session.errorMessage);
+    if (tailLogs.trim()) {
+      appendLog(session, 'error', `Container logs (tail): ${tailLogs.slice(-2000)}`);
+    }
+    await session.save();
+    const err = new Error(session.errorMessage);
+    err.status = 504;
+    throw err;
+  }
+
   session.status = 'running';
-  appendLog(session, 'info', `Container running (${runtime.mode}); preview at ${session.previewUrl}`);
+  appendLog(session, 'info', `Preview ready and reachable at ${session.previewUrl}`);
   await session.save();
 
   const timer = setTimeout(async () => {

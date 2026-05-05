@@ -384,6 +384,77 @@ export async function importStudents(rows) {
   return { created, failed, total: list.length };
 }
 
+function csvEscape(value) {
+  const text = value == null ? '' : String(value);
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+export async function exportStudentsCsv(filters = {}) {
+  const all = await listStudents();
+  const search = String(filters.search || '')
+    .trim()
+    .toLowerCase();
+  const classId = String(filters.classId || filters.classCode || '')
+    .trim()
+    .toLowerCase();
+  const faculty = String(filters.faculty || '')
+    .trim()
+    .toLowerCase();
+
+  const rows = all.filter((student) => {
+    const matchesSearch =
+      !search ||
+      String(student.name || '')
+        .toLowerCase()
+        .includes(search) ||
+      String(student.email || '')
+        .toLowerCase()
+        .includes(search) ||
+      String(student.studentId || '')
+        .toLowerCase()
+        .includes(search);
+    const matchesClass = !classId || String(student.classId || '').toLowerCase() === classId;
+    const matchesFaculty = !faculty || String(student.faculty || '').toLowerCase() === faculty;
+    return matchesSearch && matchesClass && matchesFaculty;
+  });
+
+  const header = [
+    'name',
+    'email',
+    'studentId',
+    'classCode',
+    'faculty',
+    'program',
+    'score',
+    'gpa',
+    'status',
+  ];
+  const lines = [header.join(',')];
+  for (const student of rows) {
+    lines.push(
+      [
+        csvEscape(student.name),
+        csvEscape(student.email),
+        csvEscape(student.studentId),
+        csvEscape(student.classId || student.classCode),
+        csvEscape(student.faculty || student.academicInfo?.faculty),
+        csvEscape(student.program),
+        csvEscape(student.currentScore),
+        csvEscape(student.currentGpa),
+        csvEscape(student.status),
+      ].join(',')
+    );
+  }
+
+  return {
+    csv: lines.join('\n'),
+    total: rows.length,
+  };
+}
+
 export async function deleteStudent(profileId) {
   const profile = await resolveStudentProfile(profileId);
   if (!profile) {

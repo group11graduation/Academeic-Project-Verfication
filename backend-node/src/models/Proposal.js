@@ -42,6 +42,17 @@ const proposalSchema = new mongoose.Schema(
     /** Snapshot when AI flagged previous-semester match (for diff on resubmit) */
     previousFeaturesAtFlag: [{ type: String }],
     teacherComment: { type: String, default: '' },
+    /** 0–100: teacher's own quality assessment (independent of AI similarity scores) */
+    teacherProposalScore: { type: Number, min: 0, max: 100, default: null },
+    /**
+     * How the teacher's judgment relates to the AI similarity signals.
+     * `aligns` = agrees with the AI risk picture; stricter/lenient = teacher overrides the hint.
+     */
+    teacherVsAi: {
+      type: String,
+      enum: ['not_set', 'aligns', 'stricter', 'lenient'],
+      default: 'not_set',
+    },
     submittedAt: { type: Date },
   },
   { timestamps: true }

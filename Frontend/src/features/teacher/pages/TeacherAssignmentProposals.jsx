@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft,
     Loader2,
@@ -11,6 +11,7 @@ import {
     Square,
     ExternalLink,
     Shield,
+    BarChart2,
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 
@@ -53,6 +54,8 @@ const TeacherAssignmentProposals = () => {
     const [loading, setLoading] = useState(true);
     const [actionId, setActionId] = useState(null);
     const [comment, setComment] = useState('');
+    const [evalScore, setEvalScore] = useState('');
+    const [vsAi, setVsAi] = useState('not_set');
     /** proposalId -> latest preview session doc */
     const [previewSessionByProposal, setPreviewSessionByProposal] = useState({});
     const [previewBusyId, setPreviewBusyId] = useState(null);
@@ -105,6 +108,22 @@ const TeacherAssignmentProposals = () => {
         load();
     }, [id]);
 
+    useEffect(() => {
+        const p = proposals.find((x) => x._id === openProposalId);
+        if (!p) return;
+        setComment('');
+        setEvalScore(
+            p.teacherProposalScore != null && p.teacherProposalScore !== undefined
+                ? String(p.teacherProposalScore)
+                : ''
+        );
+        setVsAi(
+            p.teacherVsAi && ['aligns', 'stricter', 'lenient', 'not_set'].includes(p.teacherVsAi)
+                ? p.teacherVsAi
+                : 'not_set'
+        );
+    }, [openProposalId, proposals]);
+
     const startPreview = async (proposalId) => {
         setPreviewBusyId(proposalId);
         try {
@@ -137,10 +156,20 @@ const TeacherAssignmentProposals = () => {
         }
     };
 
+    const reviewPayload = () => {
+        const n = String(evalScore).trim();
+        const num = n === '' ? undefined : Number(n);
+        return {
+            comment,
+            teacherProposalScore: num !== undefined && !Number.isNaN(num) && num >= 0 && num <= 100 ? num : undefined,
+            vsAi: vsAi || 'not_set',
+        };
+    };
+
     const runReview = async (proposalId, action) => {
         setActionId(proposalId + action);
         try {
-            const res = await teacherService.reviewProposal(proposalId, { action, comment });
+            const res = await teacherService.reviewProposal(proposalId, { action, ...reviewPayload() });
             if (res.success) await load();
         } catch (e) {
             alert(e.response?.data?.message || 'Action failed');
@@ -159,6 +188,11 @@ const TeacherAssignmentProposals = () => {
     }
 
     const selectedProposal = proposals.find((p) => p._id === openProposalId) || proposals[0] || null;
+    const selectedStudent = selectedProposal?.submittedBy || null;
+    const selectedStudentLabel = selectedStudent
+        ? [selectedStudent.name, selectedStudent.studentId || selectedStudent.email].filter(Boolean).join(' - ')
+        : '';
+    const classCodeForStudents = assignment?.class?.code || assignment?.class?.name || '';
 
     return (
         <div className="p-6 md:p-10 max-w-[1200px] mx-auto">
@@ -174,13 +208,21 @@ const TeacherAssignmentProposals = () => {
             <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
                 Proposal review
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 mb-8">
-                {assignment?.title || 'Assignment'} — approve, reject, or request revision when status is pending.
+            <p className="text-slate-500 dark:text-slate-400 mb-2">
+                {assignment?.title || 'Assignment'} — review AI similarity signals, add your own score, then approve or
+                send feedback.
             </p>
+            {assignment && (
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-8 flex flex-wrap gap-x-3 gap-y-1">
+                    <span>
+                        Term: {assignment.academicYear?.label || '—'} · {assignment.semester?.name || 'Semester'}
+                    </span>
+                </p>
+            )}
 
-            <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-900">
-                <p className="font-bold">Step 1: Select a student card</p>
-                <p className="text-xs mt-1">Step 2: Review that student&apos;s proposal and project preview below.</p>
+            <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+                <p className="font-bold">Step 1: Select a student</p>
+                <p className="text-xs mt-1">Step 2: Compare AI hints to your judgment, add feedback, then decide (approve / revision / reject).</p>
             </div>
 
             {proposals.length === 0 ? (
@@ -208,6 +250,28 @@ const TeacherAssignmentProposals = () => {
 
                     {selectedProposal && (
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-sm">
+                            <div className="mb-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 p-4">
+                                <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Student profile</p>
+                                {selectedStudent ? (
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-black text-slate-900 dark:text-white">{selectedStudentLabel}</p>
+                                            <p className="text-xs text-slate-500">{selectedStudent.email || 'No email'}</p>
+                                        </div>
+                                        {classCodeForStudents ? (
+                                            <Link
+                                                to={`/teacher/classes/${classCodeForStudents}/students`}
+                                                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700"
+                                            >
+                                                Open class student profiles
+                                            </Link>
+                                        ) : null}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-500">No student profile available.</p>
+                                )}
+                            </div>
+
                             <div className="flex flex-wrap justify-between gap-4 mb-4">
                                 <div>
                                     <h2 className="text-lg font-black text-slate-900 dark:text-white">
@@ -218,15 +282,76 @@ const TeacherAssignmentProposals = () => {
                                     </p>
                                 </div>
                                 {selectedProposal.aiSummary && (
-                                    <span className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                                    <span className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded self-start max-w-md text-right">
                                         {selectedProposal.aiSummary}
                                     </span>
                                 )}
                             </div>
 
+                            <div className="mb-5 rounded-2xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/60 dark:bg-violet-950/25 p-4">
+                                <div className="flex items-center gap-2 text-violet-900 dark:text-violet-200 text-xs font-black uppercase tracking-widest mb-2">
+                                    <BarChart2 className="h-4 w-4" />
+                                    AI similarity (advisory, not a grade)
+                                </div>
+                                <p className="text-xs text-violet-800/90 dark:text-violet-200/80 mb-3">
+                                    High same-term similarity can mean overlap with a peer; high legacy match means resemblance
+                                    to an older project. You give the final academic judgment.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/40 px-3 py-2">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase">Same semester (max)</p>
+                                        <p className="font-black text-slate-900 dark:text-white">
+                                            {Number.isFinite(selectedProposal.aiSameSemesterMaxScore)
+                                                ? `${Math.round(Number(selectedProposal.aiSameSemesterMaxScore) * 100)}%`
+                                                : '—'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/40 px-3 py-2">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase">Legacy / other term (max)</p>
+                                        <p className="font-black text-slate-900 dark:text-white">
+                                            {Number.isFinite(selectedProposal.aiPreviousSemesterMaxScore)
+                                                ? `${Math.round(Number(selectedProposal.aiPreviousSemesterMaxScore) * 100)}%`
+                                                : '—'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">
+                                        Your quality score (0–100, optional)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        value={evalScore}
+                                        onChange={(e) => setEvalScore(e.target.value)}
+                                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
+                                        placeholder="e.g. 78"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">
+                                        Compared to the AI signal
+                                    </label>
+                                    <select
+                                        value={vsAi}
+                                        onChange={(e) => setVsAi(e.target.value)}
+                                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
+                                    >
+                                        <option value="not_set">Not specified</option>
+                                        <option value="aligns">I agree with the AI risk picture</option>
+                                        <option value="stricter">I am stricter than the AI hint</option>
+                                        <option value="lenient">The AI is too harsh — I accept this work</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div className="mb-6">
                                 <label className="block text-xs font-bold uppercase text-slate-400 mb-2">
-                                    Optional comment for this student
+                                    Written feedback (optional, shown to the student on approve / reject / revision)
                                 </label>
                                 <textarea
                                     value={comment}
@@ -240,10 +365,10 @@ const TeacherAssignmentProposals = () => {
                                         type="button"
                                         disabled={!!actionId || !comment.trim()}
                                         onClick={() => runReview(selectedProposal._id, 'comment')}
-                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-bold disabled:opacity-50"
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-bold disabled:opacity-50 dark:border-blue-800 dark:text-blue-200 dark:bg-blue-950/50"
                                     >
                                         <MessageSquare className="h-3.5 w-3.5" />
-                                        Send feedback
+                                        Send feedback only
                                     </button>
                                 </div>
                             </div>

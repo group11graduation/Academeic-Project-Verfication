@@ -19,17 +19,34 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
-const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+const defaultDevOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+];
+const configuredOrigins = String(process.env.CORS_ORIGINS || '')
   .split(',')
-  .map((s) => s.trim())
+  .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
   .filter(Boolean);
+const corsOrigins = [...new Set([...defaultDevOrigins, ...configuredOrigins])];
 
-app.use(
-  cors({
-    origin: corsOrigins,
-    credentials: true,
-  })
-);
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser and same-origin requests that may not send Origin.
+    if (!origin) return callback(null, true);
+    if (corsOrigins.includes(origin)) return callback(null, true);
+    // Dev-friendly fallback: allow localhost / 127.0.0.1 from any port.
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json({ limit: '2mb' }));
 

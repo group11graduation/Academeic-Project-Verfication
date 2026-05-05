@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft, Download, Calendar, Users,
-    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, MessageSquare, AlertTriangle, XCircle
+    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, MessageSquare, AlertTriangle, XCircle, BarChart2
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
@@ -40,20 +40,56 @@ const AssignmentDetail = () => {
     const [openProposalId, setOpenProposalId] = useState(null);
     const [reviewBusyKey, setReviewBusyKey] = useState(null);
     const [commentByProposal, setCommentByProposal] = useState({});
+    const [evalScoreByProposal, setEvalScoreByProposal] = useState({});
+    const [vsAiByProposal, setVsAiByProposal] = useState({});
+    const [catalog, setCatalog] = useState([]);
+    const [savingAssignment, setSavingAssignment] = useState(false);
+    const [editForm, setEditForm] = useState({
+        title: '',
+        description: '',
+        assignmentType: 'normal',
+        classAssignmentMode: 'single',
+        requirementText: '',
+        requiredKeywordsText: '',
+        allowedTechnologiesText: '',
+        proposalDeadline: '',
+        projectDeadline: '',
+        selectedClassIds: []
+    });
 
     useEffect(() => {
         const fetch = async () => {
             try {
-                const [res, pRes] = await Promise.all([
+                const [res, pRes, cRes] = await Promise.all([
                     teacherService.getAssignmentById(id),
-                    teacherService.getProposalsForAssignment(id)
+                    teacherService.getProposalsForAssignment(id),
+                    teacherService.getCatalog()
                 ]);
-                if (res.success) setData(res.data);
+                if (res.success) {
+                    setData(res.data);
+                    setEditForm({
+                        title: res.data?.title || '',
+                        description: res.data?.description || '',
+                        assignmentType: res.data?.assignmentType || 'normal',
+                        classAssignmentMode: res.data?.classAssignmentMode || ((res.data?.classes || []).length > 1 ? 'multiple' : 'single'),
+                        requirementText: res.data?.requirementText || '',
+                        requiredKeywordsText: Array.isArray(res.data?.requiredKeywords) ? res.data.requiredKeywords.join(', ') : '',
+                        allowedTechnologiesText: Array.isArray(res.data?.allowedTechnologies) ? res.data.allowedTechnologies.join(', ') : '',
+                        proposalDeadline: res.data?.proposalDeadline ? new Date(res.data.proposalDeadline).toISOString().slice(0, 16) : '',
+                        projectDeadline: res.data?.projectDeadline ? new Date(res.data.projectDeadline).toISOString().slice(0, 16) : '',
+                        selectedClassIds: Array.isArray(res.data?.classes) && res.data.classes.length
+                            ? res.data.classes.map((c) => String(c._id || c))
+                            : res.data?.class?._id
+                                ? [String(res.data.class._id)]
+                                : []
+                    });
+                }
                 if (pRes.success) {
                     const rows = pRes.data || [];
                     setProposals(rows);
                     setOpenProposalId(rows[0]?._id || null);
                 }
+                if (cRes.success) setCatalog(cRes.data || []);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -64,6 +100,37 @@ const AssignmentDetail = () => {
         fetch();
     }, [id]);
 
+    useEffect(() => {
+        if (!openProposalId) return;
+        const p = proposals.find((x) => x._id === openProposalId);
+        if (!p) return;
+        setEvalScoreByProposal((prev) => ({
+            ...prev,
+            [p._id]:
+                p.teacherProposalScore != null && p.teacherProposalScore !== undefined
+                    ? String(p.teacherProposalScore)
+                    : '',
+        }));
+        setVsAiByProposal((prev) => ({
+            ...prev,
+            [p._id]:
+                p.teacherVsAi && ['aligns', 'stricter', 'lenient', 'not_set'].includes(p.teacherVsAi)
+                    ? p.teacherVsAi
+                    : 'not_set',
+        }));
+    }, [openProposalId, proposals]);
+
+    const buildReviewPayload = (proposalId) => {
+        const n = String(evalScoreByProposal[proposalId] || '').trim();
+        const num = n === '' ? undefined : Number(n);
+        return {
+            comment: (commentByProposal[proposalId] || '').trim(),
+            teacherProposalScore:
+                num !== undefined && !Number.isNaN(num) && num >= 0 && num <= 100 ? num : undefined,
+            vsAi: vsAiByProposal[proposalId] || 'not_set',
+        };
+    };
+
     const formatDate = (d) =>
         d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
@@ -71,6 +138,36 @@ const AssignmentDetail = () => {
         d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
     const isPast = (d) => d && new Date(d) < new Date();
+    const students = Array.isArray(data?.students) ? data.students : [];
+    const submitted = students.filter(s => s.submitted);
+    const pending = students.filter(s => !s.submitted);
+    const total = students.length;
+    const deadline = data?.proposalDeadline || data?.projectDeadline || data?.deadline;
+    const classLabel =
+        (Array.isArray(data?.classNames) && data.classNames.length > 0 && data.classNames.join(', ')) ||
+        (Array.isArray(data?.assignedClasses) && data.assignedClasses.length > 0 && data.assignedClasses.join(', ')) ||
+        [data?.class?.code, data?.class?.name].filter(Boolean).join(' · ') ||
+        '—';
+    const apiOrigin = getApiOrigin();
+    const submittedCount = submitted.length;
+    const pct = total > 0 ? Math.round((submittedCount / total) * 100) : 0;
+    const filteredStudents = filter === 'submitted'
+        ? submitted
+        : filter === 'pending'
+            ? pending
+            : students;
+
+    const compatibleClassOptions = useMemo(() => {
+        if (!data?.subject?._id) return [];
+        const semesterId = String(data?.semester?._id || data?.semester || '');
+        const academicYearId = String(data?.academicYear?._id || data?.academicYear || '');
+        return (catalog || []).filter((row) => {
+            const hasSubject = (row?.subjects || []).some((s) => String(s._id) === String(data.subject._id));
+            const sameSemester = String(row?.semester?._id || row?.semester || '') === semesterId;
+            const sameAcademicYear = String(row?.academicYear?._id || row?.academicYear || '') === academicYearId;
+            return hasSubject && sameSemester && sameAcademicYear;
+        });
+    }, [catalog, data]);
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0B1120]">
@@ -83,26 +180,6 @@ const AssignmentDetail = () => {
             <p className="text-slate-500 font-bold">Assignment not found.</p>
         </div>
     );
-
-    const students = Array.isArray(data.students) ? data.students : [];
-    const submitted = students.filter(s => s.submitted);
-    const pending = students.filter(s => !s.submitted);
-    const total = students.length;
-    const deadline = data.proposalDeadline || data.projectDeadline || data.deadline;
-    const classLabel =
-        (Array.isArray(data.classNames) && data.classNames.length > 0 && data.classNames.join(', ')) ||
-        (Array.isArray(data.assignedClasses) && data.assignedClasses.length > 0 && data.assignedClasses.join(', ')) ||
-        [data.class?.code, data.class?.name].filter(Boolean).join(' · ') ||
-        '—';
-    const apiOrigin = getApiOrigin();
-    const submittedCount = submitted.length;
-    const pct = total > 0 ? Math.round((submittedCount / total) * 100) : 0;
-
-    const filteredStudents = filter === 'submitted'
-        ? submitted
-        : filter === 'pending'
-            ? pending
-            : students;
 
     const handleUploadRequirementFile = async (file) => {
         if (!file) return;
@@ -119,13 +196,52 @@ const AssignmentDetail = () => {
         }
     };
 
+    const handleToggleClass = (classId) => {
+        if (editForm.classAssignmentMode === 'single') {
+            setEditForm((prev) => ({ ...prev, selectedClassIds: [String(classId)] }));
+            return;
+        }
+        setEditForm((prev) => ({
+            ...prev,
+            selectedClassIds: prev.selectedClassIds.includes(String(classId))
+                ? prev.selectedClassIds.filter((id) => id !== String(classId))
+                : [...prev.selectedClassIds, String(classId)]
+        }));
+    };
+
+    const handleSaveAssignment = async () => {
+        if (!editForm.title.trim()) return alert('Title is required.');
+        if (editForm.selectedClassIds.length === 0) return alert('Select at least one class.');
+        try {
+            setSavingAssignment(true);
+            const res = await teacherService.updateAssignment(id, {
+                title: editForm.title.trim(),
+                description: editForm.description.trim(),
+                assignmentType: editForm.assignmentType,
+                classAssignmentMode: editForm.classAssignmentMode,
+                requirementText: editForm.requirementText.trim(),
+                requiredKeywordsText: editForm.requiredKeywordsText.trim(),
+                allowedTechnologiesText: editForm.allowedTechnologiesText.trim(),
+                proposalDeadline: editForm.proposalDeadline || null,
+                projectDeadline: editForm.projectDeadline || null,
+                classIds: editForm.selectedClassIds
+            });
+            if (res.success) setData(res.data);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update assignment.');
+        } finally {
+            setSavingAssignment(false);
+        }
+    };
+
     const runReview = async (proposalId, action) => {
         const busyKey = `${proposalId}:${action}`;
         setReviewBusyKey(busyKey);
         try {
-            const payload = { action, comment: (commentByProposal[proposalId] || '').trim() };
+            const payload = { action, ...buildReviewPayload(proposalId) };
             const r = await teacherService.reviewProposal(proposalId, payload);
             if (r.success) {
+                setCommentByProposal((prev) => ({ ...prev, [proposalId]: '' }));
                 const refreshed = await teacherService.getProposalsForAssignment(id);
                 if (refreshed.success) setProposals(refreshed.data || []);
             }
@@ -160,7 +276,7 @@ const AssignmentDetail = () => {
                             {data.title || 'Assignment'}
                         </h1>
                         <p className="text-slate-400 text-sm font-medium mb-4">
-                            {data.subject?.name} · {data.class?.code || data.class?.name}
+                            {data.subject?.name} · {classLabel}
                         </p>
                         <Link
                             to={`/teacher/assignments/${id}/proposals`}
@@ -211,6 +327,132 @@ const AssignmentDetail = () => {
                     ) : (
                         <span className="text-xs font-bold text-slate-400">No requirements file uploaded yet.</span>
                     )}
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-200 dark:border-white/10 p-4 md:p-5">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Edit assignment details</h2>
+                        <button
+                            type="button"
+                            onClick={handleSaveAssignment}
+                            disabled={savingAssignment}
+                            className="px-4 py-2 rounded-xl bg-[#1D68E3] text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60"
+                        >
+                            {savingAssignment ? 'Saving...' : 'Save assignment'}
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Title</label>
+                            <input
+                                type="text"
+                                value={editForm.title}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Description</label>
+                            <textarea
+                                rows={3}
+                                value={editForm.description}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Assignment type</label>
+                            <select
+                                value={editForm.assignmentType}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, assignmentType: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            >
+                                <option value="normal">Normal assignment</option>
+                                <option value="final">Final assignment</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class assignment mode</label>
+                            <select
+                                value={editForm.classAssignmentMode}
+                                onChange={(e) => {
+                                    const next = e.target.value;
+                                    setEditForm((prev) => ({
+                                        ...prev,
+                                        classAssignmentMode: next,
+                                        selectedClassIds: next === 'single' ? prev.selectedClassIds.slice(0, 1) : prev.selectedClassIds
+                                    }));
+                                }}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            >
+                                <option value="single">Single class</option>
+                                <option value="multiple">Multiple classes</option>
+                            </select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Classes for this project</label>
+                            <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-4 space-y-2 bg-white dark:bg-[#0B1120]">
+                                {compatibleClassOptions.map((row) => {
+                                    const classId = String(row.class?._id || '');
+                                    return (
+                                        <label key={classId} className="flex items-center gap-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                            <input
+                                                type="checkbox"
+                                                checked={editForm.selectedClassIds.includes(classId)}
+                                                onChange={() => handleToggleClass(classId)}
+                                            />
+                                            <span>{row.class?.code || row.class?.name} - {row.class?.name || 'Class'}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Teacher requirements</label>
+                            <textarea
+                                rows={3}
+                                value={editForm.requirementText}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, requirementText: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Required keywords</label>
+                            <input
+                                type="text"
+                                value={editForm.requiredKeywordsText}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, requiredKeywordsText: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Allowed technologies</label>
+                            <input
+                                type="text"
+                                value={editForm.allowedTechnologiesText}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, allowedTechnologiesText: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Proposal deadline</label>
+                            <input
+                                type="datetime-local"
+                                value={editForm.proposalDeadline}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, proposalDeadline: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Project deadline</label>
+                            <input
+                                type="datetime-local"
+                                value={editForm.projectDeadline}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, projectDeadline: e.target.value }))}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {/* Progress Bar */}
@@ -345,12 +587,16 @@ const AssignmentDetail = () => {
 
             {/* Actual proposal review in this page */}
             <div className="mt-6 bg-white dark:bg-[#0F172A] rounded-[28px] border border-slate-100 dark:border-white/5 p-6 md:p-7 shadow-xl">
-                <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
                     <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">Proposal review in this page</h2>
                     <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
                         {proposals.length} proposals
                     </span>
                 </div>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-4">
+                    Term: {data?.academicYear?.label || '—'} · {data?.semester?.name || 'Semester'} — same AI + teacher
+                    review fields as the full proposal review page.
+                </p>
                 {loadingProposals ? (
                     <div className="py-8 flex items-center justify-center">
                         <Loader2 className="h-6 w-6 text-[#1D68E3] animate-spin" />
@@ -392,7 +638,76 @@ const AssignmentDetail = () => {
                                                 </div>
                                             )}
 
+                                            <div className="mb-4 rounded-2xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/60 dark:bg-violet-950/25 p-3">
+                                                <div className="flex items-center gap-2 text-violet-900 dark:text-violet-200 text-[10px] font-black uppercase tracking-widest mb-1.5">
+                                                    <BarChart2 className="h-3.5 w-3.5" />
+                                                    AI similarity (advisory)
+                                                </div>
+                                                {p.aiSummary && (
+                                                    <p className="text-[11px] font-mono text-violet-800/90 dark:text-violet-200/80 mb-2 break-words">
+                                                        {p.aiSummary}
+                                                    </p>
+                                                )}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                                    <div className="rounded-lg bg-white/80 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/40 px-2.5 py-1.5">
+                                                        <p className="text-[9px] font-bold text-slate-500 uppercase">Same semester (max)</p>
+                                                        <p className="font-black text-slate-900 dark:text-white">
+                                                            {Number.isFinite(p.aiSameSemesterMaxScore)
+                                                                ? `${Math.round(Number(p.aiSameSemesterMaxScore) * 100)}%`
+                                                                : '—'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-lg bg-white/80 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/40 px-2.5 py-1.5">
+                                                        <p className="text-[9px] font-bold text-slate-500 uppercase">Legacy / other term (max)</p>
+                                                        <p className="font-black text-slate-900 dark:text-white">
+                                                            {Number.isFinite(p.aiPreviousSemesterMaxScore)
+                                                                ? `${Math.round(Number(p.aiPreviousSemesterMaxScore) * 100)}%`
+                                                                : '—'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                                                        Your score (0–100, optional)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        value={evalScoreByProposal[p._id] ?? ''}
+                                                        onChange={(e) =>
+                                                            setEvalScoreByProposal((prev) => ({ ...prev, [p._id]: e.target.value }))
+                                                        }
+                                                        className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2 text-sm"
+                                                        placeholder="e.g. 78"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                                                        Compared to AI
+                                                    </label>
+                                                    <select
+                                                        value={vsAiByProposal[p._id] ?? 'not_set'}
+                                                        onChange={(e) =>
+                                                            setVsAiByProposal((prev) => ({ ...prev, [p._id]: e.target.value }))
+                                                        }
+                                                        className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2 text-sm"
+                                                    >
+                                                        <option value="not_set">Not specified</option>
+                                                        <option value="aligns">I agree with the AI risk picture</option>
+                                                        <option value="stricter">I am stricter than the AI hint</option>
+                                                        <option value="lenient">The AI is too harsh — I accept this work</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
                                             <>
+                                                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                                                    Written feedback (student-visible on approve / reject / revision)
+                                                </label>
                                                 <textarea
                                                     value={commentByProposal[p._id] || ''}
                                                     onChange={(e) => setCommentByProposal((prev) => ({ ...prev, [p._id]: e.target.value }))}
@@ -404,9 +719,9 @@ const AssignmentDetail = () => {
                                                     type="button"
                                                     disabled={!!reviewBusyKey || !(commentByProposal[p._id] || '').trim()}
                                                     onClick={() => runReview(p._id, 'comment')}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-bold disabled:opacity-50 mb-3"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-xs font-bold disabled:opacity-50 mb-3"
                                                 >
-                                                    <MessageSquare className="h-4 w-4" /> Send feedback
+                                                    <MessageSquare className="h-4 w-4" /> Send feedback only
                                                 </button>
                                             </>
                                             {(p.status === 'pending_teacher_approval' || p.status === 'revision_required') && (

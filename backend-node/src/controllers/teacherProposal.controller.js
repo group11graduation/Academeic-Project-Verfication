@@ -13,8 +13,21 @@ export const listMyClasses = asyncHandler(async (req, res) => {
   return success(res, data);
 });
 
+export const getMyClassDetails = asyncHandler(async (req, res) => {
+  const data = await assignmentTeacher.getClassDetailsForTeacher(req.userId, req.params.id);
+  if (!data) return fail(res, 'Class not found', 404);
+  return success(res, data);
+});
+
 export const listAssignments = asyncHandler(async (req, res) => {
-  const data = await assignmentTeacher.listAssignmentsForTeacher(req.userId);
+  const data = await assignmentTeacher.listAssignmentsForTeacher(req.userId, {
+    semesterId: req.query?.semesterId,
+  });
+  return success(res, data);
+});
+
+export const dashboardStats = asyncHandler(async (req, res) => {
+  const data = await assignmentTeacher.getTeacherDashboardStats(req.userId);
   return success(res, data);
 });
 
@@ -39,6 +52,16 @@ export const uploadRequirementsFile = asyncHandler(async (req, res) => {
   return success(res, row);
 });
 
+export const updateAssignment = asyncHandler(async (req, res) => {
+  const row = await assignmentTeacher.updateAssignment(req.userId, req.params.id, req.body);
+  return success(res, row);
+});
+
+export const deleteAssignment = asyncHandler(async (req, res) => {
+  const row = await assignmentTeacher.softDeleteAssignmentForTeacher(req.userId, req.params.id);
+  return success(res, row);
+});
+
 export const listProposals = asyncHandler(async (req, res) => {
   const data = await proposalWorkflow.listProposalsForTeacher(req.userId, req.params.assignmentId || null);
   return success(res, data);
@@ -57,4 +80,15 @@ export const listGroups = asyncHandler(async (req, res) => {
 export const createGroup = asyncHandler(async (req, res) => {
   const data = await assignmentTeacher.createGroupForAssignment(req.userId, req.params.assignmentId, req.body);
   return success(res, data, 201);
+});
+
+export const listAllGroups = asyncHandler(async (req, res) => {
+  const data = await assignmentTeacher.listAllGroupsForTeacher(req.userId);
+  return success(res, data);
+});
+
+export const getGroupDetails = asyncHandler(async (req, res) => {
+  const data = await assignmentTeacher.getGroupDetailsForTeacher(req.userId, req.params.id);
+  if (!data) return fail(res, 'Group not found', 404);
+  return success(res, data);
 });

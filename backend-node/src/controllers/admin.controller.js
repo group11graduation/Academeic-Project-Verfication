@@ -83,6 +83,21 @@ export const importStudents = asyncHandler(async (req, res) => {
   return success(res, result, 201);
 });
 
+export const exportStudents = asyncHandler(async (req, res) => {
+  const { search, classId, classCode, faculty } = req.query || {};
+  const { csv, total } = await adminUser.exportStudentsCsv({
+    search,
+    classId,
+    classCode,
+    faculty,
+  });
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="students-${stamp}.csv"`);
+  res.setHeader('X-Export-Total', String(total));
+  return res.status(200).send(csv);
+});
+
 export const updateStudent = asyncHandler(async (req, res) => {
   const row = await adminUser.updateStudent(req.params.id, req.body);
   return success(res, row);
@@ -122,6 +137,11 @@ export const updateClass = asyncHandler(async (req, res) => {
 
 export const assignTeacherClass = asyncHandler(async (req, res) => {
   const row = await academic.assignTeacherToClass(req.params.code, req.body);
+  return success(res, row);
+});
+
+export const removeTeacherClass = asyncHandler(async (req, res) => {
+  const row = await academic.removeTeacherFromClass(req.params.code, req.params.teacherId);
   return success(res, row);
 });
 

@@ -31,6 +31,8 @@ const AdminClassDetail = () => {
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [assigningTeacher, setAssigningTeacher] = useState(false);
     const [assigningStudent, setAssigningStudent] = useState(false);
+    const [removingStudentId, setRemovingStudentId] = useState('');
+    const [removingTeacherId, setRemovingTeacherId] = useState('');
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [savingClassInfo, setSavingClassInfo] = useState(false);
@@ -149,6 +151,42 @@ const AdminClassDetail = () => {
         }
     };
 
+    const handleRemoveStudent = async (studentProfileId) => {
+        if (!studentProfileId) return;
+        if (!window.confirm('Remove this student from the current class?')) return;
+        try {
+            setRemovingStudentId(String(studentProfileId));
+            const res = await adminStudentService.updateStudent(studentProfileId, { classCode: '', classId: '' });
+            if (!res.success) throw new Error(res.message || 'Failed to remove student from class');
+            await fetchClassDetails();
+            const sRes = await adminStudentService.getStudents();
+            if (sRes.success) setAllStudents(sRes.data || []);
+        } catch (error) {
+            console.error('Error removing student from class:', error);
+            alert(error.message || 'Could not remove student from class');
+        } finally {
+            setRemovingStudentId('');
+        }
+    };
+
+    const handleRemoveTeacher = async (teacherUserId) => {
+        if (!teacherUserId) return;
+        if (!window.confirm('Remove this teacher (and their subjects) from the current class?')) return;
+        try {
+            setRemovingTeacherId(String(teacherUserId));
+            const res = await adminClassService.removeTeacher(id, teacherUserId);
+            if (!res.success) throw new Error(res.message || 'Failed to remove teacher from class');
+            setSelectedTeacherId('');
+            setSelectedTeacherSubjectIds([]);
+            await fetchClassDetails();
+        } catch (error) {
+            console.error('Error removing teacher from class:', error);
+            alert(error.response?.data?.message || error.message || 'Could not remove teacher from class');
+        } finally {
+            setRemovingTeacherId('');
+        }
+    };
+
     const filteredData = activeTab === 'students'
         ? students.filter(s => (s.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (s.studentId || '').toLowerCase().includes(searchQuery.toLowerCase()))
         : teachers.filter(t => (t.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (t.teacherId || '').toLowerCase().includes(searchQuery.toLowerCase()));
@@ -157,7 +195,9 @@ const AdminClassDetail = () => {
     const teacherCandidates = (allTeachers || []).filter(
         (t) => !assignedTeacherIds.has(String(t.userId || t._id || ''))
     );
-    const studentCandidates = (allStudents || []).filter((s) => String(s.classId || s.classCode || '') !== String(id));
+    // Business rule: only students without a class assignment can be added.
+    // To move a student between classes, remove them from current class first.
+    const studentCandidates = (allStudents || []).filter((s) => !String(s.classId || s.classCode || '').trim());
     const availableSubjects = (allSubjects || []).filter((sub) => {
         const subFaculty = String(sub.faculty || '').trim().toLowerCase();
         const subDepartment = String(sub.department || '').trim().toLowerCase();
@@ -453,7 +493,7 @@ const AdminClassDetail = () => {
                                     onChange={(e) => setSelectedStudentId(e.target.value)}
                                     className="bg-[#F8FAFB] dark:bg-slate-900 rounded-xl py-3 px-4 text-[14px] w-[260px] border border-slate-200 dark:border-slate-700 outline-none"
                                 >
-                                    <option value="">Add student to class...</option>
+                                    <option value="">Add unassigned student...</option>
                                     {studentCandidates.map((s) => (
                                         <option key={s._id || s.studentId} value={s._id || s.studentId}>
                                             {s.name} ({s.studentId})
@@ -559,16 +599,29 @@ const AdminClassDetail = () => {
                                     )}
                                     <td className="px-8 py-5 text-right">
                                         {activeTab === 'students' ? (
-                                            <button
-                                                onClick={() => handleGenerateStudentAccount(item._id, item.name || item.studentId)}
-                                                disabled={generatingStudentPasscodeFor === String(item._id)}
-                                                className="px-3 py-2 text-[12px] font-bold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                                            >
-                                                {generatingStudentPasscodeFor === String(item._id) ? 'Generating...' : 'Generate/Reset'}
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleGenerateStudentAccount(item._id, item.name || item.studentId)}
+                                                    disabled={generatingStudentPasscodeFor === String(item._id)}
+                                                    className="px-3 py-2 text-[12px] font-bold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                                >
+                                                    {generatingStudentPasscodeFor === String(item._id) ? 'Generating...' : 'Generate/Reset'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRemoveStudent(item._id)}
+                                                    disabled={removingStudentId === String(item._id)}
+                                                    className="px-3 py-2 text-[12px] font-bold rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                                                >
+                                                    {removingStudentId === String(item._id) ? 'Removing...' : 'Remove'}
+                                                </button>
+                                            </div>
                                         ) : (
-                                            <button className="p-2 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                                <MoreVertical className="h-5 w-5" />
+                                            <button
+                                                onClick={() => handleRemoveTeacher(item.userId || item._id)}
+                                                disabled={removingTeacherId === String(item.userId || item._id)}
+                                                className="px-3 py-2 text-[12px] font-bold rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                                            >
+                                                {removingTeacherId === String(item.userId || item._id) ? 'Removing...' : 'Remove'}
                                             </button>
                                         )}
                                     </td>

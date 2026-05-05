@@ -25,6 +25,11 @@ const assignTeacher = async (code, payload) => {
     return response.data;
 };
 
+const removeTeacher = async (code, teacherId) => {
+    const response = await api.delete(`/admin/classes/${encodeURIComponent(code)}/teachers/${encodeURIComponent(teacherId)}`);
+    return response.data;
+};
+
 /** Reserved for Phase 2+ (bulk account generation) */
 const generateAccounts = async (code) => {
     const response = await api.post(`/admin/classes/${encodeURIComponent(code)}/generate-accounts`, {});
@@ -37,6 +42,7 @@ const adminClassService = {
     createClass,
     updateClass,
     assignTeacher,
+    removeTeacher,
     generateAccounts
 };
 

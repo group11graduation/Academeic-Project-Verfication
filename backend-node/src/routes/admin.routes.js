@@ -33,6 +33,7 @@ router.patch('/teachers/:id/toggle-admin', admin.patchTeacherToggleAdmin);
 
 router.get('/students', admin.listStudents);
 router.post('/students/import', admin.importStudents);
+router.get('/students/export', admin.exportStudents);
 router.post('/students', admin.createStudent);
 router.get('/students/:id', admin.getStudent);
 router.put('/students/:id', admin.updateStudent);
@@ -44,6 +45,7 @@ router.get('/classes/:code', admin.getClass);
 router.post('/classes', admin.createClass);
 router.put('/classes/:code', admin.updateClass);
 router.post('/classes/:code/assign-teacher', admin.assignTeacherClass);
+router.delete('/classes/:code/teachers/:teacherId', admin.removeTeacherClass);
 router.post('/classes/:code/generate-accounts', admin.generateClassStudentAccounts);
 
 router.get('/subjects', admin.listSubjects);

@@ -15,6 +15,7 @@ import {
     CalendarRange,
     FileSpreadsheet,
     Activity,
+    Workflow,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 
@@ -34,6 +35,7 @@ const AdminLayout = () => {
         { name: 'Students', path: '/admin/students', icon: Users },
     ];
     const academicItems = [
+        { name: 'Setup Workflow', path: '/admin/setup-workflow', icon: Workflow },
         { name: 'Classes', path: '/admin/classes', icon: BookOpen },
         { name: 'Subjects', path: '/admin/subjects', icon: BookMarked },
         { name: 'Semesters', path: '/admin/semesters', icon: CalendarRange },

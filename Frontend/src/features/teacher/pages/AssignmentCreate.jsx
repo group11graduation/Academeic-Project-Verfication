@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
@@ -13,6 +13,9 @@ const AssignmentCreate = () => {
     const [description, setDescription] = useState('');
     const [catalogIndex, setCatalogIndex] = useState(0);
     const [subjectId, setSubjectId] = useState('');
+    const [selectedClassIds, setSelectedClassIds] = useState([]);
+    const [assignmentType, setAssignmentType] = useState('normal');
+    const [classAssignmentMode, setClassAssignmentMode] = useState('single');
     const [submissionMode, setSubmissionMode] = useState('single');
     const [proposalDeadline, setProposalDeadline] = useState('');
     const [projectDeadline, setProjectDeadline] = useState('');
@@ -41,26 +44,67 @@ const AssignmentCreate = () => {
 
     useEffect(() => {
         const row = catalog[catalogIndex];
-        if (row?.subjects?.length) setSubjectId(row.subjects[0]._id);
-        else setSubjectId('');
+        if (row?.subjects?.length) {
+            setSubjectId((prev) => row.subjects.some((s) => s._id === prev) ? prev : row.subjects[0]._id);
+        } else {
+            setSubjectId('');
+        }
     }, [catalogIndex, catalog]);
+
+    const selectedCatalogRow = catalog[catalogIndex] || null;
+
+    const compatibleClassOptions = useMemo(() => {
+        if (!selectedCatalogRow || !subjectId) return [];
+        return catalog.filter((row) => {
+            const sameSemester = String(row?.semester?._id || row?.semester || '') === String(selectedCatalogRow?.semester?._id || selectedCatalogRow?.semester || '');
+            const sameAcademicYear = String(row?.academicYear?._id || row?.academicYear || '') === String(selectedCatalogRow?.academicYear?._id || selectedCatalogRow?.academicYear || '');
+            const hasSubject = (row?.subjects || []).some((s) => String(s._id) === String(subjectId));
+            return sameSemester && sameAcademicYear && hasSubject;
+        });
+    }, [catalog, selectedCatalogRow, subjectId]);
+
+    useEffect(() => {
+        setSelectedClassIds((prev) => {
+            const validIds = compatibleClassOptions.map((row) => String(row.class?._id || ''));
+            const kept = prev.filter((id) => validIds.includes(String(id)));
+            if (kept.length) return kept;
+            const defaultId = selectedCatalogRow?.class?._id ? [String(selectedCatalogRow.class._id)] : [];
+            return defaultId.filter((id) => validIds.includes(id));
+        });
+    }, [compatibleClassOptions, selectedCatalogRow]);
+
+    const handleToggleClass = (classId) => {
+        if (classAssignmentMode === 'single') {
+            setSelectedClassIds([String(classId)]);
+            return;
+        }
+        setSelectedClassIds((prev) =>
+            prev.includes(String(classId))
+                ? prev.filter((id) => id !== String(classId))
+                : [...prev, String(classId)]
+        );
+    };
 
     const handleCreate = async (e) => {
         e.preventDefault();
-        const row = catalog[catalogIndex];
+        const row = selectedCatalogRow;
         if (!row || !subjectId) return alert('Select class context and subject.');
+        if (selectedClassIds.length === 0) return alert('Select at least one class.');
         if (!title.trim()) return alert('Title is required.');
 
         try {
             setSubmitting(true);
             const fd = new FormData();
             fd.append('classId', row.class._id);
+            selectedClassIds.forEach((classId) => fd.append('classIds', classId));
             fd.append('subjectId', subjectId);
             fd.append('semesterId', row.semester?._id || row.semester || '');
             fd.append('academicYearId', row.academicYear?._id || row.academicYear || '');
             fd.append('title', title.trim());
             fd.append('description', description.trim());
             fd.append('submissionMode', submissionMode);
+            fd.append('assignmentType', assignmentType);
+            fd.append('classAssignmentMode', classAssignmentMode);
             fd.append('proposalPhaseOpen', 'true');
             fd.append('projectPhaseOpen', 'false');
             if (proposalDeadline) fd.append('proposalDeadline', proposalDeadline);
@@ -107,7 +151,7 @@ const AssignmentCreate = () => {
                 ) : (
                     <form onSubmit={handleCreate} className="space-y-5">
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class & term</label>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Base class & term</label>
                             <select
                                 value={catalogIndex}
                                 onChange={(e) => setCatalogIndex(Number(e.target.value))}
@@ -135,6 +179,66 @@ const AssignmentCreate = () => {
                                     </option>
                                 ))}
                             </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Assignment type</label>
+                            <select
+                                value={assignmentType}
+                                onChange={(e) => setAssignmentType(e.target.value)}
+                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                            >
+                                <option value="normal">Normal assignment</option>
+                                <option value="final">Final assignment</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class assignment mode</label>
+                            <select
+                                value={classAssignmentMode}
+                                onChange={(e) => {
+                                    const next = e.target.value;
+                                    setClassAssignmentMode(next);
+                                    if (next === 'single' && selectedClassIds.length > 1) {
+                                        setSelectedClassIds(selectedClassIds.slice(0, 1));
+                                    }
+                                }}
+                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                            >
+                                <option value="single">Single class</option>
+                                <option value="multiple">Multiple classes</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Classes for this project *</label>
+                            <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-4 space-y-2 bg-white dark:bg-[#0B1120]">
+                                {compatibleClassOptions.map((row) => {
+                                    const classId = String(row.class?._id || '');
+                                    const checked = selectedClassIds.includes(classId);
+                                    return (
+                                        <label key={classId} className="flex items-center gap-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => handleToggleClass(classId)}
+                                            />
+                                            <span>
+                                                {row.class?.code || row.class?.name} - {row.class?.name || 'Class'}
+                                            </span>
+                                        </label>
+                                    );
+                                })}
+                                {compatibleClassOptions.length === 0 && (
+                                    <p className="text-sm font-medium text-slate-500">No compatible classes found for the selected subject and term.</p>
+                                )}
+                            </div>
+                            <p className="mt-2 text-xs text-slate-500">
+                                {classAssignmentMode === 'single'
+                                    ? 'Single class mode: choose one class only.'
+                                    : 'Multiple class mode: choose one or more classes to publish the same assignment.'}
+                            </p>
                         </div>
 
                         <div>

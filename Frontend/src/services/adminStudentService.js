@@ -37,6 +37,17 @@ const importStudents = async (students) => {
     return response.data;
 };
 
+const exportStudentsCsv = async (params = {}) => {
+    const response = await api.get(`${API_URL}/export`, {
+        params,
+        responseType: 'blob',
+    });
+    const disposition = response.headers?.['content-disposition'] || '';
+    const match = disposition.match(/filename="([^"]+)"/i);
+    const filename = match?.[1] || 'students-export.csv';
+    return { blob: response.data, filename };
+};
+
 /** Upserts a performance row for the student user (Mongo user id). */
 const patchStudentPerformance = async (studentUserId, payload) => {
     const response = await api.patch(`${API_URL}/${studentUserId}/performance`, payload);
@@ -63,6 +74,7 @@ const adminStudentService = {
     deleteStudent,
     generatePasscode,
     importStudents,
+    exportStudentsCsv,
     patchStudentPerformance,
     uploadProfileImage
 };

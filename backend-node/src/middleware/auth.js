@@ -12,9 +12,18 @@ export function requireAuth(req, res, next) {
     const secret = process.env.JWT_SECRET;
     if (!secret) throw new Error('JWT_SECRET is not configured');
     const payload = jwt.verify(token, secret);
+    const primaryRole = String(payload.role || '').trim().toLowerCase();
+    const parsedRoles = Array.isArray(payload.roles)
+      ? payload.roles.map((role) => String(role || '').trim().toLowerCase()).filter(Boolean)
+      : [];
+    const roles = parsedRoles.length > 0
+      ? [...new Set(parsedRoles)]
+      : primaryRole
+        ? [primaryRole]
+        : [];
     req.userId = payload.sub;
-    req.userRole = payload.role;
-    req.roles = payload.roles || [payload.role];
+    req.userRole = primaryRole;
+    req.roles = roles;
     next();
   } catch {
     return fail(res, 'Invalid or expired token', 401);

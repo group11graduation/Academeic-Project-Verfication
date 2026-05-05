@@ -5,6 +5,7 @@ import {
     ChevronDown,
     Loader2,
     Upload,
+    Download,
     ArrowLeft,
     AlertCircle,
     CheckCircle2,
@@ -71,6 +72,7 @@ const AdminStudents = () => {
     const [importing, setImporting] = useState(false);
     const [importError, setImportError] = useState('');
     const [importResult, setImportResult] = useState(null);
+    const [exporting, setExporting] = useState(false);
 
     const loadStudents = async () => {
         const response = await adminStudentService.getStudents();
@@ -212,6 +214,30 @@ const AdminStudents = () => {
         }
     };
 
+    const submitExport = async () => {
+        setExporting(true);
+        try {
+            const { blob, filename } = await adminStudentService.exportStudentsCsv({
+                search: searchQuery,
+                classId: classFilter,
+                faculty: facultyFilter,
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            const message = err.response?.data?.message || err.message || 'Failed to export students';
+            window.alert(message);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-900 flex flex-col items-center justify-center">
@@ -261,6 +287,15 @@ const AdminStudents = () => {
                 </div>
 
                 <div className="flex items-center justify-end w-full gap-3 shrink-0">
+                    <button
+                        type="button"
+                        onClick={submitExport}
+                        disabled={exporting}
+                        className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-3 rounded-[16px] font-bold text-[14px] disabled:opacity-60"
+                    >
+                        {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        {exporting ? 'Exporting...' : 'Export CSV'}
+                    </button>
                     <button
                         type="button"
                         onClick={() => setMode('add')}

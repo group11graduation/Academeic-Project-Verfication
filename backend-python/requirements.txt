@@ -21,3 +21,7 @@ transformers>=4.40.0
 # Screenshots
 pillow>=10.0.0
 ImageHash>=4.3.0
+
+# Optional: embedding hot-cache layer + Faiss inner-product search (exact Flat IP fallback path)
+redis>=5.0.0
+faiss-cpu>=1.8.0

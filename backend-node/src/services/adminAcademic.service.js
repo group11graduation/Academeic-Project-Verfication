@@ -182,6 +182,17 @@ export async function updateClass(code, body) {
     doc.subjects = Array.isArray(body.subjectIds)
       ? body.subjectIds.map((id) => toObjectId(id)).filter(Boolean)
       : [];
+    // Keep teacher assignments consistent with current class subjects.
+    // Drop removed subjects from each teacher assignment, and if a teacher
+    // has no remaining subjects in this class, remove the teacher assignment.
+    const allowed = new Set((doc.subjects || []).map((sid) => String(sid)));
+    const cleanedAssignments = (doc.teacherAssignments || [])
+      .map((assignment) => ({
+        ...assignment.toObject(),
+        subjects: (assignment.subjects || []).filter((sid) => allowed.has(String(sid))),
+      }))
+      .filter((assignment) => assignment.subjects.length > 0);
+    doc.teacherAssignments = cleanedAssignments;
   }
   await doc.save();
   const withSubjects = await Class.findById(doc._id).populate('subjects').lean();
@@ -234,6 +245,54 @@ export async function assignTeacherToClass(code, body) {
 
   const updated = await getClassByCode(classCode);
   return updated;
+}
+
+export async function removeTeacherFromClass(code, teacherId) {
+  const classCode = normalizeClassCode(code);
+  const cls = await Class.findOne({ code: classCode });
+  if (!cls) {
+    const err = new Error('Class not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const candidate = String(teacherId || '').trim();
+  if (!candidate) {
+    const err = new Error('teacherId is required');
+    err.status = 400;
+    throw err;
+  }
+
+  let profile =
+    (toObjectId(candidate) && (await TeacherProfile.findById(candidate))) ||
+    (await TeacherProfile.findOne({ employeeId: candidate })) ||
+    (toObjectId(candidate) && (await TeacherProfile.findOne({ user: candidate })));
+
+  if (!profile && toObjectId(candidate)) {
+    const u = await User.findById(candidate).lean();
+    if (u && (u.role === 'teacher' || (u.roles || []).includes('teacher'))) {
+      profile = await TeacherProfile.findOne({ user: u._id });
+    }
+  }
+
+  if (!profile) {
+    const err = new Error('Teacher not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const before = (cls.teacherAssignments || []).length;
+  cls.teacherAssignments = (cls.teacherAssignments || []).filter(
+    (t) => String(t.teacher) !== String(profile.user)
+  );
+  if (cls.teacherAssignments.length === before) {
+    const err = new Error('Teacher is not assigned to this class');
+    err.status = 404;
+    throw err;
+  }
+  await cls.save();
+
+  return getClassByCode(classCode);
 }
 
 export async function generateStudentAccountsForClass(code) {

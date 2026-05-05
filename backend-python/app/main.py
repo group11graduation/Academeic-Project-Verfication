@@ -6,7 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.settings import settings
+from app.middleware.body_size_limit import BodySizeLimitMiddleware
 from app.middleware.request_id import RequestIdMiddleware
+from app.routers.analyze import result_router as analyze_result_router
 from app.routers.analyze import router as analyze_router
 from app.routers.health import router as health_router
 
@@ -31,10 +33,12 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestIdMiddleware)
 
     app.include_router(health_router)
     app.include_router(analyze_router)
+    app.include_router(analyze_result_router)
 
     @app.get("/")
     def root():

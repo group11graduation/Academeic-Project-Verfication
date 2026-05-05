@@ -3,8 +3,24 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  /**
+   * Global “zoom out”: Tailwind spacing/typography use rem, so lowering the root
+   * em size shrinks text, padding, gaps, and radii proportionally across the app.
+   */
+  html {
+    font-size: 75%; /* ~12px when browser default is 16px — strong global zoom-out */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
   body {
     @apply bg-[#0B1120] text-slate-100 antialiased transition-colors duration-300;
+    font-size: 1rem;
+    line-height: 1.45;
   }
 
   /* Global form text readability rule: always black text in fields */

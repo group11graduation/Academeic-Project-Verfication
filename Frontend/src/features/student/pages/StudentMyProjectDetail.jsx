@@ -64,7 +64,10 @@ const StudentMyProjectDetail = () => {
         return {
             _id: a._id,
             title: a.title,
-            classCode: a.class?.code || a.class?.name,
+            classCode:
+                (Array.isArray(a.classNames) && a.classNames.length > 0 && a.classNames.join(', ')) ||
+                (Array.isArray(a.assignedClasses) && a.assignedClasses.length > 0 && a.assignedClasses.join(', ')) ||
+                a.class?.code || a.class?.name,
             type: a.submissionMode,
             status: p?.status || '—',
             description: p?.description || a.description,

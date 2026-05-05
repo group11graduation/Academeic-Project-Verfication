@@ -75,13 +75,20 @@ const teacherService = {
         return response.data;
     },
 
-    getMyAssignments: async () => {
-        const response = await api.get(`${base}/assignments`);
+    getMyAssignments: async (semesterId) => {
+        const response = await api.get(`${base}/assignments`, {
+            params: semesterId ? { semesterId } : undefined
+        });
         return response.data;
     },
 
     getAssignmentById: async (id) => {
         const response = await api.get(`${base}/assignments/${id}`);
+        return response.data;
+    },
+
+    updateAssignment: async (id, body) => {
+        const response = await api.patch(`${base}/assignments/${id}`, body);
         return response.data;
     },
 

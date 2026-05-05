@@ -6,6 +6,22 @@ import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
 
+function normalizeAssignmentClasses(assignment) {
+  const rawClasses = Array.isArray(assignment?.classes) && assignment.classes.length
+    ? assignment.classes
+    : assignment?.class
+      ? [assignment.class]
+      : [];
+  const classes = rawClasses.filter(Boolean);
+  return {
+    ...assignment,
+    classes,
+    class: classes[0] || assignment?.class || null,
+    classNames: classes.map((c) => [c?.code, c?.name].filter(Boolean).join(' - ')).filter(Boolean),
+    assignedClasses: classes.map((c) => c?.code || c?.name).filter(Boolean),
+  };
+}
+
 async function resolveStudentClassContexts(userId) {
   const enrollments = await Enrollment.find({ student: userId, status: 'active' })
     .populate('class', 'code name subjects')
@@ -51,7 +67,11 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     const classSubjectIds = (e.class?.subjects || []).map((s) => (s?._id ? s._id : s)).filter(Boolean);
     const subs = enrollmentSubjectIds.length ? enrollmentSubjectIds : classSubjectIds;
     for (const sid of subs) {
-      orFilters.push({ class: e.class._id, subject: sid, isActive: true });
+      orFilters.push({
+        subject: sid,
+        isActive: true,
+        $or: [{ class: e.class._id }, { classes: e.class._id }],
+      });
     }
   }
   if (!orFilters.length) return [];
@@ -62,36 +82,38 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     .populate('semester', 'name')
     .populate('academicYear', 'label')
     .populate('class', 'code name')
+    .populate('classes', 'code name')
     .sort({ createdAt: -1 })
     .lean();
 
   const out = [];
   for (const a of assignments) {
+    const assignment = normalizeAssignmentClasses(a);
     let proposal = await Proposal.findOne({
-      assignment: a._id,
+      assignment: assignment._id,
       submittedBy: userId,
       group: null,
     })
       .sort({ updatedAt: -1 })
       .lean();
 
-    if (!proposal && a.submissionMode === 'group') {
+    if (!proposal && assignment.submissionMode === 'group') {
       const groups = await Group.find({
-        assignment: a._id,
+        assignment: assignment._id,
         $or: [{ leader: userId }, { 'members.user': userId }],
       }).select('_id');
       const gids = groups.map((g) => g._id);
       if (gids.length) {
-        proposal = await Proposal.findOne({ assignment: a._id, group: { $in: gids } })
+        proposal = await Proposal.findOne({ assignment: assignment._id, group: { $in: gids } })
           .sort({ updatedAt: -1 })
           .lean();
       }
     }
 
     const groupInfo =
-      a.submissionMode === 'group'
+      assignment.submissionMode === 'group'
         ? await Group.findOne({
-            assignment: a._id,
+            assignment: assignment._id,
             $or: [{ leader: userId }, { 'members.user': userId }],
           })
             .populate('leader', 'name email')
@@ -102,7 +124,7 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     const isLeader = groupInfo ? String(groupInfo.leader?._id || groupInfo.leader) === String(userId) : true;
     const approved = proposal?.status === 'teacher_approved';
     const projectSubmissionAllowed =
-      !!a.projectPhaseOpen && approved && (a.submissionMode !== 'group' || isLeader);
+      !!assignment.projectPhaseOpen && approved && (assignment.submissionMode !== 'group' || isLeader);
 
     let latestProjectSubmission = null;
     if (proposal?._id) {
@@ -113,7 +135,7 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     }
 
     out.push({
-      assignment: a,
+      assignment,
       proposal: proposal || null,
       group: groupInfo,
       isGroupLeader: isLeader,
