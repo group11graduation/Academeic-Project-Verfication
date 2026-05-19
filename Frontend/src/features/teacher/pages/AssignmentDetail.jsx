@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft, Download, Calendar, Users,
-    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, MessageSquare, AlertTriangle, XCircle, BarChart2
+    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, ChevronRight
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
@@ -37,11 +37,6 @@ const AssignmentDetail = () => {
     const [uploadingRequirement, setUploadingRequirement] = useState(false);
     const [proposals, setProposals] = useState([]);
     const [loadingProposals, setLoadingProposals] = useState(true);
-    const [openProposalId, setOpenProposalId] = useState(null);
-    const [reviewBusyKey, setReviewBusyKey] = useState(null);
-    const [commentByProposal, setCommentByProposal] = useState({});
-    const [evalScoreByProposal, setEvalScoreByProposal] = useState({});
-    const [vsAiByProposal, setVsAiByProposal] = useState({});
     const [catalog, setCatalog] = useState([]);
     const [savingAssignment, setSavingAssignment] = useState(false);
     const [editForm, setEditForm] = useState({
@@ -56,6 +51,8 @@ const AssignmentDetail = () => {
         projectDeadline: '',
         selectedClassIds: []
     });
+    const [normalBundle, setNormalBundle] = useState(null);
+    const [loadingNormal, setLoadingNormal] = useState(false);
 
     useEffect(() => {
         const fetch = async () => {
@@ -67,14 +64,26 @@ const AssignmentDetail = () => {
                 ]);
                 if (res.success) {
                     setData(res.data);
+                    const isFinal = String(res.data?.assignmentType || 'normal') === 'final';
+                    const hasFile = Boolean(res.data?.assignmentFile);
                     setEditForm({
                         title: res.data?.title || '',
                         description: res.data?.description || '',
                         assignmentType: res.data?.assignmentType || 'normal',
                         classAssignmentMode: res.data?.classAssignmentMode || ((res.data?.classes || []).length > 1 ? 'multiple' : 'single'),
-                        requirementText: res.data?.requirementText || '',
-                        requiredKeywordsText: Array.isArray(res.data?.requiredKeywords) ? res.data.requiredKeywords.join(', ') : '',
-                        allowedTechnologiesText: Array.isArray(res.data?.allowedTechnologies) ? res.data.allowedTechnologies.join(', ') : '',
+                        requirementText: isFinal && hasFile ? '' : (res.data?.requirementText || ''),
+                        requiredKeywordsText:
+                            isFinal && hasFile
+                                ? ''
+                                : Array.isArray(res.data?.requiredKeywords)
+                                  ? res.data.requiredKeywords.join(', ')
+                                  : '',
+                        allowedTechnologiesText:
+                            isFinal && hasFile
+                                ? ''
+                                : Array.isArray(res.data?.allowedTechnologies)
+                                  ? res.data.allowedTechnologies.join(', ')
+                                  : '',
                         proposalDeadline: res.data?.proposalDeadline ? new Date(res.data.proposalDeadline).toISOString().slice(0, 16) : '',
                         projectDeadline: res.data?.projectDeadline ? new Date(res.data.projectDeadline).toISOString().slice(0, 16) : '',
                         selectedClassIds: Array.isArray(res.data?.classes) && res.data.classes.length
@@ -87,7 +96,6 @@ const AssignmentDetail = () => {
                 if (pRes.success) {
                     const rows = pRes.data || [];
                     setProposals(rows);
-                    setOpenProposalId(rows[0]?._id || null);
                 }
                 if (cRes.success) setCatalog(cRes.data || []);
             } catch (err) {
@@ -101,35 +109,29 @@ const AssignmentDetail = () => {
     }, [id]);
 
     useEffect(() => {
-        if (!openProposalId) return;
-        const p = proposals.find((x) => x._id === openProposalId);
-        if (!p) return;
-        setEvalScoreByProposal((prev) => ({
-            ...prev,
-            [p._id]:
-                p.teacherProposalScore != null && p.teacherProposalScore !== undefined
-                    ? String(p.teacherProposalScore)
-                    : '',
-        }));
-        setVsAiByProposal((prev) => ({
-            ...prev,
-            [p._id]:
-                p.teacherVsAi && ['aligns', 'stricter', 'lenient', 'not_set'].includes(p.teacherVsAi)
-                    ? p.teacherVsAi
-                    : 'not_set',
-        }));
-    }, [openProposalId, proposals]);
-
-    const buildReviewPayload = (proposalId) => {
-        const n = String(evalScoreByProposal[proposalId] || '').trim();
-        const num = n === '' ? undefined : Number(n);
-        return {
-            comment: (commentByProposal[proposalId] || '').trim(),
-            teacherProposalScore:
-                num !== undefined && !Number.isNaN(num) && num >= 0 && num <= 100 ? num : undefined,
-            vsAi: vsAiByProposal[proposalId] || 'not_set',
+        if (!id || !data) return;
+        if (String(data.assignmentType || 'normal') !== 'normal') {
+            setNormalBundle(null);
+            return;
+        }
+        let cancelled = false;
+        setLoadingNormal(true);
+        teacherService
+            .getNormalSubmissionsForAssignment(id)
+            .then((res) => {
+                if (!cancelled && res.success) setNormalBundle(res.data);
+                else if (!cancelled) setNormalBundle(null);
+            })
+            .catch(() => {
+                if (!cancelled) setNormalBundle(null);
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingNormal(false);
+            });
+        return () => {
+            cancelled = true;
         };
-    };
+    }, [id, data?._id, data?.assignmentType]);
 
     const formatDate = (d) =>
         d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
@@ -138,9 +140,31 @@ const AssignmentDetail = () => {
         d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
     const isPast = (d) => d && new Date(d) < new Date();
-    const students = Array.isArray(data?.students) ? data.students : [];
-    const submitted = students.filter(s => s.submitted);
-    const pending = students.filter(s => !s.submitted);
+
+    const isNormalAssignment =
+        Boolean(data) && String(data.assignmentType || 'normal') === 'normal';
+
+    const students = useMemo(() => {
+        if (isNormalAssignment && normalBundle?.students) {
+            return (normalBundle.students || []).map((row) => ({
+                studentName: row.name || row.email || 'Student',
+                studentIdLabel: row.studentId || '',
+                classId: row.classCode || '—',
+                submitted: row.submitted,
+                submittedAt: row.submission?.createdAt,
+                submissionFile: row.submission?.downloadPath,
+                originalFileName: row.submission?.originalFilename,
+                plagiarismScore: row.submission?.plagiarismScore,
+                plagiarismFlag: row.submission?.plagiarismFlag,
+                plagiarismMethod: row.submission?.plagiarismMethod || '',
+                matchedPeerLabel: row.submission?.matchedPeerLabel || '',
+            }));
+        }
+        return Array.isArray(data?.students) ? data.students : [];
+    }, [isNormalAssignment, normalBundle, data?.students]);
+
+    const submitted = students.filter((s) => s.submitted);
+    const pending = students.filter((s) => !s.submitted);
     const total = students.length;
     const deadline = data?.proposalDeadline || data?.projectDeadline || data?.deadline;
     const classLabel =
@@ -181,6 +205,9 @@ const AssignmentDetail = () => {
         </div>
     );
 
+    const hideTypedFinalRequirements =
+        String(data.assignmentType || 'normal') === 'final' && Boolean(data.assignmentFile);
+
     const handleUploadRequirementFile = async (file) => {
         if (!file) return;
         try {
@@ -188,6 +215,14 @@ const AssignmentDetail = () => {
             const res = await teacherService.uploadAssignmentRequirements(id, file);
             if (res.success) {
                 setData(res.data);
+                if (String(res.data?.assignmentType || 'normal') === 'final') {
+                    setEditForm((prev) => ({
+                        ...prev,
+                        requirementText: '',
+                        requiredKeywordsText: '',
+                        allowedTechnologiesText: '',
+                    }));
+                }
             }
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to upload requirements file.');
@@ -214,14 +249,24 @@ const AssignmentDetail = () => {
         if (editForm.selectedClassIds.length === 0) return alert('Select at least one class.');
         try {
             setSavingAssignment(true);
+            const finalWithFile =
+                String(editForm.assignmentType || 'normal') === 'final' && Boolean(data.assignmentFile);
             const res = await teacherService.updateAssignment(id, {
                 title: editForm.title.trim(),
                 description: editForm.description.trim(),
                 assignmentType: editForm.assignmentType,
                 classAssignmentMode: editForm.classAssignmentMode,
-                requirementText: editForm.requirementText.trim(),
-                requiredKeywordsText: editForm.requiredKeywordsText.trim(),
-                allowedTechnologiesText: editForm.allowedTechnologiesText.trim(),
+                ...(finalWithFile
+                    ? {
+                          requirementText: '',
+                          requiredKeywordsText: '',
+                          allowedTechnologiesText: '',
+                      }
+                    : {
+                          requirementText: editForm.requirementText.trim(),
+                          requiredKeywordsText: editForm.requiredKeywordsText.trim(),
+                          allowedTechnologiesText: editForm.allowedTechnologiesText.trim(),
+                      }),
                 proposalDeadline: editForm.proposalDeadline || null,
                 projectDeadline: editForm.projectDeadline || null,
                 classIds: editForm.selectedClassIds
@@ -231,24 +276,6 @@ const AssignmentDetail = () => {
             alert(err.response?.data?.message || 'Failed to update assignment.');
         } finally {
             setSavingAssignment(false);
-        }
-    };
-
-    const runReview = async (proposalId, action) => {
-        const busyKey = `${proposalId}:${action}`;
-        setReviewBusyKey(busyKey);
-        try {
-            const payload = { action, ...buildReviewPayload(proposalId) };
-            const r = await teacherService.reviewProposal(proposalId, payload);
-            if (r.success) {
-                setCommentByProposal((prev) => ({ ...prev, [proposalId]: '' }));
-                const refreshed = await teacherService.getProposalsForAssignment(id);
-                if (refreshed.success) setProposals(refreshed.data || []);
-            }
-        } catch (err) {
-            alert(err.response?.data?.message || 'Review action failed');
-        } finally {
-            setReviewBusyKey(null);
         }
     };
 
@@ -278,13 +305,24 @@ const AssignmentDetail = () => {
                         <p className="text-slate-400 text-sm font-medium mb-4">
                             {data.subject?.name} · {classLabel}
                         </p>
-                        <Link
-                            to={`/teacher/assignments/${id}/proposals`}
-                            className="inline-flex items-center gap-2 text-sm font-black text-[#1D68E3] hover:underline mb-4"
-                        >
-                            <ClipboardCheck className="h-4 w-4" />
-                            Review proposals
-                        </Link>
+                        <div className="flex flex-wrap gap-4 mb-4">
+                            <Link
+                                to={`/teacher/assignments/${id}/proposals`}
+                                className="inline-flex items-center gap-2 text-sm font-black text-[#1D68E3] hover:underline"
+                            >
+                                <ClipboardCheck className="h-4 w-4" />
+                                Review proposals
+                            </Link>
+                            {isNormalAssignment && (
+                                <Link
+                                    to={`/teacher/assignments/${id}/normal-students`}
+                                    className="inline-flex items-center gap-2 text-sm font-black text-slate-600 dark:text-slate-300 hover:underline"
+                                >
+                                    <Users className="h-4 w-4" />
+                                    Student cards & extracted text
+                                </Link>
+                            )}
+                        </div>
 
                         <div className="flex flex-wrap gap-4 text-sm font-bold">
                             {/* Classes */}
@@ -407,33 +445,42 @@ const AssignmentDetail = () => {
                                 })}
                             </div>
                         </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Teacher requirements</label>
-                            <textarea
-                                rows={3}
-                                value={editForm.requirementText}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, requirementText: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Required keywords</label>
-                            <input
-                                type="text"
-                                value={editForm.requiredKeywordsText}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, requiredKeywordsText: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Allowed technologies</label>
-                            <input
-                                type="text"
-                                value={editForm.allowedTechnologiesText}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, allowedTechnologiesText: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            />
-                        </div>
+                        {hideTypedFinalRequirements && (
+                            <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-400">
+                                Requirements are provided as the uploaded file. Typed requirements, keywords, and allowed technologies are not used while a file is attached.
+                            </div>
+                        )}
+                        {!hideTypedFinalRequirements && (
+                            <>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Teacher requirements</label>
+                                    <textarea
+                                        rows={3}
+                                        value={editForm.requirementText}
+                                        onChange={(e) => setEditForm((prev) => ({ ...prev, requirementText: e.target.value }))}
+                                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Required keywords</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.requiredKeywordsText}
+                                        onChange={(e) => setEditForm((prev) => ({ ...prev, requiredKeywordsText: e.target.value }))}
+                                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Allowed technologies</label>
+                                    <input
+                                        type="text"
+                                        value={editForm.allowedTechnologiesText}
+                                        onChange={(e) => setEditForm((prev) => ({ ...prev, allowedTechnologiesText: e.target.value }))}
+                                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
+                                    />
+                                </div>
+                            </>
+                        )}
                         <div>
                             <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Proposal deadline</label>
                             <input
@@ -455,10 +502,24 @@ const AssignmentDetail = () => {
                     </div>
                 </div>
 
+                {isNormalAssignment && normalBundle?.plagiarismExplained && (
+                    <div className="mt-6 rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/90 dark:bg-blue-950/25 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-300 leading-relaxed">
+                        <span className="font-black text-slate-900 dark:text-white">Normal assignment & plagiarism: </span>
+                        {normalBundle.plagiarismExplained}
+                        {Number(normalBundle.flaggedCount) > 0 && (
+                            <span className="block mt-2 font-bold text-rose-700 dark:text-rose-400">
+                                {normalBundle.flaggedCount} submission(s) flagged (≥85% similarity vs another student on this same assignment).
+                            </span>
+                        )}
+                    </div>
+                )}
+
                 {/* Progress Bar */}
                 <div className="mt-6 pt-6 border-t border-slate-100 dark:border-white/5">
                     <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs font-black uppercase tracking-widest text-slate-500">File submission progress</span>
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                            {isNormalAssignment ? 'Normal assignment uploads (one file per student)' : 'File submission progress'}
+                        </span>
                         <span className="text-sm font-black text-slate-700 dark:text-slate-200">{submittedCount} / {total} students</span>
                     </div>
                     <div className="h-2.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
@@ -505,47 +566,67 @@ const AssignmentDetail = () => {
             </div>
 
             {/* Submissions Table */}
-            <div className="bg-white dark:bg-[#0F172A] rounded-[28px] border border-slate-100 dark:border-white/5 overflow-hidden shadow-xl">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+            <div className="app-table-shell shadow-xl relative">
+                {loadingNormal && isNormalAssignment && (
+                    <div className="absolute inset-0 z-10 bg-white/70 dark:bg-[#0B1120]/70 flex items-center justify-center rounded-[inherit]">
+                        <Loader2 className="h-8 w-8 text-[#1D68E3] animate-spin" />
+                    </div>
+                )}
+                <div className="app-table-wrap">
+                    <table className="app-table">
                         <thead>
-                            <tr className="border-b border-slate-100 dark:border-white/5">
-                                <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">Student</th>
-                                <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">Class</th>
-                                <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">Submitted At</th>
-                                <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest text-slate-400">File</th>
+                            <tr className="app-table-headrow">
+                                <th className="app-table-th">Student</th>
+                                <th className="app-table-th">Class</th>
+                                <th className="app-table-th">Status</th>
+                                {isNormalAssignment && (
+                                    <>
+                                        <th className="app-table-th">Similarity vs peers</th>
+                                        <th className="app-table-th">Closest peer match</th>
+                                    </>
+                                )}
+                                <th className="app-table-th">Submitted At</th>
+                                <th className="app-table-th">File</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50 dark:divide-white/5">
+                        <tbody className="app-table-body">
                             {filteredStudents.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold text-sm">
-                                        {total === 0
-                                            ? 'No per-student file roster is loaded for this assignment. Use “Review proposals” for proposal workflow status.'
-                                            : 'No students in this view.'}
+                                    <td colSpan={isNormalAssignment ? 7 : 5} className="app-table-empty font-bold text-sm">
+                                        {loadingNormal && isNormalAssignment
+                                            ? 'Loading class roster and submissions…'
+                                            : total === 0
+                                                ? isNormalAssignment
+                                                    ? 'No students matched this assignment’s class(es). Check that student profiles use the correct class code, or wait for uploads.'
+                                                    : 'No per-student file roster is loaded for this assignment. Use “Review proposals” for proposal workflow status.'
+                                                : 'No students in this view.'}
                                     </td>
                                 </tr>
                             ) : (
                                 filteredStudents.map((s, idx) => (
-                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+                                    <tr key={`${s.studentName}-${s.studentIdLabel || idx}`} className="app-table-row">
                                         {/* Name */}
-                                        <td className="px-6 py-4">
+                                        <td className="app-table-td">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-black">
                                                     {s.studentName?.charAt(0).toUpperCase()}
                                                 </div>
-                                                <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{s.studentName}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{s.studentName}</span>
+                                                    {s.studentIdLabel ? (
+                                                        <span className="text-[11px] font-semibold text-slate-400">{s.studentIdLabel}</span>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </td>
                                         {/* Class */}
-                                        <td className="px-6 py-4">
+                                        <td className="app-table-td">
                                             <span className="text-xs font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full">
                                                 {s.classId}
                                             </span>
                                         </td>
                                         {/* Status */}
-                                        <td className="px-6 py-4">
+                                        <td className="app-table-td">
                                             {s.submitted ? (
                                                 <span className="flex items-center gap-1.5 text-xs font-black text-emerald-500">
                                                     <CheckCircle2 className="h-3.5 w-3.5" /> Submitted
@@ -556,12 +637,34 @@ const AssignmentDetail = () => {
                                                 </span>
                                             )}
                                         </td>
+                                        {isNormalAssignment && (
+                                            <>
+                                                <td className="app-table-td text-sm">
+                                                    {s.submitted ? (
+                                                        <span
+                                                            className={`font-black ${s.plagiarismFlag ? 'text-rose-600' : 'text-slate-600'}`}
+                                                            title={s.plagiarismMethod || ''}
+                                                        >
+                                                            {Math.round((Number(s.plagiarismScore ?? 0)) * 100)}%
+                                                            {s.plagiarismFlag ? (
+                                                                <span className="ml-1 text-[10px] uppercase tracking-wide text-rose-500">High</span>
+                                                            ) : null}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="app-table-td text-xs text-slate-500 font-medium max-w-[140px] truncate" title={s.matchedPeerLabel || ''}>
+                                                    {s.submitted && s.matchedPeerLabel ? s.matchedPeerLabel : '—'}
+                                                </td>
+                                            </>
+                                        )}
                                         {/* Submitted At */}
-                                        <td className="px-6 py-4 text-sm text-slate-500 font-medium">
+                                        <td className="app-table-td text-sm text-slate-500 font-medium">
                                             {s.submittedAt ? formatDateTime(s.submittedAt) : '—'}
                                         </td>
                                         {/* Download */}
-                                        <td className="px-6 py-4">
+                                        <td className="app-table-td">
                                             {s.submitted && s.submissionFile ? (
                                                 <a
                                                     href={`${apiOrigin}${s.submissionFile}`}
@@ -585,18 +688,22 @@ const AssignmentDetail = () => {
                 </div>
             </div>
 
-            {/* Actual proposal review in this page */}
+            {/* Proposal roster — same pattern as normal assignment student list */}
             <div className="mt-6 bg-white dark:bg-[#0F172A] rounded-[28px] border border-slate-100 dark:border-white/5 p-6 md:p-7 shadow-xl">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-                    <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">Proposal review in this page</h2>
-                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                        {proposals.length} proposals
-                    </span>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <div>
+                        <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">Student proposals</h2>
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
+                            Open each student for full review — extracted-style proposal text, AI signals, and approve / revision / reject.
+                        </p>
+                    </div>
+                    <Link
+                        to={`/teacher/assignments/${id}/proposals`}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+                    >
+                        Open full proposal roster
+                    </Link>
                 </div>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-4">
-                    Term: {data?.academicYear?.label || '—'} · {data?.semester?.name || 'Semester'} — same AI + teacher
-                    review fields as the full proposal review page.
-                </p>
                 {loadingProposals ? (
                     <div className="py-8 flex items-center justify-center">
                         <Loader2 className="h-6 w-6 text-[#1D68E3] animate-spin" />
@@ -604,161 +711,30 @@ const AssignmentDetail = () => {
                 ) : proposals.length === 0 ? (
                     <p className="text-sm font-semibold text-slate-500">No proposals submitted yet for this assignment.</p>
                 ) : (
-                    <div className="space-y-4">
-                        {proposals.map((p) => {
-                            const open = openProposalId === p._id;
-                            return (
-                                <div key={p._id} className="rounded-2xl border border-slate-200 dark:border-white/10 p-4 md:p-5">
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <div>
+                    <div className="rounded-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
+                        <ul className="divide-y divide-slate-100 dark:divide-white/10">
+                            {proposals.map((p) => (
+                                <li key={p._id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/teacher/assignments/${id}/proposals/${p._id}`)}
+                                        className="flex w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-slate-50 dark:hover:bg-white/5 md:px-5"
+                                    >
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1D68E3] to-[#3b74ff] text-sm font-bold text-white">
+                                            {(p.submittedBy?.name || p.submittedBy?.email || '?').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
                                             <p className="text-sm font-black text-slate-900 dark:text-slate-100">{proposalStudentLabel(p)}</p>
-                                            <p className="text-xs font-bold text-slate-500">{proposalStatusLabel(p.status)}</p>
+                                            <p className="text-xs font-semibold text-slate-500 truncate">{p.title || 'Untitled proposal'}</p>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setOpenProposalId((prev) => (prev === p._id ? null : p._id))}
-                                            className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
-                                        >
-                                            {open ? 'Hide review' : 'Open review'}
-                                        </button>
-                                    </div>
-
-                                    {open && (
-                                        <div className="mt-4">
-                                            <h3 className="text-base font-black text-slate-900 dark:text-slate-100 mb-1">{p.title || 'Untitled proposal'}</h3>
-                                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap mb-3">{p.description || 'No description'}</p>
-                                            <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 mb-3">
-                                                {(p.features || []).map((f, idx) => <li key={idx}>{f}</li>)}
-                                            </ul>
-
-                                            {p.teacherComment && (
-                                                <div className="mb-3 text-xs font-semibold text-amber-700 dark:text-amber-300 inline-flex items-start gap-2">
-                                                    <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
-                                                    {p.teacherComment}
-                                                </div>
-                                            )}
-
-                                            <div className="mb-4 rounded-2xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/60 dark:bg-violet-950/25 p-3">
-                                                <div className="flex items-center gap-2 text-violet-900 dark:text-violet-200 text-[10px] font-black uppercase tracking-widest mb-1.5">
-                                                    <BarChart2 className="h-3.5 w-3.5" />
-                                                    AI similarity (advisory)
-                                                </div>
-                                                {p.aiSummary && (
-                                                    <p className="text-[11px] font-mono text-violet-800/90 dark:text-violet-200/80 mb-2 break-words">
-                                                        {p.aiSummary}
-                                                    </p>
-                                                )}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                                    <div className="rounded-lg bg-white/80 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/40 px-2.5 py-1.5">
-                                                        <p className="text-[9px] font-bold text-slate-500 uppercase">Same semester (max)</p>
-                                                        <p className="font-black text-slate-900 dark:text-white">
-                                                            {Number.isFinite(p.aiSameSemesterMaxScore)
-                                                                ? `${Math.round(Number(p.aiSameSemesterMaxScore) * 100)}%`
-                                                                : '—'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="rounded-lg bg-white/80 dark:bg-slate-900/60 border border-violet-100 dark:border-violet-900/40 px-2.5 py-1.5">
-                                                        <p className="text-[9px] font-bold text-slate-500 uppercase">Legacy / other term (max)</p>
-                                                        <p className="font-black text-slate-900 dark:text-white">
-                                                            {Number.isFinite(p.aiPreviousSemesterMaxScore)
-                                                                ? `${Math.round(Number(p.aiPreviousSemesterMaxScore) * 100)}%`
-                                                                : '—'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-                                                        Your score (0–100, optional)
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        min={0}
-                                                        max={100}
-                                                        value={evalScoreByProposal[p._id] ?? ''}
-                                                        onChange={(e) =>
-                                                            setEvalScoreByProposal((prev) => ({ ...prev, [p._id]: e.target.value }))
-                                                        }
-                                                        className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2 text-sm"
-                                                        placeholder="e.g. 78"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-                                                        Compared to AI
-                                                    </label>
-                                                    <select
-                                                        value={vsAiByProposal[p._id] ?? 'not_set'}
-                                                        onChange={(e) =>
-                                                            setVsAiByProposal((prev) => ({ ...prev, [p._id]: e.target.value }))
-                                                        }
-                                                        className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2 text-sm"
-                                                    >
-                                                        <option value="not_set">Not specified</option>
-                                                        <option value="aligns">I agree with the AI risk picture</option>
-                                                        <option value="stricter">I am stricter than the AI hint</option>
-                                                        <option value="lenient">The AI is too harsh — I accept this work</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <>
-                                                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-                                                    Written feedback (student-visible on approve / reject / revision)
-                                                </label>
-                                                <textarea
-                                                    value={commentByProposal[p._id] || ''}
-                                                    onChange={(e) => setCommentByProposal((prev) => ({ ...prev, [p._id]: e.target.value }))}
-                                                    rows={2}
-                                                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2.5 text-sm mb-2"
-                                                    placeholder="Optional comment for this student..."
-                                                />
-                                                <button
-                                                    type="button"
-                                                    disabled={!!reviewBusyKey || !(commentByProposal[p._id] || '').trim()}
-                                                    onClick={() => runReview(p._id, 'comment')}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-xs font-bold disabled:opacity-50 mb-3"
-                                                >
-                                                    <MessageSquare className="h-4 w-4" /> Send feedback only
-                                                </button>
-                                            </>
-                                            {(p.status === 'pending_teacher_approval' || p.status === 'revision_required') && (
-                                                <>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <button
-                                                            type="button"
-                                                            disabled={!!reviewBusyKey}
-                                                            onClick={() => runReview(p._id, 'approve')}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-50"
-                                                        >
-                                                            <CheckCircle2 className="h-4 w-4" /> Approve
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            disabled={!!reviewBusyKey}
-                                                            onClick={() => runReview(p._id, 'revision')}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold disabled:opacity-50"
-                                                        >
-                                                            <AlertTriangle className="h-4 w-4" /> Revision
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            disabled={!!reviewBusyKey}
-                                                            onClick={() => runReview(p._id, 'reject')}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold disabled:opacity-50"
-                                                        >
-                                                            <XCircle className="h-4 w-4" /> Reject
-                                                        </button>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                        <span className="hidden sm:inline text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                                            {proposalStatusLabel(p.status)}
+                                        </span>
+                                        <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 )}
             </div>

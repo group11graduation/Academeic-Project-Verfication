@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
@@ -19,10 +19,34 @@ const AssignmentCreate = () => {
     const [submissionMode, setSubmissionMode] = useState('single');
     const [proposalDeadline, setProposalDeadline] = useState('');
     const [projectDeadline, setProjectDeadline] = useState('');
+    const [normalSubmissionDeadline, setNormalSubmissionDeadline] = useState('');
     const [requirementText, setRequirementText] = useState('');
     const [requiredKeywordsText, setRequiredKeywordsText] = useState('');
     const [allowedTechnologiesText, setAllowedTechnologiesText] = useState('');
     const [requirementsFile, setRequirementsFile] = useState(null);
+    const requirementsFileInputRef = useRef(null);
+
+    const isNormal = assignmentType === 'normal';
+    const isFinal = assignmentType === 'final';
+    const hideFinalTypedRequirements = isFinal && Boolean(requirementsFile);
+
+    useEffect(() => {
+        if (assignmentType === 'normal') {
+            setSubmissionMode('single');
+            setClassAssignmentMode('single');
+            setProposalDeadline('');
+            setProjectDeadline('');
+            setRequiredKeywordsText('');
+            setAllowedTechnologiesText('');
+            setDescription('');
+            setRequirementsFile(null);
+            if (requirementsFileInputRef.current) requirementsFileInputRef.current.value = '';
+        } else if (assignmentType === 'final' && requirementsFile) {
+            setRequirementText('');
+            setRequiredKeywordsText('');
+            setAllowedTechnologiesText('');
+        }
+    }, [assignmentType]);
 
     useEffect(() => {
         const loadCatalog = async () => {
@@ -85,12 +109,20 @@ const AssignmentCreate = () => {
         );
     };
 
+    const clearRequirementsFileChoice = () => {
+        setRequirementsFile(null);
+        if (requirementsFileInputRef.current) requirementsFileInputRef.current.value = '';
+    };
+
     const handleCreate = async (e) => {
         e.preventDefault();
         const row = selectedCatalogRow;
         if (!row || !subjectId) return alert('Select class context and subject.');
         if (selectedClassIds.length === 0) return alert('Select at least one class.');
         if (!title.trim()) return alert('Title is required.');
+        if (assignmentType === 'normal' && !requirementText.trim()) {
+            return alert('Instructions for students are required for a normal assignment.');
+        }
 
         try {
             setSubmitting(true);
@@ -102,16 +134,28 @@ const AssignmentCreate = () => {
             fd.append('academicYearId', row.academicYear?._id || row.academicYear || '');
             fd.append('title', title.trim());
             fd.append('description', description.trim());
-            fd.append('submissionMode', submissionMode);
+            fd.append('submissionMode', assignmentType === 'normal' ? 'single' : submissionMode);
             fd.append('assignmentType', assignmentType);
             fd.append('classAssignmentMode', classAssignmentMode);
-            fd.append('proposalPhaseOpen', 'true');
-            fd.append('projectPhaseOpen', 'false');
-            if (proposalDeadline) fd.append('proposalDeadline', proposalDeadline);
-            if (projectDeadline) fd.append('projectDeadline', projectDeadline);
+            if (assignmentType === 'normal') {
+                fd.append('proposalPhaseOpen', 'false');
+                fd.append('projectPhaseOpen', 'true');
+            } else {
+                fd.append('proposalPhaseOpen', 'true');
+                fd.append('projectPhaseOpen', 'false');
+            }
+            if (assignmentType === 'normal' && normalSubmissionDeadline) {
+                fd.append('projectDeadline', normalSubmissionDeadline);
+            }
+            if (assignmentType === 'final' && proposalDeadline) fd.append('proposalDeadline', proposalDeadline);
+            if (assignmentType === 'final' && projectDeadline) fd.append('projectDeadline', projectDeadline);
             if (requirementText.trim()) fd.append('requirementText', requirementText.trim());
-            if (requiredKeywordsText.trim()) fd.append('requiredKeywordsText', requiredKeywordsText.trim());
-            if (allowedTechnologiesText.trim()) fd.append('allowedTechnologiesText', allowedTechnologiesText.trim());
+            if (assignmentType === 'final' && !requirementsFile && requiredKeywordsText.trim()) {
+                fd.append('requiredKeywordsText', requiredKeywordsText.trim());
+            }
+            if (assignmentType === 'final' && !requirementsFile && allowedTechnologiesText.trim()) {
+                fd.append('allowedTechnologiesText', allowedTechnologiesText.trim());
+            }
             if (requirementsFile) fd.append('requirementsFile', requirementsFile);
 
             const res = await teacherService.createAssignment(fd);
@@ -144,7 +188,11 @@ const AssignmentCreate = () => {
 
             <div className="bg-white dark:bg-[#0F172A] rounded-[24px] border border-slate-200 dark:border-white/10 p-8 shadow-sm">
                 <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">New Assignment</h1>
-                <p className="text-sm text-slate-500 mt-1 mb-6">Must exist before students can submit proposals.</p>
+                <p className="text-sm text-slate-500 mt-1 mb-6">
+                    {isNormal
+                        ? 'Normal assignments: each student uploads one file. Set an optional submission deadline; students still see it on their assignment list and detail page.'
+                        : 'Final assignments: students submit proposals first, then projects. Set deadlines and optional AI requirement checks below.'}
+                </p>
 
                 {catalog.length === 0 ? (
                     <p className="text-slate-500 text-sm">No class/subject assignments found. Ask admin to assign classes and subjects.</p>
@@ -193,151 +241,295 @@ const AssignmentCreate = () => {
                             </select>
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class assignment mode</label>
-                            <select
-                                value={classAssignmentMode}
-                                onChange={(e) => {
-                                    const next = e.target.value;
-                                    setClassAssignmentMode(next);
-                                    if (next === 'single' && selectedClassIds.length > 1) {
-                                        setSelectedClassIds(selectedClassIds.slice(0, 1));
-                                    }
-                                }}
-                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                            >
-                                <option value="single">Single class</option>
-                                <option value="multiple">Multiple classes</option>
-                            </select>
-                        </div>
+                        {isNormal ? (
+                            <div className="rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/25 p-6 space-y-5">
+                                <p className="text-xs font-black uppercase tracking-widest text-[#2a3fa4] dark:text-blue-300">
+                                    Normal assignment — requirements only
+                                </p>
+                                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 -mt-3">
+                                    Students upload one file per assignment. Use the fields below for what they must submit; other proposal/project options are hidden.
+                                </p>
 
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Classes for this project *</label>
-                            <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-4 space-y-2 bg-white dark:bg-[#0B1120]">
-                                {compatibleClassOptions.map((row) => {
-                                    const classId = String(row.class?._id || '');
-                                    const checked = selectedClassIds.includes(classId);
-                                    return (
-                                        <label key={classId} className="flex items-center gap-3 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                            <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={() => handleToggleClass(classId)}
-                                            />
-                                            <span>
-                                                {row.class?.code || row.class?.name} - {row.class?.name || 'Class'}
-                                            </span>
+                                {compatibleClassOptions.length > 1 ? (
+                                    <div>
+                                        <label className="block text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-2">
+                                            Class for this assignment *
                                         </label>
-                                    );
-                                })}
-                                {compatibleClassOptions.length === 0 && (
-                                    <p className="text-sm font-medium text-slate-500">No compatible classes found for the selected subject and term.</p>
+                                        <select
+                                            value={selectedClassIds[0] || ''}
+                                            onChange={(e) => setSelectedClassIds(e.target.value ? [e.target.value] : [])}
+                                            required
+                                            className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                        >
+                                            <option value="">Select a class…</option>
+                                            {compatibleClassOptions.map((row) => {
+                                                const classId = String(row.class?._id || '');
+                                                return (
+                                                    <option key={classId} value={classId}>
+                                                        {row.class?.code || row.class?.name} — {row.class?.name || 'Class'}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                ) : compatibleClassOptions.length === 1 ? (
+                                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                        Class:{' '}
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                                            {compatibleClassOptions[0].class?.code} — {compatibleClassOptions[0].class?.name}
+                                        </span>
+                                    </p>
+                                ) : (
+                                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                                        No class matches this subject and term. Change base class or subject above.
+                                    </p>
                                 )}
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-2">
+                                        Assignment title *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        required
+                                        placeholder="e.g. Homework 3 — Linear regression"
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-2">
+                                        Instructions for students *
+                                    </label>
+                                    <textarea
+                                        value={requirementText}
+                                        onChange={(e) => setRequirementText(e.target.value)}
+                                        rows={6}
+                                        required
+                                        placeholder="What to submit (file types, structure, naming, due behavior, etc.). Students see this on the upload page."
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-2">
+                                        Submission deadline (optional)
+                                    </label>
+                                    <input
+                                        type="datetime-local"
+                                        value={normalSubmissionDeadline}
+                                        onChange={(e) => setNormalSubmissionDeadline(e.target.value)}
+                                        className="w-full max-w-md bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    />
+                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        Shown to students as the due date. Leave empty for no fixed deadline in the system.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-2">
+                                        Requirements file (optional)
+                                    </label>
+                                    <input
+                                        type="file"
+                                        ref={requirementsFileInputRef}
+                                        onChange={(e) => setRequirementsFile(e.target.files?.[0] || null)}
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    />
+                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        Optional PDF or document. You can also upload later from the assignment detail page.
+                                    </p>
+                                </div>
                             </div>
-                            <p className="mt-2 text-xs text-slate-500">
-                                {classAssignmentMode === 'single'
-                                    ? 'Single class mode: choose one class only.'
-                                    : 'Multiple class mode: choose one or more classes to publish the same assignment.'}
-                            </p>
-                        </div>
+                        ) : (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class assignment mode</label>
+                                    <select
+                                        value={classAssignmentMode}
+                                        onChange={(e) => {
+                                            const next = e.target.value;
+                                            setClassAssignmentMode(next);
+                                            if (next === 'single' && selectedClassIds.length > 1) {
+                                                setSelectedClassIds(selectedClassIds.slice(0, 1));
+                                            }
+                                        }}
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    >
+                                        <option value="single">Single class</option>
+                                        <option value="multiple">Multiple classes</option>
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Title *</label>
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                required
-                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                            />
-                        </div>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Classes for this project *</label>
+                                    <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-4 space-y-2 bg-white dark:bg-[#0B1120]">
+                                        {compatibleClassOptions.map((row) => {
+                                            const classId = String(row.class?._id || '');
+                                            const checked = selectedClassIds.includes(classId);
+                                            return (
+                                                <label key={classId} className="flex items-center gap-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => handleToggleClass(classId)}
+                                                    />
+                                                    <span>
+                                                        {row.class?.code || row.class?.name} - {row.class?.name || 'Class'}
+                                                    </span>
+                                                </label>
+                                            );
+                                        })}
+                                        {compatibleClassOptions.length === 0 && (
+                                            <p className="text-sm font-medium text-slate-500">No compatible classes found for the selected subject and term.</p>
+                                        )}
+                                    </div>
+                                    <p className="mt-2 text-xs text-slate-500">
+                                        {classAssignmentMode === 'single'
+                                            ? 'Single class mode: choose one class only.'
+                                            : 'Multiple class mode: choose one or more classes to publish the same assignment.'}
+                                    </p>
+                                </div>
 
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Description</label>
-                            <textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                rows={4}
-                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                            />
-                        </div>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Title *</label>
+                                    <input
+                                        type="text"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        required
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    />
+                                </div>
 
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Teacher requirements (optional)</label>
-                            <textarea
-                                value={requirementText}
-                                onChange={(e) => setRequirementText(e.target.value)}
-                                rows={4}
-                                placeholder="Example: Must include authentication, dashboard, and API integration."
-                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                            />
-                        </div>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Description</label>
+                                    <textarea
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        rows={4}
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                            </>
+                        )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Required keywords (optional)</label>
-                                <input
-                                    type="text"
-                                    value={requiredKeywordsText}
-                                    onChange={(e) => setRequiredKeywordsText(e.target.value)}
-                                    placeholder="authentication, api, dashboard"
-                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Allowed technologies (optional)</label>
-                                <input
-                                    type="text"
-                                    value={allowedTechnologiesText}
-                                    onChange={(e) => setAllowedTechnologiesText(e.target.value)}
-                                    placeholder="react, node, mongodb"
-                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                                />
-                            </div>
-                        </div>
+                        {isFinal && (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                                        Requirements file (optional)
+                                    </label>
+                                    <input
+                                        type="file"
+                                        ref={requirementsFileInputRef}
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0] || null;
+                                            setRequirementsFile(f);
+                                            if (f) {
+                                                setRequirementText('');
+                                                setRequiredKeywordsText('');
+                                                setAllowedTechnologiesText('');
+                                            }
+                                        }}
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    />
+                                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                                        <p className="text-xs text-slate-500">
+                                            If you attach a file, typed requirements and keyword filters are hidden—students follow the document.
+                                        </p>
+                                        {requirementsFile && (
+                                            <button
+                                                type="button"
+                                                onClick={clearRequirementsFileChoice}
+                                                className="text-xs font-bold text-rose-600 hover:underline"
+                                            >
+                                                Remove file
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
 
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Requirements file (optional)</label>
-                            <input
-                                type="file"
-                                onChange={(e) => setRequirementsFile(e.target.files?.[0] || null)}
-                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                            />
-                            <p className="mt-2 text-xs text-slate-500">You can upload now or later from assignment detail page.</p>
-                        </div>
+                                {!hideFinalTypedRequirements && (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                                                Teacher requirements (proposal / project)
+                                            </label>
+                                            <textarea
+                                                value={requirementText}
+                                                onChange={(e) => setRequirementText(e.target.value)}
+                                                rows={4}
+                                                placeholder="Example: Must include authentication, dashboard, and API integration."
+                                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                            />
+                                        </div>
 
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Submission mode</label>
-                            <select
-                                value={submissionMode}
-                                onChange={(e) => setSubmissionMode(e.target.value)}
-                                className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                            >
-                                <option value="single">Single student</option>
-                                <option value="group">Group (leader submits)</option>
-                            </select>
-                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                                                    Required keywords (optional)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={requiredKeywordsText}
+                                                    onChange={(e) => setRequiredKeywordsText(e.target.value)}
+                                                    placeholder="authentication, api, dashboard"
+                                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                                                    Allowed technologies (optional)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={allowedTechnologiesText}
+                                                    onChange={(e) => setAllowedTechnologiesText(e.target.value)}
+                                                    placeholder="react, node, mongodb"
+                                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-black uppercase text-slate-500 mb-2">Proposal deadline</label>
-                                <input
-                                    type="datetime-local"
-                                    value={proposalDeadline}
-                                    onChange={(e) => setProposalDeadline(e.target.value)}
-                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-black uppercase text-slate-500 mb-2">Project deadline</label>
-                                <input
-                                    type="datetime-local"
-                                    value={projectDeadline}
-                                    onChange={(e) => setProjectDeadline(e.target.value)}
-                                    className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
-                                />
-                            </div>
-                        </div>
+                                <div>
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Submission mode</label>
+                                    <select
+                                        value={submissionMode}
+                                        onChange={(e) => setSubmissionMode(e.target.value)}
+                                        className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                    >
+                                        <option value="single">Single student</option>
+                                        <option value="group">Group (leader submits)</option>
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-slate-500 mb-2">Proposal deadline</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={proposalDeadline}
+                                            onChange={(e) => setProposalDeadline(e.target.value)}
+                                            className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black uppercase text-slate-500 mb-2">Project deadline</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={projectDeadline}
+                                            onChange={(e) => setProjectDeadline(e.target.value)}
+                                            className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
 
                         <button
                             type="submit"

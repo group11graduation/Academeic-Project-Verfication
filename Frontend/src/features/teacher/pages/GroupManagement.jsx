@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Search,
-    Bell,
-    Settings,
     RotateCw,
     FileUp,
-    Info,
+    Download,
     ArrowRight,
     Plus,
     X,
     Users,
+    User,
     Loader2,
     AlertTriangle,
     ChevronRight,
@@ -21,48 +20,136 @@ import teacherService from '../../../services/teacherService';
 const GroupManagement = () => {
     const { id: classCode } = useParams();
     const [groups, setGroups] = useState([]);
+    const [groupAssignments, setGroupAssignments] = useState([]);
+    const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
+    const [importSummary, setImportSummary] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [genType, setGenType] = useState('group'); // 'group' or 'individual'
     const [groupSize, setGroupSize] = useState(4);
     const [generating, setGenerating] = useState(false);
+    const [exportingFile, setExportingFile] = useState(false);
+    const [importingFile, setImportingFile] = useState(false);
+    const importInputRef = useRef(null);
 
     useEffect(() => {
         if (classCode) {
-            fetchGroups();
+            loadPage();
         }
     }, [classCode]);
 
-    const fetchGroups = async () => {
+    const loadPage = async () => {
         try {
             setLoading(true);
-            const res = await teacherService.getGroups(classCode);
-            if (res.success) {
-                setGroups(res.data);
+            setError(null);
+            const [gRes, aRes] = await Promise.all([
+                teacherService.getGroups(classCode),
+                teacherService.getGroupAssignmentsForClass(classCode),
+            ]);
+            if (gRes.success) setGroups(gRes.data || []);
+            else setGroups([]);
+            if (aRes.success && Array.isArray(aRes.data) && aRes.data.length) {
+                setGroupAssignments(aRes.data);
+                setSelectedAssignmentId((prev) => {
+                    if (prev && aRes.data.some((x) => String(x._id) === String(prev))) return prev;
+                    return String(aRes.data[0]._id);
+                });
+            } else {
+                setGroupAssignments([]);
+                setSelectedAssignmentId('');
             }
         } catch (err) {
-            console.error('Failed to fetch groups:', err);
+            console.error('Failed to load group management page:', err);
             setError('Failed to load groups. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
+    const handleExportCsv = async () => {
+        if (!selectedAssignmentId) return;
+        try {
+            setExportingFile(true);
+            const res = await teacherService.exportGroups(selectedAssignmentId, 'csv');
+            if (res.success && res.data?.csv) {
+                const blob = new Blob([res.data.csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = res.data.filename || 'groups.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message || 'Export failed';
+            alert(msg);
+        } finally {
+            setExportingFile(false);
+        }
+    };
+
+    const handleExportXlsx = async () => {
+        if (!selectedAssignmentId) return;
+        try {
+            setExportingFile(true);
+            const res = await teacherService.exportGroups(selectedAssignmentId, 'xlsx');
+            if (res.success && res.data?.xlsxBase64) {
+                teacherService.downloadXlsxFromBase64(res.data.filename, res.data.xlsxBase64);
+            }
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message || 'Export failed';
+            alert(msg);
+        } finally {
+            setExportingFile(false);
+        }
+    };
+
+    const handleImportFile = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file || !selectedAssignmentId) return;
+        const lower = file.name.toLowerCase();
+        const isXlsx = lower.endsWith('.xlsx') || lower.endsWith('.xls');
+        try {
+            setImportingFile(true);
+            let res;
+            if (isXlsx) {
+                const buf = await file.arrayBuffer();
+                const xlsxBase64 = teacherService.arrayBufferToBase64(buf);
+                res = await teacherService.importGroups(selectedAssignmentId, { xlsxBase64 });
+            } else {
+                const csv = await file.text();
+                res = await teacherService.importGroups(selectedAssignmentId, { csv });
+            }
+            if (res.success) {
+                setImportSummary(res.data);
+                await loadPage();
+            }
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message || 'Import failed';
+            alert(msg);
+        } finally {
+            setImportingFile(false);
+        }
+    };
+
     const handleGenerate = async () => {
         try {
             setGenerating(true);
-            const res = await teacherService.generateGroups(classCode, {
+            const body = {
                 type: genType,
-                groupSize: genType === 'group' ? groupSize : 1
-            });
+                groupSize: genType === 'group' ? groupSize : 1,
+            };
+            if (selectedAssignmentId) body.assignmentId = selectedAssignmentId;
+            const res = await teacherService.generateGroups(classCode, body);
             if (res.success) {
                 setIsModalOpen(false);
-                fetchGroups();
+                loadPage();
             }
         } catch (err) {
-            console.error('Generation failed:', err);
-            alert('Failed to generate groups');
+            const msg = err.response?.data?.message || err.message || 'Failed to generate groups';
+            alert(msg);
         } finally {
             setGenerating(false);
         }
@@ -118,6 +205,106 @@ const GroupManagement = () => {
                         <RotateCw className="h-5 w-5" />
                     </button>
                 </div>
+            </div>
+
+            {error && (
+                <div className="mb-8 rounded-2xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 px-6 py-4 text-sm font-bold text-rose-700 dark:text-rose-300">
+                    {error}
+                </div>
+            )}
+
+            {importSummary && (
+                <div className="mb-8 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0F172A] px-6 py-5 relative">
+                    <button
+                        type="button"
+                        onClick={() => setImportSummary(null)}
+                        className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        aria-label="Dismiss"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-3">Import result</p>
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
+                        Created {importSummary.createdGroups?.length ?? 0} group(s).
+                        {importSummary.orphanGroupsRemoved > 0
+                            ? ` Removed ${importSummary.orphanGroupsRemoved} previous empty group(s) without proposals.`
+                            : ''}
+                    </p>
+                    {(importSummary.rejectedStudentRows?.length > 0) && (
+                        <div className="mt-3 text-sm text-amber-700 dark:text-amber-400 font-bold">
+                            <p className="mb-1">Rejected student IDs (not on class roster or duplicate row):</p>
+                            <ul className="list-disc pl-5 space-y-0.5 font-mono text-xs">
+                                {importSummary.rejectedStudentRows.slice(0, 30).map((r, i) => (
+                                    <li key={i}>{r.studentId} — {r.reason} {r.groupName ? `(group: ${r.groupName})` : ''}</li>
+                                ))}
+                            </ul>
+                            {importSummary.rejectedStudentRows.length > 30 && (
+                                <p className="mt-1 text-xs">…and {importSummary.rejectedStudentRows.length - 30} more</p>
+                            )}
+                        </div>
+                    )}
+                    {(importSummary.skippedGroups?.length > 0) && (
+                        <p className="mt-2 text-xs font-bold text-slate-500">
+                            Skipped groups (no valid students after validation): {importSummary.skippedGroups.map((s) => s.groupName).join(', ')}
+                        </p>
+                    )}
+                </div>
+            )}
+
+            <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-4 mb-10">
+                <div className="flex-1 min-w-[220px]">
+                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-2 block">
+                        Group assignment (export / import / generate)
+                    </label>
+                    <select
+                        value={selectedAssignmentId}
+                        onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                        disabled={!groupAssignments.length}
+                        className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-100 dark:border-white/5 rounded-2xl py-3 px-4 text-sm font-bold text-slate-800 dark:text-slate-100"
+                    >
+                        {!groupAssignments.length ? (
+                            <option value="">No group-mode assignments for this class</option>
+                        ) : (
+                            groupAssignments.map((a) => (
+                                <option key={a._id} value={a._id}>{a.title}</option>
+                            ))
+                        )}
+                    </select>
+                </div>
+                <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    className="hidden"
+                    onChange={handleImportFile}
+                />
+                <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    disabled={!selectedAssignmentId || exportingFile || importingFile}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-black text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
+                >
+                    {exportingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Export CSV
+                </button>
+                <button
+                    type="button"
+                    onClick={handleExportXlsx}
+                    disabled={!selectedAssignmentId || exportingFile || importingFile}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-black text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
+                >
+                    {exportingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Export Excel
+                </button>
+                <button
+                    type="button"
+                    onClick={() => importInputRef.current?.click()}
+                    disabled={!selectedAssignmentId || importingFile || exportingFile}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-black text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
+                >
+                    {importingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                    Import file
+                </button>
             </div>
 
             {/* Summary Metrics */}
@@ -254,6 +441,27 @@ const GroupManagement = () => {
                             </button>
                         </div>
                         <div className="p-10 space-y-10">
+                            {groupAssignments.length > 0 && (
+                                <div>
+                                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3 block transition-colors">
+                                        Assignment
+                                    </label>
+                                    <select
+                                        value={selectedAssignmentId}
+                                        onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 rounded-2xl py-3 px-4 text-sm font-bold text-slate-800 dark:text-slate-100"
+                                    >
+                                        {groupAssignments.map((a) => (
+                                            <option key={a._id} value={a._id}>{a.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            {groupAssignments.length === 0 && (
+                                <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                                    Create an active group-mode assignment for this class before generating groups.
+                                </p>
+                            )}
                             <div>
                                 <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 block transition-colors">Project Type</label>
                                 <div className="grid grid-cols-2 gap-6">
@@ -294,7 +502,7 @@ const GroupManagement = () => {
                             <div className="pt-4">
                                 <button
                                     onClick={handleGenerate}
-                                    disabled={generating}
+                                    disabled={generating || !groupAssignments.length}
                                     className="w-full py-5 bg-[#1D68E3] text-white rounded-[24px] font-black text-base shadow-2xl shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 uppercase tracking-[0.2em]"
                                 >
                                     {generating ? (
@@ -309,7 +517,7 @@ const GroupManagement = () => {
                                 <div className="mt-8 flex items-center justify-center gap-3 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10 py-4 rounded-2xl border border-amber-100 dark:border-amber-900/20 px-6">
                                     <AlertTriangle className="h-5 w-5 shrink-0" />
                                     <p className="text-[12px] font-bold leading-relaxed">
-                                        Regenerating will clear all existing data for <span className="font-black underline">{classCode}</span>.
+                                        Regenerating removes only groups that have no student proposal linked yet. Groups with active proposals are kept.
                                     </p>
                                 </div>
                             </div>

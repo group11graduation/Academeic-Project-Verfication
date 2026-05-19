@@ -2,6 +2,34 @@ import api from '../lib/api';
 
 const base = '/teacher';
 
+const enc = (id) => encodeURIComponent(id);
+
+/** Encode binary file for JSON import body (Excel). */
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+}
+
+function downloadXlsxFromBase64(filename, xlsxBase64) {
+    const bin = atob(xlsxBase64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+    const blob = new Blob([out], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename && filename.endsWith('.xlsx') ? filename : `${filename || 'groups'}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 const getDashboardStats = async () => {
     const response = await api.get(`${base}/dashboard/stats`);
     return response.data;
@@ -23,24 +51,86 @@ const getMySubjects = async () => {
 };
 
 const getClassDetails = async (classId) => {
-    const response = await api.get(`${base}/classes/${classId}`);
+    const response = await api.get(`${base}/classes/${enc(classId)}`);
     return response.data;
 };
 
 const getClassStudents = async (classId) => {
-    const response = await api.get(`${base}/classes/${classId}/students`);
+    const response = await api.get(`${base}/classes/${enc(classId)}/students`);
+    return response.data;
+};
+
+const getClassStudentDetail = async (classId, studentUserId) => {
+    const response = await api.get(
+        `${base}/classes/${enc(classId)}/students/${enc(studentUserId)}`,
+    );
     return response.data;
 };
 
 const getGroups = async (classId) => {
-    const response = await api.get(`${base}/classes/${classId}/groups`);
+    const response = await api.get(`${base}/classes/${enc(classId)}/groups`);
+    return response.data;
+};
+
+const getGroupAssignmentsForClass = async (classId) => {
+    const response = await api.get(`${base}/classes/${enc(classId)}/group-assignments`);
     return response.data;
 };
 
 const generateGroups = async (classId, config) => {
-    const response = await api.post(`${base}/classes/${classId}/groups/generate`, config);
+    const response = await api.post(`${base}/classes/${enc(classId)}/groups/generate`, config);
     return response.data;
 };
+
+/** Class-level teams before any assignment exists */
+const generateClassTemplateGroups = async (classId, config) => {
+    const response = await api.post(`${base}/classes/${enc(classId)}/class-groups/generate`, config);
+    return response.data;
+};
+
+const exportClassTemplateGroups = async (classId, format = 'csv') => {
+    const response = await api.get(`${base}/classes/${enc(classId)}/class-groups/export`, {
+        params: format === 'xlsx' ? { format: 'xlsx' } : {},
+    });
+    return response.data;
+};
+
+const importClassTemplateGroups = async (classId, body) => {
+    const response = await api.post(`${base}/classes/${enc(classId)}/class-groups/import`, body);
+    return response.data;
+};
+
+const previewClassTemplateGroups = async (classId, body) => {
+    const response = await api.post(`${base}/classes/${enc(classId)}/class-groups/import-preview`, body);
+    return response.data;
+};
+
+const commitClassTemplateGroups = async (classId, proposedGroups) => {
+    const response = await api.post(`${base}/classes/${enc(classId)}/class-groups/import-commit`, {
+        proposedGroups,
+    });
+    return response.data;
+};
+
+const exportClassTemplateGroupsCsv = (classId) => exportClassTemplateGroups(classId, 'csv');
+
+const importClassTemplateGroupsCsv = (classId, csv) => importClassTemplateGroups(classId, { csv });
+
+const exportGroups = async (assignmentId, format = 'csv') => {
+    const response = await api.get(`${base}/assignments/${enc(assignmentId)}/groups/export`, {
+        params: format === 'xlsx' ? { format: 'xlsx' } : {},
+    });
+    return response.data;
+};
+
+const importGroups = async (assignmentId, body) => {
+    const response = await api.post(`${base}/assignments/${enc(assignmentId)}/groups/import`, body);
+    return response.data;
+};
+
+const exportGroupsCsv = (assignmentId) => exportGroups(assignmentId, 'csv');
+
+const importGroupsCsv = (assignmentId, csv) => importGroups(assignmentId, { csv });
 
 const getAllGroups = async () => {
     const response = await api.get(`${base}/groups`);
@@ -54,8 +144,23 @@ const teacherService = {
     getMySubjects,
     getClassDetails,
     getClassStudents,
+    getClassStudentDetail,
     getGroups,
+    getGroupAssignmentsForClass,
     generateGroups,
+    generateClassTemplateGroups,
+    exportClassTemplateGroups,
+    importClassTemplateGroups,
+    previewClassTemplateGroups,
+    commitClassTemplateGroups,
+    exportClassTemplateGroupsCsv,
+    importClassTemplateGroupsCsv,
+    exportGroups,
+    importGroups,
+    exportGroupsCsv,
+    importGroupsCsv,
+    arrayBufferToBase64,
+    downloadXlsxFromBase64,
     getAllGroups,
     getGroupDetails: async (id) => {
         const response = await api.get(`${base}/groups/${id}`);
@@ -106,6 +211,19 @@ const teacherService = {
         return response.data;
     },
 
+    /** Normal (file-upload) assignment: per-student latest file + plagiarism vs peers on same assignment */
+    getNormalSubmissionsForAssignment: async (assignmentId) => {
+        const response = await api.get(`${base}/assignments/${assignmentId}/normal-submissions`);
+        return response.data;
+    },
+
+    getNormalSubmissionStudentDetail: async (assignmentId, studentUserId) => {
+        const response = await api.get(
+            `${base}/assignments/${assignmentId}/normal-submissions/student/${encodeURIComponent(studentUserId)}`
+        );
+        return response.data;
+    },
+
     reviewProposal: async (proposalId, payload) => {
         const response = await api.patch(`${base}/proposals/${proposalId}/review`, payload);
         return response.data;
@@ -133,8 +251,9 @@ const teacherService = {
         return response.data;
     },
 
-    startProposalPreview: async (proposalId) => {
-        const response = await api.post(`${base}/proposals/${proposalId}/preview/start`);
+    startProposalPreview: async (proposalId, stack = 'auto') => {
+        const body = stack && stack !== 'auto' ? { stack } : {};
+        const response = await api.post(`${base}/proposals/${proposalId}/preview/start`, body);
         return response.data;
     },
 

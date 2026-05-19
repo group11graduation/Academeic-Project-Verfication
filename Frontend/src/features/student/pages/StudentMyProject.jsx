@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { BookOpen, CalendarClock, CheckCircle2, Clock3, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import studentService from '../../../services/studentService';
-import StudentHeader from '../components/StudentHeader';
 
 const StudentMyProject = () => {
     const [dashboardData, setDashboardData] = React.useState(null);
@@ -29,8 +28,6 @@ const StudentMyProject = () => {
 
     return (
         <div className="min-h-screen flex flex-col bg-[#F8FAFB] font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
-            <StudentHeader />
-
             <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 md:px-8 py-10">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-[50vh] gap-4">

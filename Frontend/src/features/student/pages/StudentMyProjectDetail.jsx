@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../../context/authContext';
-import StudentHeader from '../components/StudentHeader';
 import studentService from '../../../services/studentService';
 import { getApiOrigin } from '../../../lib/api';
 
@@ -35,6 +34,7 @@ const StudentMyProjectDetail = () => {
     const zipInputRef = useRef(null);
     const [codeZipBusy, setCodeZipBusy] = useState(false);
     const [codeZipMessage, setCodeZipMessage] = useState('');
+    const [selectedZipFile, setSelectedZipFile] = useState(null);
 
     const project = useMemo(() => {
         if (!row?.assignment) return null;
@@ -153,19 +153,40 @@ const StudentMyProjectDetail = () => {
         }
     };
 
-    const handleProjectZipSelected = async (file) => {
-        if (!file || !assignmentId) return;
+    const onZipFilePicked = (file) => {
+        if (!file) {
+            setSelectedZipFile(null);
+            return;
+        }
         const name = (file.name || '').toLowerCase();
         if (!name.endsWith('.zip')) {
-            setCodeZipMessage('Please choose a .zip file.');
+            setCodeZipMessage('Please choose a .zip file only.');
+            setSelectedZipFile(null);
+            return;
+        }
+        setCodeZipMessage('');
+        setSelectedZipFile(file);
+    };
+
+    const handleProjectZipUpload = async () => {
+        if (!selectedZipFile || !assignmentId) return;
+        if (row?.projectDeadlinePassed) {
+            setCodeZipMessage('Project deadline has passed. You cannot upload or update.');
             return;
         }
         setCodeZipBusy(true);
         setCodeZipMessage('');
         try {
-            const res = await studentService.submitProjectCode(assignmentId, file);
+            const res = await studentService.submitProjectCode(assignmentId, selectedZipFile);
             if (res.success) {
-                setCodeZipMessage(`Uploaded: ${res.data?.originalFilename || file.name}. Your teacher can start a sandbox preview after refresh.`);
+                const v = res.data?.version;
+                const updated = res.data?.isUpdate;
+                setCodeZipMessage(
+                    updated
+                        ? `Updated (v${v}): ${res.data?.originalFilename || selectedZipFile.name}. Same submission id — teacher sees the new file.`
+                        : `Uploaded: ${res.data?.originalFilename || selectedZipFile.name}. You can replace it until the project deadline.`
+                );
+                setSelectedZipFile(null);
                 const assignRes = await studentService.getAssignment(assignmentId);
                 if (assignRes.success) setRow(assignRes.data);
             } else {
@@ -198,9 +219,6 @@ const StudentMyProjectDetail = () => {
 
     return (
         <div className="min-h-screen bg-[#F8FAFB] font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
-            {/* Standardized Header */}
-            <StudentHeader />
-
             {loading ? (
                 <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
                     <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
@@ -368,45 +386,76 @@ const StudentMyProjectDetail = () => {
                                 <div>
                                     <h2 className="text-[22px] font-black text-[#0F172A] tracking-tight">Project code (.zip)</h2>
                                     <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-                                        Upload a ZIP of your project (static HTML/CSS/JS works best for the default preview server).
-                                        Your proposal must be teacher-approved. The archive is scanned for unsafe paths before any preview runs.
+                                        Select your ZIP, then click Upload. You can replace the file until the project deadline (same
+                                        submission id, version increments).
                                     </p>
+                                    <p className="mt-2 text-xs font-bold text-slate-600">
+                                        Submitting as: <span className="text-emerald-800">{user?.name || 'You'}</span>
+                                    </p>
+                                    {row?.assignment?.projectDeadline && (
+                                        <p className="text-xs font-bold text-slate-500 mt-1">
+                                            Deadline: {new Date(row.assignment.projectDeadline).toLocaleString()}
+                                            {row.projectDeadlinePassed ? (
+                                                <span className="text-rose-600"> — closed</span>
+                                            ) : null}
+                                        </p>
+                                    )}
                                     {row?.latestProjectSubmission && (
                                         <p className="text-xs font-bold text-slate-400 mt-2">
-                                            Last upload: {row.latestProjectSubmission.originalFilename} (
+                                            Current: {row.latestProjectSubmission.originalFilename} (
                                             {Math.round((row.latestProjectSubmission.sizeBytes || 0) / 1024)} KB)
+                                            {row.latestProjectSubmission.version
+                                                ? ` · v${row.latestProjectSubmission.version}`
+                                                : ''}
                                         </p>
                                     )}
                                 </div>
                             </div>
-                            <input
-                                type="file"
-                                ref={zipInputRef}
-                                className="hidden"
-                                accept=".zip,application/zip"
-                                onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f) handleProjectZipSelected(f);
-                                }}
-                            />
-                            <button
-                                type="button"
-                                disabled={codeZipBusy}
-                                onClick={() => zipInputRef.current?.click()}
-                                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50"
-                            >
-                                {codeZipBusy ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Uploading…
-                                    </>
-                                ) : (
-                                    <>
-                                        <UploadCloud className="h-4 w-4" />
-                                        Choose ZIP & upload
-                                    </>
-                                )}
-                            </button>
+                            {row?.projectDeadlinePassed ? (
+                                <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+                                    Project deadline has passed.
+                                </p>
+                            ) : (
+                                <>
+                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                                        Step 1 — Choose ZIP
+                                    </p>
+                                    <input
+                                        type="file"
+                                        ref={zipInputRef}
+                                        accept=".zip,application/zip"
+                                        disabled={codeZipBusy}
+                                        onChange={(e) => onZipFilePicked(e.target.files?.[0] || null)}
+                                        className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                                    />
+                                    {selectedZipFile ? (
+                                        <p className="mb-3 text-sm font-semibold text-slate-700">
+                                            Selected: {selectedZipFile.name} ({Math.round(selectedZipFile.size / 1024)} KB)
+                                        </p>
+                                    ) : null}
+                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                                        Step 2 — Upload
+                                    </p>
+                                    <button
+                                        type="button"
+                                        disabled={codeZipBusy || !selectedZipFile}
+                                        onClick={handleProjectZipUpload}
+                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50"
+                                    >
+                                        {codeZipBusy ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Uploading…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <UploadCloud className="h-4 w-4" />
+                                                {row?.latestProjectSubmission ? 'Update project ZIP' : 'Upload project ZIP'}
+                                            </>
+                                        )}
+                                    </button>
+                                </>
+                            )}
                             {codeZipMessage && (
                                 <p className="mt-3 text-sm font-medium text-slate-600">{codeZipMessage}</p>
                             )}

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import adminStudentService from '../../../services/adminStudentService';
 import adminClassService from '../../../services/adminClassService';
+import { adminAcademicService } from '../../../services/adminAcademicService';
 
 const AdminStudentDetail = () => {
     const { id } = useParams();
@@ -41,6 +42,7 @@ const AdminStudentDetail = () => {
     const [editForm, setEditForm] = useState(null);
     const [classes, setClasses] = useState([]);
     const [loadingClasses, setLoadingClasses] = useState(false);
+    const [facultyStructureNames, setFacultyStructureNames] = useState([]);
 
     // Certificate Preview State
     const [isCertModalOpen, setIsCertModalOpen] = useState(false);
@@ -101,6 +103,23 @@ const AdminStudentDetail = () => {
 
         fetchStudent();
     }, [id]);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const stRes = await adminAcademicService.getAcademicStructure();
+                if (cancelled || !stRes.success) return;
+                const names = (stRes.data?.faculties || []).map((f) => f.name).filter(Boolean);
+                setFacultyStructureNames(names);
+            } catch {
+                /* ignore */
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const handleEditChange = (e) => {
         const { name, value } = e.target;
@@ -612,10 +631,18 @@ const AdminStudentDetail = () => {
                                     <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Faculty</p>
                                     {isEditing ? (
                                         <select name="faculty" value={editForm.faculty} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors">
-                                            <option value="">Select Faculty</option>
-                                            <option>Computer Science & IT</option>
-                                            <option>Engineering</option>
-                                            <option>Medicine</option>
+                                            <option value="">Select faculty</option>
+                                            {(() => {
+                                                const names = new Set(facultyStructureNames);
+                                                if (editForm.faculty && String(editForm.faculty).trim()) {
+                                                    names.add(String(editForm.faculty).trim());
+                                                }
+                                                return [...names].sort((a, b) => a.localeCompare(b));
+                                            })().map((name) => (
+                                                <option key={name} value={name}>
+                                                    {name}
+                                                </option>
+                                            ))}
                                         </select>
                                     ) : (
                                         <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.faculty || 'N/A'}</p>

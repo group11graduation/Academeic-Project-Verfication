@@ -8,4 +8,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  appType: 'spa',
+  server: {
+    // Deep links like /teacher/classes/:id/students/:userId must serve index.html
+    historyApiFallback: true,
+  },
+  preview: {
+    historyApiFallback: true,
+  },
 })

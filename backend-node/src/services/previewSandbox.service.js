@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import Docker from 'dockerode';
 import AdmZip from 'adm-zip';
+import * as dockerOrchestrator from './dockerOrchestrator.service.js';
 import { PreviewSession } from '../models/PreviewSession.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { Proposal } from '../models/Proposal.js';
@@ -11,8 +12,9 @@ import { Proposal } from '../models/Proposal.js';
 const MAX_FILES = Number(process.env.PREVIEW_MAX_EXTRACT_FILES || 500);
 const MAX_TOTAL_BYTES = Number(process.env.PREVIEW_MAX_EXTRACT_BYTES || 52_428_800);
 const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 300000);
-const PREVIEW_STARTUP_POLL_MS = Number(process.env.PREVIEW_STARTUP_POLL_MS || 1500);
 
+/** Sessions waiting for container HTTP/TCP readiness */
+const readinessJobs = new Set();
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const activeTimers = new Map();
 
@@ -35,201 +37,6 @@ function getDocker() {
 
 function appendLog(session, level, message) {
   session.logs.push({ level, message, at: new Date() });
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function containerIsRunning(container) {
-  const inspect = await container.inspect();
-  return Boolean(inspect?.State?.Running);
-}
-
-async function waitForPreviewReady(container, previewUrl, startupTimeoutMs) {
-  const started = Date.now();
-  while (Date.now() - started < startupTimeoutMs) {
-    try {
-      const res = await fetch(previewUrl, { method: 'GET' });
-      if (res && res.status >= 200 && res.status < 500) {
-        return true;
-      }
-    } catch {
-      // Not ready yet.
-    }
-    try {
-      const running = await containerIsRunning(container);
-      if (!running) return false;
-    } catch {
-      return false;
-    }
-    await sleep(PREVIEW_STARTUP_POLL_MS);
-  }
-  return false;
-}
-
-function rewriteLocalDbHostForContainer(value) {
-  if (!value) return value;
-  // Container cannot reach host DB via localhost/127.0.0.1.
-  return String(value).replace(/(localhost|127\.0\.0\.1)/g, 'host.docker.internal');
-}
-
-function buildPreviewEnv(runtime, containerPort) {
-  const env = [`PORT=${containerPort}`];
-
-  if (runtime.mode === 'fullstack' && runtime.backendPort) {
-    env.push(`PREVIEW_BACKEND_PORT=${runtime.backendPort}`);
-    env.push(`VITE_API_URL=http://localhost:${runtime.backendPort}`);
-  }
-
-  // Pass DB/app env for student backend inside preview container.
-  // Priority: explicit PREVIEW_* overrides, then host process env.
-  const mongoUri = process.env.PREVIEW_MONGODB_URI || process.env.MONGODB_URI;
-  const databaseUrl = process.env.PREVIEW_DATABASE_URL || process.env.DATABASE_URL;
-  const dbHost = process.env.PREVIEW_DB_HOST || process.env.DB_HOST;
-  const dbPort = process.env.PREVIEW_DB_PORT || process.env.DB_PORT;
-  const dbName = process.env.PREVIEW_DB_NAME || process.env.DB_NAME;
-  const nodeEnv = process.env.PREVIEW_NODE_ENV || process.env.NODE_ENV || 'development';
-
-  if (mongoUri) env.push(`MONGODB_URI=${rewriteLocalDbHostForContainer(mongoUri)}`);
-  if (databaseUrl) env.push(`DATABASE_URL=${rewriteLocalDbHostForContainer(databaseUrl)}`);
-  if (dbHost) env.push(`DB_HOST=${rewriteLocalDbHostForContainer(dbHost)}`);
-  if (dbPort) env.push(`DB_PORT=${dbPort}`);
-  if (dbName) env.push(`DB_NAME=${dbName}`);
-  env.push(`NODE_ENV=${nodeEnv}`);
-
-  return env;
-}
-
-async function pathExists(p) {
-  try {
-    await fs.access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function findFirstPackageJsonDir(baseDir) {
-  const candidates = [
-    path.join(baseDir, 'bms-frontend'),
-    path.join(baseDir, 'frontend'),
-    path.join(baseDir, 'client'),
-    path.join(baseDir, 'web'),
-    path.join(baseDir, 'app'),
-    baseDir,
-  ];
-
-  for (const c of candidates) {
-    if (await pathExists(path.join(c, 'package.json'))) return c;
-  }
-
-  const top = await fs.readdir(baseDir, { withFileTypes: true });
-  for (const d of top) {
-    if (!d.isDirectory()) continue;
-    const sub = path.join(baseDir, d.name);
-    if (await pathExists(path.join(sub, 'package.json'))) return sub;
-  }
-  return null;
-}
-
-async function findPackageDirByNames(baseDir, names) {
-  for (const n of names) {
-    const p = path.join(baseDir, n);
-    if (await pathExists(path.join(p, 'package.json'))) return p;
-  }
-  return null;
-}
-
-async function detectPreviewRuntime(extractDir, session) {
-  // If zip contains a single wrapper folder, prefer it as working root.
-  const topEntries = await fs.readdir(extractDir, { withFileTypes: true });
-  const dirs = topEntries.filter((e) => e.isDirectory());
-  let root = extractDir;
-  if (dirs.length === 1) {
-    const candidate = path.join(extractDir, dirs[0].name);
-    // Wrapper folder heuristic: use it when root has no app entry file.
-    const hasRootIndex = await pathExists(path.join(extractDir, 'index.html'));
-    const hasRootPkg = await pathExists(path.join(extractDir, 'package.json'));
-    if (!hasRootIndex && !hasRootPkg) root = candidate;
-  }
-
-  // Full-stack mode: detect common frontend + backend folders and run both.
-  const frontendDir = await findPackageDirByNames(root, ['frontend', 'bms-frontend', 'client', 'web', 'app']);
-  const backendDir = await findPackageDirByNames(root, ['backend', 'backend-node', 'server', 'api']);
-  if (frontendDir && backendDir) {
-    const frontendRel = path.relative(root, frontendDir).replace(/\\/g, '/');
-    const backendRel = path.relative(root, backendDir).replace(/\\/g, '/');
-    appendLog(session, 'info', `Detected full-stack project. frontend=${frontendRel}, backend=${backendRel}`);
-    return {
-      mode: 'fullstack',
-      workdir: root,
-      image: process.env.PREVIEW_NODE_IMAGE || 'node:20-alpine',
-      backendPort: String(process.env.PREVIEW_BACKEND_PORT || '18080'),
-      command: [
-        'sh',
-        '-lc',
-        [
-          'set -e',
-          `cd "${backendRel}"`,
-          'npm install --no-audit --no-fund',
-          '(npm run dev || npm run start) &',
-          `cd "/workspace/${frontendRel}"`,
-          'npm install --no-audit --no-fund',
-          'npm run dev -- --host 0.0.0.0 --port "$PORT"',
-        ].join(' && '),
-      ],
-    };
-  }
-
-  const packageDir = await findFirstPackageJsonDir(root);
-  if (packageDir) {
-    const packageJsonPath = path.join(packageDir, 'package.json');
-    let pkg = {};
-    try {
-      pkg = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
-    } catch {
-      pkg = {};
-    }
-    const scripts = pkg.scripts || {};
-    const hasPreview = Boolean(scripts.preview);
-    const hasDev = Boolean(scripts.dev);
-    const hasStart = Boolean(scripts.start);
-    const relativeWorkdir = path.relative(extractDir, packageDir).replace(/\\/g, '/');
-    appendLog(
-      session,
-      'info',
-      `Detected Node project at ${relativeWorkdir || '.'}; scripts: ${Object.keys(scripts).join(', ') || 'none'}`
-    );
-    return {
-      mode: 'node',
-      workdir: packageDir,
-      image: process.env.PREVIEW_NODE_IMAGE || 'node:20-alpine',
-      command: [
-        'sh',
-        '-lc',
-        [
-          'set -e',
-          'npm install --no-audit --no-fund',
-          hasPreview
-            ? 'npm run preview -- --host 0.0.0.0 --port "$PORT"'
-            : hasDev
-              ? 'npm run dev -- --host 0.0.0.0 --port "$PORT"'
-              : hasStart
-                ? 'npm run start -- --host 0.0.0.0 --port "$PORT"'
-                : 'npx --yes serve -s . -l "$PORT"',
-        ].join(' && '),
-      ],
-    };
-  }
-
-  appendLog(session, 'info', 'No Node app detected. Falling back to static file server.');
-  return {
-    mode: 'static',
-    workdir: root,
-    image: process.env.PREVIEW_IMAGE || 'python:3.12-alpine',
-    command: ['sh', '-lc', 'python -m http.server "$PORT" --bind 0.0.0.0 --directory .'],
-  };
 }
 
 function safeExtractZip(zipAbs, destDir) {
@@ -263,19 +70,6 @@ function safeExtractZip(zipAbs, destDir) {
   }
 }
 
-async function ensureImage(docker, image) {
-  try {
-    await docker.getImage(image).inspect();
-  } catch {
-    await new Promise((resolve, reject) => {
-      docker.pull(image, (err, stream) => {
-        if (err) return reject(err);
-        docker.modem.followProgress(stream, (e) => (e ? reject(e) : resolve()));
-      });
-    });
-  }
-}
-
 async function cleanupSessionResources(session, docker, finalStatus, logMessage) {
   const sid = session._id.toString();
   if (activeTimers.has(sid)) {
@@ -283,12 +77,21 @@ async function cleanupSessionResources(session, docker, finalStatus, logMessage)
     activeTimers.delete(sid);
   }
 
+  if (session.dockerContainerId || session.hostPort) {
+    await dockerOrchestrator
+      .stopProjectPreview(session._id.toString(), {
+        hostPort: Number(session.hostPort) || null,
+        imageKey: session.submission?.toString?.() || session._id.toString(),
+        stack: session.previewStack || 'node-js',
+      })
+      .catch(() => {});
+  }
   if (session.dockerContainerId && docker) {
     try {
       const c = docker.getContainer(session.dockerContainerId);
       await c.stop({ t: 8 });
     } catch {
-      /* already stopped / removed (AutoRemove) */
+      /* legacy dockerode session */
     }
   }
 
@@ -306,10 +109,74 @@ async function cleanupSessionResources(session, docker, finalStatus, logMessage)
   await session.save();
 }
 
-async function stopActiveSessionsForProposal(proposalId, docker) {
+async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
+  const jobKey = sessionId.toString();
+  if (readinessJobs.has(jobKey)) return;
+  readinessJobs.add(jobKey);
+
+  try {
+    const wait = await dockerOrchestrator.waitForPreviewReady({
+      previewUrl: deployResult.previewUrl,
+      containerName: deployResult.containerName,
+      stack: deployResult.stack,
+      timeoutMs: PREVIEW_STARTUP_TIMEOUT_MS,
+    });
+
+    const session = await PreviewSession.findById(sessionId);
+    if (!session || session.status !== 'starting') return;
+
+    if (wait.ready) {
+      session.status = 'running';
+      session.previewStack = deployResult.stack || session.previewStack;
+      appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}`);
+      await session.save();
+
+      const ttl = session.ttlMs || Number(process.env.PREVIEW_TTL_MS || 600000);
+      const timer = setTimeout(async () => {
+        try {
+          const fresh = await PreviewSession.findById(sessionId);
+          if (fresh && fresh.status === 'running') {
+            await cleanupSessionResources(fresh, getDocker(), 'expired', 'TTL elapsed; container stopped.');
+          }
+        } catch (err) {
+          console.error('preview TTL cleanup', err);
+        }
+      }, ttl);
+      activeTimers.set(jobKey, timer);
+      return;
+    }
+
+    const tailLogs = await dockerOrchestrator.getContainerLogs(deployResult.containerName, 100);
+    await dockerOrchestrator
+      .stopProjectPreview(sessionId.toString(), {
+        hostPort: deployResult.hostPort,
+        imageKey: session.submission?.toString?.() || sessionId.toString(),
+        stack: deployResult.stack,
+      })
+      .catch(() => {});
+    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+
+    session.status = 'failed';
+    session.errorMessage =
+      wait.reason === 'container_exited'
+        ? 'Preview container stopped unexpectedly. Check logs below (wrong app folder or npm error).'
+        : `Preview did not respond on port ${session.hostPort} in time. Open the preview link anyway or try Start preview again (image may be cached).`;
+    session.endedAt = new Date();
+    appendLog(session, 'error', session.errorMessage);
+    if (tailLogs.trim()) {
+      appendLog(session, 'error', `Container logs: ${tailLogs.slice(-2500)}`);
+    }
+    await session.save();
+  } finally {
+    readinessJobs.delete(jobKey);
+  }
+}
+
+async function stopActiveSessionsForProposal(proposalId, docker, { includeStarting = true } = {}) {
+  const statuses = includeStarting ? ['starting', 'running'] : ['running'];
   const list = await PreviewSession.find({
     proposal: proposalId,
-    status: { $in: ['starting', 'running'] },
+    status: { $in: statuses },
   });
   for (const s of list) {
     await cleanupSessionResources(s, docker, 'stopped', 'Preview ended (superseded by a new session).');
@@ -320,7 +187,8 @@ async function stopActiveSessionsForProposal(proposalId, docker) {
  * Start a bounded Docker preview for teacher review.
  * Security: caller must enforce teacher ownership + proposal approved + submission exists (done here).
  */
-export async function startPreviewForProposal(teacherId, proposalId) {
+export async function startPreviewForProposal(teacherId, proposalId, options = {}) {
+  const { stack: stackOverride = null } = options;
   const docker = getDocker();
   if (!docker) {
     const err = new Error('Docker preview is disabled. Set DOCKER_PREVIEW_ENABLED=true and configure Docker.');
@@ -365,14 +233,21 @@ export async function startPreviewForProposal(teacherId, proposalId) {
     throw err;
   }
 
-  await stopActiveSessionsForProposal(proposal._id, docker);
+  const inflight = await PreviewSession.findOne({
+    proposal: proposal._id,
+    status: 'starting',
+  });
+  if (inflight) {
+    return inflight;
+  }
 
-  const CONTAINER_PORT = String(process.env.PREVIEW_CONTAINER_PORT || '8080');
+  await stopActiveSessionsForProposal(proposal._id, docker, { includeStarting: false });
+
+  // Hint is only used when the ZIP has no clear file signals — files always win over assignment title.
+  const stackHint = dockerOrchestrator.inferStackHintFromAssignment(assignment);
   const memory = Number(process.env.PREVIEW_MEMORY_BYTES || 268435456);
   const nanoCpus = Number(process.env.PREVIEW_NANO_CPUS || 500000000);
   const ttl = Number(process.env.PREVIEW_TTL_MS || 600000);
-  const rawPreviewHost = (process.env.PREVIEW_PUBLIC_HOST || 'http://localhost').replace(/\/$/, '');
-  const publicHost = rawPreviewHost.replace('127.0.0.1', 'localhost');
 
   const zipAbs = path.join(process.cwd(), 'uploads', submission.storedRelativePath);
   if (!fsSync.existsSync(zipAbs)) {
@@ -382,10 +257,6 @@ export async function startPreviewForProposal(teacherId, proposalId) {
   }
 
   const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scholar-preview-'));
-  const bindHostPath =
-    process.platform === 'win32' ? path.resolve(extractDir).replace(/\\/g, '/') : path.resolve(extractDir);
-  const runtime = await detectPreviewRuntime(extractDir, { logs: [] });
-
   const session = await PreviewSession.create({
     teacher: teacherId,
     proposal: proposal._id,
@@ -396,7 +267,6 @@ export async function startPreviewForProposal(teacherId, proposalId) {
     nanoCpus,
     ttlMs: ttl,
     extractDirPath: extractDir,
-    previewImage: runtime.image,
     logs: [{ level: 'info', message: 'Session created; extracting archive.' }],
     startedAt: new Date(),
   });
@@ -414,151 +284,49 @@ export async function startPreviewForProposal(teacherId, proposalId) {
     await session.save();
     throw e;
   }
-  // Re-detect with live session logger to capture useful diagnostics.
-  const runtimeDetected = await detectPreviewRuntime(extractDir, session);
-  runtime.mode = runtimeDetected.mode;
-  runtime.workdir = runtimeDetected.workdir;
-  runtime.image = runtimeDetected.image;
-  runtime.command = runtimeDetected.command;
-  runtime.backendPort = runtimeDetected.backendPort;
-  session.previewImage = runtime.image;
-  await session.save();
-  await ensureImage(docker, runtime.image);
-
-  const containerName = `sv-preview-${session._id.toString().slice(-10)}`;
-  const exposed = `${CONTAINER_PORT}/tcp`;
-  const extraExposed = runtime.mode === 'fullstack' && runtime.backendPort
-    ? [`${runtime.backendPort}/tcp`]
-    : [];
-
-  let container;
+  let deployResult;
   try {
-    container = await docker.createContainer({
-      name: containerName,
-      Image: runtime.image,
-      Cmd: runtime.command,
-      WorkingDir: `/workspace/${path.relative(extractDir, runtime.workdir).replace(/\\/g, '/') || ''}`,
-      Env: buildPreviewEnv(runtime, CONTAINER_PORT),
-      ExposedPorts: {
-        [exposed]: {},
-        ...Object.fromEntries(extraExposed.map((p) => [p, {}])),
-      },
-      HostConfig: {
-        Binds: [`${bindHostPath}:/workspace`],
-        Memory: memory,
-        MemorySwap: memory,
-        ...(nanoCpus > 0 ? { NanoCpus: nanoCpus } : {}),
-        AutoRemove: true,
-        PortBindings: {
-          [exposed]: [{ HostIp: '0.0.0.0', HostPort: '0' }],
-          ...Object.fromEntries(extraExposed.map((p) => [p, [{ HostIp: '0.0.0.0', HostPort: runtime.backendPort }]])),
-        },
-        SecurityOpt: ['no-new-privileges:true'],
-      },
-      Labels: {
-        'scholarverify.preview': '1',
-        'scholarverify.session': session._id.toString(),
-      },
+    deployResult = await dockerOrchestrator.deployProjectPreview(session._id.toString(), extractDir, {
+      allowedRoot: extractDir,
+      imageKey: submission._id.toString(),
+      stackHint,
+      stack: stackOverride || null,
+      forceRebuild: Boolean(stackOverride),
     });
   } catch (e) {
     await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
     session.status = 'failed';
-    session.errorMessage = e.message || 'Docker create failed';
+    session.errorMessage = e.message || 'Docker deploy failed';
     session.endedAt = new Date();
     appendLog(session, 'error', session.errorMessage);
     await session.save();
-    const err = new Error(session.errorMessage);
-    err.status = 500;
-    throw err;
+    throw e;
   }
 
-  session.dockerContainerId = container.id;
-  try {
-    await container.start();
-  } catch (e) {
-    try {
-      await container.remove({ force: true });
-    } catch {
-      /* */
-    }
-    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
-    session.status = 'failed';
-    session.errorMessage = e.message || 'Container start failed';
-    session.endedAt = new Date();
-    appendLog(session, 'error', session.errorMessage);
-    await session.save();
-    const err = new Error(session.errorMessage);
-    err.status = 500;
-    throw err;
-  }
-  const inspect = await container.inspect();
-  const ports = inspect.NetworkSettings?.Ports?.[exposed];
-  const hostPort = ports?.[0]?.HostPort;
-  if (!hostPort) {
-    try {
-      await container.stop({ t: 5 });
-    } catch {
-      /* */
-    }
-    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
-    session.status = 'failed';
-    session.errorMessage = 'Could not resolve published host port';
-    session.endedAt = new Date();
-    appendLog(session, 'error', session.errorMessage);
-    await session.save();
-    const err = new Error(session.errorMessage);
-    err.status = 500;
-    throw err;
-  }
-
-  session.hostPort = hostPort;
-  session.previewUrl = `${publicHost}:${hostPort}/`;
-  appendLog(session, 'info', `Container started (${runtime.mode}); waiting for app readiness at ${session.previewUrl}`);
+  session.dockerContainerId = deployResult.containerId;
+  session.hostPort = String(deployResult.hostPort);
+  session.previewUrl = deployResult.previewUrl;
+  session.previewImage = deployResult.imageTag;
+  session.previewStack = deployResult.stack;
+  appendLog(
+    session,
+    'info',
+    `Container type: ${deployResult.stack} — ${deployResult.detectionReason || 'auto-detected from files'}`
+  );
+  appendLog(
+    session,
+    'info',
+    `${deployResult.imageReused ? 'Reused' : 'Built'} ${deployResult.stack} image (app dir: ${deployResult.appSubdir || '.'}); host:${deployResult.hostPort} -> container:${deployResult.internalPort}`
+  );
+  appendLog(session, 'info', `Container started; warming up app at ${session.previewUrl}`);
   await session.save();
 
-  const ready = await waitForPreviewReady(container, session.previewUrl, PREVIEW_STARTUP_TIMEOUT_MS);
-  if (!ready) {
-    let tailLogs = '';
-    try {
-      const raw = await container.logs({ stdout: true, stderr: true, tail: 80 });
-      tailLogs = raw?.toString?.() || '';
-    } catch {
-      tailLogs = '';
-    }
-    try {
-      await container.stop({ t: 8 });
-    } catch {
-      /* ignore */
-    }
-    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
-    session.status = 'failed';
-    session.errorMessage = `Preview app did not become ready within ${Math.round(PREVIEW_STARTUP_TIMEOUT_MS / 1000)}s`;
-    session.endedAt = new Date();
-    appendLog(session, 'error', session.errorMessage);
-    if (tailLogs.trim()) {
-      appendLog(session, 'error', `Container logs (tail): ${tailLogs.slice(-2000)}`);
-    }
-    await session.save();
-    const err = new Error(session.errorMessage);
-    err.status = 504;
-    throw err;
-  }
-
-  session.status = 'running';
-  appendLog(session, 'info', `Preview ready and reachable at ${session.previewUrl}`);
-  await session.save();
-
-  const timer = setTimeout(async () => {
-    try {
-      const fresh = await PreviewSession.findById(session._id);
-      if (fresh && fresh.status === 'running') {
-        await cleanupSessionResources(fresh, getDocker(), 'expired', 'TTL elapsed; container stopped.');
-      }
-    } catch (err) {
-      console.error('preview TTL cleanup', err);
-    }
-  }, ttl);
-  activeTimers.set(session._id.toString(), timer);
+  // Return immediately — readiness continues in background (React/Vite installs can take several minutes)
+  setImmediate(() => {
+    finalizePreviewReadiness(session._id, deployResult, extractDir).catch((err) => {
+      console.error('preview readiness', err);
+    });
+  });
 
   return session;
 }

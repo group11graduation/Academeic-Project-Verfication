@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/authContext';
-import StudentHeader from '../components/StudentHeader';
 import axios from 'axios';
 import { 
     User, 
@@ -69,7 +68,6 @@ const StudentProfile = () => {
     if (error || !studentData) {
         return (
             <div className="min-h-screen bg-[#F8FAFB] flex flex-col">
-                <StudentHeader />
                 <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                         <div className="bg-red-100 text-red-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -85,8 +83,6 @@ const StudentProfile = () => {
 
     return (
         <div className="min-h-screen bg-[#F8FAFB] font-sans text-slate-900 selection:bg-blue-100">
-            <StudentHeader />
-
             <main className="max-w-[1400px] mx-auto px-8 py-10">
                 
                 {/* 1. Header Section: Profile Summary */}

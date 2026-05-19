@@ -5,6 +5,7 @@ import AdminTeachers from '../../features/admin/pages/AdminTeachers';
 import AdminAddTeacher from '../../features/admin/pages/AdminAddTeacher';
 import AdminEditTeacher from '../../features/admin/pages/AdminEditTeacher';
 import AdminTeacherProfile from '../../features/admin/pages/AdminTeacherProfile';
+import AdminTeacherImport from '../../features/admin/pages/AdminTeacherImport';
 import AdminStudents from '../../features/admin/pages/AdminStudents';
 import AdminStudentDetail from '../../features/admin/pages/AdminStudentDetail';
 import AdminAddStudent from '../../features/admin/pages/AdminAddStudent';
@@ -31,6 +32,7 @@ const AdminRoutes = () => {
                 <Route path="admins" element={<AdminAdmins />} />
                 <Route path="teachers" element={<AdminTeachers />} />
                 <Route path="teachers/new" element={<AdminAddTeacher />} />
+                <Route path="teachers/import" element={<AdminTeacherImport />} />
                 <Route path="teachers/:id" element={<AdminTeacherProfile />} />
                 <Route path="teachers/:id/edit" element={<AdminEditTeacher />} />
                 <Route path="students">

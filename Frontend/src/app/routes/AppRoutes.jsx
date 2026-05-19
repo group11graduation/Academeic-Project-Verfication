@@ -20,6 +20,8 @@ import TeacherDashboard from '../../features/teacher/pages/TeacherDashboard';
 import ManageClasses from '../../features/teacher/pages/ManageClasses';
 import ClassDetail from '../../features/teacher/pages/ClassDetail';
 import StudentList from '../../features/teacher/pages/StudentList';
+import ClassStudentDetail from '../../features/teacher/pages/ClassStudentDetail';
+import ClassSectionOutlet from '../../features/teacher/layouts/ClassSectionOutlet';
 import GroupConfiguration from '../../features/teacher/pages/GroupConfiguration';
 import GroupManagement from '../../features/teacher/pages/GroupManagement';
 import ProjectsOverview from '../../features/teacher/pages/ProjectsOverview';
@@ -28,6 +30,9 @@ import Assignments from '../../features/teacher/pages/Assignments';
 import AssignmentCreate from '../../features/teacher/pages/AssignmentCreate';
 import AssignmentDetail from '../../features/teacher/pages/AssignmentDetail';
 import TeacherAssignmentProposals from '../../features/teacher/pages/TeacherAssignmentProposals';
+import TeacherProposalStudentDetail from '../../features/teacher/pages/TeacherProposalStudentDetail';
+import NormalAssignmentStudents from '../../features/teacher/pages/NormalAssignmentStudents';
+import NormalAssignmentStudentDetail from '../../features/teacher/pages/NormalAssignmentStudentDetail';
 import StudentProposalSubmit from '../../features/student/pages/StudentProposalSubmit';
 
 const AppRoutes = () => {
@@ -78,16 +83,22 @@ const AppRoutes = () => {
             >
                 <Route index element={<TeacherDashboard />} />
                 <Route path="classes" element={<ManageClasses />} />
-                <Route path="classes/:id" element={<ClassDetail />} />
-                <Route path="classes/:id/students" element={<StudentList />} />
+                <Route path="classes/:id" element={<ClassSectionOutlet />}>
+                    <Route index element={<ClassDetail />} />
+                    <Route path="students" element={<StudentList />} />
+                    <Route path="students/:studentUserId" element={<ClassStudentDetail />} />
+                    <Route path="groups/manage" element={<GroupManagement />} />
+                    <Route path="groups" element={<GroupConfiguration />} />
+                </Route>
                 <Route path="group-management" element={<ProjectsOverview />} />
                 <Route path="groups/:id" element={<GroupDetailPage />} />
-                <Route path="classes/:id/groups/manage" element={<GroupManagement />} />
-                <Route path="classes/:id/groups" element={<GroupConfiguration />} />
                 <Route path="assignments" element={<Assignments />} />
                 <Route path="assignments/new" element={<AssignmentCreate />} />
-                <Route path="assignments/:id" element={<AssignmentDetail />} />
+                <Route path="assignments/:id/normal-students/:studentUserId" element={<NormalAssignmentStudentDetail />} />
+                <Route path="assignments/:id/normal-students" element={<NormalAssignmentStudents />} />
+                <Route path="assignments/:id/proposals/:proposalId" element={<TeacherProposalStudentDetail />} />
                 <Route path="assignments/:id/proposals" element={<TeacherAssignmentProposals />} />
+                <Route path="assignments/:id" element={<AssignmentDetail />} />
             </Route>
 
             {/* Student app — sidebar + Outlet */}

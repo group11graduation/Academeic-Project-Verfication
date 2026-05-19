@@ -43,7 +43,7 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
                         Review Alerts
                     </Link>
                 ) : (
-                    <Link to={`/teacher/classes/${code}`} className="block w-full text-center py-4 bg-slate-50 dark:bg-[#0B1120] text-slate-700 dark:text-slate-100 font-black text-sm uppercase tracking-widest rounded-2xl hover:bg-slate-100 dark:hover:bg-[#0B1120]/80 transition-all border border-slate-100 dark:border-white/5 active:scale-[0.98]">
+                    <Link to={`/teacher/classes/${code}/students`} className="block w-full text-center py-4 bg-slate-50 dark:bg-[#0B1120] text-slate-700 dark:text-slate-100 font-black text-sm uppercase tracking-widest rounded-2xl hover:bg-slate-100 dark:hover:bg-[#0B1120]/80 transition-all border border-slate-100 dark:border-white/5 active:scale-[0.98]">
                         Manage Class
                     </Link>
                 )}

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Assignment } from '../models/Assignment.js';
 import { Group } from '../models/Group.js';
+import { syncAssignmentGroupsFromClassTemplates } from './teacherClassGroups.service.js';
 import { Class } from '../models/Class.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Semester } from '../models/Semester.js';
@@ -91,33 +92,60 @@ export async function getClassDetailsForTeacher(teacherId, classCodeOrId) {
     ? { _id: raw, 'teacherAssignments.teacher': tid }
     : { code: byCode, 'teacherAssignments.teacher': tid };
 
-  const cls = await Class.findOne(classQuery).lean();
+  const cls = await Class.findOne(classQuery)
+    .populate('semester', 'name')
+    .populate('academicYear', 'label')
+    .lean();
   if (!cls) return null;
 
   const studentCount = await StudentProfile.countDocuments({ classCode: cls.code });
-  const assignmentIds = await Assignment.find({ teacher: tid, class: cls._id, isActive: true }).distinct('_id');
+  const assignmentIds = await Assignment.find({
+    teacher: tid,
+    isActive: true,
+    $or: [{ class: cls._id }, { classes: cls._id }],
+  }).distinct('_id');
 
   let projectsSubmitted = 0;
   let similarityAlerts = 0;
+  let pendingReviews = 0;
   if (assignmentIds.length > 0) {
-    [projectsSubmitted, similarityAlerts] = await Promise.all([
+    [projectsSubmitted, similarityAlerts, pendingReviews] = await Promise.all([
       ProjectSubmission.countDocuments({ assignment: { $in: assignmentIds } }),
       Proposal.countDocuments({
         assignment: { $in: assignmentIds },
         status: { $in: ['ai_rejected_same_semester', 'ai_flagged_previous_semester', 'requirements_rejected'] },
       }),
+      Proposal.countDocuments({
+        assignment: { $in: assignmentIds },
+        status: 'pending_teacher_approval',
+      }),
     ]);
   }
+
+  const semesterLabel = cls.semester?.name ? String(cls.semester.name) : '';
+  const academicYearLabel = cls.academicYear?.label ? String(cls.academicYear.label) : '';
 
   return {
     _id: cls._id,
     code: cls.code,
     title: cls.name || cls.code,
+    description: cls.description || '',
+    faculty: cls.faculty || '',
+    department: cls.department || '',
+    category: cls.category || '',
     section: 'A',
     studentCount,
     projectsSubmitted,
     similarityAlerts,
-    timing: 'CURRENT TERM',
+    pendingReviews,
+    semesterLabel,
+    academicYearLabel,
+    timing:
+      semesterLabel && academicYearLabel
+        ? `${academicYearLabel} • ${semesterLabel}`
+        : semesterLabel || academicYearLabel || 'CURRENT TERM',
+    createdAt: cls.createdAt,
+    updatedAt: cls.updatedAt,
   };
 }
 
@@ -293,6 +321,13 @@ export async function createAssignment(teacherId, payload) {
     projectDeadline: projectDeadline ? new Date(projectDeadline) : null,
   });
   await doc.save();
+  if (doc.submissionMode === 'group') {
+    try {
+      await syncAssignmentGroupsFromClassTemplates(teacherId, doc._id, { onlyIfEmpty: true });
+    } catch {
+      /* non-fatal: assignment still created */
+    }
+  }
   return getAssignmentForTeacher(teacherId, doc._id);
 }
 
@@ -303,6 +338,8 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
     err.status = 404;
     throw err;
   }
+
+  const prevSubmissionMode = assignment.submissionMode;
 
   const nextClassIds = [...new Set(parseObjectIdList(payload.classIds).concat(payload.classId ? [String(payload.classId)] : []))];
   if (!nextClassIds.length) {
@@ -388,6 +425,13 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
   if ('projectDeadline' in payload) assignment.projectDeadline = payload.projectDeadline ? new Date(payload.projectDeadline) : null;
 
   await assignment.save();
+  if (assignment.submissionMode === 'group' && prevSubmissionMode !== 'group') {
+    try {
+      await syncAssignmentGroupsFromClassTemplates(teacherId, assignment._id, { onlyIfEmpty: true });
+    } catch {
+      /* non-fatal */
+    }
+  }
   return getAssignmentForTeacher(teacherId, assignment._id);
 }
 
@@ -500,50 +544,104 @@ export async function softDeleteAssignmentForTeacher(teacherId, assignmentId) {
 }
 
 export async function listAllGroupsForTeacher(teacherId) {
+  const tid = new mongoose.Types.ObjectId(teacherId);
+  const teacherClasses = await Class.find({ 'teacherAssignments.teacher': tid }).select('_id code name').lean();
+  const classMetaById = new Map(teacherClasses.map((c) => [String(c._id), c]));
+
   const assignments = await Assignment.find({ teacher: teacherId, isActive: true })
     .populate('class', 'code name')
     .populate('subject', 'code name')
     .lean();
-  if (!assignments.length) return [];
 
   const assignmentIds = assignments.map((a) => a._id);
   const assignmentMap = new Map(assignments.map((a) => [String(a._id), a]));
 
-  const [groups, proposals] = await Promise.all([
-    Group.find({ assignment: { $in: assignmentIds } })
-      .populate('leader', 'name photo')
-      .populate('members.user', 'name photo')
-      .lean(),
-    Proposal.find({ assignment: { $in: assignmentIds } }).lean(),
-  ]);
+  const templateGroups =
+    teacherClasses.length > 0
+      ? await Group.find({
+          assignment: null,
+          hostClass: { $in: teacherClasses.map((c) => c._id) },
+        })
+          .populate('leader', 'name photo')
+          .populate('members.user', 'name photo')
+          .lean()
+      : [];
+
+  const [groups, proposals] =
+    assignmentIds.length > 0
+      ? await Promise.all([
+          Group.find({ assignment: { $in: assignmentIds } })
+            .populate('leader', 'name photo')
+            .populate('members.user', 'name photo')
+            .lean(),
+          Proposal.find({ assignment: { $in: assignmentIds } }).lean(),
+        ])
+      : [[], []];
 
   const proposalByGroup = new Map(
     proposals
       .filter((p) => p.group)
       .map((p) => [String(p.group), p])
   );
-  const memberUserIds = groups.flatMap((g) => [
-    g.leader,
-    ...(g.members || []).map((m) => m.user),
-  ]).map((u) => String(u?._id || u)).filter(Boolean);
+
+  const memberUserIds = [...groups, ...templateGroups]
+    .flatMap((g) => [g.leader, ...(g.members || []).map((m) => m.user)])
+    .map((u) => String(u?._id || u))
+    .filter(Boolean);
   const memberProfiles = memberUserIds.length
     ? await StudentProfile.find({ user: { $in: memberUserIds } }).select('user studentId').lean()
     : [];
   const studentIdByUser = new Map(memberProfiles.map((p) => [String(p.user), p.studentId || '']));
 
   const groupedByClass = new Map();
-  for (const group of groups) {
-    const assignment = assignmentMap.get(String(group.assignment));
-    if (!assignment) continue;
-    const classCode = assignment.class?.code || assignment.class?.name || 'CLASS';
+
+  function ensureBucket(classCode, title) {
     if (!groupedByClass.has(classCode)) {
       groupedByClass.set(classCode, {
-        code: assignment.class?.code || 'CLASS',
-        title: assignment.class?.name || 'Class',
+        code: classCode,
+        title: title || classCode,
         semester: '',
         projects: [],
       });
     }
+    return groupedByClass.get(classCode);
+  }
+
+  for (const group of templateGroups) {
+    const hcId = String(group.hostClass || '');
+    const clsMeta = classMetaById.get(hcId);
+    if (!clsMeta) continue;
+    const classCode = clsMeta.code || clsMeta.name || 'CLASS';
+    const bucket = ensureBucket(classCode, clsMeta.name || classCode);
+    const members = [
+      group.leader ? { ...group.leader, user: group.leader } : null,
+      ...(group.members || []).map((m) => ({ ...(m.user || {}), user: m.user })),
+    ]
+      .filter(Boolean)
+      .map((member) => ({
+        _id: member._id || member.user?._id || member.user,
+        name: member.name || 'Student',
+        photo: member.photo || '',
+        studentId: studentIdByUser.get(String(member._id || member.user?._id || member.user)) || '',
+      }));
+    bucket.projects.push({
+      _id: group._id,
+      title: group.name || 'Class team',
+      members,
+      type: 'group',
+      assignmentNumber: String(group._id).slice(-4).toUpperCase(),
+      status: 'class_team',
+      similarity: 0,
+      similarityLevel: 'Low',
+      isClassTeamTemplate: true,
+    });
+  }
+
+  for (const group of groups) {
+    const assignment = assignmentMap.get(String(group.assignment));
+    if (!assignment) continue;
+    const classCode = assignment.class?.code || assignment.class?.name || 'CLASS';
+    const bucket = ensureBucket(classCode, assignment.class?.name || classCode);
     const proposal = proposalByGroup.get(String(group._id));
     const members = [
       group.leader ? { ...group.leader, user: group.leader } : null,
@@ -555,7 +653,7 @@ export async function listAllGroupsForTeacher(teacherId) {
       studentId: studentIdByUser.get(String(member._id || member.user?._id || member.user)) || '',
     }));
     const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
-    groupedByClass.get(classCode).projects.push({
+    bucket.projects.push({
       _id: group._id,
       title: proposal?.title || assignment.title || group.name || 'Project',
       members,
@@ -571,6 +669,7 @@ export async function listAllGroupsForTeacher(teacherId) {
 }
 
 export async function getGroupDetailsForTeacher(teacherId, groupId) {
+  const tid = new mongoose.Types.ObjectId(teacherId);
   const group = await Group.findById(groupId)
     .populate({
       path: 'assignment',
@@ -579,16 +678,7 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
     .populate('leader', 'name photo email')
     .populate('members.user', 'name photo email');
   if (!group) return null;
-  if (!group.assignment?.teacher?.equals?.(teacherId) && String(group.assignment?.teacher) !== String(teacherId)) {
-    const err = new Error('Forbidden');
-    err.status = 403;
-    throw err;
-  }
 
-  const proposal = await Proposal.findOne({ assignment: group.assignment._id, group: group._id }).lean();
-  const submission = proposal?._id
-    ? await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 }).lean()
-    : null;
   const memberUserIds = [
     String(group.leader?._id || group.leader),
     ...(group.members || []).map((m) => String(m.user?._id || m.user)),
@@ -606,19 +696,61 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
     photo: member.photo || '',
     studentId: studentIdByUser.get(String(member._id)) || '',
   }));
-  const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
 
-  return {
-    _id: group._id,
-    title: proposal?.title || group.assignment?.title || group.name || 'Project',
-    assignmentNumber: String(group._id).slice(-4).toUpperCase(),
-    type: group.assignment?.submissionMode === 'single' ? 'individual' : 'group',
-    classCode: group.assignment?.class?.code || group.assignment?.class?.name || '',
-    members,
-    similarity,
-    similarityLevel: similarity >= 58 ? 'High' : 'Low',
-    status: submission ? 'SUBMITTED' : (proposal?.status || 'DRAFT').toUpperCase(),
-    originalFileName: submission?.originalFilename || '',
-    documentUrl: submission?.storedRelativePath ? `/uploads/${submission.storedRelativePath}` : '',
-  };
+  if (group.assignment) {
+    if (!group.assignment?.teacher?.equals?.(teacherId) && String(group.assignment?.teacher) !== String(teacherId)) {
+      const err = new Error('Forbidden');
+      err.status = 403;
+      throw err;
+    }
+
+    const proposal = await Proposal.findOne({ assignment: group.assignment._id, group: group._id }).lean();
+    const submission = proposal?._id
+      ? await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 }).lean()
+      : null;
+    const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
+
+    return {
+      _id: group._id,
+      title: proposal?.title || group.assignment?.title || group.name || 'Project',
+      assignmentNumber: String(group._id).slice(-4).toUpperCase(),
+      type: group.assignment?.submissionMode === 'single' ? 'individual' : 'group',
+      classCode: group.assignment?.class?.code || group.assignment?.class?.name || '',
+      members,
+      similarity,
+      similarityLevel: similarity >= 58 ? 'High' : 'Low',
+      status: submission ? 'SUBMITTED' : (proposal?.status || 'DRAFT').toUpperCase(),
+      originalFileName: submission?.originalFilename || '',
+      documentUrl: submission?.storedRelativePath ? `/uploads/${submission.storedRelativePath}` : '',
+      isClassTeamTemplate: false,
+    };
+  }
+
+  if (group.hostClass) {
+    const hcId = group.hostClass;
+    const allowed = await Class.exists({ _id: hcId, 'teacherAssignments.teacher': tid });
+    if (!allowed) {
+      const err = new Error('Forbidden');
+      err.status = 403;
+      throw err;
+    }
+    const hc = await Class.findById(hcId).select('code name').lean();
+
+    return {
+      _id: group._id,
+      title: group.name || 'Class team',
+      assignmentNumber: String(group._id).slice(-4).toUpperCase(),
+      type: 'group',
+      classCode: hc?.code || hc?.name || '',
+      members,
+      similarity: 0,
+      similarityLevel: 'Low',
+      status: 'CLASS_TEAM',
+      originalFileName: '',
+      documentUrl: '',
+      isClassTeamTemplate: true,
+    };
+  }
+
+  return null;
 }

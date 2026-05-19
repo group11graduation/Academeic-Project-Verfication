@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
     Users, GraduationCap, Calendar, Clock, Search,
@@ -11,6 +11,10 @@ import adminStudentService from '../../../services/adminStudentService';
 import adminSubjectService from '../../../services/adminSubjectService';
 import adminSemesterService from '../../../services/adminSemesterService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+
+function normalizeClassCode(code) {
+    return String(code ?? '').trim().toUpperCase();
+}
 
 const AdminClassDetail = () => {
     const { id } = useParams();
@@ -28,7 +32,8 @@ const AdminClassDetail = () => {
     const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
     const [selectedTeacherId, setSelectedTeacherId] = useState('');
     const [selectedTeacherSubjectIds, setSelectedTeacherSubjectIds] = useState([]);
-    const [selectedStudentId, setSelectedStudentId] = useState('');
+    const [pickedStudentProfileIds, setPickedStudentProfileIds] = useState(() => new Set());
+    const [candidateQuery, setCandidateQuery] = useState('');
     const [assigningTeacher, setAssigningTeacher] = useState(false);
     const [assigningStudent, setAssigningStudent] = useState(false);
     const [removingStudentId, setRemovingStudentId] = useState('');
@@ -113,6 +118,11 @@ const AdminClassDetail = () => {
         load();
     }, [id]);
 
+    useEffect(() => {
+        setPickedStudentProfileIds(new Set());
+        setCandidateQuery('');
+    }, [id]);
+
     const handleAssignTeacher = async () => {
         if (!selectedTeacherId) return;
         try {
@@ -133,19 +143,71 @@ const AdminClassDetail = () => {
         }
     };
 
-    const handleAssignStudent = async () => {
-        if (!selectedStudentId) return;
+    const handleAddSelectedStudents = async () => {
+        const ids = [...pickedStudentProfileIds];
+        if (!ids.length) return;
+        const targetCode = normalizeClassCode(classInfo?.code || id || '');
+        const rows = ids
+            .map((pid) => (allStudents || []).find((x) => String(x._id || '') === String(pid || '')))
+            .filter(Boolean);
+        const movingFromOther = rows.filter((r) => {
+            const c = normalizeClassCode(r.classId || r.classCode || '');
+            return c && c !== targetCode;
+        });
+        if (movingFromOther.length > 0) {
+            const okMove = window.confirm(
+                `${movingFromOther.length} student(s) are already assigned to another class on their profile (e.g. import placeholder). ` +
+                    `Adding them here will move their class to ${targetCode || id}. Continue?`
+            );
+            if (!okMove) return;
+        }
         try {
             setAssigningStudent(true);
-            const res = await adminStudentService.updateStudent(selectedStudentId, { classCode: id, classId: id });
-            if (!res.success) throw new Error(res.message || 'Failed to add student to class');
-            setSelectedStudentId('');
+            let ok = 0;
+            const failures = [];
+            for (const profileId of ids) {
+                const row = (allStudents || []).find((x) => String(x._id || '') === String(profileId || ''));
+                if (!row) {
+                    failures.push('Skipped a missing student row');
+                    continue;
+                }
+                const alreadyOnRoster = (students || []).some(
+                    (e) =>
+                        String(e._id || '').trim() === String(row._id || '').trim() ||
+                        (String(row.userId || '').trim() &&
+                            String(e.userId || '').trim() === String(row.userId || '').trim()),
+                );
+                if (alreadyOnRoster) {
+                    failures.push(row.name ? `${row.name}: already in this class` : 'Already in this class');
+                    continue;
+                }
+                const assigned = normalizeClassCode(row.classId || row.classCode || '');
+                if (assigned === targetCode) {
+                    failures.push(
+                        row.name ? `${row.name}: already assigned to this class` : 'Already in this class'
+                    );
+                    continue;
+                }
+                try {
+                    const res = await adminStudentService.updateStudent(profileId, { classCode: id, classId: id });
+                    if (!res.success) failures.push(res.message || 'Failed');
+                    else ok += 1;
+                } catch (err) {
+                    failures.push(err.response?.data?.message || err.message || 'Failed');
+                }
+            }
+            setPickedStudentProfileIds(new Set());
             await fetchClassDetails();
             const sRes = await adminStudentService.getStudents();
             if (sRes.success) setAllStudents(sRes.data || []);
+            if (failures.length) {
+                alert(`Assigned ${ok} of ${ids.length} student(s). Some errors:\n${failures.slice(0, 8).join('\n')}${failures.length > 8 ? '\n…' : ''}`);
+            } else {
+                alert(`Assigned ${ok} student(s) to this class.`);
+            }
         } catch (error) {
-            console.error('Error assigning student:', error);
-            alert(error.message || 'Could not add student to class');
+            console.error('Error assigning students:', error);
+            alert(error.message || 'Could not add students to class');
         } finally {
             setAssigningStudent(false);
         }
@@ -195,9 +257,66 @@ const AdminClassDetail = () => {
     const teacherCandidates = (allTeachers || []).filter(
         (t) => !assignedTeacherIds.has(String(t.userId || t._id || ''))
     );
-    // Business rule: only students without a class assignment can be added.
-    // To move a student between classes, remove them from current class first.
-    const studentCandidates = (allStudents || []).filter((s) => !String(s.classId || s.classCode || '').trim());
+    // Students already in this class: match roster by profile _id and user id (covers API / list quirks).
+    const enrolledProfileIds = new Set(
+        (students || []).map((s) => String(s._id || '').trim()).filter(Boolean),
+    );
+    const enrolledUserIds = new Set(
+        (students || []).map((s) => String(s.userId || '').trim()).filter(Boolean),
+    );
+    const currentClassCode = normalizeClassCode(classInfo?.code || id || '');
+    const studentAssignedCode = (s) => normalizeClassCode(s?.classId || s?.classCode || '');
+
+    const isStudentAlreadyInThisClass = (s) => {
+        if (!s) return true;
+        const pid = String(s._id || '').trim();
+        const uid = String(s.userId || '').trim();
+        if (pid && enrolledProfileIds.has(pid)) return true;
+        if (uid && enrolledUserIds.has(uid)) return true;
+        if (currentClassCode && studentAssignedCode(s) === currentClassCode) return true;
+        return false;
+    };
+
+    /** Not in this class (enrolled roster or same profile class code). */
+    const studentCandidates = (allStudents || []).filter((s) => s && !isStudentAlreadyInThisClass(s));
+
+    const studentCanBeBulkAddedToThisClass = (s) => Boolean(s) && !isStudentAlreadyInThisClass(s);
+
+    const studentProfileKey = (s) => String(s._id || s.studentId || '');
+
+    const filteredStudentCandidates = useMemo(() => {
+        const q = candidateQuery.trim().toLowerCase();
+        if (!q) return studentCandidates;
+        return studentCandidates.filter((s) => {
+            const hay = `${s.name || ''} ${s.studentId || ''} ${s.email || ''} ${s.classCode || ''} ${s.classId || ''}`.toLowerCase();
+            return hay.includes(q);
+        });
+    }, [studentCandidates, candidateQuery]);
+
+    const togglePickStudent = (profileKey) => {
+        if (!profileKey) return;
+        const row = studentCandidates.find((x) => studentProfileKey(x) === profileKey);
+        if (row && !studentCanBeBulkAddedToThisClass(row)) return;
+        setPickedStudentProfileIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(profileKey)) next.delete(profileKey);
+            else next.add(profileKey);
+            return next;
+        });
+    };
+
+    const selectAllFilteredCandidates = () => {
+        setPickedStudentProfileIds((prev) => {
+            const next = new Set(prev);
+            filteredStudentCandidates.forEach((s) => {
+                const k = studentProfileKey(s);
+                if (k && studentCanBeBulkAddedToThisClass(s)) next.add(k);
+            });
+            return next;
+        });
+    };
+
+    const clearPickedStudents = () => setPickedStudentProfileIds(new Set());
     const availableSubjects = (allSubjects || []).filter((sub) => {
         const subFaculty = String(sub.faculty || '').trim().toLowerCase();
         const subDepartment = String(sub.department || '').trim().toLowerCase();
@@ -486,29 +605,6 @@ const AdminClassDetail = () => {
                                 </button>
                             </>
                         )}
-                        {activeTab === 'students' && (
-                            <>
-                                <select
-                                    value={selectedStudentId}
-                                    onChange={(e) => setSelectedStudentId(e.target.value)}
-                                    className="bg-[#F8FAFB] dark:bg-slate-900 rounded-xl py-3 px-4 text-[14px] w-[260px] border border-slate-200 dark:border-slate-700 outline-none"
-                                >
-                                    <option value="">Add unassigned student...</option>
-                                    {studentCandidates.map((s) => (
-                                        <option key={s._id || s.studentId} value={s._id || s.studentId}>
-                                            {s.name} ({s.studentId})
-                                        </option>
-                                    ))}
-                                </select>
-                                <button
-                                    onClick={handleAssignStudent}
-                                    disabled={!selectedStudentId || assigningStudent}
-                                    className="flex items-center gap-2 px-4 py-3 bg-[#1D68E3] text-white rounded-xl font-bold text-[14px] hover:bg-blue-600 transition-all shadow-md disabled:opacity-50"
-                                >
-                                    {assigningStudent ? 'Adding...' : 'Add Student'}
-                                </button>
-                            </>
-                        )}
                         <button
                             onClick={handleGenerateAccounts}
                             disabled={generating}
@@ -529,24 +625,158 @@ const AdminClassDetail = () => {
                         </div>
                     </div>
                 </div>
+                {activeTab === 'students' && (
+                    <>
+                        <p className="px-8 pb-3 text-[11px] text-slate-500 leading-snug max-w-3xl">
+                            Students who are <strong>not in this class</strong> ({studentCandidates.length} available): anyone already in the
+                            roster above or with this class on their profile is hidden. Others can be added, or moved here from another profile
+                            class (confirm when moving).
+                        </p>
+                        <div className="px-8 pb-6">
+                            <div className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-[#F8FAFB] dark:bg-slate-900/40 p-4 md:p-5">
+                                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                    <div>
+                                        <h4 className="text-[13px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                            Add students to this class
+                                        </h4>
+                                        <p className="mt-1 max-w-xl text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                                            The <strong>Current class</strong> column shows each student&apos;s profile class.{' '}
+                                            <strong>Select all</strong> selects everyone in the list; <strong>Add selected</strong> assigns or moves them here.
+                                        </p>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={selectAllFilteredCandidates}
+                                            disabled={
+                                                assigningStudent ||
+                                                !filteredStudentCandidates.some((s) => studentCanBeBulkAddedToThisClass(s))
+                                            }
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                        >
+                                            Select all
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={clearPickedStudents}
+                                            disabled={pickedStudentProfileIds.size === 0 || assigningStudent}
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                        >
+                                            Clear selection
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddSelectedStudents}
+                                            disabled={pickedStudentProfileIds.size === 0 || assigningStudent}
+                                            className="flex items-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2 text-[12px] font-bold text-white shadow-md hover:bg-blue-600 disabled:opacity-50"
+                                        >
+                                            {assigningStudent ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    Adding…
+                                                </>
+                                            ) : (
+                                                `Add selected (${pickedStudentProfileIds.size})`
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="relative mt-3">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        value={candidateQuery}
+                                        onChange={(e) => setCandidateQuery(e.target.value)}
+                                        placeholder="Search by name, ID, email, or class code…"
+                                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-[13px] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                                    />
+                                </div>
+                                <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800">
+                                    {filteredStudentCandidates.length === 0 ? (
+                                        <p className="p-4 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                                            {studentCandidates.length === 0
+                                                ? 'No students available to add: everyone is already on this class in their profile, or listed in the table above.'
+                                                : 'No students match your search.'}
+                                        </p>
+                                    ) : (
+                                        <ul className="divide-y divide-slate-100 dark:divide-slate-700">
+                                            <li className="hidden sm:flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-400">
+                                                <span className="w-4 shrink-0" aria-hidden />
+                                                <span className="min-w-0 flex-1">Student</span>
+                                                <span className="w-28 shrink-0 text-right sm:w-32">Current class</span>
+                                            </li>
+                                            {filteredStudentCandidates.map((s) => {
+                                                const k = studentProfileKey(s);
+                                                const canAdd = studentCanBeBulkAddedToThisClass(s);
+                                                const assignedRaw = String(s.classId || s.classCode || '').trim();
+                                                const assignedDisplay = assignedRaw ? normalizeClassCode(assignedRaw) : '';
+                                                return (
+                                                    <li key={k}>
+                                                        <label
+                                                            className={`flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/40 ${
+                                                                canAdd ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+                                                            }`}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                disabled={!canAdd}
+                                                                className="h-4 w-4 shrink-0 rounded border-slate-300 text-[#1D68E3] focus:ring-[#1D68E3] disabled:cursor-not-allowed"
+                                                                checked={pickedStudentProfileIds.has(k)}
+                                                                onChange={() => togglePickStudent(k)}
+                                                            />
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">
+                                                                    {s.name || 'Unknown'}
+                                                                </div>
+                                                                <div className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                                    {s.studentId || 'no ID'} · {s.email || '—'}
+                                                                </div>
+                                                            </div>
+                                                            <div className="w-28 shrink-0 text-right sm:w-32">
+                                                                {assignedDisplay ? (
+                                                                    <Link
+                                                                        to={`/admin/classes/${encodeURIComponent(assignedDisplay)}`}
+                                                                        className="inline-block max-w-full truncate font-mono text-[11px] font-bold text-[#1D68E3] hover:underline"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    >
+                                                                        {assignedDisplay}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                                        None
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </label>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* Table */}
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                <div className="app-table-wrap">
+                    <table className="app-table">
                         <thead>
-                            <tr className="border-t border-b border-slate-50 dark:border-slate-700 uppercase tracking-widest text-[11px] font-black text-slate-400 dark:text-slate-500 transition-colors">
-                                <th className="px-8 py-5">Name</th>
-                                <th className="px-8 py-5">ID / Department</th>
-                                <th className="px-8 py-5">{activeTab === 'students' ? 'Username / Email' : 'Faculty Email'}</th>
-                                <th className="px-8 py-5">Status</th>
-                                {activeTab === 'students' && <th className="px-8 py-5">Account</th>}
-                                <th className="px-8 py-5 text-right">Actions</th>
+                            <tr className="app-table-headrow">
+                                <th className="app-table-th">Name</th>
+                                <th className="app-table-th">ID / Department</th>
+                                {activeTab === 'students' && <th className="app-table-th">Class</th>}
+                                <th className="app-table-th">{activeTab === 'students' ? 'Username / Email' : 'Faculty Email'}</th>
+                                <th className="app-table-th">Status</th>
+                                {activeTab === 'students' && <th className="app-table-th">Account</th>}
+                                <th className="app-table-th text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                        <tbody className="app-table-body">
                             {filteredData.map((item) => (
-                                <tr key={item._id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-750/50 transition-colors">
-                                    <td className="px-8 py-5">
+                                <tr key={item._id} className="app-table-row group">
+                                    <td className="app-table-td">
                                         <div className="flex items-center gap-4">
                                             <Link
                                                 to={`/admin/${activeTab}/${activeTab === 'students' ? item.studentId : item.teacherId}`}
@@ -567,26 +797,33 @@ const AdminClassDetail = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-5">
+                                    <td className="app-table-td">
                                         <span className="text-[14px] font-bold text-slate-600 dark:text-slate-300 tracking-tight transition-colors">
                                             {activeTab === 'students' ? item.studentId : item.department}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-5">
+                                    {activeTab === 'students' && (
+                                        <td className="app-table-td">
+                                            <span className="font-mono text-[13px] font-bold text-slate-700 dark:text-slate-200">
+                                                {currentClassCode || id || '—'}
+                                            </span>
+                                        </td>
+                                    )}
+                                    <td className="app-table-td">
                                         <span className="text-[14px] font-medium text-slate-500 dark:text-slate-400 transition-colors">
                                             {activeTab === 'students'
                                                 ? (item.username ? `${item.username} / ${item.email}` : item.email)
                                                 : item.email}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-5">
+                                    <td className="app-table-td">
                                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-black ${(item.accountStatus || 'active') === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500'} transition-colors`}>
                                             <div className={`h-1.5 w-1.5 rounded-full ${(item.accountStatus || 'active') === 'active' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
                                             {(item.accountStatus || 'active').charAt(0).toUpperCase() + (item.accountStatus || 'active').slice(1)}
                                         </span>
                                     </td>
                                     {activeTab === 'students' && (
-                                        <td className="px-8 py-5">
+                                        <td className="app-table-td">
                                             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-black ${(item.hasAccount ?? Boolean(item.userId)) ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                                                 {(item.hasAccount ?? Boolean(item.userId)) ? 'Has Account' : 'No Account'}
                                             </span>
@@ -597,7 +834,7 @@ const AdminClassDetail = () => {
                                             )}
                                         </td>
                                     )}
-                                    <td className="px-8 py-5 text-right">
+                                    <td className="app-table-td text-right">
                                         {activeTab === 'students' ? (
                                             <div className="flex items-center justify-end gap-2">
                                                 <button

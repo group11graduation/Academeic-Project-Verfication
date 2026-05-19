@@ -12,9 +12,12 @@ const projectSubmissionSchema = new mongoose.Schema(
     originalFilename: { type: String, default: '' },
     sizeBytes: { type: Number, default: 0 },
     mimeType: { type: String, default: 'application/zip' },
+    /** Increments when the student replaces the ZIP before the deadline */
+    version: { type: Number, default: 1 },
   },
   { timestamps: true }
 );
+
 
 projectSubmissionSchema.index({ proposal: 1, createdAt: -1 });
 

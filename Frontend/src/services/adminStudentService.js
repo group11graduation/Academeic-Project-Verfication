@@ -37,14 +37,15 @@ const importStudents = async (students) => {
     return response.data;
 };
 
-const exportStudentsCsv = async (params = {}) => {
+const exportStudents = async (format = 'csv', params = {}) => {
     const response = await api.get(`${API_URL}/export`, {
-        params,
+        params: { ...params, format },
         responseType: 'blob',
     });
     const disposition = response.headers?.['content-disposition'] || '';
     const match = disposition.match(/filename="([^"]+)"/i);
-    const filename = match?.[1] || 'students-export.csv';
+    const ext = format === 'xlsx' ? 'xlsx' : 'csv';
+    const filename = match?.[1] || `students-export.${ext}`;
     return { blob: response.data, filename };
 };
 
@@ -74,7 +75,7 @@ const adminStudentService = {
     deleteStudent,
     generatePasscode,
     importStudents,
-    exportStudentsCsv,
+    exportStudents,
     patchStudentPerformance,
     uploadProfileImage
 };

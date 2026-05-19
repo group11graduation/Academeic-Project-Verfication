@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Upload,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import adminStudentService from '../../../services/adminStudentService';
 import adminClassService from '../../../services/adminClassService';
+import { adminAcademicService } from '../../../services/adminAcademicService';
 
 const AdminAddStudent = () => {
     const navigate = useNavigate();
@@ -35,6 +36,7 @@ const AdminAddStudent = () => {
     const [error, setError] = useState('');
     const [classes, setClasses] = useState([]);
     const [loadingClasses, setLoadingClasses] = useState(true);
+    const [facultyStructureNames, setFacultyStructureNames] = useState([]);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -48,7 +50,7 @@ const AdminAddStudent = () => {
         motherContact: '',
         highSchoolName: '',
         graduationYear: '',
-        faculty: 'Computer Science & IT',
+        faculty: '',
         campus: 'Main Campus (Mogadishu)',
         studyMode: 'Full-time',
         entryDate: '',
@@ -56,28 +58,57 @@ const AdminAddStudent = () => {
     });
 
     useEffect(() => {
-        const fetchClasses = async () => {
+        const load = async () => {
             try {
-                const res = await adminClassService.getClasses();
-                if (res.success) {
-                    setClasses(res.data);
-                    if (res.data.length > 0) {
-                        setFormData(prev => ({ ...prev, classId: res.data[0].code }));
-                    }
+                const [classRes, stRes] = await Promise.all([
+                    adminClassService.getClasses(),
+                    adminAcademicService.getAcademicStructure(),
+                ]);
+                const names = stRes.success ? (stRes.data?.faculties || []).map((f) => f.name).filter(Boolean) : [];
+                setFacultyStructureNames(names);
+                if (classRes.success && classRes.data?.length) {
+                    const first = classRes.data[0];
+                    setClasses(classRes.data);
+                    setFormData((prev) => ({
+                        ...prev,
+                        classId: first.code,
+                        faculty: (first.faculty && String(first.faculty).trim()) || names[0] || '',
+                    }));
+                } else if (classRes.success) {
+                    setClasses(classRes.data || []);
                 }
             } catch (err) {
-                console.error("Failed to fetch classes:", err);
+                console.error('Failed to fetch classes:', err);
             } finally {
                 setLoadingClasses(false);
             }
         };
-        fetchClasses();
+        load();
     }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'classId') {
+            const cls = classes.find((c) => c.code === value);
+            setFormData((prev) => ({
+                ...prev,
+                classId: value,
+                faculty: (cls?.faculty && String(cls.faculty).trim()) || prev.faculty,
+            }));
+            return;
+        }
+        setFormData((prev) => ({ ...prev, [name]: value }));
     };
+
+    const facultySelectOptions = useMemo(() => {
+        const fallback = ['Computer Science & IT', 'Engineering', 'Medicine'];
+        const base = facultyStructureNames.length ? facultyStructureNames : fallback;
+        const set = new Set(base);
+        if (formData.faculty && String(formData.faculty).trim()) {
+            set.add(String(formData.faculty).trim());
+        }
+        return [...set].sort((a, b) => a.localeCompare(b));
+    }, [facultyStructureNames, formData.faculty]);
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -481,9 +512,12 @@ const AdminAddStudent = () => {
                                         onChange={handleChange}
                                         className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
                                     >
-                                        <option>Computer Science & IT</option>
-                                        <option>Engineering</option>
-                                        <option>Medicine</option>
+                                        <option value="">Select faculty</option>
+                                        {facultySelectOptions.map((name) => (
+                                            <option key={name} value={name}>
+                                                {name}
+                                            </option>
+                                        ))}
                                     </select>
                                     <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
                                 </div>

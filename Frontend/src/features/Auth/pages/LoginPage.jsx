@@ -127,7 +127,7 @@ const LoginPage = () => {
     const rootMsg = errors.root?.message;
 
     return (
-        <div className="relative min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 overflow-hidden bg-[#e8eefc]">
+        <div className="relative min-h-screen flex items-center justify-center p-3 sm:p-5 lg:p-8 overflow-hidden bg-[#e8eefc]">
             {/* Soft organic blobs */}
             <div
                 className="pointer-events-none absolute -top-24 -left-32 h-[420px] w-[420px] rounded-full bg-[#b8c9f0] opacity-50 blur-3xl"
@@ -150,27 +150,27 @@ const LoginPage = () => {
             />
 
             <div
-                className="relative z-10 w-full max-w-[960px] rounded-[28px] border-2 bg-white shadow-[0_24px_80px_rgba(29,47,130,0.12)] overflow-hidden flex flex-col lg:flex-row"
+                className="relative z-10 w-full max-w-[900px] rounded-[24px] border-2 bg-white shadow-[0_20px_64px_rgba(29,47,130,0.12)] overflow-hidden flex flex-col lg:flex-row"
                 style={{ borderColor: NAVY }}
             >
                 {/* Left: form */}
-                <div className="w-full lg:w-[42%] flex flex-col justify-center px-8 sm:px-10 py-10 lg:py-12 lg:pl-12 lg:pr-8">
+                <div className="w-full lg:w-[42%] flex flex-col justify-center px-7 sm:px-8 py-8 lg:py-10 lg:pl-10 lg:pr-7">
                     <Link
                         to="/"
-                        className="text-[13px] font-bold tracking-[0.2em] uppercase mb-10 hover:opacity-80 transition-opacity"
+                        className="text-[12px] font-bold tracking-[0.18em] uppercase mb-8 hover:opacity-80 transition-opacity"
                         style={{ color: NAVY }}
                     >
                         ProjectVerify
                     </Link>
 
-                    <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2" style={{ color: NAVY }}>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2" style={{ color: NAVY }}>
                         Login
                     </h1>
-                    <p className="text-sm text-slate-500 font-medium mb-10 leading-relaxed">
+                    <p className="text-[13px] text-slate-500 font-medium mb-8 leading-relaxed">
                         Welcome — sign in to your academic verification and project dashboard.
                     </p>
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         {rootMsg && (
                             <div className="text-sm font-semibold text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
                                 {rootMsg}
@@ -178,7 +178,7 @@ const LoginPage = () => {
                         )}
 
                         <div>
-                            <label htmlFor="login-identifier" className="block text-[13px] font-semibold text-slate-600 mb-2">
+                            <label htmlFor="login-identifier" className="block text-[12px] font-semibold text-slate-600 mb-2">
                                 Email or ID
                             </label>
                             <input
@@ -188,7 +188,7 @@ const LoginPage = () => {
                                 {...register('identifier')}
                                 disabled={isSubmitting}
                                 placeholder="Enter your email, username, or student ID"
-                                className="w-full bg-transparent border-0 border-b border-slate-300 rounded-none px-0 py-2.5 text-[15px] font-medium text-black placeholder:text-slate-400 focus:border-b-2 focus:border-[#2a3fa4] focus:ring-0 focus:outline-none transition-colors disabled:opacity-60"
+                                className="w-full bg-transparent border-0 border-b border-slate-300 rounded-none px-0 py-2 text-[14px] font-medium text-black placeholder:text-slate-400 focus:border-b-2 focus:border-[#2a3fa4] focus:ring-0 focus:outline-none transition-colors disabled:opacity-60"
                             />
                             {errors.identifier && (
                                 <p className="text-xs text-red-600 font-medium mt-1.5">{errors.identifier.message}</p>
@@ -196,7 +196,7 @@ const LoginPage = () => {
                         </div>
 
                         <div>
-                            <label htmlFor="login-password" className="block text-[13px] font-semibold text-slate-600 mb-2">
+                            <label htmlFor="login-password" className="block text-[12px] font-semibold text-slate-600 mb-2">
                                 Password
                             </label>
                             <div className="relative flex items-end border-b border-slate-300 focus-within:border-b-2 focus-within:border-[#2a3fa4] transition-colors">
@@ -207,7 +207,7 @@ const LoginPage = () => {
                                     {...register('password')}
                                     disabled={isSubmitting}
                                     placeholder="••••••••"
-                                    className="w-full flex-1 bg-transparent border-0 rounded-none px-0 py-2.5 pr-10 text-[15px] font-medium text-black placeholder:text-slate-400 focus:ring-0 focus:outline-none disabled:opacity-60"
+                                    className="w-full flex-1 bg-transparent border-0 rounded-none px-0 py-2 pr-10 text-[14px] font-medium text-black placeholder:text-slate-400 focus:ring-0 focus:outline-none disabled:opacity-60"
                                 />
                                 <button
                                     type="button"
@@ -216,7 +216,7 @@ const LoginPage = () => {
                                     className="absolute right-0 bottom-2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                                 >
-                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                             </div>
                             {errors.password && (
@@ -227,7 +227,7 @@ const LoginPage = () => {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full uppercase tracking-widest text-sm font-bold text-white py-3.5 rounded-xl shadow-[0_10px_28px_rgba(42,63,164,0.35)] hover:shadow-[0_12px_32px_rgba(42,63,164,0.42)] hover:opacity-[0.97] active:scale-[0.99] transition-all disabled:opacity-60 disabled:shadow-none"
+                            className="w-full uppercase tracking-widest text-[13px] font-bold text-white py-3 rounded-xl shadow-[0_10px_24px_rgba(42,63,164,0.35)] hover:shadow-[0_12px_28px_rgba(42,63,164,0.42)] hover:opacity-[0.97] active:scale-[0.99] transition-all disabled:opacity-60 disabled:shadow-none"
                             style={{ backgroundColor: ACCENT }}
                         >
                             {isSubmitting ? (
@@ -243,7 +243,7 @@ const LoginPage = () => {
                 </div>
 
                 {/* Right: illustration */}
-                <div className="w-full lg:w-[58%] border-t lg:border-t-0 lg:border-l border-slate-200/80 min-h-[240px]">
+                <div className="w-full lg:w-[58%] border-t lg:border-t-0 lg:border-l border-slate-200/80 min-h-[220px]">
                     <LoginIllustration />
                 </div>
             </div>

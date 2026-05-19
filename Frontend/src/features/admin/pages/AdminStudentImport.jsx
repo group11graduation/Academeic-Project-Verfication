@@ -2,36 +2,11 @@ import React, { useState } from 'react';
 import { ArrowLeft, Upload, Loader2, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import adminStudentService from '../../../services/adminStudentService';
-
-function parseCsv(text) {
-    const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/^\ufeff/, ''));
-    return lines.slice(1).map((line) => {
-        const cells = line.split(',').map((c) => c.trim());
-        const row = {};
-        headers.forEach((h, i) => {
-            row[h] = cells[i] ?? '';
-        });
-        return row;
-    });
-}
-
-function normalizeRow(raw) {
-    return {
-        name: raw.name || '',
-        email: raw.email || '',
-        studentId: raw.studentid || raw.student_id || raw.id || '',
-        password: raw.password || '',
-        passcode: raw.passcode || '',
-        classCode: raw.classcode || raw.class || '',
-        classId: raw.classid || '',
-        faculty: raw.faculty || '',
-        program: raw.program || '',
-        score: raw.score || raw.currentscore || '',
-        gpa: raw.gpa || raw.currentgpa || '',
-    };
-}
+import {
+    readSpreadsheetFileAsCsvText,
+    normalizeStudentImportRow,
+    parseCsvToRecords,
+} from '../../../lib/spreadsheetImport';
 
 const AdminStudentImport = () => {
     const navigate = useNavigate();
@@ -40,22 +15,25 @@ const AdminStudentImport = () => {
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
 
-    const onFile = (e) => {
+    const onFile = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            setText(String(reader.result || ''));
-            setResult(null);
-            setError('');
-        };
-        reader.readAsText(file);
+        setError('');
+        setResult(null);
+        try {
+            const csv = await readSpreadsheetFileAsCsvText(file);
+            setText(csv);
+        } catch (err) {
+            setText('');
+            setError(err.message || 'Could not read file. Use CSV or Excel (.xlsx).');
+        }
+        e.target.value = '';
     };
 
     const handleSubmit = async () => {
         setError('');
         setResult(null);
-        const rows = parseCsv(text).map(normalizeRow);
+        const rows = parseCsvToRecords(text).map(normalizeStudentImportRow);
         if (!rows.length) {
             setError('Add a CSV with a header row and at least one data row (name, email required).');
             return;
@@ -88,19 +66,20 @@ const AdminStudentImport = () => {
 
             <h1 className="text-[26px] font-extrabold text-slate-900 tracking-tight mb-2">Import students</h1>
             <p className="text-[15px] text-slate-500 mb-6">
-                Upload a CSV or paste rows below. Header row required. Columns:{' '}
+                Upload CSV/Excel or paste rows below. Header row required. Columns:{' '}
                 <code className="text-[13px] bg-slate-200/80 px-1.5 py-0.5 rounded">
                     name, email, studentId, password, classCode, faculty, program, score, gpa
                 </code>
-                . If <code className="text-[13px]">password</code> is omitted, a random login passcode is generated per row.
+                . If <code className="text-[13px]">studentId</code> or <code className="text-[13px]">password</code> are omitted,
+                the system auto-generates them.
             </p>
 
             <div className="rounded-3xl bg-white shadow ring-1 ring-slate-200/60 p-6 md:p-8 space-y-4">
                 <div>
-                    <label className="block text-[13px] font-bold text-slate-600 mb-2">CSV file</label>
+                    <label className="block text-[13px] font-bold text-slate-600 mb-2">CSV or Excel file</label>
                     <input
                         type="file"
-                        accept=".csv,text/csv"
+                        accept=".csv,.xlsx,.xls,text/csv"
                         onChange={onFile}
                         className="block w-full text-[14px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700"
                     />

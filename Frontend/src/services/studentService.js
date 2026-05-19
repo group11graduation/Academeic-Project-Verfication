@@ -27,6 +27,13 @@ const studentService = {
         return response.data;
     },
 
+    parseProposalFile: async (assignmentId, file) => {
+        const fd = new FormData();
+        fd.append('proposalFile', file);
+        const response = await api.post(`${base}/assignments/${assignmentId}/proposals/parse-file`, fd);
+        return response.data;
+    },
+
     submitProposalWithFile: async (assignmentId, payload) => {
         const fd = new FormData();
         if (payload?.title) fd.append('title', payload.title);
@@ -56,6 +63,13 @@ const studentService = {
         const fd = new FormData();
         fd.append('codeArchive', file);
         const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd);
+        return response.data;
+    },
+
+    submitNormalAssignmentFile: async (assignmentId, file) => {
+        const fd = new FormData();
+        fd.append('assignmentFile', file);
+        const response = await api.post(`${base}/assignments/${assignmentId}/normal-submission`, fd);
         return response.data;
     },
 

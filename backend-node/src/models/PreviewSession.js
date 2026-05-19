@@ -22,6 +22,8 @@ const previewSessionSchema = new mongoose.Schema(
     hostPort: { type: String, default: '' },
     previewUrl: { type: String, default: '' },
     previewImage: { type: String, default: '' },
+    /** Detected runtime stack: node-js | php-apache | jupyter */
+    previewStack: { type: String, default: '' },
     memoryBytes: { type: Number },
     nanoCpus: { type: Number },
     ttlMs: { type: Number },

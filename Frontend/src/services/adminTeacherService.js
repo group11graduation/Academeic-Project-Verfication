@@ -55,6 +55,23 @@ const toggleAdmin = async (id) => {
     return response.data;
 };
 
+const importTeachers = async (teachers) => {
+    const response = await api.post(`${API_URL}/import`, { teachers });
+    return response.data;
+};
+
+const exportTeachers = async (format = 'csv', params = {}) => {
+    const response = await api.get(`${API_URL}/export`, {
+        params: { ...params, format },
+        responseType: 'blob',
+    });
+    const disposition = response.headers?.['content-disposition'] || '';
+    const match = disposition.match(/filename="([^"]+)"/i);
+    const ext = format === 'xlsx' ? 'xlsx' : 'csv';
+    const filename = match?.[1] || `teachers-export.${ext}`;
+    return { blob: response.data, filename };
+};
+
 /** Absolute URL for displaying uploaded images */
 export const resolveUploadUrl = (path) => {
     if (!path) return '';
@@ -71,7 +88,9 @@ const adminTeacherService = {
     generatePasscode,
     uploadProfileImage,
     assignClasses,
-    toggleAdmin
+    toggleAdmin,
+    importTeachers,
+    exportTeachers
 };
 
 export default adminTeacherService;

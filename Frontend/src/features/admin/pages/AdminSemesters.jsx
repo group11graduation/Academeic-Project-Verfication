@@ -326,7 +326,10 @@ const AdminSemesters = () => {
                 <div className="flex items-center justify-between gap-3">
                     <div>
                         <h2 className="text-lg font-black text-slate-900">Academic Structure</h2>
-                        <p className="text-sm text-slate-500">Manage faculties and departments used by classes and subjects filters.</p>
+                        <p className="text-sm text-slate-500">
+                            Manage faculties and departments used by classes and subjects filters. This list applies to every academic
+                            year — add faculties here once, then use them when creating classes or enrolling students in any term.
+                        </p>
                     </div>
                 </div>
 

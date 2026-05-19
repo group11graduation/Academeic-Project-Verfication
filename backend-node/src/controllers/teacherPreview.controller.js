@@ -2,8 +2,14 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { success } from '../utils/apiResponse.js';
 import * as previewSandbox from '../services/previewSandbox.service.js';
 
+const ALLOWED_PREVIEW_STACKS = new Set(['node-js', 'php-apache', 'jupyter']);
+
 export const startPreview = asyncHandler(async (req, res) => {
-  const session = await previewSandbox.startPreviewForProposal(req.userId, req.params.proposalId);
+  const rawStack = req.body?.stack || req.query?.stack;
+  const stack = ALLOWED_PREVIEW_STACKS.has(rawStack) ? rawStack : null;
+  const session = await previewSandbox.startPreviewForProposal(req.userId, req.params.proposalId, {
+    stack,
+  });
   return success(res, previewSandbox.toPublicSession(session), 201);
 });
 

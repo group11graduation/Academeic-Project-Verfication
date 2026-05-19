@@ -84,16 +84,52 @@ export const importStudents = asyncHandler(async (req, res) => {
 });
 
 export const exportStudents = asyncHandler(async (req, res) => {
-  const { search, classId, classCode, faculty } = req.query || {};
-  const { csv, total } = await adminUser.exportStudentsCsv({
+  const { search, classId, classCode, faculty, format = 'csv' } = req.query || {};
+  const filters = {
     search,
     classId,
     classCode,
     faculty,
-  });
+  };
   const stamp = new Date().toISOString().slice(0, 10);
+  if (String(format).toLowerCase() === 'xlsx') {
+    const file = await adminUser.exportStudentsXlsx(filters);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="students-${stamp}.xlsx"`);
+    return res.status(200).send(file);
+  }
+  const { csv, total } = await adminUser.exportStudentsCsv(filters);
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="students-${stamp}.csv"`);
+  res.setHeader('X-Export-Total', String(total));
+  return res.status(200).send(csv);
+});
+
+export const importTeachers = asyncHandler(async (req, res) => {
+  const rows = req.body?.teachers || req.body?.rows || [];
+  const result = await adminUser.importTeachers(rows);
+  return success(res, result, 201);
+});
+
+export const exportTeachers = asyncHandler(async (req, res) => {
+  const { search, department, format = 'csv' } = req.query || {};
+  const filters = { search, department };
+  const stamp = new Date().toISOString().slice(0, 10);
+  if (String(format).toLowerCase() === 'xlsx') {
+    const file = await adminUser.exportTeachersXlsx(filters);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="teachers-${stamp}.xlsx"`);
+    return res.status(200).send(file);
+  }
+  const { csv, total } = await adminUser.exportTeachersCsv(filters);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="teachers-${stamp}.csv"`);
   res.setHeader('X-Export-Total', String(total));
   return res.status(200).send(csv);
 });

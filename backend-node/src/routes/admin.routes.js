@@ -16,6 +16,8 @@ router.put('/admins/:id', admin.updateAdmin);
 router.delete('/admins/:id', admin.removeAdmin);
 
 router.get('/teachers', admin.listTeachers);
+router.post('/teachers/import', admin.importTeachers);
+router.get('/teachers/export', admin.exportTeachers);
 router.get('/teachers/:id', admin.getTeacher);
 router.post(
   '/teachers',

@@ -12,6 +12,7 @@ import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
 import { analyzeProposalPayload } from './aiClient.service.js';
 import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
+import { parseStructuredProposalText } from '../utils/proposalFileParser.js';
 
 const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_CANDIDATES || 40);
 const AI_LEGACY_MAX_CANDIDATES = Number(process.env.AI_LEGACY_MAX_CANDIDATES || 40);
@@ -38,6 +39,185 @@ function normalizeFeatures(features) {
     .sort();
 }
 
+function uniqueFeatureList(features) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of Array.isArray(features) ? features : []) {
+    const value = String(raw || '').trim();
+    if (!value) continue;
+    const key = normalizeText(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+const DIFFERENTIATION_FEATURE_POOL = [
+  'Role-based dashboards (admin vs user)',
+  'Audit log of important user actions',
+  'Email or in-app notifications',
+  'Export reports (PDF or Excel)',
+  'Two-factor authentication',
+  'Real-time chat or messaging',
+  'ML-based recommendation or prediction',
+  'Integration with an external API',
+  'Mobile-friendly progressive web app',
+  'Multi-language interface',
+  'Advanced search and filters',
+  'Analytics dashboard for admins',
+];
+
+function buildProposalSearchBlob(title, description, features) {
+  return normalizeText(
+    [title, description, ...(Array.isArray(features) ? features : [])].filter(Boolean).join(' ')
+  );
+}
+
+function isFeatureCoveredInProposal(feature, proposalBlob, currentFeatureSet) {
+  const norm = normalizeText(feature);
+  if (!norm) return true;
+  if (currentFeatureSet.has(norm)) return true;
+  if (proposalBlob.includes(norm)) return true;
+  const tokens = norm.split(/\W+/).filter((t) => t.length > 3);
+  if (tokens.length >= 2 && tokens.every((t) => proposalBlob.includes(t))) return true;
+  return false;
+}
+
+function extractFeatureCandidatesFromText(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  const out = [];
+  const bulletLines = raw
+    .split(/\n|[;•]/)
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter((line) => line.length >= 8 && line.length <= 120);
+  for (const line of bulletLines) out.push(line);
+
+  const capabilityPatterns = [
+    /\b(?:user|admin|student|teacher)\s+(?:auth(?:entication)?|login|registration)\b/gi,
+    /\b(?:search|filter|sort)(?:\s+\w+){0,3}\b/gi,
+    /\b(?:dashboard|report|notification|chat|messaging)\b/gi,
+    /\b(?:machine learning|ml|ai|recommendation|prediction)\b/gi,
+    /\b(?:payment|checkout|invoice)\b/gi,
+    /\b(?:export|import)\s+(?:pdf|excel|csv)\b/gi,
+  ];
+  for (const pattern of capabilityPatterns) {
+    const matches = raw.match(pattern) || [];
+    for (const m of matches) {
+      const cleaned = String(m).trim();
+      if (cleaned.length >= 4) out.push(cleaned);
+    }
+  }
+  return uniqueFeatureList(out);
+}
+
+function buildMissingFeatureRecommendation({
+  title = '',
+  description = '',
+  currentFeatures = [],
+  matchedLegacyFeatures = [],
+  matchedLegacyDescription = '',
+}) {
+  const proposalBlob = buildProposalSearchBlob(title, description, currentFeatures);
+  const currentFeatureSet = new Set(
+    (Array.isArray(currentFeatures) ? currentFeatures : [])
+      .map((x) => normalizeText(x))
+      .filter(Boolean)
+  );
+
+  const legacyCandidates = uniqueFeatureList([
+    ...matchedLegacyFeatures,
+    ...extractFeatureCandidatesFromText(matchedLegacyDescription),
+  ]);
+
+  const missingFromLegacy = legacyCandidates.filter(
+    (f) => !isFeatureCoveredInProposal(f, proposalBlob, currentFeatureSet)
+  );
+
+  const missingDifferentiators = DIFFERENTIATION_FEATURE_POOL.filter(
+    (f) => !isFeatureCoveredInProposal(f, proposalBlob, currentFeatureSet)
+  );
+
+  const suggestedFeatures = uniqueFeatureList([
+    ...missingFromLegacy.slice(0, 5),
+    ...missingDifferentiators.slice(0, Math.max(0, 5 - missingFromLegacy.length)),
+  ]).slice(0, 6);
+
+  if (!suggestedFeatures.length) {
+    return {
+      text: 'Your proposal already covers the main features from the similar previous project. You can still add one or two unique capabilities (workflow, roles, or AI) to stand out — optional, not required.',
+      suggestedFeatures: [],
+    };
+  }
+
+  if (missingFromLegacy.length) {
+    return {
+      text: `Optional: these features appeared in a similar previous-semester project but are missing from yours. You may add any of them (not required): ${suggestedFeatures.join('; ')}.`,
+      suggestedFeatures,
+    };
+  }
+
+  return {
+    text: `Optional: add features that are not in your proposal yet to differentiate it (not required): ${suggestedFeatures.join('; ')}.`,
+    suggestedFeatures,
+  };
+}
+
+export async function resolveStoredProposalRecommendation(proposal) {
+  if (!proposal || proposal.status !== 'ai_flagged_previous_semester') {
+    return { recommendation: null, suggestedFeatures: [] };
+  }
+
+  const stored = uniqueFeatureList(proposal.aiSuggestedFeatures || []);
+  if (stored.length || String(proposal.aiRecommendationText || '').trim()) {
+    return {
+      recommendation: String(proposal.aiRecommendationText || '').trim() || null,
+      suggestedFeatures: stored,
+    };
+  }
+
+  const matchedKey = proposal.aiMatchedLegacyId
+    ? `legacy:${proposal.aiMatchedLegacyId}`
+  : proposal.aiMatchedProposalId
+    ? `proposal:${proposal.aiMatchedProposalId}`
+    : '';
+
+  let matchedLegacyFeatures = [];
+  let matchedLegacyDescription = '';
+
+  if (matchedKey.startsWith('legacy:')) {
+    const legacy = await LegacyProject.findById(proposal.aiMatchedLegacyId)
+      .select('features proposalDescription')
+      .lean();
+    if (legacy) {
+      matchedLegacyFeatures = legacy.features || [];
+      matchedLegacyDescription = legacy.proposalDescription || '';
+    }
+  } else if (matchedKey.startsWith('proposal:')) {
+    const prev = await Proposal.findById(proposal.aiMatchedProposalId)
+      .select('features description')
+      .lean();
+    if (prev) {
+      matchedLegacyFeatures = prev.features || [];
+      matchedLegacyDescription = prev.description || '';
+    }
+  }
+
+  const built = buildMissingFeatureRecommendation({
+    title: proposal.title,
+    description: proposal.description,
+    currentFeatures: proposal.features,
+    matchedLegacyFeatures,
+    matchedLegacyDescription,
+  });
+
+  return {
+    recommendation: built.text,
+    suggestedFeatures: built.suggestedFeatures,
+  };
+}
+
 function hasProposalContentChanged(previousProposal, { title, description, features }) {
   const prevTitle = normalizeText(previousProposal?.title);
   const prevDescription = normalizeText(previousProposal?.description);
@@ -52,53 +232,6 @@ function hasProposalContentChanged(previousProposal, { title, description, featu
     prevDescription !== nextDescription ||
     JSON.stringify(prevFeatures) !== JSON.stringify(nextFeatures)
   );
-}
-
-function parseStructuredProposalText(rawText) {
-  const text = String(rawText || '').replace(/\r/g, '');
-  const lines = text.split('\n');
-  let title = '';
-  let description = '';
-  const features = [];
-  let section = '';
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const lower = trimmed.toLowerCase();
-    if (lower.startsWith('title:')) {
-      section = 'title';
-      title = trimmed.slice(6).trim();
-      continue;
-    }
-    if (lower.startsWith('description:')) {
-      section = 'description';
-      const v = trimmed.slice(12).trim();
-      if (v) description += `${description ? ' ' : ''}${v}`;
-      continue;
-    }
-    if (lower.startsWith('features:')) {
-      section = 'features';
-      const v = trimmed.slice(9).trim();
-      if (v) features.push(v);
-      continue;
-    }
-    if (section === 'features') {
-      const cleaned = trimmed.replace(/^[-*]\s*/, '').trim();
-      if (cleaned) features.push(cleaned);
-    } else if (section === 'description') {
-      description += `${description ? ' ' : ''}${trimmed}`;
-    } else if (!title) {
-      title = trimmed;
-    } else {
-      description += `${description ? ' ' : ''}${trimmed}`;
-    }
-  }
-  return {
-    title: title.trim(),
-    description: description.trim(),
-    features: features.map((f) => f.trim()).filter(Boolean),
-  };
 }
 
 async function readProposalFileText(file) {
@@ -116,6 +249,26 @@ async function readProposalFileText(file) {
   }
   const data = await fs.readFile(file.path, 'utf8');
   return data || '';
+}
+
+export async function parseUploadedProposalFile(file, { cleanup = false } = {}) {
+  if (!file?.path) {
+    const err = new Error('Proposal file is required');
+    err.status = 400;
+    throw err;
+  }
+  try {
+    const rawText = await readProposalFileText(file);
+    return parseStructuredProposalText(rawText);
+  } finally {
+    if (cleanup) {
+      try {
+        await fs.unlink(file.path);
+      } catch {
+        /* ignore cleanup errors */
+      }
+    }
+  }
 }
 
 async function assertStudentAccess(userId, assignment) {
@@ -198,12 +351,18 @@ async function assertLeaderOrSingle(userId, assignment, groupId) {
  */
 export async function upsertAndSubmitProposal(userId, assignmentId, body, proposalFile = null) {
   let { title, description, features, groupId, finalize } = body;
-  if ((!title || !String(title).trim()) && proposalFile) {
+  let parsedFromFile = null;
+  if (proposalFile) {
     const extractedText = await readProposalFileText(proposalFile);
     const parsed = parseStructuredProposalText(extractedText);
-    title = parsed.title;
-    description = parsed.description;
-    features = parsed.features;
+    parsedFromFile = parsed;
+    // Always attempt extraction when a file is uploaded.
+    // Prefer parsed file values; fallback to request body when a section is missing.
+    title = parsed.title || String(title || '').trim();
+    description = parsed.description || String(description || '').trim();
+    features = (Array.isArray(parsed.features) && parsed.features.length)
+      ? parsed.features
+      : (Array.isArray(features) ? features : []);
   }
   if (!title?.trim()) {
     const err = new Error('Title is required (or upload a structured proposal file).');
@@ -279,6 +438,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       return {
         proposal,
         ai: null,
+        parsed: parsedFromFile,
         message: 'This same proposal was already submitted before.',
         recommendation:
           'Update the title, description, or features to clearly show what changed before resubmitting.',
@@ -301,19 +461,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   if (!finalize) {
     proposal.status = 'draft';
     await proposal.save();
-    return { proposal, ai: null, message: 'Draft saved' };
-  }
-
-  if (proposal.status === 'ai_flagged_previous_semester' && proposal.previousFeaturesAtFlag?.length) {
-    const prev = new Set(proposal.previousFeaturesAtFlag.map((f) => f.toLowerCase()));
-    const newOnes = proposal.features.filter((f) => !prev.has(String(f).toLowerCase()));
-    if (newOnes.length < Math.max(2, proposal.requiredNewFeaturesCount || 2)) {
-      const err = new Error(
-        'Add at least two new features (not listed before) before resubmitting after a previous-semester similarity warning.'
-      );
-      err.status = 400;
-      throw err;
-    }
+    return { proposal, ai: null, parsed: parsedFromFile, message: 'Draft saved' };
   }
 
   await proposal.save();
@@ -335,6 +483,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     return {
       proposal,
       ai: null,
+      parsed: parsedFromFile,
       message: `Rejected automatically: ${requirementCheck.summary}`,
     };
   }
@@ -431,6 +580,18 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     semesterLabel: p.assignment?.semester?.name || '',
   }));
   const legacyPayload = [...legacyFromArchive, ...legacyFromCrossSemester].slice(0, Math.max(0, AI_LEGACY_MAX_CANDIDATES));
+  const legacyFeatureMap = new Map();
+  const legacyDescriptionMap = new Map();
+  for (const l of legacyDocs) {
+    const key = `legacy:${l._id.toString()}`;
+    legacyFeatureMap.set(key, uniqueFeatureList(l.features || []));
+    legacyDescriptionMap.set(key, String(l.proposalDescription || ''));
+  }
+  for (const p of crossSemesterProposals) {
+    const key = `proposal:${p._id.toString()}`;
+    legacyFeatureMap.set(key, uniqueFeatureList(p.features || []));
+    legacyDescriptionMap.set(key, String(p.description || ''));
+  }
 
   let aiResult;
   try {
@@ -478,16 +639,40 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     proposal.previousFeaturesAtFlag = [];
   }
 
+  let recommendation = null;
+  let suggestedFeatures = [];
+
+  if (verdict === 'warn_previous_semester') {
+    const matchedKey = String(aiResult.matched_legacy_id || '').trim();
+    const built = buildMissingFeatureRecommendation({
+      title: proposal.title,
+      description: proposal.description,
+      currentFeatures: proposal.features,
+      matchedLegacyFeatures: legacyFeatureMap.get(matchedKey) || [],
+      matchedLegacyDescription: legacyDescriptionMap.get(matchedKey) || '',
+    });
+    recommendation = built.text;
+    suggestedFeatures = built.suggestedFeatures;
+    proposal.aiRecommendationText = built.text;
+    proposal.aiSuggestedFeatures = built.suggestedFeatures;
+  } else {
+    proposal.aiRecommendationText = '';
+    proposal.aiSuggestedFeatures = [];
+  }
+
   await proposal.save();
 
   return {
     proposal,
     ai: aiResult,
+    recommendation,
+    suggestedFeatures,
+    parsed: parsedFromFile,
     message:
       verdict === 'reject_same_semester'
         ? 'This proposal is too similar to another project in your current semester. Please change the idea, description, and features.'
         : verdict === 'warn_previous_semester'
-          ? 'This idea resembles an approved project from a previous semester. Add meaningful new features before requesting teacher approval.'
+          ? 'This idea resembles an approved project from a previous semester. You can optionally add new features to strengthen originality before teacher review.'
           : 'Proposal sent to your teacher for approval.',
   };
 }
@@ -606,10 +791,28 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     .lean();
 
   const ids = list.map((p) => p._id);
-  const withSub = ids.length
-    ? await ProjectSubmission.distinct('proposal', { proposal: { $in: ids } })
-    : [];
-  const subSet = new Set(withSub.map(String));
+  /** Latest project ZIP per proposal (for teacher download + preview UX) */
+  const latestZipByProposal = new Map();
+  if (ids.length) {
+    const rows = await ProjectSubmission.aggregate([
+      { $match: { proposal: { $in: ids } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: '$proposal', doc: { $first: '$$ROOT' } } },
+    ]);
+    for (const row of rows) {
+      const d = row.doc;
+      const rel = String(d.storedRelativePath || '').replace(/^\/+/, '');
+      latestZipByProposal.set(String(row._id), {
+        _id: d._id,
+        originalFilename: d.originalFilename || '',
+        sizeBytes: d.sizeBytes ?? 0,
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt,
+        version: d.version ?? 1,
+        downloadPath: rel ? `/uploads/${rel}` : '',
+      });
+    }
+  }
   const studentUserIds = list
     .map((p) => p?.submittedBy?._id)
     .filter(Boolean);
@@ -618,16 +821,20 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     : [];
   const studentIdByUser = new Map(profiles.map((sp) => [String(sp.user), sp.studentId || '']));
 
-  return list.map((p) => ({
+  return list.map((p) => {
+    const latestProjectSubmission = latestZipByProposal.get(String(p._id)) || null;
+    return {
     ...p,
-    hasProjectSubmission: subSet.has(String(p._id)),
+    hasProjectSubmission: Boolean(latestProjectSubmission),
+    latestProjectSubmission,
     submittedBy: p.submittedBy
       ? {
           ...p.submittedBy,
           studentId: studentIdByUser.get(String(p.submittedBy._id)) || '',
         }
       : p.submittedBy,
-  }));
+  };
+  });
 }
 
 export async function getProposalForStudent(userId, proposalId) {
@@ -688,6 +895,15 @@ export async function canAccessProjectSubmission(userId, assignmentId) {
       reason: 'Your proposal must be teacher-approved before you can submit the project.',
     };
   }
+
+  if (assignment?.projectDeadline && new Date() > new Date(assignment.projectDeadline)) {
+    return {
+      allowed: false,
+      reason: 'Project submission deadline has passed.',
+      proposal: prop,
+      projectDeadlinePassed: true,
+    };
+  }
   // Backward-compatible unlock: once teacher approves proposal, allow project phase
   // even if assignment.projectPhaseOpen was not toggled previously.
   if (!assignment?.projectPhaseOpen && prop.status === 'teacher_approved') {
@@ -696,5 +912,10 @@ export async function canAccessProjectSubmission(userId, assignmentId) {
   if (!assignment?.projectPhaseOpen) {
     return { allowed: false, reason: 'Project phase is not open yet.' };
   }
-  return { allowed: true, proposal: prop };
+  return {
+    allowed: true,
+    proposal: prop,
+    projectDeadline: assignment?.projectDeadline || null,
+    canUpdateUntilDeadline: true,
+  };
 }

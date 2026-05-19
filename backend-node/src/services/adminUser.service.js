@@ -2,9 +2,55 @@ import { User } from '../models/User.js';
 import { TeacherProfile } from '../models/TeacherProfile.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import mongoose from 'mongoose';
+import XLSX from 'xlsx';
 
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+/** Align with Class.code (uppercase) so enrollments and class detail match imports. */
+function normalizeStudentClassCodeValue(code) {
+  const c = String(code ?? '').trim();
+  if (!c) return '';
+  return c.toUpperCase();
+}
+
+function makeNumericId(prefix = '', serial = 1, width = 4) {
+  return `${prefix}${String(serial).padStart(width, '0')}`;
+}
+
+async function generateUniqueStudentId() {
+  const profiles = await StudentProfile.find({ studentId: { $exists: true, $ne: '' } }, { studentId: 1 }).lean();
+  let max = 0;
+  for (const row of profiles) {
+    const match = String(row.studentId || '').match(/(\d+)$/);
+    if (!match) continue;
+    const n = Number(match[1]);
+    if (Number.isFinite(n)) max = Math.max(max, n);
+  }
+  let candidate = '';
+  do {
+    max += 1;
+    candidate = makeNumericId('S', max, 4);
+  } while (await StudentProfile.exists({ studentId: candidate }));
+  return candidate;
+}
+
+async function generateUniqueTeacherId() {
+  const profiles = await TeacherProfile.find({ employeeId: { $exists: true, $ne: '' } }, { employeeId: 1 }).lean();
+  let max = 0;
+  for (const row of profiles) {
+    const match = String(row.employeeId || '').match(/(\d+)$/);
+    if (!match) continue;
+    const n = Number(match[1]);
+    if (Number.isFinite(n)) max = Math.max(max, n);
+  }
+  let candidate = '';
+  do {
+    max += 1;
+    candidate = makeNumericId('T', max, 4);
+  } while (await TeacherProfile.exists({ employeeId: candidate }));
+  return candidate;
 }
 
 export async function listTeachers() {
@@ -77,7 +123,7 @@ export async function createTeacher(body) {
     plain = randomPasscode();
   }
 
-  const empId = (employeeId || teacherId || '').trim();
+  const empId = (employeeId || teacherId || '').trim() || (await generateUniqueTeacherId());
   const user = new User({
     email: email?.toLowerCase()?.trim(),
     username: username?.trim() || empId || email?.split('@')[0],
@@ -267,8 +313,8 @@ export async function createStudent(body) {
   if (!plain) {
     plain = randomPasscode();
   }
-  const sid = (studentId || '').trim();
-  const cc = (classCode || classId || '').trim();
+  const sid = (studentId || '').trim() || (await generateUniqueStudentId());
+  const cc = normalizeStudentClassCodeValue(classCode || classId || '');
   const fac = (faculty || '').trim();
   const user = new User({
     email: email?.toLowerCase()?.trim(),
@@ -311,7 +357,7 @@ export async function updateStudent(profileId, body) {
   if (body.studentId !== undefined) profile.studentId = body.studentId?.trim();
   if (body.program !== undefined) profile.program = body.program;
   if (body.classCode !== undefined || body.classId !== undefined) {
-    profile.classCode = String(body.classCode ?? body.classId ?? '').trim();
+    profile.classCode = normalizeStudentClassCodeValue(body.classCode ?? body.classId ?? '');
   }
   if (body.faculty !== undefined) profile.faculty = String(body.faculty).trim();
   else if (body.academicInfo?.faculty !== undefined) {
@@ -357,7 +403,7 @@ export async function importStudents(rows) {
         name: row.name,
         email: row.email,
         username: row.username,
-        studentId: row.studentId || row.id,
+        studentId: row.studentId || row.id || row.student_id,
         program: row.program || '',
         classCode: row.classCode || row.classId || row.class,
         faculty: row.faculty || '',
@@ -376,6 +422,56 @@ export async function importStudents(rows) {
       failed.push({
         index: i,
         studentId: row.studentId,
+        email: row.email,
+        message: e.message || 'Failed',
+      });
+    }
+  }
+  return { created, failed, total: list.length };
+}
+
+export async function importTeachers(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const created = [];
+  const failed = [];
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i] || {};
+    try {
+      const plain = row.password || row.passcode || randomPasscode();
+      if (!row.name || !String(row.name).trim()) {
+        throw new Error('name is required');
+      }
+      if (!row.email || !String(row.email).trim()) {
+        throw new Error('email is required');
+      }
+      const teacher = await createTeacher({
+        name: row.name,
+        email: row.email,
+        username: row.username,
+        department: row.department || row.faculty || '',
+        teacherId: row.teacherId || row.employeeId || row.teacher_id,
+        employeeId: row.employeeId || row.teacherId || row.employee_id,
+        phone: row.phone || '',
+        skills: Array.isArray(row.skills)
+          ? row.skills
+          : String(row.skills || '')
+              .split(/[|,]/)
+              .map((s) => s.trim())
+              .filter(Boolean),
+        classCodes: row.assignedClassCodes || row.classCodes || '',
+        password: plain,
+      });
+      created.push({
+        index: i,
+        teacherId: teacher.teacherId,
+        _id: teacher._id,
+        loginPasscode: plain,
+        email: row.email,
+      });
+    } catch (e) {
+      failed.push({
+        index: i,
+        teacherId: row.teacherId || row.employeeId,
         email: row.email,
         message: e.message || 'Failed',
       });
@@ -453,6 +549,150 @@ export async function exportStudentsCsv(filters = {}) {
     csv: lines.join('\n'),
     total: rows.length,
   };
+}
+
+export async function exportStudentsXlsx(filters = {}) {
+  const all = await listStudents();
+  const search = String(filters.search || '')
+    .trim()
+    .toLowerCase();
+  const classId = String(filters.classId || filters.classCode || '')
+    .trim()
+    .toLowerCase();
+  const faculty = String(filters.faculty || '')
+    .trim()
+    .toLowerCase();
+
+  const rows = all
+    .filter((student) => {
+      const matchesSearch =
+        !search ||
+        String(student.name || '')
+          .toLowerCase()
+          .includes(search) ||
+        String(student.email || '')
+          .toLowerCase()
+          .includes(search) ||
+        String(student.studentId || '')
+          .toLowerCase()
+          .includes(search);
+      const matchesClass = !classId || String(student.classId || '').toLowerCase() === classId;
+      const matchesFaculty = !faculty || String(student.faculty || '').toLowerCase() === faculty;
+      return matchesSearch && matchesClass && matchesFaculty;
+    })
+    .map((student) => ({
+      name: student.name || '',
+      email: student.email || '',
+      studentId: student.studentId || '',
+      classCode: student.classId || student.classCode || '',
+      faculty: student.faculty || student.academicInfo?.faculty || '',
+      program: student.program || '',
+      score: student.currentScore ?? '',
+      gpa: student.currentGpa ?? '',
+      status: student.status || '',
+    }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Students');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+export async function exportTeachersCsv(filters = {}) {
+  const all = await listTeachers();
+  const search = String(filters.search || '')
+    .trim()
+    .toLowerCase();
+  const department = String(filters.department || '')
+    .trim()
+    .toLowerCase();
+
+  const rows = all.filter((teacher) => {
+    const matchesSearch =
+      !search ||
+      String(teacher.name || '')
+        .toLowerCase()
+        .includes(search) ||
+      String(teacher.email || '')
+        .toLowerCase()
+        .includes(search) ||
+      String(teacher.teacherId || '')
+        .toLowerCase()
+        .includes(search);
+    const matchesDepartment = !department || String(teacher.department || '').toLowerCase() === department;
+    return matchesSearch && matchesDepartment;
+  });
+
+  const header = [
+    'name',
+    'email',
+    'teacherId',
+    'department',
+    'phone',
+    'skills',
+    'assignedClassCodes',
+    'status',
+  ];
+  const lines = [header.join(',')];
+  for (const teacher of rows) {
+    lines.push(
+      [
+        csvEscape(teacher.name),
+        csvEscape(teacher.email),
+        csvEscape(teacher.teacherId || teacher.employeeId),
+        csvEscape(teacher.department),
+        csvEscape(teacher.phone),
+        csvEscape((teacher.skills || []).join('|')),
+        csvEscape((teacher.assignedClassCodes || []).join('|')),
+        csvEscape(teacher.status),
+      ].join(',')
+    );
+  }
+
+  return {
+    csv: lines.join('\n'),
+    total: rows.length,
+  };
+}
+
+export async function exportTeachersXlsx(filters = {}) {
+  const all = await listTeachers();
+  const search = String(filters.search || '')
+    .trim()
+    .toLowerCase();
+  const department = String(filters.department || '')
+    .trim()
+    .toLowerCase();
+
+  const rows = all
+    .filter((teacher) => {
+      const matchesSearch =
+        !search ||
+        String(teacher.name || '')
+          .toLowerCase()
+          .includes(search) ||
+        String(teacher.email || '')
+          .toLowerCase()
+          .includes(search) ||
+        String(teacher.teacherId || '')
+          .toLowerCase()
+          .includes(search);
+      const matchesDepartment = !department || String(teacher.department || '').toLowerCase() === department;
+      return matchesSearch && matchesDepartment;
+    })
+    .map((teacher) => ({
+      name: teacher.name || '',
+      email: teacher.email || '',
+      teacherId: teacher.teacherId || teacher.employeeId || '',
+      department: teacher.department || '',
+      phone: teacher.phone || '',
+      skills: (teacher.skills || []).join('|'),
+      assignedClassCodes: (teacher.assignedClassCodes || []).join('|'),
+      status: teacher.status || '',
+    }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Teachers');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
 export async function deleteStudent(profileId) {

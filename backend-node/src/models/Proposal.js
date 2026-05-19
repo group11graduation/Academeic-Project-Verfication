@@ -32,6 +32,9 @@ const proposalSchema = new mongoose.Schema(
     aiMatchedProposalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proposal' },
     aiMatchedLegacyId: { type: mongoose.Schema.Types.ObjectId, ref: 'LegacyProject' },
     aiSummary: { type: String, default: '' },
+    /** Optional feature hints when flagged as similar to a previous-semester project */
+    aiRecommendationText: { type: String, default: '' },
+    aiSuggestedFeatures: [{ type: String, trim: true }],
     /** Requirement pre-check snapshot (runs before AI similarity checks) */
     requirementCheckPassed: { type: Boolean, default: true },
     requirementCheckSummary: { type: String, default: '' },

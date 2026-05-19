@@ -1,8 +1,11 @@
 import { Enrollment } from '../models/Enrollment.js';
 import { Assignment } from '../models/Assignment.js';
 import { Proposal } from '../models/Proposal.js';
+import { resolveStoredProposalRecommendation } from './proposalWorkflow.service.js';
 import { Group } from '../models/Group.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import { isProjectDeadlineOpen } from './projectCodeSubmission.service.js';
+import { NormalAssignmentSubmission } from '../models/NormalAssignmentSubmission.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
 
@@ -123,24 +126,54 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
 
     const isLeader = groupInfo ? String(groupInfo.leader?._id || groupInfo.leader) === String(userId) : true;
     const approved = proposal?.status === 'teacher_approved';
-    const projectSubmissionAllowed =
-      !!assignment.projectPhaseOpen && approved && (assignment.submissionMode !== 'group' || isLeader);
+    const deadlineOpen = isProjectDeadlineOpen(assignment);
 
     let latestProjectSubmission = null;
     if (proposal?._id) {
       latestProjectSubmission = await ProjectSubmission.findOne({ proposal: proposal._id })
         .sort({ createdAt: -1 })
-        .select('originalFilename sizeBytes createdAt')
+        .select('originalFilename sizeBytes createdAt updatedAt version _id')
         .lean();
+    }
+    const hasProjectSubmission = Boolean(latestProjectSubmission);
+    const projectSubmissionAllowed =
+      approved &&
+      (assignment.submissionMode !== 'group' || isLeader) &&
+      deadlineOpen &&
+      (!!assignment.projectPhaseOpen || hasProjectSubmission);
+
+    const latestNormalSubmission = String(assignment.assignmentType || 'normal') === 'normal'
+      ? await NormalAssignmentSubmission.findOne({
+          assignment: assignment._id,
+          submittedBy: userId,
+        })
+          .sort({ createdAt: -1 })
+          .select('originalFilename sizeBytes createdAt plagiarismScore plagiarismFlag plagiarismMethod')
+          .lean()
+      : null;
+
+    let proposalOut = proposal || null;
+    if (proposalOut?.status === 'ai_flagged_previous_semester') {
+      const rec = await resolveStoredProposalRecommendation(proposalOut);
+      proposalOut = {
+        ...proposalOut,
+        recommendation: rec.recommendation,
+        suggestedFeatures: rec.suggestedFeatures,
+      };
     }
 
     out.push({
       assignment,
-      proposal: proposal || null,
+      proposal: proposalOut,
       group: groupInfo,
       isGroupLeader: isLeader,
       projectSubmissionAllowed,
+      projectDeadline: assignment.projectDeadline || null,
+      projectDeadlinePassed: !deadlineOpen,
+      canUpdateProjectUntilDeadline: approved && deadlineOpen,
       latestProjectSubmission,
+      normalSubmissionAllowed: String(assignment.assignmentType || 'normal') === 'normal',
+      latestNormalSubmission,
     });
   }
 

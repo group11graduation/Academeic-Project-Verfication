@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Search, Plus, Eye, EyeOff, ShieldCheck, Loader2, GraduationCap } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Search, Plus, Eye, EyeOff, ShieldCheck, Loader2, GraduationCap, Pencil, Trash2 } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
 
 const AdminTeachers = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [showPasscodes, setShowPasscodes] = useState({});
     const [teachers, setTeachers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [deletingId, setDeletingId] = useState('');
 
     useEffect(() => {
         const fetchTeachers = async () => {
@@ -16,7 +18,7 @@ const AdminTeachers = () => {
                 const response = await adminTeacherService.getTeachers();
                 if (response.success) {
                     setTeachers(response.data.map(t => ({
-                        id: t.teacherId,
+                        id: t._id || t.teacherId,
                         name: t.name,
                         status: t.status,
                         subjects: t.skills || [],
@@ -40,6 +42,21 @@ const AdminTeachers = () => {
             ...prev,
             [id]: !prev[id]
         }));
+    };
+
+    const handleDeleteTeacher = async (teacherId) => {
+        const shouldDelete = window.confirm('Are you sure you want to delete this teacher?');
+        if (!shouldDelete) return;
+        setDeletingId(teacherId);
+        try {
+            const response = await adminTeacherService.deleteTeacher(teacherId);
+            if (!response.success) throw new Error(response.message || 'Failed to delete teacher');
+            setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherId));
+        } catch (error) {
+            window.alert(error.response?.data?.message || error.message || 'Failed to delete teacher');
+        } finally {
+            setDeletingId('');
+        }
     };
 
     const filteredTeachers = teachers.filter(teacher =>
@@ -175,6 +192,32 @@ const AdminTeachers = () => {
                                     Hidden
                                 </div>
                             )}
+                        </div>
+                        <div className="px-6 pb-5 flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    navigate(`/admin/teachers/${teacher.id}/edit`);
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                            >
+                                <Pencil className="h-3.5 w-3.5" /> Update
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteTeacher(teacher.id);
+                                }}
+                                disabled={deletingId === teacher.id}
+                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-60"
+                            >
+                                {deletingId === teacher.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                Delete
+                            </button>
                         </div>
                     </Link>
                 ))}

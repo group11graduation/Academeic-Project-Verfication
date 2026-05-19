@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Search,
     Users,
@@ -6,9 +6,9 @@ import {
     BookOpen,
     Loader2,
     ChevronDown,
-    Plus,
     Layout,
-    X
+    Download,
+    FileUp
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
@@ -21,13 +21,20 @@ const ProjectsOverview = () => {
     const [activeTab, setActiveTab] = useState('group'); // 'individual' or 'group'
     const [expandedClasses, setExpandedClasses] = useState({});
     const [myClasses, setMyClasses] = useState([]);
-    const [showCreateModal, setShowCreateModal] = useState(false);
     const [creating, setCreating] = useState(false);
     const [createForm, setCreateForm] = useState({
         classCode: '',
         type: 'group',
         groupSize: 4,
     });
+    const [exportingFile, setExportingFile] = useState(false);
+    const [importingFile, setImportingFile] = useState(false);
+    const [applyingImport, setApplyingImport] = useState(false);
+    const [importPreview, setImportPreview] = useState(null);
+    const [importSummary, setImportSummary] = useState(null);
+    const [generateSummary, setGenerateSummary] = useState(null);
+    const importInputRef = useRef(null);
+    const createFormSectionRef = useRef(null);
 
     useEffect(() => {
         const fetchAllGroups = async () => {
@@ -53,6 +60,116 @@ const ProjectsOverview = () => {
         fetchAllGroups();
     }, []);
 
+    useEffect(() => {
+        setImportPreview(null);
+        setImportSummary(null);
+        setGenerateSummary(null);
+    }, [createForm.classCode]);
+
+    const scrollToCreateForm = () => {
+        createFormSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const resetCreateFormFields = () => {
+        if (creating || exportingFile || importingFile || applyingImport) return;
+        setCreateForm({ classCode: createForm.classCode, type: 'group', groupSize: 4 });
+        setImportSummary(null);
+        setImportPreview(null);
+        setGenerateSummary(null);
+    };
+
+    const refreshProjectsList = async () => {
+        const response = await teacherService.getAllGroups();
+        if (response.success) setGroupedData(response.data || []);
+    };
+
+    const handleExportCsv = async () => {
+        if (!createForm.classCode) return;
+        try {
+            setExportingFile(true);
+            const res = await teacherService.exportClassTemplateGroups(createForm.classCode, 'csv');
+            if (res.success && res.data?.csv) {
+                const blob = new Blob([res.data.csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = res.data.filename || 'groups.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || error.message || 'Export failed');
+        } finally {
+            setExportingFile(false);
+        }
+    };
+
+    const handleExportXlsx = async () => {
+        if (!createForm.classCode) return;
+        try {
+            setExportingFile(true);
+            const res = await teacherService.exportClassTemplateGroups(createForm.classCode, 'xlsx');
+            if (res.success && res.data?.xlsxBase64) {
+                teacherService.downloadXlsxFromBase64(res.data.filename, res.data.xlsxBase64);
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || error.message || 'Export failed');
+        } finally {
+            setExportingFile(false);
+        }
+    };
+
+    const handleImportFile = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file || !createForm.classCode) return;
+        const lower = file.name.toLowerCase();
+        const isXlsx = lower.endsWith('.xlsx') || lower.endsWith('.xls');
+        try {
+            setImportingFile(true);
+            setImportSummary(null);
+            setImportPreview(null);
+            setGenerateSummary(null);
+            let res;
+            if (isXlsx) {
+                const buf = await file.arrayBuffer();
+                const xlsxBase64 = teacherService.arrayBufferToBase64(buf);
+                res = await teacherService.previewClassTemplateGroups(createForm.classCode, { xlsxBase64 });
+            } else {
+                const csv = await file.text();
+                res = await teacherService.previewClassTemplateGroups(createForm.classCode, { csv });
+            }
+            if (res.success) {
+                setImportPreview(res.data);
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || error.message || 'Preview failed');
+        } finally {
+            setImportingFile(false);
+        }
+    };
+
+    const handleApplyImport = async () => {
+        if (!createForm.classCode || !importPreview || !Array.isArray(importPreview.proposedGroups)) return;
+        try {
+            setApplyingImport(true);
+            const res = await teacherService.commitClassTemplateGroups(
+                createForm.classCode,
+                importPreview.proposedGroups,
+            );
+            if (res.success) {
+                setImportSummary(res.data);
+                setImportPreview(null);
+                setGenerateSummary(null);
+                await refreshProjectsList();
+            }
+        } catch (error) {
+            alert(error.response?.data?.message || error.message || 'Could not apply import');
+        } finally {
+            setApplyingImport(false);
+        }
+    };
+
     const toggleClassExpansion = (classCode) => {
         setExpandedClasses(prev => ({
             ...prev,
@@ -67,14 +184,16 @@ const ProjectsOverview = () => {
         }
         try {
             setCreating(true);
-            const res = await teacherService.generateGroups(createForm.classCode, {
+            const body = {
                 type: createForm.type,
                 groupSize: createForm.type === 'group' ? Number(createForm.groupSize || 4) : 1,
-            });
+            };
+            const res = await teacherService.generateClassTemplateGroups(createForm.classCode, body);
             if (!res.success) throw new Error(res.message || 'Failed to create groups');
-            const response = await teacherService.getAllGroups();
-            if (response.success) setGroupedData(response.data || []);
-            setShowCreateModal(false);
+            await refreshProjectsList();
+            setImportSummary(null);
+            setImportPreview(null);
+            if (res.data) setGenerateSummary(res.data);
         } catch (error) {
             console.error('Failed to create groups:', error);
             alert(error.response?.data?.message || error.message || 'Could not create groups');
@@ -131,7 +250,8 @@ const ProjectsOverview = () => {
                         />
                     </div>
                     <button
-                        onClick={() => setShowCreateModal(true)}
+                        type="button"
+                        onClick={scrollToCreateForm}
                         className="bg-[#2a3fa4] text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#223688] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg whitespace-nowrap"
                     >
                         Create New
@@ -159,6 +279,246 @@ const ProjectsOverview = () => {
                 ))}
             </div>
 
+            <section
+                id="teacher-create-groups"
+                ref={createFormSectionRef}
+                className="mb-10 rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] p-6 md:p-8 shadow-xl"
+            >
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-[#1D68E3]/10 p-3 text-[#1D68E3] dark:text-blue-400">
+                            <Users className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg md:text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                                Create groups
+                            </h2>
+                            <p className="text-xs md:text-sm font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                                Build teams for the class before creating an assignment. When you later create a group-mode assignment for this class, these teams copy automatically.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+                    <div className="md:col-span-2">
+                        <label htmlFor="create-groups-class" className="block text-[12px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                            Class
+                        </label>
+                        <select
+                            id="create-groups-class"
+                            value={createForm.classCode}
+                            onChange={(e) => setCreateForm((p) => ({ ...p, classCode: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-2.5 text-sm text-slate-900 dark:text-white"
+                        >
+                            <option value="">Select class</option>
+                            {myClasses.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                    {c.code} — {c.title}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="md:col-span-2 rounded-xl bg-slate-50 dark:bg-[#0B1120] border border-slate-100 dark:border-white/10 px-4 py-3">
+                        <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Use <strong className="font-mono">.csv</strong> or <strong className="font-mono">.xlsx</strong> (first sheet). Columns:{' '}
+                            <span className="font-mono">groupName</span>, <span className="font-mono">studentId</span>,{' '}
+                            <span className="font-mono">role</span>. Student IDs must match roster enrolment for this class.{' '}
+                            <strong>Choose a file for preview first</strong>, then click <strong>Apply import</strong> to save teams to this class (or discard the preview). Unknown IDs are skipped in the preview; valid rows still form teams.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 md:col-span-2">
+                        <input
+                            ref={importInputRef}
+                            type="file"
+                            accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                            className="hidden"
+                            onChange={handleImportFile}
+                        />
+                        <button
+                            type="button"
+                            onClick={handleExportCsv}
+                            disabled={!createForm.classCode || exportingFile || importingFile || applyingImport}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                        >
+                            {exportingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            Export CSV
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleExportXlsx}
+                            disabled={!createForm.classCode || exportingFile || importingFile || applyingImport}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                        >
+                            {exportingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            Export Excel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => importInputRef.current?.click()}
+                            disabled={!createForm.classCode || importingFile || exportingFile || applyingImport}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                        >
+                            {importingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                            Preview import
+                        </button>
+                    </div>
+
+                    {importPreview && (
+                        <div className="md:col-span-2 rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/80 dark:bg-blue-950/25 p-4 text-sm">
+                            <p className="font-black text-slate-800 dark:text-slate-100 mb-1">
+                                Preview ready — {importPreview.proposedGroups?.length ?? 0} team(s),{' '}
+                                {(importPreview.proposedGroups || []).reduce((n, g) => n + (g.members?.length || 0), 0)} roster row(s). Nothing is saved until you apply.
+                            </p>
+                            {(importPreview.rejectedStudentRows?.length ?? 0) > 0 && (
+                                <div className="mt-2 text-xs font-bold text-blue-900 dark:text-blue-200">
+                                    <p className="mb-1">Would be skipped (not on roster or duplicate in file):</p>
+                                    <ul className="max-h-28 overflow-y-auto list-disc pl-4 font-mono">
+                                        {importPreview.rejectedStudentRows.slice(0, 20).map((r, i) => (
+                                            <li key={i}>{r.studentId} — {r.reason}</li>
+                                        ))}
+                                    </ul>
+                                    {importPreview.rejectedStudentRows.length > 20 && (
+                                        <p className="mt-1">…and {importPreview.rejectedStudentRows.length - 20} more</p>
+                                    )}
+                                </div>
+                            )}
+                            {(importPreview.skippedGroups?.length ?? 0) > 0 && (
+                                <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                                    Skipped in file (no valid students): {importPreview.skippedGroups.map((s) => s.groupName).join(', ')}
+                                </p>
+                            )}
+                            {!(importPreview.proposedGroups?.length > 0) && (
+                                <p className="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                    No teams to save — every row was skipped or invalid. Fix the file and preview again.
+                                </p>
+                            )}
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleApplyImport}
+                                    disabled={applyingImport || !(importPreview.proposedGroups?.length > 0)}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {applyingImport ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                    Apply import
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setImportPreview(null)}
+                                    disabled={applyingImport}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 disabled:opacity-50"
+                                >
+                                    Discard preview
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {importSummary && !importPreview && (
+                        <div className="md:col-span-2 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm">
+                            <p className="font-black text-slate-800 dark:text-slate-100 mb-2">
+                                Import complete: {importSummary.createdGroups?.length ?? 0} group(s) created.
+                                {(importSummary.templateGroupsRemoved ?? importSummary.orphanGroupsRemoved ?? 0) > 0 &&
+                                    ` Replaced ${importSummary.templateGroupsRemoved ?? importSummary.orphanGroupsRemoved} previous class team row(s).`}
+                            </p>
+                            {(importSummary.rejectedStudentRows?.length ?? 0) > 0 && (
+                                <div className="mt-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                                    <p className="mb-1">Rejected (not on roster or duplicate):</p>
+                                    <ul className="max-h-28 overflow-y-auto list-disc pl-4 font-mono">
+                                        {importSummary.rejectedStudentRows.slice(0, 20).map((r, i) => (
+                                            <li key={i}>{r.studentId} — {r.reason}</li>
+                                        ))}
+                                    </ul>
+                                    {importSummary.rejectedStudentRows.length > 20 && (
+                                        <p className="mt-1">…and {importSummary.rejectedStudentRows.length - 20} more</p>
+                                    )}
+                                </div>
+                            )}
+                            {(importSummary.skippedGroups?.length ?? 0) > 0 && (
+                                <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                                    Skipped (no valid students): {importSummary.skippedGroups.map((s) => s.groupName).join(', ')}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="md:col-span-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 px-4 py-3">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            Auto-generate (system)
+                        </p>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                            The server loads <strong>every student</strong> linked to this class (roster profiles that list this class code, plus{' '}
+                            <strong>active enrollments</strong> in this class), shuffles the list, then builds teams using the{' '}
+                            <strong>group size</strong> you set below. The last team may be smaller if the count does not divide evenly. This replaces existing class-level teams for the selected class.
+                        </p>
+                    </div>
+
+                    {generateSummary && !importPreview && (
+                        <div className="md:col-span-2 rounded-xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/90 dark:bg-emerald-950/25 p-4 text-sm">
+                            <p className="font-black text-emerald-900 dark:text-emerald-100">
+                                {generateSummary.type === 'individual'
+                                    ? `Created ${generateSummary.createdCount} individual assignment(s) from ${generateSummary.studentCount ?? 'all'} student(s).`
+                                    : `Created ${generateSummary.createdCount} team(s) from ${generateSummary.studentCount ?? 'all'} student(s), up to ${generateSummary.groupSize} students per team (last team may be smaller).`}
+                            </p>
+                        </div>
+                    )}
+
+                    <div>
+                        <label htmlFor="create-groups-type" className="block text-[12px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                            Type
+                        </label>
+                        <select
+                            id="create-groups-type"
+                            value={createForm.type}
+                            onChange={(e) => setCreateForm((p) => ({ ...p, type: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-2.5 text-sm text-slate-900 dark:text-white"
+                        >
+                            <option value="group">Group</option>
+                            <option value="individual">Individual</option>
+                        </select>
+                    </div>
+
+                    {createForm.type === 'group' && (
+                        <div>
+                            <label htmlFor="create-groups-size" className="block text-[12px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                                Group size
+                            </label>
+                            <input
+                                id="create-groups-size"
+                                type="number"
+                                min={2}
+                                max={10}
+                                value={createForm.groupSize}
+                                onChange={(e) => setCreateForm((p) => ({ ...p, groupSize: e.target.value }))}
+                                className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-2.5 text-sm text-slate-900 dark:text-white"
+                            />
+                        </div>
+                    )}
+                </div>
+
+                <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-100 dark:border-white/5 pt-6">
+                    <button
+                        type="button"
+                        onClick={resetCreateFormFields}
+                        disabled={creating || exportingFile || importingFile || applyingImport}
+                        className="px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-sm font-bold text-slate-600 dark:text-slate-300 disabled:opacity-50"
+                    >
+                        Reset
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleCreateGroups}
+                        disabled={creating || !createForm.classCode || applyingImport || importingFile}
+                        className="px-5 py-2 rounded-xl bg-[#2a3fa4] text-white text-sm font-bold hover:bg-[#223688] disabled:opacity-60"
+                    >
+                        {creating ? 'Generating…' : createForm.type === 'individual' ? 'Generate individuals' : 'Generate teams'}
+                    </button>
+                </div>
+            </section>
+
             {!hasAnyProjects ? (
                 <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border-2 border-dashed border-slate-100 dark:border-white/5 p-12 md:p-24 text-center">
                     <div className="w-20 h-20 bg-slate-50 dark:bg-[#0B1120] rounded-full flex items-center justify-center mx-auto mb-8">
@@ -167,10 +527,11 @@ const ProjectsOverview = () => {
                     <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 mb-3">No {activeTab} projects found</h2>
                     <p className="text-slate-500 mb-10 max-w-md mx-auto font-medium">Try adjusting your search or create a new student group assignment.</p>
                     <button
-                        onClick={() => setShowCreateModal(true)}
+                        type="button"
+                        onClick={scrollToCreateForm}
                         className="bg-[#2a3fa4] text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#223688] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
                     >
-                        Go to My Classes
+                        Set up groups
                     </button>
                 </div>
             ) : (
@@ -188,23 +549,23 @@ const ProjectsOverview = () => {
                             </div>
 
                             {activeTab === 'individual' ? (
-                                <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
+                                <div className="app-table-shell">
+                                    <div className="app-table-wrap">
+                                        <table className="app-table">
                                             <thead>
-                                                <tr className="border-b border-slate-50 dark:border-white/5">
-                                                    <th className="px-8 py-6 text-[11px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Student</th>
-                                                    <th className="px-8 py-6 text-[11px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center">Student ID</th>
-                                                    <th className="px-8 py-6 text-[11px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Project Title</th>
-                                                    <th className="px-8 py-6 text-[11px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-right">Action</th>
+                                                <tr className="app-table-headrow">
+                                                    <th className="app-table-th">Student</th>
+                                                    <th className="app-table-th text-center">Student ID</th>
+                                                    <th className="app-table-th">Project Title</th>
+                                                    <th className="app-table-th text-right">Action</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-50 dark:divide-white/5">
+                                            <tbody className="app-table-body">
                                                 {(expandedClasses[cls.code] ? cls.projects : cls.projects.slice(0, 5)).map((project, idx) => {
                                                     const student = project.members[0] || {};
                                                     return (
-                                                        <tr key={project._id} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors group">
-                                                            <td className="px-8 py-6">
+                                                        <tr key={project._id} className="app-table-row group">
+                                                            <td className="app-table-td">
                                                                 <div className="flex items-center gap-4">
                                                                     <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 flex items-center justify-center overflow-hidden shadow-sm">
                                                                         {student.photo && student.photo !== 'default-student.jpg' ? (
@@ -214,13 +575,13 @@ const ProjectsOverview = () => {
                                                                     <span className="text-[15px] font-bold text-slate-700 dark:text-slate-200">{student.name || 'Unknown Student'}</span>
                                                                 </div>
                                                             </td>
-                                                            <td className="px-8 py-6 text-center">
+                                                            <td className="app-table-td text-center">
                                                                 <span className="text-[13px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">ID: {student.studentId || 'N/A'}</span>
                                                             </td>
-                                                            <td className="px-8 py-6">
+                                                            <td className="app-table-td">
                                                                 <span className="text-[15px] font-bold text-[#1D68E3] dark:text-blue-400 hover:underline cursor-pointer transition-all">{project.title}</span>
                                                             </td>
-                                                            <td className="px-8 py-6 text-right">
+                                                            <td className="app-table-td text-right">
                                                                 <button 
                                                                     onClick={() => navigate(`/teacher/groups/${project._id}`)}
                                                                     className="text-xs font-black text-[#1D68E3] dark:text-blue-400 uppercase tracking-widest hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
@@ -296,85 +657,6 @@ const ProjectsOverview = () => {
                             )}
                         </section>
                     ))}
-                </div>
-            )}
-            {showCreateModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <button
-                        type="button"
-                        className="absolute inset-0 bg-slate-900/60"
-                        onClick={() => !creating && setShowCreateModal(false)}
-                    />
-                    <div className="relative w-full max-w-xl rounded-[28px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] p-6 shadow-2xl">
-                        <div className="flex items-center justify-between mb-5">
-                            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100">Create Groups</h3>
-                            <button
-                                type="button"
-                                onClick={() => setShowCreateModal(false)}
-                                className="p-2 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-[12px] font-black uppercase tracking-wider text-slate-500 mb-2">Class</label>
-                                <select
-                                    value={createForm.classCode}
-                                    onChange={(e) => setCreateForm((p) => ({ ...p, classCode: e.target.value }))}
-                                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-2.5 text-sm text-slate-900 dark:text-white"
-                                >
-                                    <option value="">Select class</option>
-                                    {myClasses.map((c) => (
-                                        <option key={c.code} value={c.code}>
-                                            {c.code} - {c.title}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-[12px] font-black uppercase tracking-wider text-slate-500 mb-2">Type</label>
-                                <select
-                                    value={createForm.type}
-                                    onChange={(e) => setCreateForm((p) => ({ ...p, type: e.target.value }))}
-                                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-2.5 text-sm text-slate-900 dark:text-white"
-                                >
-                                    <option value="group">Group</option>
-                                    <option value="individual">Individual</option>
-                                </select>
-                            </div>
-                            {createForm.type === 'group' && (
-                                <div>
-                                    <label className="block text-[12px] font-black uppercase tracking-wider text-slate-500 mb-2">Group size</label>
-                                    <input
-                                        type="number"
-                                        min={2}
-                                        max={10}
-                                        value={createForm.groupSize}
-                                        onChange={(e) => setCreateForm((p) => ({ ...p, groupSize: e.target.value }))}
-                                        className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-2.5 text-sm text-slate-900 dark:text-white"
-                                    />
-                                </div>
-                            )}
-                        </div>
-                        <div className="mt-6 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setShowCreateModal(false)}
-                                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-sm font-bold text-slate-600 dark:text-slate-300"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleCreateGroups}
-                                disabled={creating}
-                                className="px-5 py-2 rounded-xl bg-[#2a3fa4] text-white text-sm font-bold hover:bg-[#223688] disabled:opacity-60"
-                            >
-                                {creating ? 'Creating...' : 'Create'}
-                            </button>
-                        </div>
-                    </div>
                 </div>
             )}
         </div>

@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Shield, Loader2 } from 'lucide-react';
+import { Search, Shield, Loader2, Pencil, Trash2 } from 'lucide-react';
 import adminUserService from '../../../services/adminUserService';
 
 const AdminAdmins = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [admins, setAdmins] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [editingId, setEditingId] = useState('');
+    const [editEmail, setEditEmail] = useState('');
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [deletingId, setDeletingId] = useState('');
 
     useEffect(() => {
         const fetchAdmins = async () => {
@@ -28,6 +32,56 @@ const AdminAdmins = () => {
         admin.email?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const startEdit = (admin) => {
+        setEditingId(admin._id);
+        setEditEmail(admin.email || '');
+    };
+
+    const cancelEdit = () => {
+        setEditingId('');
+        setEditEmail('');
+    };
+
+    const submitEdit = async () => {
+        if (!editingId) return;
+        if (!editEmail.trim()) {
+            window.alert('Email is required');
+            return;
+        }
+        setSavingEdit(true);
+        try {
+            const response = await adminUserService.updateAdmin(editingId, {
+                email: editEmail.trim(),
+            });
+            if (!response.success) throw new Error(response.message || 'Failed to update admin');
+            setAdmins((prev) => prev.map((item) => (
+                item._id === editingId
+                    ? { ...item, email: editEmail.trim(), systemId: item.username || editEmail.trim() || item._id }
+                    : item
+            )));
+            cancelEdit();
+        } catch (error) {
+            window.alert(error.response?.data?.message || error.message || 'Failed to update admin');
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
+    const handleDelete = async (adminId) => {
+        const shouldDelete = window.confirm('Are you sure you want to delete this admin account?');
+        if (!shouldDelete) return;
+        setDeletingId(adminId);
+        try {
+            const response = await adminUserService.deleteAdmin(adminId);
+            if (!response.success) throw new Error(response.message || 'Failed to delete admin');
+            setAdmins((prev) => prev.filter((item) => item._id !== adminId));
+        } catch (error) {
+            window.alert(error.response?.data?.message || error.message || 'Failed to delete admin');
+        } finally {
+            setDeletingId('');
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-900 flex flex-col items-center justify-center transition-colors">
@@ -38,73 +92,133 @@ const AdminAdmins = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFB] dark:bg-[#0F172A]/30 p-4 md:p-10 font-sans transition-colors">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 md:mb-8">
-                <div className="relative w-full md:w-[350px]">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
+        <div className="min-h-screen bg-[#F8FAFB] p-4 md:p-10 font-sans">
+            <div className="max-w-[1600px] mx-auto">
+            <div className="mb-6 md:mb-8">
+                <h1 className="text-[18px] md:text-[20px] font-extrabold text-slate-800 tracking-tight">Manage Admins</h1>
+                <p className="text-[12px] text-slate-500 font-medium">System control accounts</p>
+            </div>
+
+            <div className="rounded-[24px] border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div className="relative w-full md:w-[320px]">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <input
                         type="text"
                         placeholder="Search admins..."
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-[16px] py-3 pl-14 pr-6 text-[14px] focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all outline-none font-medium text-slate-700 dark:text-slate-200 shadow-sm"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-[13px] focus:ring-2 focus:ring-blue-500/15 focus:border-blue-400 transition-all outline-none font-medium text-slate-700"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
+                <div className="text-[12px] font-semibold text-slate-500">
+                    Total: <span className="font-bold text-slate-700">{filteredAdmins.length}</span>
+                </div>
+                </div>
 
-                <header className="text-center md:text-right">
-                    <h1 className="text-xl md:text-2xl font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none mb-1">Admins</h1>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none">System Control</p>
-                </header>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden mb-10">
-                <table className="w-full text-left">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left">
                     <thead>
-                        <tr className="border-b border-slate-50 dark:border-slate-800 uppercase tracking-[0.1em] text-[11px] font-black text-slate-400 dark:text-slate-500">
-                            <th className="px-10 py-6">#</th>
-                            <th className="px-6 py-6">ADMIN ID</th>
-                            <th className="px-6 py-6">EMAIL ADDRESS</th>
-                            <th className="px-6 py-6">STATUS</th>
-                            <th className="px-6 py-6">CREATED AT</th>
+                        <tr className="border-b border-slate-100 bg-white">
+                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>
+                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Admin ID</th>
+                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Email Address</th>
+                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Status</th>
+                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Created At</th>
+                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                    <tbody className="divide-y divide-slate-100/90">
                         {filteredAdmins.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="text-center py-16 text-slate-400 dark:text-slate-500 font-medium">
+                                <td colSpan={6} className="text-center py-12 text-slate-400 font-medium text-[13px]">
                                     No administrative accounts found.
                                 </td>
                             </tr>
                         ) : (
                             filteredAdmins.map((admin, index) => (
-                                <tr key={admin._id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                                    <td className="px-10 py-7 text-[14px] font-bold text-slate-300 dark:text-slate-600">{index + 1}</td>
-                                    <td className="px-6 py-7">
-                                        <div className="flex items-center gap-3">
-                                            <div className="bg-blue-50 dark:bg-blue-900/30 p-2 rounded-lg">
-                                                <Shield className="h-4 w-4 text-[#1D68E3] dark:text-blue-400" />
+                                <tr key={admin._id} className="hover:bg-blue-50/30 transition-colors">
+                                    <td className="px-5 py-3.5 text-[12px] font-bold text-slate-400">{index + 1}</td>
+                                    <td className="px-5 py-3.5">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="bg-blue-50 p-1.5 rounded-md">
+                                                <Shield className="h-3.5 w-3.5 text-[#1D68E3]" />
                                             </div>
-                                            <span className="text-[16px] font-bold text-[#0F172A] dark:text-slate-200">{admin.systemId}</span>
+                                            <span className="text-[13px] font-bold text-slate-800">{admin.systemId}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-7">
-                                        <span className="text-[14px] font-bold text-slate-600 dark:text-slate-400">{admin.email}</span>
+                                    <td className="px-5 py-3.5">
+                                        {editingId === admin._id ? (
+                                            <input
+                                                type="email"
+                                                value={editEmail}
+                                                onChange={(e) => setEditEmail(e.target.value)}
+                                                className="w-full min-w-[220px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-semibold text-slate-700"
+                                            />
+                                        ) : (
+                                            <span className="text-[13px] font-semibold text-slate-600">{admin.email}</span>
+                                        )}
                                     </td>
-                                    <td className="px-6 py-7">
-                                        <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-black uppercase tracking-widest rounded-full">
+                                    <td className="px-5 py-3.5">
+                                        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wider rounded-full">
                                             {admin.accountStatus || 'ACTIVE'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-7">
-                                        <span className="text-[14px] font-bold text-slate-400 dark:text-slate-500">
+                                    <td className="px-5 py-3.5">
+                                        <span className="text-[12px] font-semibold text-slate-500">
                                             {new Date(admin.createdAt).toLocaleDateString()}
                                         </span>
+                                    </td>
+                                    <td className="px-5 py-3.5">
+                                        <div className="flex items-center justify-center gap-2">
+                                            {editingId === admin._id ? (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={submitEdit}
+                                                        disabled={savingEdit}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                                                    >
+                                                        {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                                                        Save
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={cancelEdit}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => startEdit(admin)}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                                                    >
+                                                        <Pencil className="h-3.5 w-3.5" /> Update
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDelete(admin._id)}
+                                                        disabled={deletingId === admin._id}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-60"
+                                                    >
+                                                        {deletingId === admin._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))
                         )}
                     </tbody>
                 </table>
+            </div>
+            </div>
             </div>
         </div>
     );

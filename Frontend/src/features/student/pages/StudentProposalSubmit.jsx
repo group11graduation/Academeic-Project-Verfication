@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus, X, Send, Save, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, X, Send, Save, UploadCloud, ChevronRight } from 'lucide-react';
 import studentService from '../../../services/studentService';
-import StudentHeader from '../components/StudentHeader';
+import { Z_PAGE, Z_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK } from '../../../shared/ui/zendentaLayout';
 
 const toList = (value) => {
     if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
@@ -123,9 +123,12 @@ const StudentProposalSubmit = () => {
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState(null);
     const [recommendation, setRecommendation] = useState(null);
+    const [suggestedFeatures, setSuggestedFeatures] = useState([]);
     const [error, setError] = useState(null);
     const [proposalFile, setProposalFile] = useState(null);
     const [inputMode, setInputMode] = useState('text'); // text | file
+    const [parsingFile, setParsingFile] = useState(false);
+    const [fileParseError, setFileParseError] = useState(null);
 
     const load = async () => {
         setLoading(true);
@@ -138,6 +141,14 @@ const StudentProposalSubmit = () => {
                     setTitle(p.title || '');
                     setDescription(p.description || '');
                     setFeatures(p.features?.length ? p.features : ['']);
+                    setRecommendation(p.recommendation || p.aiRecommendationText || null);
+                    setSuggestedFeatures(
+                        Array.isArray(p.suggestedFeatures) && p.suggestedFeatures.length
+                            ? p.suggestedFeatures
+                            : Array.isArray(p.aiSuggestedFeatures)
+                              ? p.aiSuggestedFeatures
+                              : []
+                    );
                 }
             }
         } catch (e) {
@@ -159,9 +170,50 @@ const StudentProposalSubmit = () => {
         setFeatures(next);
     };
 
+    const addSuggestedFeature = (featureText) => {
+        const value = String(featureText || '').trim();
+        if (!value) return;
+        const existing = features.map((f) => String(f || '').trim().toLowerCase()).filter(Boolean);
+        if (existing.includes(value.toLowerCase())) return;
+        const cleaned = features.map((f) => String(f || '').trim()).filter(Boolean);
+        setFeatures([...cleaned, value]);
+    };
+
+    const applyParsedProposalToForm = (parsed) => {
+        if (!parsed) return;
+        if (parsed.title) setTitle(parsed.title);
+        if (parsed.description) setDescription(parsed.description);
+        if (Array.isArray(parsed.features) && parsed.features.length) {
+            setFeatures(parsed.features);
+        }
+    };
+
+    const handleProposalFileChange = async (e) => {
+        const file = e.target.files?.[0] || null;
+        setProposalFile(file);
+        setFileParseError(null);
+        if (!file) return;
+
+        setParsingFile(true);
+        try {
+            const res = await studentService.parseProposalFile(assignmentId, file);
+            if (res.success && res.data?.parsed) {
+                applyParsedProposalToForm(res.data.parsed);
+                setMessage('File parsed into the form below. Review and edit before submitting.');
+            } else {
+                setFileParseError(res.message || 'Could not parse this file.');
+            }
+        } catch (err) {
+            setFileParseError(err.response?.data?.message || 'Could not parse this file.');
+        } finally {
+            setParsingFile(false);
+        }
+    };
+
     const saveDraft = async () => {
         setError(null);
         setRecommendation(null);
+        setSuggestedFeatures([]);
         setSubmitting(true);
         try {
             const payload = {
@@ -177,8 +229,16 @@ const StudentProposalSubmit = () => {
                 : await studentService.submitProposal(assignmentId, payload);
             if (res.success) {
                 setMessage('Draft saved.');
+                applyParsedProposalToForm(res.data?.parsed);
                 const p = res.data?.proposal;
-                if (p) setRow((prev) => ({ ...prev, proposal: p }));
+                if (p) {
+                    setRow((prev) => ({ ...prev, proposal: p }));
+                    applyParsedProposalToForm({
+                        title: p.title,
+                        description: p.description,
+                        features: p.features,
+                    });
+                }
             }
         } catch (e) {
             setError(e.response?.data?.message || 'Failed to save');
@@ -191,6 +251,7 @@ const StudentProposalSubmit = () => {
         setError(null);
         setMessage(null);
         setRecommendation(null);
+        setSuggestedFeatures([]);
         if (!canSubmitFinal) {
             setError('Proposal does not satisfy teacher requirements yet. Please fix the missing items first.');
             return;
@@ -210,9 +271,24 @@ const StudentProposalSubmit = () => {
                 : await studentService.submitProposal(assignmentId, payload);
             if (res.success) {
                 setMessage(res.data?.message || 'Submitted.');
-                setRecommendation(res.data?.recommendation || null);
+                applyParsedProposalToForm(res.data?.parsed);
+                setRecommendation(res.data?.recommendation || res.data?.proposal?.aiRecommendationText || null);
+                setSuggestedFeatures(
+                    Array.isArray(res.data?.suggestedFeatures) && res.data.suggestedFeatures.length
+                        ? res.data.suggestedFeatures
+                        : Array.isArray(res.data?.proposal?.aiSuggestedFeatures)
+                          ? res.data.proposal.aiSuggestedFeatures
+                          : []
+                );
                 const p = res.data?.proposal;
-                if (p) setRow((prev) => ({ ...prev, proposal: p }));
+                if (p) {
+                    setRow((prev) => ({ ...prev, proposal: p }));
+                    applyParsedProposalToForm({
+                        title: p.title,
+                        description: p.description,
+                        features: p.features,
+                    });
+                }
             }
         } catch (e) {
             setError(e.response?.data?.message || 'Submission failed');
@@ -223,19 +299,21 @@ const StudentProposalSubmit = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] flex items-center justify-center">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+            <div className={`${Z_PAGE} flex flex-1 items-center justify-center`}>
+                <Loader2 className="h-10 w-10 animate-spin text-[#1e56e3]" />
             </div>
         );
     }
 
     if (!row?.assignment) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] p-10">
-                <p className="text-slate-600 dark:text-slate-300">Assignment not found or not in your enrollment.</p>
-                <Link to="/student" className="text-[#1D68E3] font-bold mt-4 inline-block">
-                    Back
-                </Link>
+            <div className={Z_PAGE}>
+                <div className={Z_INNER}>
+                    <p className="text-slate-600">Assignment not found or not in your enrollment.</p>
+                    <Link to="/student/assignments" className={`${Z_LINK} mt-4 inline-block`}>
+                        Back to assignments
+                    </Link>
+                </div>
             </div>
         );
     }
@@ -264,14 +342,13 @@ const StudentProposalSubmit = () => {
 
     if (!canEdit) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB]">
-                <StudentHeader />
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                    <p className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+            <div className={Z_PAGE}>
+                <div className={Z_INNER}>
+                    <p className="text-lg font-bold text-slate-900 mb-2">
                         Only the group leader can submit the proposal for this assignment.
                     </p>
-                    <Link to="/student" className="text-[#1D68E3] font-bold">
-                        Back to dashboard
+                    <Link to="/student/assignments" className={Z_LINK}>
+                        Back to assignments
                     </Link>
                 </div>
             </div>
@@ -280,10 +357,9 @@ const StudentProposalSubmit = () => {
 
     if (!assignment.proposalPhaseOpen) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB]">
-                <StudentHeader />
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-slate-600 dark:text-slate-300">
-                    Proposal phase is closed for this assignment.
+            <div className={Z_PAGE}>
+                <div className={Z_INNER}>
+                    <div className={`${Z_CARD} p-6 text-slate-600`}>Proposal phase is closed for this assignment.</div>
                 </div>
             </div>
         );
@@ -291,18 +367,17 @@ const StudentProposalSubmit = () => {
 
     if (isWaitingTeacherApproval && !beforeDeadline) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB]">
-                <StudentHeader />
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-5">
-                        <p className="text-lg font-black text-amber-900 mb-2">Proposal sent. Waiting for teacher approval.</p>
+            <div className={Z_PAGE}>
+                <div className={Z_INNER}>
+                    <div className={`${Z_CARD} border-amber-200 bg-amber-50 px-6 py-5`}>
+                        <p className="text-lg font-bold text-amber-900 mb-2">Proposal sent. Waiting for teacher approval.</p>
                         <p className="text-sm font-semibold text-amber-800 mb-4">
                             Proposal deadline has passed. You cannot update proposal now unless teacher requests revision.
                         </p>
                         <button
                             type="button"
                             onClick={() => navigate('/student/assignments')}
-                            className="rounded-xl bg-[#1D68E3] text-white px-5 py-2.5 text-sm font-black"
+                            className={Z_BTN_PRIMARY}
                         >
                             Back to assignments
                         </button>
@@ -313,20 +388,33 @@ const StudentProposalSubmit = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFB] dark:bg-[#0F172A]">
-            <StudentHeader />
-            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                <button
-                    type="button"
-                    onClick={() => navigate('/student')}
-                    className="flex items-center gap-2 text-slate-500 font-bold text-sm mb-6"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                    Dashboard
-                </button>
+        <div className={`${Z_PAGE} flex-1`}>
+            <div className={Z_INNER}>
+                <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                    <Link to="/student/assignments" className={Z_LINK}>
+                        Assignments
+                    </Link>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <Link to={`/student/assignments/${assignmentId}`} className={`${Z_LINK} max-w-[12rem] truncate`} title={assignment.title}>
+                        {assignment.title}
+                    </Link>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span className="text-slate-800">Proposal</span>
+                </nav>
 
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Submit proposal</h1>
-                <p className="text-slate-500 dark:text-slate-400 mb-8">{assignment.title}</p>
+                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/student/assignments/${assignmentId}`)}
+                        className="flex w-fit items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back to assignment
+                    </button>
+                </div>
+
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Submit proposal</h1>
+                <p className="mt-1 text-sm text-slate-600 mb-8">{assignment.title}</p>
 
                 {showRequirementWarning && (
                     <div
@@ -426,16 +514,25 @@ const StudentProposalSubmit = () => {
                         <input
                             type="file"
                             accept=".txt,.md,.json,.csv,.docx,text/plain,text/markdown,application/json,text/csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                            onChange={(e) => setProposalFile(e.target.files?.[0] || null)}
+                            onChange={handleProposalFileChange}
+                            disabled={parsingFile || lockedByApproval}
                             className="w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm"
                         />
-                        {proposalFile && (
+                        {parsingFile && (
+                            <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300 inline-flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-[#1D68E3]" /> Extracting title, description, and features…
+                            </p>
+                        )}
+                        {proposalFile && !parsingFile && (
                             <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300 inline-flex items-center gap-2">
                                 <UploadCloud className="h-4 w-4 text-[#1D68E3]" /> {proposalFile.name}
                             </p>
                         )}
+                        {fileParseError && (
+                            <p className="mt-2 text-sm font-semibold text-rose-600">{fileParseError}</p>
+                        )}
                         <p className="mt-2 text-xs text-slate-500">
-                            Example structure: Title:, Description:, Features: (one per line with -). Word `.docx` also supported.
+                            Supports structured labels (Title:, Description:, Features:) or sections like Project Overview and Proposed Functionality with bullet points. `.docx` supported.
                         </p>
                     </div>
                 )}
@@ -462,9 +559,8 @@ const StudentProposalSubmit = () => {
 
                 {proposal?.status === 'ai_flagged_previous_semester' && (
                     <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-                        This idea resembles an approved project from a previous semester. Add at least{' '}
-                        <strong>two new features</strong> that were not in your previous list, then submit again for
-                        teacher review.
+                        This idea resembles an approved project from a previous semester. You can optionally add extra
+                        features to make your project more original before teacher review.
                     </div>
                 )}
 
@@ -509,15 +605,39 @@ const StudentProposalSubmit = () => {
                         {message}
                     </div>
                 )}
-                {recommendation && (
-                    <div className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-100 px-4 py-3 text-sm font-semibold">
-                        Recommendation: {recommendation}
+                {(recommendation || suggestedFeatures.length > 0) && (
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                        <p className="font-bold mb-1">Optional feature recommendations</p>
+                        {recommendation && <p className="font-semibold mb-2">{recommendation}</p>}
+                        {suggestedFeatures.length > 0 && (
+                            <div className="mt-2">
+                                <p className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200 mb-2">
+                                    Missing compared to similar past project (click to add — optional)
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {suggestedFeatures.map((feat) => (
+                                        <button
+                                            key={feat}
+                                            type="button"
+                                            onClick={() => addSuggestedFeature(feat)}
+                                            className="rounded-full border border-amber-300 bg-white dark:bg-amber-950 px-3 py-1.5 text-xs font-bold text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900"
+                                            title="Add to your features list"
+                                        >
+                                            + {feat}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
-                <div className="space-y-6 bg-white dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                    {inputMode === 'text' ? (
-                        <>
+                <div className={`${Z_CARD} space-y-6 p-6`}>
+                    {inputMode === 'file' && (
+                        <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
+                            Upload a file above to auto-fill the fields below. You can edit title, description, and each feature before saving or submitting.
+                        </div>
+                    )}
                     <div>
                         <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Title</label>
                         <input
@@ -574,19 +694,13 @@ const StudentProposalSubmit = () => {
                             </div>
                         ))}
                     </div>
-                        </>
-                    ) : (
-                        <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
-                            Proposal file mode enabled. You can leave text fields empty. System reads file and extracts Title, Description, and Features.
-                        </div>
-                    )}
 
                     <div className="flex flex-wrap gap-3 pt-4">
                         <button
                             type="button"
                             disabled={submitting || lockedByApproval || !beforeDeadline}
                             onClick={saveDraft}
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-600 font-bold text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            className={Z_BTN_SECONDARY}
                         >
                             <Save className="h-4 w-4" />
                             Save draft
@@ -595,7 +709,7 @@ const StudentProposalSubmit = () => {
                             type="button"
                             disabled={submitting || !canSubmitFinal}
                             onClick={submitFinal}
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#1D68E3] text-white font-bold text-sm hover:bg-blue-700 disabled:opacity-50"
+                            className={Z_BTN_PRIMARY}
                         >
                             {submitting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

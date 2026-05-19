@@ -1,42 +1,79 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search,
-    HelpCircle,
-    Bell,
     Users,
     FileCheck,
     AlertOctagon,
     ArrowRight,
     UserCheck,
     Settings,
-    AlertTriangle,
     ArrowLeft,
-    History,
-    Loader2
+    Loader2,
+    BookOpen,
+    Building2,
+    GraduationCap,
+    Layers,
+    Mail,
+    ClipboardList,
+    CheckCircle2,
 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
+import { getApiOrigin } from '../../../lib/api';
 
 const ClassDetail = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [classData, setClassData] = useState(null);
+    const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [studentSearch, setStudentSearch] = useState('');
 
     useEffect(() => {
-        const fetchClassDetails = async () => {
+        let cancelled = false;
+        const load = async () => {
+            setLoading(true);
             try {
-                const response = await teacherService.getClassDetails(id);
-                if (response.success) {
-                    setClassData(response.data);
+                const [detailRes, studentsRes] = await Promise.all([
+                    teacherService.getClassDetails(id),
+                    teacherService.getClassStudents(id),
+                ]);
+                if (cancelled) return;
+                if (detailRes.success) setClassData(detailRes.data);
+                else setClassData(null);
+                if (studentsRes.success && Array.isArray(studentsRes.data)) {
+                    setStudents(studentsRes.data);
+                } else {
+                    setStudents([]);
                 }
             } catch (error) {
-                console.error("Failed to fetch class details:", error);
+                console.error('Failed to load class page:', error);
+                if (!cancelled) {
+                    setClassData(null);
+                    setStudents([]);
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
-        fetchClassDetails();
+        if (id) load();
+        return () => {
+            cancelled = true;
+        };
     }, [id]);
+
+    const filteredStudents = useMemo(() => {
+        const q = studentSearch.trim().toLowerCase();
+        if (!q) return students;
+        return students.filter(
+            (s) =>
+                (s.name || '').toLowerCase().includes(q) ||
+                String(s.id || '').toLowerCase().includes(q) ||
+                (s.email || '').toLowerCase().includes(q)
+        );
+    }, [students, studentSearch]);
+
+    const uploadBase = getApiOrigin();
 
     if (loading) {
         return (
@@ -50,185 +87,347 @@ const ClassDetail = () => {
         return (
             <div className="p-10 text-center bg-white dark:bg-[#0B1120]">
                 <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 mb-4">Class Not Found</h2>
-                <Link to="/teacher/classes" className="text-[#1D68E3] dark:text-blue-400 hover:underline font-bold">Return to My Classes</Link>
+                <Link to="/teacher/classes" className="text-[#1D68E3] dark:text-blue-400 hover:underline font-bold">
+                    Return to My Classes
+                </Link>
             </div>
         );
     }
 
     return (
         <div className="min-h-screen bg-white dark:bg-[#0B1120]">
-            {/* Utility Top Bar */}
-            <div className="px-4 md:px-10 h-[70px] md:h-[80px] flex items-center justify-between border-b border-slate-100 dark:border-white/5 bg-white/80 dark:bg-[#0F172A]/80 backdrop-blur-md sticky top-0 z-10">
-                <div className="relative w-full max-w-[400px] hidden md:block">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-600" />
-                    <input
-                        type="text"
-                        placeholder="Search student records..."
-                        className="w-full bg-slate-50 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 rounded-2xl py-2.5 pl-12 pr-4 text-sm focus:ring-2 focus:ring-blue-500/10 transition-all font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-300 dark:placeholder:text-slate-700"
-                    />
-                </div>
-                <div className="flex items-center gap-4 md:gap-6 ml-auto">
-                    <button className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-slate-300 transition-colors">
-                        <HelpCircle className="h-5 w-5 md:h-6 md:w-6" />
-                    </button>
-                    <button className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-slate-300 transition-colors relative">
-                        <Bell className="h-5 w-5 md:h-6 md:w-6" />
-                        <span className="absolute top-0 right-0 h-2 w-2 bg-rose-500 border-2 border-white dark:border-[#0F172A] rounded-full"></span>
-                    </button>
-                    <div className="h-8 w-[1px] bg-slate-100 dark:bg-white/5 mx-1"></div>
-                    <div className="text-right hidden sm:block">
-                        <p className="text-slate-800 dark:text-slate-100 font-black text-sm">{classData.code} Dashboard</p>
-                        <p className="text-slate-500 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">{classData.timing || 'SPRING 2024'}</p>
-                    </div>
-                </div>
-            </div>
-
             <main className="p-4 md:p-10 max-w-[1600px] mx-auto">
-                {/* Header */}
-                <header className="mb-8 md:mb-12">
+                <header className="mb-8 md:mb-10">
                     <Link
                         to="/teacher/classes"
                         className="flex items-center gap-2 text-slate-400 dark:text-slate-500 hover:text-[#1D68E3] dark:hover:text-blue-400 transition-colors mb-6 group w-fit"
                     >
-                        <div className="bg-white dark:bg-[#0F172A] p-2 rounded-xl border border-slate-100 dark:border-white/5 shadow-xl group-hover:border-blue-200 dark:group-hover:border-blue-900 group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 transition-all">
+                        <div className="bg-white dark:bg-[#0F172A] p-2 rounded-xl border border-slate-100 dark:border-white/5 shadow-xl group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
                             <ArrowLeft className="h-4 w-4" />
                         </div>
                         <span className="text-[12px] font-black uppercase tracking-widest">Back to My Classes</span>
                     </Link>
-                    <h1 className="text-3xl md:text-4xl font-black text-slate-800 dark:text-slate-100 mb-1 md:mb-2 tracking-tight">Class Overview: {classData.title}</h1>
-                    <p className="text-slate-500 dark:text-slate-500 text-sm md:text-base font-medium">Real-time engagement metrics and administrative controls.</p>
+
+                    <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+                        <div>
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#1D68E3] dark:text-blue-400 mb-2">
+                                {classData.code}
+                            </p>
+                            <h1 className="text-3xl md:text-4xl font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">
+                                {classData.title}
+                            </h1>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm md:text-base font-medium max-w-2xl">
+                                Class profile, live counts, and full student roster for this section.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <Link
+                                to={`/teacher/classes/${classData.code}/students`}
+                                className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#1D68E3] text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-colors"
+                            >
+                                <UserCheck className="h-4 w-4" />
+                                Full roster page
+                            </Link>
+                            <Link
+                                to={`/teacher/classes/${classData.code}/groups`}
+                                className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                            >
+                                <Settings className="h-4 w-4" />
+                                Groups
+                            </Link>
+                        </div>
+                    </div>
                 </header>
 
-                {/* Metric Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-8 md:mb-12">
+                {/* Class metadata */}
+                <section className="mb-8 md:mb-10 rounded-[28px] border border-slate-100 dark:border-white/10 bg-slate-50/80 dark:bg-[#0F172A] p-6 md:p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-3 rounded-2xl bg-white dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 shadow-sm">
+                            <BookOpen className="h-6 w-6 text-[#1D68E3] dark:text-blue-400" />
+                        </div>
+                        <h2 className="text-lg md:text-xl font-black text-slate-800 dark:text-slate-100">Class information</h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                        <InfoItem icon={<Layers className="h-4 w-4" />} label="Category" value={classData.category || '—'} />
+                        <InfoItem
+                            icon={<GraduationCap className="h-4 w-4" />}
+                            label="Academic period"
+                            value={classData.timing || '—'}
+                        />
+                        <InfoItem icon={<Building2 className="h-4 w-4" />} label="Department" value={classData.department || '—'} />
+                        <InfoItem icon={<Users className="h-4 w-4" />} label="Faculty / unit" value={classData.faculty || '—'} />
+                        <InfoItem
+                            icon={<ClipboardList className="h-4 w-4" />}
+                            label="Section"
+                            value={classData.section ? `Section ${classData.section}` : '—'}
+                        />
+                        <InfoItem
+                            icon={<Hash className="h-4 w-4" />}
+                            label="Internal ID"
+                            value={classData._id ? String(classData._id) : '—'}
+                        />
+                    </div>
+                    {classData.description ? (
+                        <p className="mt-6 text-sm md:text-[15px] text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-200 dark:border-white/10 pt-6">
+                            {classData.description}
+                        </p>
+                    ) : (
+                        <p className="mt-6 text-sm text-slate-500 dark:text-slate-500 border-t border-slate-200 dark:border-white/10 pt-6 italic">
+                            No class description on file.
+                        </p>
+                    )}
+                </section>
+
+                {/* Metrics */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8 md:mb-10">
                     <MetricCard
                         icon={<Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
-                        label="Total Students"
-                        value={classData.studentCount}
-                        trend="+0%"
-                        trendBg="bg-emerald-500/10"
-                        trendText="text-emerald-500"
+                        label="Students enrolled"
+                        value={classData.studentCount ?? 0}
+                        trend="Roster"
+                        trendBg="bg-blue-500/10"
+                        trendText="text-blue-600 dark:text-blue-400"
                         iconBg="bg-blue-500/10"
                     />
                     <MetricCard
                         icon={<FileCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />}
-                        label="Projects Submitted"
-                        value={classData.projectsSubmitted}
-                        subValue={`/${classData.studentCount}`}
-                        trend="~0%"
-                        trendBg="bg-emerald-500/10"
-                        trendText="text-emerald-500"
+                        label="Project submissions"
+                        value={classData.projectsSubmitted ?? 0}
+                        subValue={` / ${classData.studentCount ?? 0}`}
+                        trend="Class"
+                        trendBg="bg-indigo-500/10"
+                        trendText="text-indigo-600 dark:text-indigo-400"
                         iconBg="bg-indigo-500/10"
                     />
                     <MetricCard
+                        icon={<ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-500" />}
+                        label="Pending review"
+                        value={classData.pendingReviews ?? 0}
+                        trend={classData.pendingReviews > 0 ? 'Queue' : 'Clear'}
+                        trendBg={classData.pendingReviews > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'}
+                        trendText={
+                            classData.pendingReviews > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-600'
+                        }
+                        iconBg={classData.pendingReviews > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'}
+                    />
+                    <MetricCard
                         icon={<AlertOctagon className="h-5 w-5 text-rose-600 dark:text-rose-500" />}
-                        label="Similarity Alerts"
-                        value={classData.similarityAlerts}
-                        trend={classData.similarityAlerts > 0 ? "! High" : "Clear"}
-                        trendBg={classData.similarityAlerts > 0 ? "bg-rose-500/10" : "bg-emerald-500/10"}
-                        trendText={classData.similarityAlerts > 0 ? "text-rose-600 dark:text-rose-500" : "text-emerald-500"}
-                        iconBg={classData.similarityAlerts > 0 ? "bg-rose-500/10" : "bg-emerald-500/10"}
+                        label="Similarity alerts"
+                        value={classData.similarityAlerts ?? 0}
+                        trend={classData.similarityAlerts > 0 ? 'Review' : 'None'}
+                        trendBg={classData.similarityAlerts > 0 ? 'bg-rose-500/10' : 'bg-emerald-500/10'}
+                        trendText={classData.similarityAlerts > 0 ? 'text-rose-600 dark:text-rose-500' : 'text-emerald-600'}
+                        iconBg={classData.similarityAlerts > 0 ? 'bg-rose-500/10' : 'bg-emerald-500/10'}
                     />
                 </div>
 
-                {/* Priority Actions */}
-                <section className="mb-8 md:mb-12">
-                    <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-slate-100 mb-6 md:mb-8 tracking-tight">Priority Actions</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                        {/* View Student List Card */}
+                {/* Students on this page */}
+                <section className="rounded-[28px] border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] shadow-xl overflow-hidden mb-10">
+                    <div className="p-6 md:p-8 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">Students in this class</h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                {students.length} student{students.length !== 1 ? 's' : ''} on the roster
+                            </p>
+                        </div>
+                        <div className="relative w-full md:max-w-xs">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search name, ID, email..."
+                                value={studentSearch}
+                                onChange={(e) => setStudentSearch(e.target.value)}
+                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1120] py-3 pl-11 pr-4 text-sm font-bold text-slate-800 dark:text-slate-100"
+                            />
+                        </div>
+                    </div>
+                    <div className="app-table-shell border-t-0 rounded-none shadow-none">
+                        <div className="app-table-wrap custom-scrollbar max-h-[520px] overflow-y-auto">
+                            <table className="app-table">
+                                <thead>
+                                    <tr className="app-table-headrow sticky top-0 z-[1] bg-white dark:bg-[#0F172A]">
+                                        <th className="app-table-th">Student</th>
+                                        <th className="app-table-th text-center">Student ID</th>
+                                        <th className="app-table-th hidden md:table-cell">Email</th>
+                                        <th className="app-table-th text-center">Team</th>
+                                        <th className="app-table-th">Attendance</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="app-table-body">
+                                    {filteredStudents.length > 0 ? (
+                                        filteredStudents.map((student) => (
+                                            <tr
+                                                key={`${student.userId || student.id}`}
+                                                className="app-table-row cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.02]"
+                                                onClick={() =>
+                                                    navigate(
+                                                        `/teacher/classes/${id}/students/${student.userId}`,
+                                                    )
+                                                }
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        navigate(
+                                                            `/teacher/classes/${id}/students/${student.userId}`,
+                                                        );
+                                                    }
+                                                }}
+                                                role="button"
+                                                tabIndex={0}
+                                            >
+                                                <td className="app-table-td">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-[#0B1120] flex items-center justify-center overflow-hidden border border-slate-100 dark:border-white/5 shrink-0">
+                                                            {student.photo && student.photo !== 'default-student.jpg' ? (
+                                                                <img
+                                                                    src={
+                                                                        student.photo.startsWith('http')
+                                                                            ? student.photo
+                                                                            : `${uploadBase}/uploads/${student.photo}`
+                                                                    }
+                                                                    alt=""
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <span className="text-xs font-black text-slate-500">
+                                                                    {(student.name || '?')
+                                                                        .split(' ')
+                                                                        .map((n) => n[0])
+                                                                        .join('')
+                                                                        .slice(0, 2)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                                                            {student.name}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="app-table-td text-center font-mono text-sm">{student.id}</td>
+                                                <td className="app-table-td hidden md:table-cell">
+                                                    <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+                                                        <Mail className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                                                        {student.email || '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="app-table-td text-center">
+                                                    <span className="bg-blue-500/10 text-[#1D68E3] dark:text-blue-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                                                        {student.group || 'UNASSIGNED'}
+                                                    </span>
+                                                </td>
+                                                <td className="app-table-td">
+                                                    <div className="flex items-center gap-3 max-w-[180px]">
+                                                        <div className="flex-1 h-2 bg-slate-100 dark:bg-[#0B1120] rounded-full overflow-hidden border border-slate-200 dark:border-white/5">
+                                                            <div
+                                                                className={`h-full rounded-full ${
+                                                                    (student.attendance ?? 0) >= 50
+                                                                        ? 'bg-gradient-to-r from-blue-400 to-blue-600'
+                                                                        : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                                                                }`}
+                                                                style={{ width: `${Math.min(100, Number(student.attendance) || 0)}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 w-10 text-right">
+                                                            {student.attendance ?? 0}%
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={5} className="app-table-empty">
+                                                {students.length === 0
+                                                    ? 'No students enrolled for this class yet.'
+                                                    : 'No students match your search.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Priority shortcuts */}
+                <section className="mb-10">
+                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-4">Shortcuts</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Link
                             to={`/teacher/classes/${classData.code}/students`}
-                            className="bg-[#1D68E3] rounded-[32px] p-8 md:p-10 text-white relative overflow-hidden group hover:scale-[1.01] transition-all cursor-pointer shadow-2xl shadow-blue-500/20"
+                            className="rounded-[28px] p-8 border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-lg"
                         >
-                            <div className="bg-white/20 p-4 rounded-2xl w-fit mb-8 transition-colors group-hover:bg-white/30">
-                                <UserCheck className="h-8 w-8" />
-                            </div>
-                            <h3 className="text-2xl md:text-3xl font-black mb-4 tracking-tight">View Student List</h3>
-                            <p className="text-white/80 text-sm md:text-base font-medium leading-relaxed mb-10 max-w-[400px]">
-                                Manage enrollment, view individual progress, and handle grading workflows.
+                            <UserCheck className="h-8 w-8 text-[#1D68E3] mb-4" />
+                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-2">Student directory</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                                Open the dedicated roster page for sorting and extended layout.
                             </p>
-                            <div className="flex items-center gap-3 font-black text-sm md:text-base group-hover:gap-5 transition-all uppercase tracking-widest">
-                                Access Directory <ArrowRight className="h-5 w-5" />
-                            </div>
+                            <span className="text-[#1D68E3] dark:text-blue-400 text-xs font-black uppercase tracking-widest inline-flex items-center gap-2">
+                                Go <ArrowRight className="h-4 w-4" />
+                            </span>
                         </Link>
-
-                        {/* Manage Group Settings Card */}
                         <Link
                             to={`/teacher/classes/${classData.code}/groups`}
-                            className="bg-white dark:bg-[#0F172A] rounded-[32px] p-8 md:p-10 text-white relative overflow-hidden group hover:scale-[1.01] transition-all cursor-pointer block border border-slate-100 dark:border-white/5 shadow-2xl"
+                            className="rounded-[28px] p-8 border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-lg"
                         >
-                            <div className="bg-slate-50 dark:bg-white/10 p-4 rounded-2xl w-fit mb-8 transition-colors group-hover:bg-blue-50 dark:group-hover:bg-white/20">
-                                <Settings className="h-8 w-8 text-slate-400 dark:text-white" />
-                            </div>
-                            <h3 className="text-2xl md:text-3xl font-black mb-4 tracking-tight text-slate-800 dark:text-slate-100">Manage Group Settings</h3>
-                            <p className="text-slate-500 dark:text-slate-500 text-sm md:text-base font-medium leading-relaxed mb-10 max-w-[400px]">
-                                Configure team sizes, randomize assignments, and monitor group dynamics.
+                            <Settings className="h-8 w-8 text-slate-400 dark:text-slate-500 mb-4" />
+                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-2">Team setup</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                                Configure groups and project assignment flows for this class.
                             </p>
-                            <div className="flex items-center gap-3 font-black text-[#1D68E3] dark:text-blue-400 text-sm md:text-base group-hover:gap-5 transition-all uppercase tracking-widest">
-                                Configure Teams <ArrowRight className="h-5 w-5" />
-                            </div>
+                            <span className="text-[#1D68E3] dark:text-blue-400 text-xs font-black uppercase tracking-widest inline-flex items-center gap-2">
+                                Configure <ArrowRight className="h-4 w-4" />
+                            </span>
                         </Link>
                     </div>
                 </section>
 
-                {/* Critical Alerts */}
-                <section className="bg-white dark:bg-[#0F172A] rounded-[32px] border border-slate-100 dark:border-white/5 shadow-2xl overflow-hidden">
-                    <div className="p-6 md:p-10 flex justify-between items-center border-b border-slate-100 dark:border-white/5">
-                        <h2 className="text-lg md:text-xl font-black text-slate-800 dark:text-slate-100">Critical Alerts</h2>
-                        <button className="text-[#1D68E3] dark:text-blue-400 font-black text-[12px] uppercase tracking-widest hover:text-blue-600 transition-colors">See all alerts</button>
-                    </div>
-                    <div className="divide-y divide-slate-100 dark:divide-white/5">
-                        <AlertItem
-                            icon={<AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-500" />}
-                            iconBg="bg-rose-500/10"
-                            title="Similarity Match Detected (84%)"
-                            description={<>Project: <span className="text-slate-500 dark:text-slate-400 font-bold italic">"Final Neural Network Implementation"</span> • Student: <span className="text-slate-500 dark:text-slate-400 font-bold">Sarah Jenkins</span></>}
-                            time="2H AGO"
-                        />
-                        <AlertItem
-                            icon={<History className="h-5 w-5 text-amber-600 dark:text-amber-500" />}
-                            iconBg="bg-amber-500/10"
-                            title="Submission Extension Requested"
-                            description={<>Request by: <span className="text-slate-500 dark:text-slate-400 font-bold">Mark Thompson</span> • Reasoning: <span className="text-slate-500 dark:text-slate-400 font-bold">Medical Emergency</span></>}
-                            time="5H AGO"
-                        />
-                    </div>
+                <section className="rounded-[28px] border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] p-6 md:p-8">
+                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-3">Alerts</h2>
+                    {(classData.similarityAlerts ?? 0) > 0 ? (
+                        <p className="text-sm text-rose-700 dark:text-rose-400 font-medium">
+                            {classData.similarityAlerts} proposal(s) flagged for similarity or requirement issues across
+                            assignments for this class. Review them from your assignments and proposals workflow.
+                        </p>
+                    ) : (
+                        <div className="flex items-center gap-3 text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="h-5 w-5 shrink-0" />
+                            <p className="text-sm font-medium">No similarity or requirement alerts for this class&apos;s assignments.</p>
+                        </div>
+                    )}
                 </section>
             </main>
         </div>
     );
-};const MetricCard = ({ icon, label, value, subValue, trend, trendBg, trendText, iconBg }) => (
-    <div className="bg-white dark:bg-[#0F172A] p-6 md:p-8 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-2xl relative overflow-hidden transition-all hover:border-blue-500/30 group">
-        <div className="flex justify-between items-start mb-6">
-            <div className={`${iconBg} p-3 rounded-2xl transition-transform group-hover:scale-110`}>
-                {icon}
-            </div>
-            <div className={`${trendBg} px-3 py-1 rounded-full flex items-center gap-1`}>
-                {trend.startsWith('+') && <span className={`${trendText} text-[10px] rotate-[-45deg] font-black`}>↗</span>}
-                {trend.startsWith('~') && <span className={`${trendText} text-[10px] rotate-[-45deg] font-black`}>↗</span>}
-                <span className={`${trendText} text-[12px] md:text-[13px] font-black uppercase`}>{trend}</span>
-            </div>
-        </div>
-        <p className="text-slate-400 dark:text-slate-500 text-[11px] md:text-[13px] font-black uppercase tracking-widest mb-1">{label}</p>
-        <div className="flex items-baseline gap-1">
-            <h3 className="text-3xl md:text-[40px] font-black text-slate-800 dark:text-slate-100 leading-none">{value}</h3>
-            {subValue && <span className="text-slate-400 dark:text-slate-500 text-xl font-black">{subValue}</span>}
-        </div>
-    </div>
-);
+};
 
-const AlertItem = ({ icon, iconBg, title, description, time }) => (
-    <div className="p-6 md:p-10 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-[#0B1120] transition-all">
-        <div className="flex items-center gap-4 md:gap-6">
-            <div className={`${iconBg} p-3 md:p-4 rounded-2xl transition-transform group-hover:scale-110`}>
-                {icon}
-            </div>
-            <div>
-                <h4 className="text-[15px] md:text-[17px] font-black text-slate-800 dark:text-slate-100 mb-1 leading-tight">{title}</h4>
-                <div className="text-slate-500 dark:text-slate-500 text-xs md:text-sm font-medium">{description}</div>
+function InfoItem({ icon, label, value }) {
+    return (
+        <div className="flex gap-3 rounded-2xl bg-white dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 p-4">
+            <div className="text-slate-400 dark:text-slate-500 mt-0.5">{icon}</div>
+            <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{label}</p>
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-100 break-words">{value}</p>
             </div>
         </div>
-        <span className="text-slate-400 dark:text-slate-600 text-[10px] md:text-[12px] font-black tracking-widest hidden sm:block">{time}</span>
+    );
+}
+
+const MetricCard = ({ icon, label, value, subValue, trend, trendBg, trendText, iconBg }) => (
+    <div className="bg-white dark:bg-[#0F172A] p-6 rounded-[28px] border border-slate-100 dark:border-white/5 shadow-lg relative overflow-hidden transition-all hover:border-blue-500/20 group">
+        <div className="flex justify-between items-start mb-4">
+            <div className={`${iconBg} p-3 rounded-2xl transition-transform group-hover:scale-105`}>{icon}</div>
+            <div className={`${trendBg} px-3 py-1 rounded-full`}>
+                <span className={`${trendText} text-[11px] font-black uppercase`}>{trend}</span>
+            </div>
+        </div>
+        <p className="text-slate-400 dark:text-slate-500 text-[11px] font-black uppercase tracking-widest mb-1">{label}</p>
+        <div className="flex items-baseline gap-1">
+            <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100 leading-none">{value}</h3>
+            {subValue != null && (
+                <span className="text-slate-400 dark:text-slate-500 text-lg font-black">{subValue}</span>
+            )}
+        </div>
     </div>
 );
 

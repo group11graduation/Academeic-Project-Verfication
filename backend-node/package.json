@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "preview:smoke": "node scripts/docker-preview-smoke.js",
+    "preview:smoke:php": "node scripts/docker-preview-smoke.js php-apache",
+    "preview:smoke:jupyter": "node scripts/docker-preview-smoke.js jupyter"
   },
   "engines": {
     "node": ">=18"
@@ -25,7 +28,8 @@
     "mammoth": "^1.12.0",
     "mongoose": "^8.8.0",
     "multer": "^1.4.5-lts.1",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
