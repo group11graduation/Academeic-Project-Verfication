@@ -10,6 +10,7 @@ ENV HOST=0.0.0.0
 # Copy full submission; dependencies install at container start in the correct APP_SUBDIR
 COPY . .
 COPY entrypoint.sh /preview-entrypoint.sh
+COPY preview-fallback /preview-fallback
 RUN chmod +x /preview-entrypoint.sh
 
 EXPOSE 3000

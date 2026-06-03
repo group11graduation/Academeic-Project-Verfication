@@ -5,6 +5,8 @@ import os from 'os';
 import Docker from 'dockerode';
 import AdmZip from 'adm-zip';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
+import * as previewCredentials from './previewCredentials.service.js';
+import * as previewMern from './previewMern.service.js';
 import { PreviewSession } from '../models/PreviewSession.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { Proposal } from '../models/Proposal.js';
@@ -81,6 +83,7 @@ async function cleanupSessionResources(session, docker, finalStatus, logMessage)
     await dockerOrchestrator
       .stopProjectPreview(session._id.toString(), {
         hostPort: Number(session.hostPort) || null,
+        apiHostPort: Number(session.previewApiHostPort) || null,
         imageKey: session.submission?.toString?.() || session._id.toString(),
         stack: session.previewStack || 'node-js',
       })
@@ -117,6 +120,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
   try {
     const wait = await dockerOrchestrator.waitForPreviewReady({
       previewUrl: deployResult.previewUrl,
+      apiPreviewUrl: deployResult.previewApiUrl || '',
       containerName: deployResult.containerName,
       stack: deployResult.stack,
       timeoutMs: PREVIEW_STARTUP_TIMEOUT_MS,
@@ -128,9 +132,43 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (wait.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
-      appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}`);
+      const warmupNote =
+        wait.reason === 'tcp_warmup' || wait.reason === 'tcp_slow'
+          ? ' Port is open; npm may still be installing — refresh the page if you see a blank screen.'
+          : '';
+      appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}.${warmupNote}`);
       await session.save();
 
+      const ttl = session.ttlMs || Number(process.env.PREVIEW_TTL_MS || 600000);
+      const timer = setTimeout(async () => {
+        try {
+          const fresh = await PreviewSession.findById(sessionId);
+          if (fresh && fresh.status === 'running') {
+            await cleanupSessionResources(fresh, getDocker(), 'expired', 'TTL elapsed; container stopped.');
+          }
+        } catch (err) {
+          console.error('preview TTL cleanup', err);
+        }
+      }, ttl);
+      activeTimers.set(jobKey, timer);
+      return;
+    }
+
+    const { host, port } = dockerOrchestrator.parseHostPortFromPreviewUrl(deployResult.previewUrl);
+    const checkHost = host === 'localhost' ? '127.0.0.1' : host;
+    const portStillOpen = await dockerOrchestrator.isTcpPortOpen(checkHost, port);
+    const containerUp = deployResult.containerName
+      ? await dockerOrchestrator.isPreviewContainerRunning(deployResult.containerName)
+      : false;
+
+    if (wait.reason !== 'container_exited' && portStillOpen && containerUp) {
+      session.status = 'running';
+      appendLog(
+        session,
+        'info',
+        `Preview port ${port} is open (still warming up). Open the link below; refresh after 1–2 min if blank.`
+      );
+      await session.save();
       const ttl = session.ttlMs || Number(process.env.PREVIEW_TTL_MS || 600000);
       const timer = setTimeout(async () => {
         try {
@@ -150,6 +188,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     await dockerOrchestrator
       .stopProjectPreview(sessionId.toString(), {
         hostPort: deployResult.hostPort,
+        apiHostPort: deployResult.apiHostPort || null,
         imageKey: session.submission?.toString?.() || sessionId.toString(),
         stack: deployResult.stack,
       })
@@ -160,7 +199,9 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     session.errorMessage =
       wait.reason === 'container_exited'
         ? 'Preview container stopped unexpectedly. Check logs below (wrong app folder or npm error).'
-        : `Preview did not respond on port ${session.hostPort} in time. Open the preview link anyway or try Start preview again (image may be cached).`;
+        : wait.reason === 'api_port_timeout'
+          ? `Student API did not start on port ${session.previewApiHostPort || '?'}. Ensure MongoDB is running (Docker Desktop), then Start preview again.`
+          : `Preview did not respond on port ${session.hostPort} in time. Click Start preview again after checking Docker is running.`;
     session.endedAt = new Date();
     appendLog(session, 'error', session.errorMessage);
     if (tailLogs.trim()) {
@@ -188,7 +229,7 @@ async function stopActiveSessionsForProposal(proposalId, docker, { includeStarti
  * Security: caller must enforce teacher ownership + proposal approved + submission exists (done here).
  */
 export async function startPreviewForProposal(teacherId, proposalId, options = {}) {
-  const { stack: stackOverride = null } = options;
+  const { stack: stackOverride = null, adminEmail = null, adminPassword = null } = options;
   const docker = getDocker();
   if (!docker) {
     const err = new Error('Docker preview is disabled. Set DOCKER_PREVIEW_ENABLED=true and configure Docker.');
@@ -233,15 +274,8 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     throw err;
   }
 
-  const inflight = await PreviewSession.findOne({
-    proposal: proposal._id,
-    status: 'starting',
-  });
-  if (inflight) {
-    return inflight;
-  }
-
-  await stopActiveSessionsForProposal(proposal._id, docker, { includeStarting: false });
+  // Always stop prior sessions (including stuck "starting") so a new stack choice takes effect.
+  await stopActiveSessionsForProposal(proposal._id, docker, { includeStarting: true });
 
   // Hint is only used when the ZIP has no clear file signals — files always win over assignment title.
   const stackHint = dockerOrchestrator.inferStackHintFromAssignment(assignment);
@@ -257,23 +291,59 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   }
 
   const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scholar-preview-'));
+  const stackLabel =
+    stackOverride && ['node-js', 'php-apache', 'jupyter'].includes(stackOverride)
+      ? stackOverride === 'node-js'
+        ? 'React / Node.js'
+        : stackOverride === 'php-apache'
+          ? 'PHP / Apache'
+          : 'Jupyter notebook'
+      : 'Auto-detect from ZIP';
+
   const session = await PreviewSession.create({
     teacher: teacherId,
     proposal: proposal._id,
     submission: submission._id,
     assignment: assignment._id,
     status: 'starting',
+    previewStack: stackOverride || '',
     memoryBytes: memory,
     nanoCpus,
     ttlMs: ttl,
     extractDirPath: extractDir,
-    logs: [{ level: 'info', message: 'Session created; extracting archive.' }],
+    logs: [
+      { level: 'info', message: 'Session created; extracting archive.' },
+      {
+        level: 'info',
+        message:
+          stackOverride != null
+            ? `Container type selected by teacher: ${stackLabel} (file auto-detect skipped).`
+            : `Container type: ${stackLabel}.`,
+      },
+    ],
     startedAt: new Date(),
   });
 
   try {
     safeExtractZip(zipAbs, extractDir);
     appendLog(session, 'info', 'Archive extracted safely; starting container.');
+
+    const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
+    const login = previewCredentials.resolvePreviewLoginCredentials({
+      teacherEmail: adminEmail,
+      teacherPassword: adminPassword,
+      discovered,
+    });
+    session.previewLoginEmail = login.email;
+    session.previewLoginPassword = login.password;
+    session.previewLoginSource = login.source;
+    session.previewLoginHint = login.hint;
+    appendLog(
+      session,
+      'info',
+      `Preview login for teacher: ${login.email} (source: ${login.source.replace(/_/g, ' ')}).`
+    );
+
     await session.save();
   } catch (e) {
     await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
@@ -286,12 +356,26 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   }
   let deployResult;
   try {
+    const credentialEnv = previewCredentials.buildPreviewCredentialEnvVars({
+      email: session.previewLoginEmail,
+      password: session.previewLoginPassword,
+      mongoUri: previewMern.buildPreviewMongoUri(session._id.toString()),
+    });
+
+    appendLog(
+      session,
+      'info',
+      'Starting Docker deploy (first full-stack preview may take up to 10 minutes while the MongoDB image downloads).'
+    );
+    await session.save();
+
     deployResult = await dockerOrchestrator.deployProjectPreview(session._id.toString(), extractDir, {
       allowedRoot: extractDir,
       imageKey: submission._id.toString(),
       stackHint,
       stack: stackOverride || null,
-      forceRebuild: Boolean(stackOverride),
+      forceRebuild: true,
+      previewCredentialEnv: credentialEnv,
     });
   } catch (e) {
     await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
@@ -305,20 +389,52 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
 
   session.dockerContainerId = deployResult.containerId;
   session.hostPort = String(deployResult.hostPort);
+  session.previewApiHostPort = deployResult.apiHostPort ? String(deployResult.apiHostPort) : '';
   session.previewUrl = deployResult.previewUrl;
+  session.previewApiUrl = deployResult.previewApiUrl || '';
+  session.previewLoginUrl = previewCredentials.buildPreviewLoginUrl(deployResult.previewUrl);
+  if (deployResult.mernPair && deployResult.apiHostPort) {
+    const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
+    session.previewLoginHint =
+      `${baseHint}Full-stack preview: UI on port ${deployResult.hostPort}, student API on port ${deployResult.apiHostPort}. MongoDB runs in a sidecar container for preview (no host Mongo setup required).`;
+    appendLog(
+      session,
+      'info',
+      `MERN preview: frontend :${deployResult.hostPort}, API :${deployResult.apiHostPort}`
+    );
+  }
   session.previewImage = deployResult.imageTag;
   session.previewStack = deployResult.stack;
+  const stackDisplay =
+    deployResult.stack === 'node-js'
+      ? 'React / Node.js (node-js)'
+      : deployResult.stack === 'php-apache'
+        ? 'PHP / Apache (php-apache)'
+        : deployResult.stack === 'jupyter'
+          ? 'Jupyter (jupyter)'
+          : deployResult.stack;
+
+  if (stackOverride != null) {
+    appendLog(session, 'info', `Running with teacher-selected stack: ${stackDisplay}.`);
+  } else {
+    appendLog(
+      session,
+      'info',
+      `Auto-detected stack: ${stackDisplay} — ${deployResult.detectionReason || 'from project files'}`
+    );
+  }
+
   appendLog(
     session,
     'info',
-    `Container type: ${deployResult.stack} — ${deployResult.detectionReason || 'auto-detected from files'}`
-  );
-  appendLog(
-    session,
-    'info',
-    `${deployResult.imageReused ? 'Reused' : 'Built'} ${deployResult.stack} image (app dir: ${deployResult.appSubdir || '.'}); host:${deployResult.hostPort} -> container:${deployResult.internalPort}`
+    `${deployResult.imageReused ? 'Reused' : 'Built'} ${stackDisplay} image (app dir: ${deployResult.appSubdir || '.'}); host:${deployResult.hostPort} -> container:${deployResult.internalPort}`
   );
   appendLog(session, 'info', `Container started; warming up app at ${session.previewUrl}`);
+  appendLog(
+    session,
+    'info',
+    `Use login ${session.previewLoginEmail} / (password shown in teacher panel) at ${session.previewLoginUrl || session.previewUrl}`
+  );
   await session.save();
 
   // Return immediately — readiness continues in background (React/Vite installs can take several minutes)
@@ -370,5 +486,33 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
     throw err;
   }
   delete session.extractDirPath;
+
+  if (['starting', 'running'].includes(session.status)) {
+    try {
+      const tail = await dockerOrchestrator.getContainerLogs(
+        dockerOrchestrator.containerNameFor(sessionId.toString()),
+        40
+      );
+      if (tail?.trim()) {
+        session.liveContainerLog = tail.slice(-2000);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const hostPort = Number(session.hostPort);
+    if (hostPort > 0) {
+      session.portReachable = await dockerOrchestrator.isTcpPortOpen('127.0.0.1', hostPort);
+      const apiPort = Number(session.previewApiHostPort);
+      if (apiPort > 0) {
+        session.apiPortReachable = await dockerOrchestrator.isTcpPortOpen('127.0.0.1', apiPort);
+      }
+      const running = await dockerOrchestrator.isPreviewContainerRunning(
+        dockerOrchestrator.containerNameFor(sessionId.toString())
+      );
+      session.containerRunning = running;
+    }
+  }
+
   return session;
 }

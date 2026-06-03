@@ -126,6 +126,8 @@ const TeacherProposalStudentDetail = () => {
     const [previewBusyId, setPreviewBusyId] = useState(null);
     /** auto | node-js | php-apache | jupyter */
     const [previewStackChoice, setPreviewStackChoice] = useState('node-js');
+    const [previewAdminEmail, setPreviewAdminEmail] = useState('admin@preview.demo');
+    const [previewAdminPassword, setPreviewAdminPassword] = useState('Preview123!');
     const previewMapRef = useRef({});
 
     useEffect(() => {
@@ -133,12 +135,12 @@ const TeacherProposalStudentDetail = () => {
     }, [previewSessionByProposal]);
 
     useEffect(() => {
-        const iv = setInterval(async () => {
+        const tick = async () => {
             const prev = previewMapRef.current;
-            const running = Object.entries(prev).filter(([, s]) =>
+            const active = Object.entries(prev).filter(([, s]) =>
                 ['running', 'starting'].includes(s?.status)
             );
-            for (const [pid, s] of running) {
+            for (const [pid, s] of active) {
                 try {
                     const r = await teacherService.getPreviewSession(s._id);
                     if (r.success && r.data) {
@@ -148,7 +150,9 @@ const TeacherProposalStudentDetail = () => {
                     /* ignore */
                 }
             }
-        }, 4000);
+        };
+        tick();
+        const iv = setInterval(tick, 2000);
         return () => clearInterval(iv);
     }, []);
 
@@ -223,9 +227,15 @@ const TeacherProposalStudentDetail = () => {
         if (!proposal) return;
         setPreviewBusyId(proposal._id);
         try {
-            const r = await teacherService.startProposalPreview(proposal._id, previewStackChoice);
+            const r = await teacherService.startProposalPreview(proposal._id, {
+                stack: previewStackChoice,
+                adminEmail: previewAdminEmail.trim(),
+                adminPassword: previewAdminPassword,
+            });
             if (r.success && r.data) {
                 setPreviewSessionByProposal((prev) => ({ ...prev, [proposal._id]: r.data }));
+                if (r.data.previewLoginEmail) setPreviewAdminEmail(r.data.previewLoginEmail);
+                if (r.data.previewLoginPassword) setPreviewAdminPassword(r.data.previewLoginPassword);
             } else {
                 alert(r.message || 'Could not start preview');
             }
@@ -702,6 +712,125 @@ const TeacherProposalStudentDetail = () => {
                                     Spins up a temporary container from the uploaded ZIP so you can click through the app without
                                     installing it locally.
                                 </p>
+
+                                {(() => {
+                                    const sess = previewSessionByProposal[proposal._id];
+                                    const previewRunning = sess?.status === 'running';
+                                    const previewStarting = sess?.status === 'starting';
+                                    const displayEmail = sess?.previewLoginEmail || previewAdminEmail;
+                                    const displayPassword = sess?.previewLoginPassword || previewAdminPassword;
+                                    const loginUrl =
+                                        sess?.previewLoginUrl ||
+                                        (sess?.previewUrl ? `${String(sess.previewUrl).replace(/\/$/, '')}/login` : '');
+                                    const copyText = async (label, value) => {
+                                        try {
+                                            await navigator.clipboard.writeText(value);
+                                            alert(`${label} copied`);
+                                        } catch {
+                                            alert(`Copy ${label} manually: ${value}`);
+                                        }
+                                    };
+                                    return (
+                                        <div className="mb-4 rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-sm">
+                                            <p className="text-sm font-black text-slate-900">Login credentials for student app</p>
+                                            <p className="mt-1 mb-4 text-xs font-semibold text-slate-600">
+                                                Use this email and password on the student login page after you open the preview.
+                                            </p>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label
+                                                        className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+                                                        htmlFor="preview-admin-email"
+                                                    >
+                                                        Email
+                                                    </label>
+                                                    <div className="mt-1 flex gap-2">
+                                                        <input
+                                                            id="preview-admin-email"
+                                                            type="email"
+                                                            value={previewAdminEmail}
+                                                            onChange={(e) => setPreviewAdminEmail(e.target.value)}
+                                                            disabled={!!previewBusyId}
+                                                            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyText('Email', displayEmail)}
+                                                            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                                            title="Copy email"
+                                                        >
+                                                            <Copy className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label
+                                                        className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+                                                        htmlFor="preview-admin-password"
+                                                    >
+                                                        Password
+                                                    </label>
+                                                    <div className="mt-1 flex gap-2">
+                                                        <input
+                                                            id="preview-admin-password"
+                                                            type="text"
+                                                            value={previewAdminPassword}
+                                                            onChange={(e) => setPreviewAdminPassword(e.target.value)}
+                                                            disabled={!!previewBusyId}
+                                                            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyText('Password', displayPassword)}
+                                                            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                                            title="Copy password"
+                                                        >
+                                                            <Copy className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {loginUrl && previewRunning && (
+                                                <p className="mt-4 text-xs font-semibold text-slate-700">
+                                                    Student login page:{' '}
+                                                    <a
+                                                        href={safePreviewUrl(loginUrl)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="font-bold text-[#1e56e3] underline break-all"
+                                                    >
+                                                        {loginUrl}
+                                                    </a>
+                                                </p>
+                                            )}
+                                            {previewStarting && (
+                                                <p className="mt-4 text-xs font-semibold text-amber-800">
+                                                    Wait until status shows “Preview ready” in the log below, then open
+                                                    the login page.
+                                                </p>
+                                            )}
+                                            {sess?.previewApiUrl && ['starting', 'running'].includes(sess?.status) && (
+                                                <p className="mt-2 text-xs font-semibold text-slate-600">
+                                                    Student API (not port 5000):{' '}
+                                                    <code className="bg-white px-1 rounded text-[11px]">{sess.previewApiUrl}</code>
+                                                    {sess.apiPortReachable === false && (
+                                                        <span className="ml-1 text-rose-700 font-bold">
+                                                            — API not responding yet; wait for Preview ready or check MongoDB is running.
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            )}
+                                            <p className="mt-3 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                                                Wait until the log shows Preview ready, then sign in. ERR_EMPTY_RESPONSE means the student API
+                                                is still starting — Stop and Start preview again if it persists after 5 minutes.
+                                            </p>
+                                            {sess?.previewLoginHint && (
+                                                <p className="mt-2 text-[11px] font-semibold text-emerald-800">{sess.previewLoginHint}</p>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
                                 <div className="mb-3 flex flex-wrap items-center gap-2">
                                     <label className="text-xs font-bold text-emerald-900" htmlFor="preview-stack">
                                         Container type
@@ -724,7 +853,14 @@ const TeacherProposalStudentDetail = () => {
                                     const terminal = ['stopped', 'failed', 'expired'].includes(sess?.status);
                                     const running = sess?.status === 'running';
                                     const starting = sess?.status === 'starting';
+                                    const failed = sess?.status === 'failed';
                                     return (
+                                        <div className="space-y-3">
+                                        {failed && sess.errorMessage && (
+                                            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800">
+                                                {sess.errorMessage}
+                                            </div>
+                                        )}
                                         <div className="flex flex-wrap items-center gap-2">
                                             {(!sess || terminal) && (
                                                 <button
@@ -752,18 +888,51 @@ const TeacherProposalStudentDetail = () => {
                                                                 ? 'Starting Apache…'
                                                                 : sess.previewStack === 'jupyter'
                                                                   ? 'Starting Jupyter…'
-                                                                  : 'Starting app (npm may take a few min)…'}
+                                                                  : 'Installing dependencies & starting app (1–5 min)…'}
                                                         </span>
                                                     )}
+                                                    {running && sess.portReachable === false && (
+                                                        <span className="text-sm font-bold text-rose-700">
+                                                            UI port not responding — click Stop, then Start preview again.
+                                                        </span>
+                                                    )}
+                                                    {running &&
+                                                        sess.previewApiHostPort &&
+                                                        sess.apiPortReachable === false && (
+                                                            <span className="text-sm font-bold text-rose-700">
+                                                                Student API on :{sess.previewApiHostPort} not ready — wait or check MongoDB.
+                                                            </span>
+                                                        )}
+                                                    {sess.portReachable === false && !running ? (
+                                                        <span
+                                                            className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-400 px-4 py-2 text-sm font-bold text-white opacity-80"
+                                                            title="Waiting for the preview port to open"
+                                                        >
+                                                            <ExternalLink className="h-4 w-4" />
+                                                            Open preview (starting…)
+                                                        </span>
+                                                    ) : (
                                                     <a
                                                         href={safePreviewUrl(sess.previewUrl)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 rounded-xl bg-[#1e56e3] px-4 py-2 text-sm font-bold text-white hover:bg-[#1a4dcc]"
+                                                        className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-white ${
+                                                            running && sess.portReachable !== false
+                                                                ? 'bg-[#1e56e3] hover:bg-[#1a4dcc]'
+                                                                : 'bg-amber-600 hover:bg-amber-700'
+                                                        }`}
+                                                        title={
+                                                            running && sess.portReachable !== false
+                                                                ? 'Preview is ready'
+                                                                : 'Placeholder page may show first — refresh after logs say Preview ready'
+                                                        }
                                                     >
                                                         <ExternalLink className="h-4 w-4" />
-                                                        {starting ? 'Open preview (loading)' : 'Open preview'}
+                                                        {running && sess.portReachable !== false
+                                                            ? 'Open preview'
+                                                            : 'Open preview (loading…)'}
                                                     </a>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         disabled={!!previewBusyId}
@@ -776,17 +945,27 @@ const TeacherProposalStudentDetail = () => {
                                                 </>
                                             )}
                                         </div>
+                                        </div>
                                     );
                                 })()}
-                                {previewSessionByProposal[proposal._id]?.logs?.length > 0 && (
-                                    <div className="mt-3 max-h-32 overflow-y-auto rounded-lg border border-slate-200 bg-white/90 p-2 font-mono text-[11px] text-slate-600">
-                                        {previewSessionByProposal[proposal._id].logs.slice(-12).map((log, i) => (
-                                            <div key={i} className="truncate">
+                                {(() => {
+                                    const sess = previewSessionByProposal[proposal._id];
+                                    if (!sess?.logs?.length && !sess?.liveContainerLog) return null;
+                                    return (
+                                    <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white/90 p-2 font-mono text-[11px] text-slate-600">
+                                        {(sess.logs || []).slice(-8).map((log, i) => (
+                                            <div key={`l-${i}`} className="truncate">
                                                 <span className="text-slate-400">{log.level}</span> {log.message}
                                             </div>
                                         ))}
+                                        {sess.liveContainerLog && (
+                                            <pre className="mt-2 whitespace-pre-wrap text-[10px] text-slate-500 border-t border-slate-100 pt-2">
+                                                {sess.liveContainerLog}
+                                            </pre>
+                                        )}
                                     </div>
-                                )}
+                                    );
+                                })()}
                             </div>
                         )}
 

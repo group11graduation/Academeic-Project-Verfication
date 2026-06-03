@@ -6,6 +6,13 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { exec, spawn } from 'child_process';
 import AdmZip from 'adm-zip';
+import {
+  resolveMernPair,
+  patchFrontendApiPort,
+  patchBackendForPreview,
+  previewMongoHostName,
+  buildPreviewMongoUri,
+} from './previewMern.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, '../..');
@@ -56,7 +63,7 @@ function buildImageTag(imageKey, stack) {
   return `project-sub-${sanitizeDockerId(imageKey)}-${safeStack}`;
 }
 
-function containerNameFor(projectId) {
+export function containerNameFor(projectId) {
   return `container-${sanitizeDockerId(projectId)}`;
 }
 
@@ -356,13 +363,24 @@ export async function resolveAppSubdir(buildContext, stack) {
 
     found.sort((a, b) => b.score - a.score);
     const best = found[0];
-    if (best.score > 0) return best.rel;
 
     const preferred = ['frontend', 'Frontend', 'client', 'Client', 'web', 'app', 'ui', 'public'];
     for (const name of preferred) {
-      if (found.some((f) => f.rel === name || f.rel.endsWith(`/${name}`))) {
-        return found.find((f) => f.rel === name || f.rel.endsWith(`/${name}`)).rel;
+      const match = found.find((f) => f.rel === name || f.rel.endsWith(`/${name}`));
+      if (match && match.score >= best.score) return match.rel;
+    }
+
+    for (const rel of ['frontend/dist', 'client/dist', 'Frontend/dist', 'web/dist', 'frontend/build', 'client/build']) {
+      if (await pathExists(path.join(buildContext, rel, 'index.html'))) {
+        return rel;
       }
+    }
+
+    if (best.score > 0) return best.rel;
+
+    for (const name of preferred) {
+      const match = found.find((f) => f.rel === name || f.rel.endsWith(`/${name}`));
+      if (match) return match.rel;
     }
     return found[0].rel;
   }
@@ -635,6 +653,13 @@ export async function materializeDockerTemplate(stack, projectPath) {
     }
   }
 
+  const fallbackSrc = path.join(templateDir, 'preview-fallback');
+  if (fsSync.existsSync(fallbackSrc)) {
+    const destFallback = path.join(projectPath, 'preview-fallback');
+    await fs.rm(destFallback, { recursive: true, force: true });
+    await fs.cp(fallbackSrc, destFallback, { recursive: true });
+  }
+
   return blueprint;
 }
 
@@ -662,7 +687,18 @@ async function buildPreviewImage({ imageTag, buildContext, appSubdir, forceRebui
 /**
  * Start detached container; ENTRYPOINT script runs install + server commands at runtime.
  */
-async function runPreviewContainer({ containerName, imageTag, hostPort, internalPort, stack, appSubdir }) {
+async function runPreviewContainer({
+  containerName,
+  imageTag,
+  hostPort,
+  internalPort,
+  stack,
+  appSubdir,
+  previewCredentialEnv = null,
+  apiHostPort = null,
+  mernPair = null,
+  dockerNetwork = null,
+}) {
   const portMapping = `${hostPort}:${internalPort}`;
   const args = [
     'run',
@@ -673,7 +709,24 @@ async function runPreviewContainer({ containerName, imageTag, hostPort, internal
     portMapping,
     '--label',
     'scholarverify.preview=1',
+    '--add-host',
+    'host.docker.internal:host-gateway',
   ];
+
+  if (dockerNetwork) {
+    args.push('--network', dockerNetwork);
+  }
+
+  if (apiHostPort) {
+    args.push('-p', `${apiHostPort}:5000`);
+    args.push('-e', 'API_PORT=5000');
+    args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
+    args.push('-e', `VITE_API_URL=http://localhost:${apiHostPort}`);
+    args.push('-e', `REACT_APP_API_URL=http://localhost:${apiHostPort}`);
+    if (mernPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${mernPair.backendSubdir}`);
+    if (mernPair?.frontendSubdir) args.push('-e', `FRONTEND_SUBDIR=${mernPair.frontendSubdir}`);
+    args.push('-e', 'PREVIEW_MERN_MODE=1');
+  }
 
   if (stack === 'node-js') {
     args.push('-e', `PORT=${internalPort}`, '-e', `APP_SUBDIR=${appSubdir}`);
@@ -681,6 +734,14 @@ async function runPreviewContainer({ containerName, imageTag, hostPort, internal
     args.push('-e', `APP_SUBDIR=${appSubdir}`);
   } else if (stack === 'jupyter') {
     args.push('-e', `JUPYTER_PORT=${internalPort}`);
+  }
+
+  if (previewCredentialEnv && typeof previewCredentialEnv === 'object') {
+    for (const [key, value] of Object.entries(previewCredentialEnv)) {
+      if (value != null && String(value).length > 0) {
+        args.push('-e', `${key}=${String(value)}`);
+      }
+    }
   }
 
   args.push(imageTag);
@@ -699,6 +760,101 @@ export async function removeContainerIfExists(containerName) {
     const msg = (e.stderr || e.message || '').toLowerCase();
     if (msg.includes('no such container') || msg.includes('not found')) return;
     throw e;
+  }
+}
+
+function previewNetworkName(projectId) {
+  const id = String(projectId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 24);
+  return `preview-net-${id}`;
+}
+
+async function ensureDockerNetwork(networkName) {
+  try {
+    await runCommand(`docker network inspect ${networkName}`, { timeoutMs: 15_000 });
+  } catch {
+    await runCommand(`docker network create ${networkName}`, { timeoutMs: 30_000 });
+  }
+}
+
+const PREVIEW_MONGO_IMAGE = process.env.PREVIEW_MONGO_IMAGE || 'mongo:7';
+const PREVIEW_MONGO_PULL_TIMEOUT_MS = Number(process.env.PREVIEW_MONGO_PULL_TIMEOUT_MS || 600_000);
+const PREVIEW_MONGO_RUN_TIMEOUT_MS = Number(process.env.PREVIEW_MONGO_RUN_TIMEOUT_MS || 90_000);
+
+/** Pull mongo image once (first preview can take several minutes on slow networks). */
+export async function ensurePreviewMongoImage() {
+  try {
+    await spawnProcess('docker', ['image', 'inspect', PREVIEW_MONGO_IMAGE], { timeoutMs: 20_000 });
+    return { pulled: false };
+  } catch {
+    /* not local — pull below */
+  }
+  await spawnProcess('docker', ['pull', PREVIEW_MONGO_IMAGE], { timeoutMs: PREVIEW_MONGO_PULL_TIMEOUT_MS });
+  return { pulled: true };
+}
+
+/**
+ * MERN previews need MongoDB reachable from the app container. Host Mongo often binds 127.0.0.1 only,
+ * so we start a dedicated mongo on the same Docker network as the preview app.
+ */
+async function startPreviewMongoSidecar(projectId) {
+  const networkName = previewNetworkName(projectId);
+  const mongoName = previewMongoHostName(projectId);
+  await ensureDockerNetwork(networkName);
+  await removeContainerIfExists(mongoName);
+
+  await ensurePreviewMongoImage();
+
+  try {
+    await spawnProcess(
+      'docker',
+      [
+        'run',
+        '-d',
+        '--name',
+        mongoName,
+        '--network',
+        networkName,
+        '--label',
+        'scholarverify.preview=mongo',
+        PREVIEW_MONGO_IMAGE,
+      ],
+      { timeoutMs: PREVIEW_MONGO_RUN_TIMEOUT_MS }
+    );
+  } catch (runErr) {
+    const running = await isPreviewContainerRunning(mongoName);
+    if (!running) {
+      await removeContainerIfExists(mongoName);
+      throw runErr;
+    }
+  }
+
+  for (let attempt = 0; attempt < 45; attempt += 1) {
+    try {
+      const { stdout } = await runCommand(
+        `docker exec ${mongoName} mongosh --quiet --eval "db.runCommand({ ping: 1 }).ok"`,
+        { timeoutMs: 8000 }
+      );
+      if (stdout.trim() === '1' || stdout.includes('1')) {
+        return { networkName, mongoName };
+      }
+    } catch {
+      /* mongo still starting */
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(1000);
+  }
+
+  const err = new Error('Preview MongoDB sidecar did not become ready in time');
+  err.status = 500;
+  throw err;
+}
+
+async function stopPreviewMongoSidecar(projectId) {
+  await removeContainerIfExists(previewMongoHostName(projectId));
+  try {
+    await runCommand(`docker network rm ${previewNetworkName(projectId)}`, { timeoutMs: 30_000 });
+  } catch {
+    /* network may still be in use */
   }
 }
 
@@ -758,6 +914,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     stackHint = null,
     imageKey = projectId,
     forceRebuild = false,
+    previewCredentialEnv = null,
   } = options;
   const { projectPath: resolvedInput, tempDir } = await resolveSubmissionPath(projectPath, { allowedRoot });
   const buildContext = await resolveProjectRoot(resolvedInput);
@@ -770,13 +927,54 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
 
   const stack = detection.stack;
   const blueprint = await materializeDockerTemplate(stack, buildContext);
-  const appSubdir = await resolveAppSubdir(buildContext, stack);
+  let mernPair = null;
+  if (stack === 'node-js') {
+    mernPair = await resolveMernPair(buildContext);
+  }
+  const appSubdir =
+    mernPair?.frontendSubdir || (await resolveAppSubdir(buildContext, stack));
 
   const imageTag = buildImageTag(imageKey, stack);
   const containerName = containerNameFor(projectId);
   const internalPort = blueprint.internalPort;
 
   await removeContainerIfExists(containerName);
+
+  const hostPort = await allocateHostPort();
+  let apiHostPort = null;
+  let previewDockerNetwork = null;
+  let mergedCredentialEnv = previewCredentialEnv ? { ...previewCredentialEnv } : {};
+
+  if (mernPair) {
+    apiHostPort = await allocateHostPort();
+    while (apiHostPort === hostPort) {
+      apiHostPort = await allocateHostPort();
+    }
+
+    if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
+      const sidecar = await startPreviewMongoSidecar(projectId);
+      previewDockerNetwork = sidecar.networkName;
+      const mongoUri = buildPreviewMongoUri(projectId, { sidecarHost: sidecar.mongoName });
+      mergedCredentialEnv = {
+        ...mergedCredentialEnv,
+        MONGO_URI: mongoUri,
+        MONGODB_URI: mongoUri,
+        DATABASE_URL: mongoUri,
+        PREVIEW_SANDBOX: '1',
+      };
+    }
+
+    await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
+    const mongoUri =
+      mergedCredentialEnv.MONGO_URI ||
+      mergedCredentialEnv.MONGODB_URI ||
+      buildPreviewMongoUri(projectId);
+    await patchBackendForPreview(buildContext, mernPair.backendSubdir, {
+      mongoUri,
+      hostPort,
+      jwtSecret: mergedCredentialEnv.JWT_SECRET,
+    });
+  }
 
   let imageReused = false;
   try {
@@ -788,8 +986,6 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     throw err;
   }
 
-  const hostPort = await allocateHostPort();
-
   // Port map: host PORT -> container INTERNAL; entrypoint.sh runs npm/apache/jupyter inside the container
   let containerId = '';
   try {
@@ -800,19 +996,28 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       internalPort,
       stack,
       appSubdir,
+      previewCredentialEnv: mergedCredentialEnv,
+      apiHostPort,
+      mernPair,
+      dockerNetwork: previewDockerNetwork,
     });
   } catch (e) {
     releaseHostPort(hostPort);
+    if (apiHostPort) releaseHostPort(apiHostPort);
     const err = new Error(`Docker run failed: ${e.stderr || e.message}`);
     err.status = 500;
     throw err;
   }
 
   const previewUrl = buildPreviewUrl(hostPort, stack);
+  const previewApiUrl = apiHostPort ? buildPreviewUrl(apiHostPort, stack) : '';
 
   return {
     previewUrl,
+    previewApiUrl,
     hostPort,
+    apiHostPort,
+    mernPair,
     internalPort,
     stack,
     containerName,
@@ -832,17 +1037,19 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
  */
 export async function stopProjectPreview(
   projectId,
-  { hostPort = null, removeImage = false, imageKey = projectId, stack = 'node-js' } = {}
+  { hostPort = null, apiHostPort = null, removeImage = false, imageKey = projectId, stack = 'node-js' } = {}
 ) {
   const containerName = containerNameFor(projectId);
   const imageTag = buildImageTag(imageKey, stack);
 
   await removeContainerIfExists(containerName);
+  await stopPreviewMongoSidecar(projectId);
   if (removeImage) await removeImageIfExists(imageTag);
   if (hostPort) releaseHostPort(hostPort);
+  if (apiHostPort) releaseHostPort(apiHostPort);
 }
 
-function parseHostPortFromPreviewUrl(previewUrl) {
+export function parseHostPortFromPreviewUrl(previewUrl) {
   try {
     const u = new URL(previewUrl);
     return { host: u.hostname || 'localhost', port: Number(u.port) || 80 };
@@ -851,7 +1058,7 @@ function parseHostPortFromPreviewUrl(previewUrl) {
   }
 }
 
-function isTcpPortOpen(host, port) {
+export function isTcpPortOpen(host, port) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     const done = (ok) => {
@@ -882,6 +1089,7 @@ export async function isPreviewContainerRunning(containerName) {
  */
 export async function waitForPreviewReady({
   previewUrl,
+  apiPreviewUrl = '',
   containerName = '',
   stack = 'node-js',
   timeoutMs = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 300_000),
@@ -890,8 +1098,10 @@ export async function waitForPreviewReady({
   const effectiveTimeout = stack === 'node-js' ? Math.max(timeoutMs, nodeTimeout) : timeoutMs;
   const { host, port } = parseHostPortFromPreviewUrl(previewUrl);
   const checkHost = host === 'localhost' ? '127.0.0.1' : host;
+  const apiTarget = apiPreviewUrl ? parseHostPortFromPreviewUrl(apiPreviewUrl) : null;
   const started = Date.now();
   let sawPortOpen = false;
+  let sawApiPortOpen = false;
 
   while (Date.now() - started < effectiveTimeout) {
     if (containerName) {
@@ -906,7 +1116,16 @@ export async function waitForPreviewReady({
     const portOpen = await isTcpPortOpen(checkHost, port);
     if (portOpen) sawPortOpen = true;
 
-    if (portOpen) {
+    if (apiTarget) {
+      const apiCheckHost = apiTarget.host === 'localhost' ? '127.0.0.1' : apiTarget.host;
+      // eslint-disable-next-line no-await-in-loop
+      const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
+      if (apiOpen) sawApiPortOpen = true;
+    }
+
+    const uiReady = portOpen && (!apiTarget || sawApiPortOpen);
+
+    if (uiReady) {
       const urlsToTry = [previewUrl];
       if (stack === 'php-apache') {
         urlsToTry.push(`${previewUrl.replace(/\/$/, '')}/index.php`);
@@ -919,7 +1138,10 @@ export async function waitForPreviewReady({
         try {
           const res = await fetch(url, { method: 'GET', redirect: 'follow' });
           if (res && res.status >= 200 && res.status < 500) {
-            return { ready: true, reason: 'http' };
+            const body = await res.text().catch(() => '');
+            if (body.length > 0 || stack !== 'node-js') {
+              return { ready: true, reason: apiTarget ? 'http_mern' : 'http' };
+            }
           }
         } catch {
           /* try next */
@@ -927,20 +1149,57 @@ export async function waitForPreviewReady({
         try {
           const res = await fetch(url, { method: 'GET', redirect: 'manual' });
           if (res && res.status >= 200 && res.status < 400) {
-            return { ready: true, reason: 'http_redirect' };
+            return { ready: true, reason: apiTarget ? 'http_redirect_mern' : 'http_redirect' };
           }
         } catch {
           /* try next */
         }
       }
 
-      if (sawPortOpen) {
+      if (apiTarget && sawApiPortOpen) {
+        try {
+          const healthUrl = `${apiPreviewUrl.replace(/\/$/, '')}/api/health`;
+          const res = await fetch(healthUrl, { method: 'GET' });
+          if (res && res.status < 500) {
+            return { ready: true, reason: 'api_health' };
+          }
+        } catch {
+          /* fall through */
+        }
+        try {
+          const res = await fetch(apiPreviewUrl, { method: 'GET' });
+          if (res && res.status < 500) {
+            return { ready: true, reason: 'api_http' };
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+
+      if (sawPortOpen && stack !== 'node-js') {
         return { ready: true, reason: 'tcp' };
+      }
+
+      const nodeTcpGraceMs = Number(process.env.PREVIEW_NODE_TCP_GRACE_MS || 90_000);
+      const mernGraceMs = Number(process.env.PREVIEW_MERN_API_GRACE_MS || 180_000);
+      const graceMs = apiTarget ? mernGraceMs : nodeTcpGraceMs;
+      if (uiReady && stack === 'node-js' && Date.now() - started >= graceMs) {
+        if (!apiTarget || sawApiPortOpen) {
+          return { ready: true, reason: apiTarget ? 'mern_tcp_warmup' : 'tcp_warmup' };
+        }
       }
     }
 
     // eslint-disable-next-line no-await-in-loop
     await sleep(Number(process.env.PREVIEW_STARTUP_POLL_MS || 2000));
+  }
+
+  if (sawPortOpen && stack === 'node-js' && (!apiTarget || sawApiPortOpen)) {
+    return { ready: true, reason: apiTarget ? 'mern_tcp_slow' : 'tcp_slow' };
+  }
+
+  if (apiTarget && !sawApiPortOpen && sawPortOpen) {
+    return { ready: false, reason: 'api_port_timeout' };
   }
 
   return { ready: false, reason: sawPortOpen ? 'http_timeout' : 'port_timeout' };

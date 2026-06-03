@@ -9,6 +9,8 @@ export const startPreview = asyncHandler(async (req, res) => {
   const stack = ALLOWED_PREVIEW_STACKS.has(rawStack) ? rawStack : null;
   const session = await previewSandbox.startPreviewForProposal(req.userId, req.params.proposalId, {
     stack,
+    adminEmail: req.body?.adminEmail,
+    adminPassword: req.body?.adminPassword,
   });
   return success(res, previewSandbox.toPublicSession(session), 201);
 });

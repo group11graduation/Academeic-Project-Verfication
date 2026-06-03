@@ -70,6 +70,15 @@ const port = Number(process.env.PORT || 5000);
 connectDb()
   .then(() => {
     app.listen(port, () => logger.info(`API listening on port ${port}`));
+    if (process.env.DOCKER_PREVIEW_ENABLED !== 'false' && process.env.PREVIEW_WARM_MONGO_IMAGE !== 'false') {
+      import('./services/dockerOrchestrator.service.js')
+        .then(({ ensurePreviewMongoImage }) =>
+          ensurePreviewMongoImage()
+            .then((r) => logger.info(r.pulled ? 'Preview MongoDB image downloaded' : 'Preview MongoDB image ready'))
+            .catch((err) => logger.warn(`Preview MongoDB warm-up: ${err.message}`))
+        )
+        .catch(() => {});
+    }
   })
   .catch((err) => {
     logger.error('Failed to start', err);

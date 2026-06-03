@@ -251,8 +251,12 @@ const teacherService = {
         return response.data;
     },
 
-    startProposalPreview: async (proposalId, stack = 'auto') => {
-        const body = stack && stack !== 'auto' ? { stack } : {};
+    startProposalPreview: async (proposalId, options = {}) => {
+        const opts = typeof options === 'string' ? { stack: options } : options || {};
+        const body = {};
+        if (opts.stack && opts.stack !== 'auto') body.stack = opts.stack;
+        if (opts.adminEmail) body.adminEmail = opts.adminEmail;
+        if (opts.adminPassword) body.adminPassword = opts.adminPassword;
         const response = await api.post(`${base}/proposals/${proposalId}/preview/start`, body);
         return response.data;
     },

@@ -20,10 +20,23 @@ const previewSessionSchema = new mongoose.Schema(
     status: { type: String, enum: PREVIEW_STATUSES, default: 'starting' },
     dockerContainerId: { type: String, default: '' },
     hostPort: { type: String, default: '' },
+    /** Host port mapped to student API (MERN backend), when separate from UI port */
+    previewApiHostPort: { type: String, default: '' },
     previewUrl: { type: String, default: '' },
+    previewApiUrl: { type: String, default: '' },
     previewImage: { type: String, default: '' },
     /** Detected runtime stack: node-js | php-apache | jupyter */
     previewStack: { type: String, default: '' },
+    /** Demo admin login for teacher review inside student app */
+    previewLoginEmail: { type: String, default: '' },
+    previewLoginPassword: { type: String, default: '' },
+    previewLoginUrl: { type: String, default: '' },
+    previewLoginSource: {
+      type: String,
+      enum: ['', 'platform_default', 'teacher_provided', 'project_files'],
+      default: '',
+    },
+    previewLoginHint: { type: String, default: '' },
     memoryBytes: { type: Number },
     nanoCpus: { type: Number },
     ttlMs: { type: Number },

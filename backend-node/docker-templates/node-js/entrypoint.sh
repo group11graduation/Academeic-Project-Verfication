@@ -2,63 +2,372 @@
 PORT="${PORT:-3000}"
 ROOT="/app"
 
+export PORT
+export HOST=0.0.0.0
+export BIND_HOST=0.0.0.0
+export BIND_ADDRESS=0.0.0.0
+export WDS_SOCKET_HOST=0.0.0.0
+export DANGEROUSLY_DISABLE_HOST_CHECK=true
+export BROWSER=none
+export CI=true
+
+LISTEN="tcp://0.0.0.0:${PORT}"
+HOLDER_PID=""
+API_PORT="${API_PORT:-5000}"
+
+hold_port_with_fallback() {
+  echo "[preview] holding :${PORT} with placeholder page (install may take several minutes)"
+  npx --yes serve@14.2.4 -s /preview-fallback --listen "${LISTEN}" >/tmp/preview-holder.log 2>&1 &
+  HOLDER_PID=$!
+  sleep 2
+}
+
+release_port_holder() {
+  if [ -n "$HOLDER_PID" ]; then
+    kill "$HOLDER_PID" 2>/dev/null || true
+    wait "$HOLDER_PID" 2>/dev/null || true
+    HOLDER_PID=""
+    sleep 1
+  fi
+}
+
+tcp_port_open() {
+  node -e "
+    const net=require('net');
+    const port=+process.argv[1];
+    const s=net.connect({port,host:'127.0.0.1'},()=>{s.end();process.exit(0)});
+    s.on('error',()=>process.exit(1));
+    setTimeout(()=>process.exit(1),2000);
+  " "$1" 2>/dev/null
+}
+
+wait_for_tcp_port() {
+  port="$1"
+  label="$2"
+  max="${3:-180}"
+  n=0
+  while [ "$n" -lt "$max" ]; do
+    if tcp_port_open "$port"; then
+      echo "[preview] ${label} listening on :${port}"
+      return 0
+    fi
+    n=$((n + 1))
+    if [ $((n % 15)) -eq 0 ]; then
+      echo "[preview] still waiting for ${label} on :${port} (${n}/${max})…"
+      tail -5 /tmp/preview-backend.log 2>/dev/null || true
+    fi
+    sleep 2
+  done
+  echo "[preview] ERROR: ${label} did not open port :${port}"
+  tail -60 /tmp/preview-backend.log 2>/dev/null || true
+  return 1
+}
+
+serve_dir() {
+  dir="$1"
+  release_port_holder
+  echo "[preview] serve static: $dir on ${LISTEN}"
+  cd "$dir" || exit 1
+  exec npx --yes serve@14.2.4 -s . --listen "${LISTEN}"
+}
+
+serve_fallback_forever() {
+  release_port_holder
+  echo "[preview] serving built-in fallback page on ${LISTEN}"
+  exec npx --yes serve@14.2.4 -s /preview-fallback --listen "${LISTEN}"
+}
+
+write_preview_env_files() {
+  if [ -z "$PREVIEW_ADMIN_EMAIL" ]; then
+    return 0
+  fi
+  echo "[preview] Configuring demo admin login for teacher review"
+  {
+    echo ""
+    echo "# ScholarVerify preview sandbox"
+    echo "PREVIEW_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
+    echo "PREVIEW_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
+    echo "ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
+    echo "ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
+    echo "SEED_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
+    echo "SEED_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
+    echo "DEFAULT_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
+    echo "DEFAULT_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
+  } >> .env 2>/dev/null || {
+    echo "PREVIEW_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL" > .env
+    echo "PREVIEW_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD" >> .env
+    echo "ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL" >> .env
+    echo "ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD" >> .env
+  }
+}
+
+write_mern_backend_env() {
+  mongo="${MONGO_URI:-$MONGODB_URI}"
+  if [ -z "$mongo" ]; then
+    mongo="mongodb://host.docker.internal:27017/scholarverify_preview"
+  fi
+  jwt="${JWT_SECRET:-preview-sandbox-jwt-secret-change-me}"
+  cors="${CORS_ORIGIN:-}"
+  {
+    echo "# ScholarVerify preview runtime"
+    echo "PORT=$API_PORT"
+    echo "HOST=0.0.0.0"
+    echo "MONGO_URI=$mongo"
+    echo "MONGODB_URI=$mongo"
+    echo "JWT_SECRET=$jwt"
+    echo "NODE_ENV=development"
+    echo "PREVIEW_SANDBOX=1"
+    if [ -n "$cors" ]; then echo "CORS_ORIGIN=$cors"; fi
+    if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
+      echo "ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
+      echo "ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
+      echo "SEED_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
+      echo "SEED_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
+    fi
+  } > .env
+  export PORT="$API_PORT"
+  export HOST=0.0.0.0
+  export MONGO_URI="$mongo"
+  export MONGODB_URI="$mongo"
+  export JWT_SECRET="$jwt"
+  export PREVIEW_SANDBOX=1
+  echo "[preview] MONGO_URI=$mongo"
+}
+
+start_mern_backend() {
+  backend_rel="$1"
+  cd "$ROOT/$backend_rel" || return 1
+  echo "[preview] MERN backend in $(pwd)"
+  write_mern_backend_env
+
+  if [ ! -d node_modules ]; then
+    echo "[preview] backend npm install…"
+    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+  fi
+  : > /tmp/preview-backend.log
+  if grep -q '"seed"' package.json 2>/dev/null; then
+    echo "[preview] backend npm run seed…"
+    npm run seed >> /tmp/preview-backend.log 2>&1 || true
+  fi
+
+  if [ -n "$PREVIEW_ADMIN_EMAIL" ] && [ -f src/models/User.js ]; then
+    echo "[preview] ensuring preview admin account exists…"
+    node -e "
+      (async () => {
+        try {
+          require('dotenv').config({ path: '.env' });
+          const mongoose = require('mongoose');
+          const bcrypt = require('bcrypt');
+          const User = require('./src/models/User');
+          const tryRequire = (p) => {
+            try {
+              return require(p);
+            } catch {
+              return null;
+            }
+          };
+          const Building = tryRequire('./src/models/Building');
+          const Floor = tryRequire('./src/models/Floor');
+          const Room = tryRequire('./src/models/Room');
+          const Person = tryRequire('./src/models/Person');
+          const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
+          if (!uri) {
+            console.log('[preview-seed] skipped: missing mongo uri');
+            return;
+          }
+          await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
+          const email = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@preview.demo')
+            .toLowerCase()
+            .trim();
+          const rawPass = String(process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!');
+          let existing = await User.findOne({ email });
+          if (!existing) {
+            const hash = await bcrypt.hash(rawPass, 10);
+            existing = await User.create({
+              name: 'Preview Admin',
+              email,
+              password: hash,
+              role: 'MANAGER',
+            });
+            console.log('[preview-seed] created preview admin', email);
+          } else if (existing.password) {
+            const ok = await bcrypt.compare(rawPass, existing.password);
+            if (!ok) {
+              existing.password = await bcrypt.hash(rawPass, 10);
+              await existing.save();
+              console.log('[preview-seed] reset preview admin password', email);
+            } else {
+              console.log('[preview-seed] preview admin already valid', email);
+            }
+          } else {
+            existing.password = await bcrypt.hash(rawPass, 10);
+            await existing.save();
+            console.log('[preview-seed] set missing preview admin password', email);
+          }
+
+          if (Building && existing && existing.role === 'MANAGER') {
+            let building = await Building.findOne({ manager: existing._id });
+            if (!building) {
+              building = await Building.create({
+                name: 'Preview Tower',
+                brandingName: 'Preview Tower',
+                location: 'Preview City',
+                manager: existing._id,
+                floorLimit: 10,
+                allowedRoomTypes: ['STANDARD', 'DELUXE', 'APARTMENT'],
+              });
+              console.log('[preview-seed] created preview building', building.name);
+            }
+
+            if (Floor) {
+              let floor = await Floor.findOne({ building: building._id, floorNumber: 1 });
+              if (!floor) {
+                floor = await Floor.create({ building: building._id, floorNumber: 1 });
+                console.log('[preview-seed] created floor 1');
+              }
+
+              if (Room) {
+                let room = await Room.findOne({ floor: floor._id, roomNumber: '101' });
+                if (!room) {
+                  room = await Room.create({
+                    roomNumber: '101',
+                    type: 'STANDARD',
+                    capacity: 2,
+                    status: 'AVAILABLE',
+                    payment: { amount: 500, frequency: 'MONTHLY', currency: 'USD' },
+                    floor: floor._id,
+                    building: building._id,
+                  });
+                  console.log('[preview-seed] created room 101');
+                }
+
+                if (Person) {
+                  const tenant = await Person.findOne({ building: building._id, room: room._id, type: 'TENANT' });
+                  if (!tenant) {
+                    await Person.create({
+                      name: 'Preview Tenant',
+                      phone: '0000000000',
+                      type: 'TENANT',
+                      room: room._id,
+                      building: building._id,
+                    });
+                    console.log('[preview-seed] created preview tenant');
+                  }
+                }
+              }
+            }
+          }
+
+          await mongoose.disconnect();
+        } catch (err) {
+          console.error('[preview-seed] failed:', err.message || err);
+          process.exit(0);
+        }
+      })();
+    " >> /tmp/preview-backend.log 2>&1 || true
+  fi
+
+  echo "[preview] starting backend on 0.0.0.0:${API_PORT}"
+  if grep -q '"start"' package.json 2>/dev/null; then
+    npm start >> /tmp/preview-backend.log 2>&1 &
+  elif grep -q '"dev"' package.json 2>/dev/null; then
+    npm run dev >> /tmp/preview-backend.log 2>&1 &
+  elif [ -f server.js ]; then
+    node server.js >> /tmp/preview-backend.log 2>&1 &
+  elif [ -f index.js ]; then
+    node index.js >> /tmp/preview-backend.log 2>&1 &
+  elif [ -f src/index.js ]; then
+    node src/index.js >> /tmp/preview-backend.log 2>&1 &
+  elif [ -f src/server.js ]; then
+    node src/server.js >> /tmp/preview-backend.log 2>&1 &
+  else
+    echo "[preview] no backend start script found" >> /tmp/preview-backend.log
+    return 1
+  fi
+
+  wait_for_tcp_port "$API_PORT" "student API" 240
+}
+
+run_frontend_preview() {
+  if [ -n "$PREVIEW_API_HOST_PORT" ]; then
+    export VITE_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
+    export REACT_APP_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
+    export VITE_API_BASE_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
+  fi
+
+  if [ -d dist ] && [ -f dist/index.html ]; then
+    serve_dir "$(pwd)/dist"
+  fi
+  if [ -d build ] && [ -f build/index.html ]; then
+    serve_dir "$(pwd)/build"
+  fi
+  if [ ! -f package.json ]; then
+    serve_dir "$(pwd)"
+  fi
+  if [ ! -d node_modules ]; then
+    echo "[preview] npm install (may take several minutes)…"
+    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+  fi
+  if grep -q '"seed"' package.json 2>/dev/null; then
+    echo "[preview] npm run seed…"
+    npm run seed 2>&1 || true
+  fi
+  if [ -f vite.config.js ] || [ -f vite.config.ts ] || grep -q '"vite"' package.json 2>/dev/null; then
+    echo "[preview] Vite build + static serve (API=${VITE_API_URL:-n/a})"
+    if npm run build 2>&1; then
+      if [ -d dist ] && [ -f dist/index.html ]; then
+        serve_dir "$(pwd)/dist"
+      fi
+    fi
+  fi
+  if grep -q 'react-scripts' package.json 2>/dev/null; then
+    release_port_holder
+    export PORT="$PORT"
+    exec npm run start
+  fi
+  if npm run build 2>/dev/null; then
+    if [ -d dist ] && [ -f dist/index.html ]; then
+      serve_dir "$(pwd)/dist"
+    fi
+    if [ -d build ] && [ -f build/index.html ]; then
+      serve_dir "$(pwd)/build"
+    fi
+  fi
+  serve_dir "$(pwd)"
+}
+
+hold_port_with_fallback
+
 if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ]; then
-  cd "$ROOT/$APP_SUBDIR" || exit 1
+  cd "$ROOT/$APP_SUBDIR" || serve_fallback_forever
 else
-  cd "$ROOT" || exit 1
+  cd "$ROOT" || serve_fallback_forever
 fi
 
 echo "[preview] Node app directory: $(pwd)"
 echo "[preview] PORT=${PORT}"
 
-export PORT
-export HOST=0.0.0.0
-export WDS_SOCKET_HOST=0.0.0.0
-export DANGEROUSLY_DISABLE_HOST_CHECK=true
+write_preview_env_files
 
-# Pre-built static assets (fast path for React build output)
-if [ -d dist ] && [ -f dist/index.html ]; then
-  echo "[preview] Serving existing dist/"
-  exec npx --yes serve -s dist -l "$PORT"
-fi
-if [ -d build ] && [ -f build/index.html ]; then
-  echo "[preview] Serving existing build/"
-  exec npx --yes serve -s build -l "$PORT"
-fi
-
-if [ ! -f package.json ]; then
-  echo "[preview] No package.json; serving directory"
-  exec npx --yes serve -s . -l "$PORT"
+if [ "$PREVIEW_MERN_MODE" = "1" ] && [ -n "$BACKEND_SUBDIR" ] && [ -n "$FRONTEND_SUBDIR" ]; then
+  echo "[preview] MERN mode frontend=$FRONTEND_SUBDIR backend=$BACKEND_SUBDIR host API port=$PREVIEW_API_HOST_PORT"
+  start_mern_backend "$BACKEND_SUBDIR" || echo "[preview] backend start failed — login will not work until API is up"
+  cd "$ROOT/$FRONTEND_SUBDIR" || serve_fallback_forever
+  echo "[preview] MERN frontend in $(pwd)"
+  {
+    echo "VITE_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+    echo "REACT_APP_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+    echo "VITE_API_BASE_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+  } > .env.local
+  run_frontend_preview
 fi
 
-if [ ! -d node_modules ]; then
-  echo "[preview] npm install"
-  npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
-fi
+for rel in ../frontend/dist ../frontend/build ../client/dist ../client/build ../web/dist; do
+  if [ -f "$rel/index.html" ]; then
+    serve_dir "$(cd "$(dirname "$rel")" && pwd)/$(basename "$rel")"
+  fi
+done
 
-# Vite (default port 5173 — must bind 0.0.0.0 and our mapped PORT)
-if [ -f vite.config.js ] || [ -f vite.config.ts ] || grep -q '"vite"' package.json 2>/dev/null; then
-  echo "[preview] Starting Vite on 0.0.0.0:${PORT}"
-  exec npx vite --host 0.0.0.0 --port "$PORT"
-fi
+run_frontend_preview
 
-# Create React App / react-scripts
-if grep -q 'react-scripts' package.json 2>/dev/null; then
-  echo "[preview] Starting react-scripts (HOST=0.0.0.0 PORT=${PORT})"
-  exec npm run start
-fi
-
-# npm scripts (pass host/port for dev servers)
-echo "[preview] Trying npm scripts on port ${PORT}"
-if npm run dev -- --host 0.0.0.0 --port "$PORT" 2>/dev/null; then exit 0; fi
-if npm run preview -- --host 0.0.0.0 --port "$PORT" 2>/dev/null; then exit 0; fi
-if npm run start -- --host 0.0.0.0 --port "$PORT" 2>/dev/null; then exit 0; fi
-
-# Production build then serve (works for many React assignments)
-if npm run build 2>/dev/null; then
-  if [ -d dist ]; then exec npx --yes serve -s dist -l "$PORT"; fi
-  if [ -d build ]; then exec npx --yes serve -s build -l "$PORT"; fi
-fi
-
-echo "[preview] Fallback static server"
-exec npx --yes serve -s . -l "$PORT"
+serve_fallback_forever
