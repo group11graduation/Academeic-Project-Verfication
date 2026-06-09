@@ -125,7 +125,7 @@ const TeacherProposalStudentDetail = () => {
     const [previewSessionByProposal, setPreviewSessionByProposal] = useState({});
     const [previewBusyId, setPreviewBusyId] = useState(null);
     /** auto | node-js | php-apache | jupyter */
-    const [previewStackChoice, setPreviewStackChoice] = useState('node-js');
+    const [previewStackChoice, setPreviewStackChoice] = useState('auto');
     const [previewAdminEmail, setPreviewAdminEmail] = useState('admin@preview.demo');
     const [previewAdminPassword, setPreviewAdminPassword] = useState('Preview123!');
     const previewMapRef = useRef({});
@@ -831,22 +831,30 @@ const TeacherProposalStudentDetail = () => {
                                     );
                                 })()}
 
-                                <div className="mb-3 flex flex-wrap items-center gap-2">
-                                    <label className="text-xs font-bold text-emerald-900" htmlFor="preview-stack">
-                                        Container type
-                                    </label>
-                                    <select
-                                        id="preview-stack"
-                                        value={previewStackChoice}
-                                        onChange={(e) => setPreviewStackChoice(e.target.value)}
-                                        disabled={!!previewBusyId}
-                                        className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800"
-                                    >
-                                        <option value="auto">Auto-detect from ZIP</option>
-                                        <option value="node-js">React / Node.js</option>
-                                        <option value="php-apache">PHP / Apache</option>
-                                        <option value="jupyter">Jupyter notebook</option>
-                                    </select>
+                                <div className="mb-3">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <label className="text-xs font-bold text-emerald-900" htmlFor="preview-stack">
+                                            Container type
+                                        </label>
+                                        <select
+                                            id="preview-stack"
+                                            value={previewStackChoice}
+                                            onChange={(e) => setPreviewStackChoice(e.target.value)}
+                                            disabled={!!previewBusyId}
+                                            className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800"
+                                        >
+                                            <option value="auto">Any type — auto-detect from ZIP</option>
+                                            <option value="node-js">React / Node.js (manual)</option>
+                                            <option value="php-apache">PHP / Apache (manual)</option>
+                                            <option value="jupyter">Jupyter notebook (manual)</option>
+                                        </select>
+                                    </div>
+                                    {previewStackChoice === 'auto' && (
+                                        <p className="mt-1.5 text-[11px] font-medium text-emerald-800/90">
+                                            Upload any supported project ZIP — the system picks React/Node, PHP, or Jupyter
+                                            from the files inside. Use a manual type only if detection is wrong.
+                                        </p>
+                                    )}
                                 </div>
                                 {(() => {
                                     const sess = previewSessionByProposal[proposal._id];

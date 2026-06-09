@@ -221,12 +221,20 @@ const AssignmentCreate = () => {
                                 required
                                 className="w-full bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white"
                             >
+                                {(catalog[catalogIndex]?.subjects || []).length === 0 && (
+                                    <option value="">No subjects linked to this class</option>
+                                )}
                                 {(catalog[catalogIndex]?.subjects || []).map((s) => (
                                     <option key={s._id} value={s._id}>
                                         {s.code} - {s.name}
                                     </option>
                                 ))}
                             </select>
+                            {(catalog[catalogIndex]?.subjects || []).length > 1 && (
+                                <p className="mt-2 text-xs text-slate-500">
+                                    Choose which class subject this assignment is for ({catalog[catalogIndex].subjects.length} available).
+                                </p>
+                            )}
                         </div>
 
                         <div>

@@ -202,8 +202,10 @@ export function buildPreviewCredentialEnvVars({ email, password, mongoUri = null
   return pairs;
 }
 
-export function buildPreviewLoginUrl(previewUrl) {
+export function buildPreviewLoginUrl(previewUrl, loginPath = '/login') {
   const base = String(previewUrl || '').replace(/\/$/, '');
   if (!base) return '';
-  return `${base}/login`;
+  const rel = String(loginPath || '/login');
+  const normalized = rel.startsWith('/') ? rel : `/${rel}`;
+  return `${base}${normalized}`;
 }

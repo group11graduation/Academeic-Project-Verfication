@@ -40,6 +40,10 @@ const previewSessionSchema = new mongoose.Schema(
     memoryBytes: { type: Number },
     nanoCpus: { type: Number },
     ttlMs: { type: Number },
+    /** When the app became reachable (TTL countdown starts here) */
+    readyAt: { type: Date },
+    /** Scheduled auto-stop time */
+    expiresAt: { type: Date },
     /** Server-local extract path for cleanup (not exposed to clients) */
     extractDirPath: { type: String, default: '' },
     logs: [logEntrySchema],

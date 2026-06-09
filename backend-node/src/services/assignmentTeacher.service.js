@@ -63,6 +63,37 @@ function assertClassSemesterAlignment(classDocs) {
   }
 }
 
+function mapSubjectOption(subject) {
+  if (!subject) return null;
+  const id = subject._id || subject;
+  if (!id) return null;
+  return {
+    _id: id,
+    code: subject.code || '',
+    name: subject.name || '',
+  };
+}
+
+/** All subjects a teacher may pick when creating an assignment for this class. */
+function resolveCatalogSubjects(classDoc, teacherAssignment) {
+  const classSubjects = (classDoc?.subjects || []).map(mapSubjectOption).filter(Boolean);
+  const teacherSubjects = (teacherAssignment?.subjects || []).map(mapSubjectOption).filter(Boolean);
+  if (classSubjects.length > 0) return classSubjects;
+
+  const merged = new Map();
+  for (const s of teacherSubjects) merged.set(String(s._id), s);
+  return [...merged.values()];
+}
+
+function teacherCanUseSubject(classDoc, teacherAssignment, subjectId) {
+  const sid = String(subjectId);
+  const classIds = new Set((classDoc?.subjects || []).map((s) => String(s?._id || s)));
+  const teacherIds = new Set((teacherAssignment?.subjects || []).map((s) => String(s?._id || s)));
+  if (classIds.has(sid)) return true;
+  if (teacherIds.has(sid)) return true;
+  return false;
+}
+
 export async function listClassesForTeacher(teacherId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
   const classes = await Class.find({ 'teacherAssignments.teacher': tid }).lean();
@@ -180,6 +211,7 @@ export async function getTeacherCatalog(teacherId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
   const classes = await Class.find({ 'teacherAssignments.teacher': tid })
     .populate('teacherAssignments.subjects')
+    .populate('subjects')
     .populate('academicYear')
     .populate('semester')
     .lean();
@@ -188,7 +220,7 @@ export async function getTeacherCatalog(teacherId) {
     const ta = c.teacherAssignments?.find((x) => tid.equals(x.teacher));
     return {
       class: { _id: c._id, code: c.code, name: c.name },
-      subjects: ta?.subjects || [],
+      subjects: resolveCatalogSubjects(c, ta),
       academicYear: c.academicYear,
       semester: c.semester,
     };
@@ -233,7 +265,9 @@ export async function createAssignment(teacherId, payload) {
   }
 
   const tid = new mongoose.Types.ObjectId(teacherId);
-  const classDocsRaw = await Class.find({ _id: { $in: selectedClassIds } }).populate('teacherAssignments.subjects');
+  const classDocsRaw = await Class.find({ _id: { $in: selectedClassIds } })
+    .populate('teacherAssignments.subjects')
+    .populate('subjects');
   const classDocs = selectedClassIds
     .map((id) => classDocsRaw.find((doc) => String(doc._id) === String(id)))
     .filter(Boolean);
@@ -249,9 +283,8 @@ export async function createAssignment(teacherId, payload) {
       err.status = 403;
       throw err;
     }
-    const subjOk = ta.subjects?.some((s) => s._id.equals(subjectId));
-    if (!subjOk) {
-      const err = new Error(`You are not assigned to this subject in class ${classDoc.code || classDoc.name || ''}`.trim());
+    if (!teacherCanUseSubject(classDoc, ta, subjectId)) {
+      const err = new Error(`This subject is not linked to class ${classDoc.code || classDoc.name || ''}`.trim());
       err.status = 403;
       throw err;
     }
@@ -359,7 +392,9 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
   }
 
   const tid = new mongoose.Types.ObjectId(teacherId);
-  const classDocsRaw = await Class.find({ _id: { $in: nextClassIds } }).populate('teacherAssignments.subjects');
+  const classDocsRaw = await Class.find({ _id: { $in: nextClassIds } })
+    .populate('teacherAssignments.subjects')
+    .populate('subjects');
   const classDocs = nextClassIds
     .map((id) => classDocsRaw.find((doc) => String(doc._id) === String(id)))
     .filter(Boolean);
@@ -375,9 +410,8 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
       err.status = 403;
       throw err;
     }
-    const subjOk = ta.subjects?.some((s) => s._id.equals(assignment.subject));
-    if (!subjOk) {
-      const err = new Error(`You are not assigned to this subject in class ${classDoc.code || classDoc.name || ''}`.trim());
+    if (!teacherCanUseSubject(classDoc, ta, assignment.subject)) {
+      const err = new Error(`This subject is not linked to class ${classDoc.code || classDoc.name || ''}`.trim());
       err.status = 403;
       throw err;
     }

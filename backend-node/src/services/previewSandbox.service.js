@@ -13,7 +13,11 @@ import { Proposal } from '../models/Proposal.js';
 
 const MAX_FILES = Number(process.env.PREVIEW_MAX_EXTRACT_FILES || 500);
 const MAX_TOTAL_BYTES = Number(process.env.PREVIEW_MAX_EXTRACT_BYTES || 52_428_800);
-const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 300000);
+const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 600000);
+const PREVIEW_TTL_MS = Number(process.env.PREVIEW_TTL_MS || 1800000);
+const PREVIEW_TTL_MIN_MS = Number(process.env.PREVIEW_TTL_MIN_MS || 300000);
+const PREVIEW_TTL_TOUCH_MS = Number(process.env.PREVIEW_TTL_TOUCH_MS || 1800000);
+const PREVIEW_TTL_MAX_MS = Number(process.env.PREVIEW_TTL_MAX_MS || 7200000);
 
 /** Sessions waiting for container HTTP/TCP readiness */
 const readinessJobs = new Set();
@@ -39,6 +43,101 @@ function getDocker() {
 
 function appendLog(session, level, message) {
   session.logs.push({ level, message, at: new Date() });
+}
+
+function previewTtlMs(session) {
+  const raw = Number(session?.ttlMs) || PREVIEW_TTL_MS;
+  return Math.max(raw, PREVIEW_TTL_MIN_MS);
+}
+
+function clearPreviewTtl(sessionId) {
+  const key = sessionId.toString();
+  if (activeTimers.has(key)) {
+    clearTimeout(activeTimers.get(key));
+    activeTimers.delete(key);
+  }
+}
+
+/**
+ * Start (or restart) the auto-stop timer. TTL always counts from when the preview is ready,
+ * not from when the session was created.
+ */
+async function schedulePreviewTtl(session, { extendOnly = false } = {}) {
+  const sessionId = session._id.toString();
+  clearPreviewTtl(sessionId);
+
+  const ttlMs = previewTtlMs(session);
+  const now = Date.now();
+  const readyAt = session.readyAt ? new Date(session.readyAt) : new Date();
+  const maxExpires = readyAt.getTime() + PREVIEW_TTL_MAX_MS;
+  let expiresAt = new Date(now + ttlMs);
+
+  if (extendOnly && session.expiresAt) {
+    const bumped = new Date(now + PREVIEW_TTL_TOUCH_MS);
+    expiresAt = new Date(Math.max(new Date(session.expiresAt).getTime(), bumped.getTime()));
+  }
+
+  if (expiresAt.getTime() > maxExpires) {
+    expiresAt = new Date(maxExpires);
+  }
+
+  const remaining = Math.max(expiresAt.getTime() - now, 5000);
+  session.readyAt = readyAt;
+  session.expiresAt = expiresAt;
+  await session.save();
+
+  const timer = setTimeout(async () => {
+    try {
+      const fresh = await PreviewSession.findById(sessionId);
+      if (fresh && fresh.status === 'running') {
+        await cleanupSessionResources(fresh, getDocker(), 'expired', 'TTL elapsed; container stopped.');
+      }
+    } catch (err) {
+      console.error('preview TTL cleanup', err);
+    }
+  }, remaining);
+  activeTimers.set(sessionId, timer);
+  return session;
+}
+
+/** Keep preview alive while the teacher page is open (polls every few seconds). */
+async function touchPreviewTtl(session) {
+  if (!session || session.status !== 'running') return session;
+  const now = Date.now();
+  const expiresAt = session.expiresAt ? new Date(session.expiresAt).getTime() : 0;
+  const touchThreshold = PREVIEW_TTL_TOUCH_MS * 0.25;
+  if (expiresAt - now > touchThreshold) {
+    return session;
+  }
+  return schedulePreviewTtl(session, { extendOnly: true });
+}
+
+/** Re-arm timers after API restart for sessions still marked running in MongoDB. */
+export async function restoreRunningPreviewTtls() {
+  if (!dockerEnabled()) return;
+  const running = await PreviewSession.find({ status: 'running' });
+  for (const session of running) {
+    const remaining = session.expiresAt
+      ? new Date(session.expiresAt).getTime() - Date.now()
+      : previewTtlMs(session);
+    if (remaining <= 0) {
+      // eslint-disable-next-line no-await-in-loop
+      await cleanupSessionResources(session, getDocker(), 'expired', 'TTL elapsed; container stopped.');
+    } else {
+      clearPreviewTtl(session._id);
+      const timer = setTimeout(async () => {
+        try {
+          const fresh = await PreviewSession.findById(session._id);
+          if (fresh && fresh.status === 'running') {
+            await cleanupSessionResources(fresh, getDocker(), 'expired', 'TTL elapsed; container stopped.');
+          }
+        } catch (err) {
+          console.error('preview TTL restore', err);
+        }
+      }, remaining);
+      activeTimers.set(session._id.toString(), timer);
+    }
+  }
 }
 
 function safeExtractZip(zipAbs, destDir) {
@@ -74,10 +173,7 @@ function safeExtractZip(zipAbs, destDir) {
 
 async function cleanupSessionResources(session, docker, finalStatus, logMessage) {
   const sid = session._id.toString();
-  if (activeTimers.has(sid)) {
-    clearTimeout(activeTimers.get(sid));
-    activeTimers.delete(sid);
-  }
+  clearPreviewTtl(sid);
 
   if (session.dockerContainerId || session.hostPort) {
     await dockerOrchestrator
@@ -137,20 +233,14 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
           ? ' Port is open; npm may still be installing — refresh the page if you see a blank screen.'
           : '';
       appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}.${warmupNote}`);
+      await schedulePreviewTtl(session);
+      const until = session.expiresAt ? new Date(session.expiresAt).toLocaleTimeString() : '';
+      appendLog(
+        session,
+        'info',
+        `Preview stays active until ${until} (~${Math.round(previewTtlMs(session) / 60000)} min). Open the link above; it extends while this page is open.`
+      );
       await session.save();
-
-      const ttl = session.ttlMs || Number(process.env.PREVIEW_TTL_MS || 600000);
-      const timer = setTimeout(async () => {
-        try {
-          const fresh = await PreviewSession.findById(sessionId);
-          if (fresh && fresh.status === 'running') {
-            await cleanupSessionResources(fresh, getDocker(), 'expired', 'TTL elapsed; container stopped.');
-          }
-        } catch (err) {
-          console.error('preview TTL cleanup', err);
-        }
-      }, ttl);
-      activeTimers.set(jobKey, timer);
       return;
     }
 
@@ -168,19 +258,13 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
         'info',
         `Preview port ${port} is open (still warming up). Open the link below; refresh after 1–2 min if blank.`
       );
+      await schedulePreviewTtl(session);
+      appendLog(
+        session,
+        'info',
+        `Preview stays active until ${session.expiresAt ? new Date(session.expiresAt).toLocaleTimeString() : 'later'} while you review.`
+      );
       await session.save();
-      const ttl = session.ttlMs || Number(process.env.PREVIEW_TTL_MS || 600000);
-      const timer = setTimeout(async () => {
-        try {
-          const fresh = await PreviewSession.findById(sessionId);
-          if (fresh && fresh.status === 'running') {
-            await cleanupSessionResources(fresh, getDocker(), 'expired', 'TTL elapsed; container stopped.');
-          }
-        } catch (err) {
-          console.error('preview TTL cleanup', err);
-        }
-      }, ttl);
-      activeTimers.set(jobKey, timer);
       return;
     }
 
@@ -281,7 +365,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   const stackHint = dockerOrchestrator.inferStackHintFromAssignment(assignment);
   const memory = Number(process.env.PREVIEW_MEMORY_BYTES || 268435456);
   const nanoCpus = Number(process.env.PREVIEW_NANO_CPUS || 500000000);
-  const ttl = Number(process.env.PREVIEW_TTL_MS || 600000);
+  const ttl = PREVIEW_TTL_MS;
 
   const zipAbs = path.join(process.cwd(), 'uploads', submission.storedRelativePath);
   if (!fsSync.existsSync(zipAbs)) {
@@ -374,7 +458,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       imageKey: submission._id.toString(),
       stackHint,
       stack: stackOverride || null,
-      forceRebuild: true,
+      forceRebuild: false,
       previewCredentialEnv: credentialEnv,
     });
   } catch (e) {
@@ -392,8 +476,26 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   session.previewApiHostPort = deployResult.apiHostPort ? String(deployResult.apiHostPort) : '';
   session.previewUrl = deployResult.previewUrl;
   session.previewApiUrl = deployResult.previewApiUrl || '';
-  session.previewLoginUrl = previewCredentials.buildPreviewLoginUrl(deployResult.previewUrl);
-  if (deployResult.mernPair && deployResult.apiHostPort) {
+  const loginPath =
+    deployResult.stack === 'php-apache'
+      ? deployResult.phpLoginPath || '/auth/login.php'
+      : '/login';
+  session.previewLoginUrl = previewCredentials.buildPreviewLoginUrl(deployResult.previewUrl, loginPath);
+  if (deployResult.stack === 'php-apache') {
+    const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
+    session.previewLoginHint =
+      `${baseHint}PHP preview uses the mapped port (e.g. :${deployResult.hostPort}), not localhost/BBMS. Open ${session.previewLoginUrl}. Default BBMS admin is often username admin / Admin@123 if no project credentials were found.`;
+  }
+  if (deployResult.flutterPair && deployResult.apiHostPort) {
+    const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
+    session.previewLoginHint =
+      `${baseHint}Flutter web preview: app UI on port ${deployResult.hostPort}, Node API on port ${deployResult.apiHostPort}. First start may take several minutes while Flutter builds for web.`;
+    appendLog(
+      session,
+      'info',
+      `Flutter+Node preview: web UI :${deployResult.hostPort}, API :${deployResult.apiHostPort}`
+    );
+  } else if (deployResult.mernPair && deployResult.apiHostPort) {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
     session.previewLoginHint =
       `${baseHint}Full-stack preview: UI on port ${deployResult.hostPort}, student API on port ${deployResult.apiHostPort}. MongoDB runs in a sidecar container for preview (no host Mongo setup required).`;
@@ -486,6 +588,14 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
     throw err;
   }
   delete session.extractDirPath;
+
+  if (session.status === 'running') {
+    const live = await PreviewSession.findById(sessionId);
+    if (live) {
+      await touchPreviewTtl(live);
+      session.expiresAt = live.expiresAt;
+    }
+  }
 
   if (['starting', 'running'].includes(session.status)) {
     try {

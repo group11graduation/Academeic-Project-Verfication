@@ -2,13 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-ARG APP_SUBDIR=.
-ENV APP_SUBDIR=${APP_SUBDIR}
 ENV PORT=3000
 ENV HOST=0.0.0.0
+ENV APP_SUBDIR=.
 
-# Copy full submission; dependencies install at container start in the correct APP_SUBDIR
-COPY . .
+# Student project is bind-mounted at /app at container start — not baked into the image.
 COPY entrypoint.sh /preview-entrypoint.sh
 COPY preview-fallback /preview-fallback
 RUN chmod +x /preview-entrypoint.sh

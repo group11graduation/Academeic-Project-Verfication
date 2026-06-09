@@ -288,6 +288,51 @@ start_mern_backend() {
   wait_for_tcp_port "$API_PORT" "student API" 240
 }
 
+ensure_flutter_web_ready() {
+  export PATH="/opt/flutter/bin:${PATH}"
+  if ! command -v flutter >/dev/null 2>&1; then
+    echo "[preview] Flutter SDK not found in image"
+    return 1
+  fi
+  flutter config --no-analytics >/dev/null 2>&1 || true
+  if [ ! -d /opt/flutter/bin/cache/flutter_web_sdk ]; then
+    echo "[preview] flutter precache --web (first start, 2–5 min)…"
+    flutter precache --web >> /tmp/preview-flutter.log 2>&1 || true
+  fi
+}
+
+run_flutter_web_preview() {
+  flutter_rel="$1"
+  ensure_flutter_web_ready || return 1
+  cd "$ROOT/$flutter_rel" || return 1
+  echo "[preview] Flutter app in $(pwd)"
+
+  if [ -d build/web ] && [ -f build/web/index.html ]; then
+    echo "[preview] using pre-built Flutter web in build/web"
+    serve_dir "$(pwd)/build/web"
+  fi
+
+  api_define=""
+  if [ -n "$PREVIEW_API_HOST_PORT" ]; then
+    api_define="--dart-define=API_URL=http://localhost:${PREVIEW_API_HOST_PORT} --dart-define=BASE_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+  fi
+
+  echo "[preview] flutter pub get…"
+  flutter pub get 2>&1 || true
+  echo "[preview] flutter build web (first build may take 3–8 min)…"
+  : > /tmp/preview-flutter.log
+  # shellcheck disable=SC2086
+  if flutter build web --release $api_define >> /tmp/preview-flutter.log 2>&1; then
+    if [ -d build/web ] && [ -f build/web/index.html ]; then
+      serve_dir "$(pwd)/build/web"
+    fi
+  fi
+
+  echo "[preview] ERROR: Flutter web build failed or build/web/index.html missing"
+  tail -40 /tmp/preview-flutter.log 2>/dev/null || true
+  return 1
+}
+
 run_frontend_preview() {
   if [ -n "$PREVIEW_API_HOST_PORT" ]; then
     export VITE_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
@@ -301,8 +346,14 @@ run_frontend_preview() {
   if [ -d build ] && [ -f build/index.html ]; then
     serve_dir "$(pwd)/build"
   fi
+  if [ -d build/web ] && [ -f build/web/index.html ]; then
+    serve_dir "$(pwd)/build/web"
+  fi
   if [ ! -f package.json ]; then
-    serve_dir "$(pwd)"
+    if [ -f index.html ]; then
+      serve_dir "$(pwd)"
+    fi
+    return 1
   fi
   if [ ! -d node_modules ]; then
     echo "[preview] npm install (may take several minutes)…"
@@ -333,7 +384,10 @@ run_frontend_preview() {
       serve_dir "$(pwd)/build"
     fi
   fi
-  serve_dir "$(pwd)"
+  if [ -f index.html ]; then
+    serve_dir "$(pwd)"
+  fi
+  return 1
 }
 
 hold_port_with_fallback
@@ -349,6 +403,12 @@ echo "[preview] PORT=${PORT}"
 
 write_preview_env_files
 
+if [ "$PREVIEW_FLUTTER_MODE" = "1" ] && [ -n "$BACKEND_SUBDIR" ] && [ -n "$FLUTTER_SUBDIR" ]; then
+  echo "[preview] Flutter+Node mode flutter=$FLUTTER_SUBDIR backend=$BACKEND_SUBDIR host API port=$PREVIEW_API_HOST_PORT"
+  start_mern_backend "$BACKEND_SUBDIR" || echo "[preview] backend start failed — API must be up for the Flutter app"
+  run_flutter_web_preview "$FLUTTER_SUBDIR" || serve_fallback_forever
+fi
+
 if [ "$PREVIEW_MERN_MODE" = "1" ] && [ -n "$BACKEND_SUBDIR" ] && [ -n "$FRONTEND_SUBDIR" ]; then
   echo "[preview] MERN mode frontend=$FRONTEND_SUBDIR backend=$BACKEND_SUBDIR host API port=$PREVIEW_API_HOST_PORT"
   start_mern_backend "$BACKEND_SUBDIR" || echo "[preview] backend start failed — login will not work until API is up"
@@ -359,7 +419,7 @@ if [ "$PREVIEW_MERN_MODE" = "1" ] && [ -n "$BACKEND_SUBDIR" ] && [ -n "$FRONTEND
     echo "REACT_APP_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
     echo "VITE_API_BASE_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
   } > .env.local
-  run_frontend_preview
+  run_frontend_preview || serve_fallback_forever
 fi
 
 for rel in ../frontend/dist ../frontend/build ../client/dist ../client/build ../web/dist; do

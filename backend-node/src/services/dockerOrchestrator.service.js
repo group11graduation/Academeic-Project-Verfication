@@ -13,6 +13,12 @@ import {
   previewMongoHostName,
   buildPreviewMongoUri,
 } from './previewMern.service.js';
+import {
+  patchPhpForPreview,
+  discoverPhpLoginPath,
+  previewMysqlHostName,
+} from './previewPhp.service.js';
+import { resolveFlutterNodePair, patchFlutterApiPort } from './previewFlutter.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, '../..');
@@ -20,7 +26,13 @@ const TEMPLATES_ROOT = path.join(BACKEND_ROOT, 'docker-templates');
 
 const PORT_RANGE_MIN = Number(process.env.PREVIEW_PORT_MIN || 8000);
 const PORT_RANGE_MAX = Number(process.env.PREVIEW_PORT_MAX || 9000);
-const BUILD_TIMEOUT_MS = Number(process.env.PREVIEW_BUILD_TIMEOUT_MS || 300_000);
+const BUILD_TIMEOUT_MS = Number(process.env.PREVIEW_BUILD_TIMEOUT_MS || 600_000);
+const FLUTTER_BUILD_TIMEOUT_MS = Number(
+  process.env.PREVIEW_FLUTTER_BUILD_TIMEOUT_MS || process.env.PREVIEW_BUILD_TIMEOUT_MS || 900_000
+);
+const PREVIEW_NODE_BASE_IMAGE = process.env.PREVIEW_NODE_BASE_IMAGE || 'scholarverify-preview-node:latest';
+const PREVIEW_NODE_FLUTTER_BASE_IMAGE =
+  process.env.PREVIEW_NODE_FLUTTER_BASE_IMAGE || 'scholarverify-preview-node-flutter:latest';
 const MAX_SCAN_FILES = Number(process.env.PREVIEW_STACK_SCAN_MAX_FILES || 2000);
 const MAX_EXTRACT_FILES = Number(process.env.PREVIEW_MAX_EXTRACT_FILES || 500);
 const MAX_EXTRACT_BYTES = Number(process.env.PREVIEW_MAX_EXTRACT_BYTES || 52_428_800);
@@ -69,6 +81,74 @@ export function containerNameFor(projectId) {
 
 function getPublicPreviewBase() {
   return (process.env.PREVIEW_PUBLIC_HOST || 'http://localhost').replace(/\/$/, '').replace('127.0.0.1', 'localhost');
+}
+
+/** Host path for docker -v (Docker Desktop on Windows needs forward slashes). */
+function dockerVolumePath(hostPath) {
+  const resolved = path.resolve(hostPath);
+  if (process.platform === 'win32') {
+    return resolved.replace(/\\/g, '/');
+  }
+  return resolved;
+}
+
+function previewNodeTemplateDir(flutterPair) {
+  return flutterPair ? 'node-js-flutter' : 'node-js';
+}
+
+function previewNodeBaseImageTag(flutterPair) {
+  return flutterPair ? PREVIEW_NODE_FLUTTER_BASE_IMAGE : PREVIEW_NODE_BASE_IMAGE;
+}
+
+async function stagePreviewBaseBuildDir(templateDirName) {
+  const templateDir = path.join(TEMPLATES_ROOT, templateDirName);
+  const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
+  const stageDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sv-preview-base-'));
+
+  await fs.copyFile(path.join(templateDir, 'Dockerfile'), path.join(stageDir, 'Dockerfile'));
+
+  const dockerignoreSrc = path.join(templateDir, '.dockerignore');
+  if (fsSync.existsSync(dockerignoreSrc)) {
+    await fs.copyFile(dockerignoreSrc, path.join(stageDir, '.dockerignore'));
+  }
+
+  const entrypointSrc = fsSync.existsSync(path.join(templateDir, 'entrypoint.sh'))
+    ? path.join(templateDir, 'entrypoint.sh')
+    : path.join(sharedNodeDir, 'entrypoint.sh');
+  const script = await fs.readFile(entrypointSrc, 'utf8');
+  await fs.writeFile(path.join(stageDir, 'entrypoint.sh'), script.replace(/\r\n/g, '\n'));
+
+  const fallbackSrc = fsSync.existsSync(path.join(templateDir, 'preview-fallback'))
+    ? path.join(templateDir, 'preview-fallback')
+    : path.join(sharedNodeDir, 'preview-fallback');
+  if (fsSync.existsSync(fallbackSrc)) {
+    await fs.cp(fallbackSrc, path.join(stageDir, 'preview-fallback'), { recursive: true });
+  }
+
+  return stageDir;
+}
+
+/**
+ * Build a small reusable preview image once (entrypoint + runtime only).
+ * The student ZIP is bind-mounted at /app when the container starts.
+ */
+async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } = {}) {
+  const templateDirName = previewNodeTemplateDir(flutterPair);
+  const imageTag = previewNodeBaseImageTag(flutterPair);
+  if (!forceRebuild && (await dockerImageExists(imageTag))) {
+    return { imageTag, reused: true };
+  }
+
+  const stageDir = await stagePreviewBaseBuildDir(templateDirName);
+  try {
+    await spawnProcess('docker', ['build', '-t', imageTag, '.'], {
+      cwd: stageDir,
+      timeoutMs: flutterPair ? FLUTTER_BUILD_TIMEOUT_MS : BUILD_TIMEOUT_MS,
+    });
+  } finally {
+    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
+  }
+  return { imageTag, reused: false };
 }
 
 /**
@@ -472,6 +552,7 @@ async function findReactStaticSignals(projectPath) {
 export async function detectProjectStackWithMeta(projectPath, options = {}) {
   const signals = {
     packageJsonPaths: [],
+    pubspecYaml: false,
     composerJson: false,
     artisanPhp: false,
     viteConfig: false,
@@ -503,6 +584,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
 
       scanned += 1;
       if (lower === 'package.json') signals.packageJsonPaths.push(full);
+      if (lower === 'pubspec.yaml') signals.pubspecYaml = true;
       if (lower === 'composer.json') signals.composerJson = true;
       if (lower === 'artisan') signals.artisanPhp = true;
       if (lower.startsWith('vite.config.')) signals.viteConfig = true;
@@ -565,6 +647,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   } else if (hasNode && !hasPhp) {
     stack = 'node-js';
     if (nodePkgCount) reasons.push(`${nodePkgCount} package.json`);
+    if (signals.pubspecYaml) reasons.push('pubspec.yaml (Flutter + Node)');
     if (signals.viteConfig) reasons.push('vite config');
     if (signals.jsxTsxFiles) reasons.push(`${signals.jsxTsxFiles} JSX/TSX file(s)`);
     if (reactStatic.reactStatic) reasons.push(reactStatic.reason);
@@ -619,7 +702,7 @@ export async function detectProjectStack(projectPath, options = {}) {
 /**
  * Copy Dockerfile (and optional .dockerignore) from docker-templates/{stack} into the project root.
  */
-export async function materializeDockerTemplate(stack, projectPath) {
+export async function materializeDockerTemplate(stack, projectPath, options = {}) {
   const blueprint = STACK_BLUEPRINTS[stack];
   if (!blueprint) {
     const err = new Error(`Unknown stack: ${stack}`);
@@ -627,10 +710,14 @@ export async function materializeDockerTemplate(stack, projectPath) {
     throw err;
   }
 
-  const templateDir = path.join(TEMPLATES_ROOT, blueprint.templateDir);
+  const templateDirName = options.templateDir || blueprint.templateDir;
+  const templateDir = path.join(TEMPLATES_ROOT, templateDirName);
   const dockerfileSrc = path.join(templateDir, 'Dockerfile');
   const dockerignoreSrc = path.join(templateDir, '.dockerignore');
-  const entrypointSrc = path.join(templateDir, 'entrypoint.sh');
+  const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
+  const entrypointSrc = fsSync.existsSync(path.join(templateDir, 'entrypoint.sh'))
+    ? path.join(templateDir, 'entrypoint.sh')
+    : path.join(sharedNodeDir, 'entrypoint.sh');
 
   if (!fsSync.existsSync(dockerfileSrc)) {
     const err = new Error(`Missing Dockerfile template for stack "${stack}"`);
@@ -653,7 +740,9 @@ export async function materializeDockerTemplate(stack, projectPath) {
     }
   }
 
-  const fallbackSrc = path.join(templateDir, 'preview-fallback');
+  const fallbackSrc = fsSync.existsSync(path.join(templateDir, 'preview-fallback'))
+    ? path.join(templateDir, 'preview-fallback')
+    : path.join(sharedNodeDir, 'preview-fallback');
   if (fsSync.existsSync(fallbackSrc)) {
     const destFallback = path.join(projectPath, 'preview-fallback');
     await fs.rm(destFallback, { recursive: true, force: true });
@@ -675,12 +764,18 @@ async function dockerImageExists(imageTag) {
   }
 }
 
-async function buildPreviewImage({ imageTag, buildContext, appSubdir, forceRebuild = false }) {
+async function buildPreviewImage({
+  imageTag,
+  buildContext,
+  appSubdir,
+  forceRebuild = false,
+  buildTimeoutMs = BUILD_TIMEOUT_MS,
+}) {
   if (!forceRebuild && (await dockerImageExists(imageTag))) {
     return { reused: true };
   }
   const args = ['build', '-t', imageTag, '--build-arg', `APP_SUBDIR=${appSubdir}`, '.'];
-  await spawnProcess('docker', args, { cwd: buildContext, timeoutMs: BUILD_TIMEOUT_MS });
+  await spawnProcess('docker', args, { cwd: buildContext, timeoutMs: buildTimeoutMs });
   return { reused: false };
 }
 
@@ -697,7 +792,9 @@ async function runPreviewContainer({
   previewCredentialEnv = null,
   apiHostPort = null,
   mernPair = null,
+  flutterPair = null,
   dockerNetwork = null,
+  projectMount = null,
 }) {
   const portMapping = `${hostPort}:${internalPort}`;
   const args = [
@@ -713,6 +810,10 @@ async function runPreviewContainer({
     'host.docker.internal:host-gateway',
   ];
 
+  if (projectMount) {
+    args.push('-v', `${dockerVolumePath(projectMount)}:/app`);
+  }
+
   if (dockerNetwork) {
     args.push('--network', dockerNetwork);
   }
@@ -725,13 +826,27 @@ async function runPreviewContainer({
     args.push('-e', `REACT_APP_API_URL=http://localhost:${apiHostPort}`);
     if (mernPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${mernPair.backendSubdir}`);
     if (mernPair?.frontendSubdir) args.push('-e', `FRONTEND_SUBDIR=${mernPair.frontendSubdir}`);
-    args.push('-e', 'PREVIEW_MERN_MODE=1');
+    if (flutterPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${flutterPair.backendSubdir}`);
+    if (flutterPair?.flutterSubdir) args.push('-e', `FLUTTER_SUBDIR=${flutterPair.flutterSubdir}`);
+    if (flutterPair) {
+      args.push('-e', 'PREVIEW_FLUTTER_MODE=1');
+    } else if (mernPair) {
+      args.push('-e', 'PREVIEW_MERN_MODE=1');
+    }
   }
 
   if (stack === 'node-js') {
     args.push('-e', `PORT=${internalPort}`, '-e', `APP_SUBDIR=${appSubdir}`);
   } else if (stack === 'php-apache') {
     args.push('-e', `APP_SUBDIR=${appSubdir}`);
+    const previewBaseUrl = `${getPublicPreviewBase()}:${hostPort}/`;
+    args.push('-e', `PREVIEW_BASE_URL=${previewBaseUrl}`);
+    if (previewCredentialEnv?.DB_HOST) {
+      args.push('-e', `DB_HOST=${previewCredentialEnv.DB_HOST}`);
+      args.push('-e', `DB_NAME=${previewCredentialEnv.DB_NAME || PREVIEW_MYSQL_DATABASE}`);
+      args.push('-e', `DB_USER=${previewCredentialEnv.DB_USER || PREVIEW_MYSQL_USER}`);
+      args.push('-e', `DB_PASS=${previewCredentialEnv.DB_PASS || PREVIEW_MYSQL_PASSWORD}`);
+    }
   } else if (stack === 'jupyter') {
     args.push('-e', `JUPYTER_PORT=${internalPort}`);
   }
@@ -781,6 +896,14 @@ const PREVIEW_MONGO_PULL_TIMEOUT_MS = Number(process.env.PREVIEW_MONGO_PULL_TIME
 const PREVIEW_MONGO_RUN_TIMEOUT_MS = Number(process.env.PREVIEW_MONGO_RUN_TIMEOUT_MS || 90_000);
 
 /** Pull mongo image once (first preview can take several minutes on slow networks). */
+/** Pre-build the small Node preview base image so the first teacher preview starts faster. */
+export async function ensurePreviewNodeBaseImages() {
+  if (process.env.DOCKER_PREVIEW_ENABLED === 'false') return { node: false, flutter: false };
+  if (!(await dockerAvailable())) return { node: false, flutter: false };
+  const node = await ensurePreviewNodeBaseImage(null).then(() => true).catch(() => false);
+  return { node, flutter: false };
+}
+
 export async function ensurePreviewMongoImage() {
   try {
     await spawnProcess('docker', ['image', 'inspect', PREVIEW_MONGO_IMAGE], { timeoutMs: 20_000 });
@@ -851,6 +974,70 @@ async function startPreviewMongoSidecar(projectId) {
 
 async function stopPreviewMongoSidecar(projectId) {
   await removeContainerIfExists(previewMongoHostName(projectId));
+}
+
+const PREVIEW_MYSQL_IMAGE = process.env.PREVIEW_MYSQL_IMAGE || 'mariadb:11';
+const PREVIEW_MYSQL_ROOT_PASSWORD = process.env.PREVIEW_MYSQL_ROOT_PASSWORD || 'preview-root';
+const PREVIEW_MYSQL_USER = process.env.PREVIEW_MYSQL_USER || 'preview';
+const PREVIEW_MYSQL_PASSWORD = process.env.PREVIEW_MYSQL_PASSWORD || 'preview';
+const PREVIEW_MYSQL_DATABASE = process.env.PREVIEW_MYSQL_DATABASE || 'bbms';
+
+async function startPreviewMysqlSidecar(projectId) {
+  const networkName = previewNetworkName(projectId);
+  const mysqlName = previewMysqlHostName(projectId);
+  await ensureDockerNetwork(networkName);
+  await removeContainerIfExists(mysqlName);
+
+  await spawnProcess(
+    'docker',
+    [
+      'run',
+      '-d',
+      '--name',
+      mysqlName,
+      '--network',
+      networkName,
+      '--label',
+      'scholarverify.preview=mysql',
+      '-e',
+      `MARIADB_ROOT_PASSWORD=${PREVIEW_MYSQL_ROOT_PASSWORD}`,
+      '-e',
+      `MARIADB_DATABASE=${PREVIEW_MYSQL_DATABASE}`,
+      '-e',
+      `MARIADB_USER=${PREVIEW_MYSQL_USER}`,
+      '-e',
+      `MARIADB_PASSWORD=${PREVIEW_MYSQL_PASSWORD}`,
+      PREVIEW_MYSQL_IMAGE,
+    ],
+    { timeoutMs: PREVIEW_MONGO_RUN_TIMEOUT_MS }
+  );
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      await runCommand(
+        `docker exec ${mysqlName} mariadb-admin ping -h 127.0.0.1 -u${PREVIEW_MYSQL_USER} -p${PREVIEW_MYSQL_PASSWORD} --silent`,
+        { timeoutMs: 8000 }
+      );
+      return { networkName, mysqlName };
+    } catch {
+      /* mysql still starting */
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(1000);
+  }
+
+  const err = new Error('Preview MySQL sidecar did not become ready in time');
+  err.status = 500;
+  throw err;
+}
+
+async function stopPreviewMysqlSidecar(projectId) {
+  await removeContainerIfExists(previewMysqlHostName(projectId));
+}
+
+async function stopPreviewSidecars(projectId) {
+  await stopPreviewMongoSidecar(projectId);
+  await stopPreviewMysqlSidecar(projectId);
   try {
     await runCommand(`docker network rm ${previewNetworkName(projectId)}`, { timeoutMs: 30_000 });
   } catch {
@@ -926,15 +1113,28 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       : await detectProjectStackWithMeta(buildContext, { stackHint });
 
   const stack = detection.stack;
-  const blueprint = await materializeDockerTemplate(stack, buildContext);
   let mernPair = null;
+  let flutterPair = null;
   if (stack === 'node-js') {
-    mernPair = await resolveMernPair(buildContext);
+    flutterPair = await resolveFlutterNodePair(buildContext);
+    if (!flutterPair) {
+      mernPair = await resolveMernPair(buildContext);
+    }
   }
-  const appSubdir =
-    mernPair?.frontendSubdir || (await resolveAppSubdir(buildContext, stack));
+  const usesNodeVolumePreview = stack === 'node-js';
+  let blueprint = STACK_BLUEPRINTS[stack];
+  if (!usesNodeVolumePreview) {
+    blueprint = await materializeDockerTemplate(stack, buildContext, {
+      templateDir: flutterPair ? 'node-js-flutter' : undefined,
+    });
+  }
 
-  const imageTag = buildImageTag(imageKey, stack);
+  const appSubdir =
+    flutterPair?.flutterSubdir ||
+    mernPair?.frontendSubdir ||
+    (await resolveAppSubdir(buildContext, stack));
+
+  let imageTag = buildImageTag(imageKey, stack);
   const containerName = containerNameFor(projectId);
   const internalPort = blueprint.internalPort;
 
@@ -944,8 +1144,33 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   let apiHostPort = null;
   let previewDockerNetwork = null;
   let mergedCredentialEnv = previewCredentialEnv ? { ...previewCredentialEnv } : {};
+  let phpLoginPath = '/auth/login.php';
 
-  if (mernPair) {
+  if (stack === 'php-apache') {
+    const previewBaseUrl = `${getPublicPreviewBase()}:${hostPort}/`;
+    if (process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
+      const sidecar = await startPreviewMysqlSidecar(projectId);
+      previewDockerNetwork = sidecar.networkName;
+      mergedCredentialEnv = {
+        ...mergedCredentialEnv,
+        DB_HOST: sidecar.mysqlName,
+        DB_NAME: PREVIEW_MYSQL_DATABASE,
+        DB_USER: PREVIEW_MYSQL_USER,
+        DB_PASS: PREVIEW_MYSQL_PASSWORD,
+      };
+    }
+    const patched = await patchPhpForPreview(buildContext, appSubdir, {
+      baseUrl: previewBaseUrl,
+      dbHost: mergedCredentialEnv.DB_HOST || 'host.docker.internal',
+      dbName: mergedCredentialEnv.DB_NAME || PREVIEW_MYSQL_DATABASE,
+      dbUser: mergedCredentialEnv.DB_USER || 'root',
+      dbPass: mergedCredentialEnv.DB_PASS || '',
+    });
+    phpLoginPath = patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));
+  }
+
+  const splitStackPair = flutterPair || mernPair;
+  if (splitStackPair) {
     apiHostPort = await allocateHostPort();
     while (apiHostPort === hostPort) {
       apiHostPort = await allocateHostPort();
@@ -964,12 +1189,16 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       };
     }
 
-    await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
+    if (flutterPair) {
+      await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort);
+    } else {
+      await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
+    }
     const mongoUri =
       mergedCredentialEnv.MONGO_URI ||
       mergedCredentialEnv.MONGODB_URI ||
       buildPreviewMongoUri(projectId);
-    await patchBackendForPreview(buildContext, mernPair.backendSubdir, {
+    await patchBackendForPreview(buildContext, splitStackPair.backendSubdir, {
       mongoUri,
       hostPort,
       jwtSecret: mergedCredentialEnv.JWT_SECRET,
@@ -977,9 +1206,25 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   }
 
   let imageReused = false;
+  let projectMount = null;
   try {
-    const buildMeta = await buildPreviewImage({ imageTag, buildContext, appSubdir, forceRebuild });
-    imageReused = Boolean(buildMeta.reused);
+    if (usesNodeVolumePreview) {
+      const baseMeta = await ensurePreviewNodeBaseImage(flutterPair, {
+        forceRebuild: forceRebuild && process.env.PREVIEW_FORCE_REBUILD_BASE === 'true',
+      });
+      imageTag = baseMeta.imageTag;
+      imageReused = Boolean(baseMeta.reused);
+      projectMount = buildContext;
+    } else {
+      const buildMeta = await buildPreviewImage({
+        imageTag,
+        buildContext,
+        appSubdir,
+        forceRebuild,
+        buildTimeoutMs: flutterPair ? FLUTTER_BUILD_TIMEOUT_MS : BUILD_TIMEOUT_MS,
+      });
+      imageReused = Boolean(buildMeta.reused);
+    }
   } catch (e) {
     const err = new Error(`Docker build failed: ${e.stderr || e.message}`);
     err.status = 500;
@@ -999,7 +1244,9 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       previewCredentialEnv: mergedCredentialEnv,
       apiHostPort,
       mernPair,
+      flutterPair,
       dockerNetwork: previewDockerNetwork,
+      projectMount,
     });
   } catch (e) {
     releaseHostPort(hostPort);
@@ -1018,6 +1265,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     hostPort,
     apiHostPort,
     mernPair,
+    flutterPair,
     internalPort,
     stack,
     containerName,
@@ -1029,6 +1277,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     imageReused,
     detectionReason: detection.reasons.join(', '),
     detectionSignals: detection.signals,
+    phpLoginPath,
   };
 }
 
@@ -1043,7 +1292,7 @@ export async function stopProjectPreview(
   const imageTag = buildImageTag(imageKey, stack);
 
   await removeContainerIfExists(containerName);
-  await stopPreviewMongoSidecar(projectId);
+  await stopPreviewSidecars(projectId);
   if (removeImage) await removeImageIfExists(imageTag);
   if (hostPort) releaseHostPort(hostPort);
   if (apiHostPort) releaseHostPort(apiHostPort);
