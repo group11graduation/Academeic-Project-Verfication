@@ -5,10 +5,11 @@ import LoginPage from '../../features/Auth/pages/LoginPage';
 import LandingPage from '../../features/student/pages/LandingPage';
 import StudentAbout from '../../features/student/pages/StudentAbout';
 import StudentGallery from '../../features/student/pages/StudentGallery';
-import StudentProjectDetail from '../../features/student/pages/StudentProjectDetail';
+import VerifiedProjectDetail from '../../features/student/pages/VerifiedProjectDetail';
 import StudentAssignments from '../../features/student/pages/StudentAssignments';
 import StudentAssignmentDetail from '../../features/student/pages/StudentAssignmentDetail';
 import StudentLayout from '../../features/student/layouts/StudentLayout';
+import StudentProjectsList from '../../features/student/pages/StudentProjectsList';
 import StudentMyProject from '../../features/student/pages/StudentMyProject';
 import StudentMyProjectDetail from '../../features/student/pages/StudentMyProjectDetail';
 import StudentProfile from '../../features/student/pages/StudentProfile';
@@ -28,6 +29,7 @@ import ProjectsOverview from '../../features/teacher/pages/ProjectsOverview';
 import GroupDetailPage from '../../features/teacher/pages/GroupDetailPage';
 import Assignments from '../../features/teacher/pages/Assignments';
 import AssignmentCreate from '../../features/teacher/pages/AssignmentCreate';
+import CollaborativeAssignmentCreate from '../../features/teacher/pages/CollaborativeAssignmentCreate';
 import AssignmentDetail from '../../features/teacher/pages/AssignmentDetail';
 import TeacherAssignmentProposals from '../../features/teacher/pages/TeacherAssignmentProposals';
 import TeacherProposalStudentDetail from '../../features/teacher/pages/TeacherProposalStudentDetail';
@@ -51,14 +53,14 @@ const AppRoutes = () => {
             <Route path="/" element={<LandingPage />} />
             <Route path="/about" element={<StudentAbout />} />
             <Route path="/gallery" element={<StudentGallery />} />
-            <Route path="/gallery/:id" element={<StudentProjectDetail />} />
+            <Route path="/gallery/:id" element={<VerifiedProjectDetail />} />
             <Route path="/assignments" element={<StudentAssignments />} />
             <Route path="/assignments/:id" element={<StudentAssignmentDetail />} />
 
             <Route
                 path="/login"
                 element={
-                    user ? <Navigate to={user.role === 'student' ? '/' : `/${user.role}`} replace /> : <LoginPage />
+                    user ? <Navigate to={user.role === 'student' ? '/student' : `/${user.role}`} replace /> : <LoginPage />
                 }
             />
 
@@ -94,6 +96,7 @@ const AppRoutes = () => {
                 <Route path="groups/:id" element={<GroupDetailPage />} />
                 <Route path="assignments" element={<Assignments />} />
                 <Route path="assignments/new" element={<AssignmentCreate />} />
+                <Route path="assignments/collaborative/new" element={<CollaborativeAssignmentCreate />} />
                 <Route path="assignments/:id/normal-students/:studentUserId" element={<NormalAssignmentStudentDetail />} />
                 <Route path="assignments/:id/normal-students" element={<NormalAssignmentStudents />} />
                 <Route path="assignments/:id/proposals/:proposalId" element={<TeacherProposalStudentDetail />} />
@@ -116,7 +119,7 @@ const AppRoutes = () => {
                 <Route path="assignments/:id" element={<StudentAssignmentDetail />} />
                 <Route path="assignments/:assignmentId/proposal" element={<StudentProposalSubmit />} />
                 <Route path="profile" element={<StudentProfile />} />
-                <Route path="project" element={<StudentMyProjectDetail />} />
+                <Route path="project" element={<StudentProjectsList />} />
                 <Route path="project/:id" element={<StudentMyProjectDetail />} />
                 <Route
                     path="chat"

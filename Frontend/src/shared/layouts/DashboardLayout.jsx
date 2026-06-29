@@ -111,7 +111,7 @@ const DashboardLayout = ({ children }) => {
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e56e3] text-white shadow-sm">
                         <Shield className="h-5 w-5" strokeWidth={2} />
                     </div>
-                    <span className="truncate text-[15px] font-extrabold tracking-tight text-slate-900">ProjectVerify</span>
+                    <span className="truncate text-[15px] font-extrabold tracking-tight text-slate-900">ScholarVerify</span>
                 </button>
                 <NavLink
                     to="/teacher"
@@ -207,7 +207,7 @@ const DashboardLayout = ({ children }) => {
                                     <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.2} />
                                 </div>
                                 <div className="min-w-0">
-                                    <div className="text-[11px] font-extrabold leading-tight tracking-[0.03em] text-slate-900">ProjectVerify</div>
+                                    <div className="text-[11px] font-extrabold leading-tight tracking-[0.03em] text-slate-900">ScholarVerify</div>
                                     <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-slate-500">Faculty console</div>
                                 </div>
                             </button>
@@ -260,41 +260,41 @@ const DashboardLayout = ({ children }) => {
                 </aside>
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f8fafc]" style={{ backgroundColor: CONTENT_BG }}>
-                    <header className="flex h-[68px] shrink-0 items-center justify-between gap-3 bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-4 sm:px-5 lg:px-6">
+                    <header className="flex h-[48px] shrink-0 items-center justify-between gap-2 bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-3 sm:px-4 lg:px-4">
                         <div className="min-w-0">
-                            <div className="text-[14px] font-extrabold leading-tight text-[#1d2f82]">Welcome back</div>
-                            <div className="text-[12px] font-semibold text-[#51628f]">Teacher Dashboard</div>
+                            <div className="text-[12px] font-extrabold leading-tight text-[#1d2f82]">Welcome back</div>
+                            <div className="text-[10px] font-semibold text-[#51628f]">Teacher Dashboard</div>
                         </div>
 
-                        <div className="mx-2 hidden min-w-0 max-w-2xl flex-1 md:block">
+                        <div className="mx-2 hidden min-w-0 max-w-xl flex-1 md:block">
                             <div className="relative">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="text"
                                     placeholder="Search"
-                                    className="w-full rounded-xl border border-[#cfdbfb] bg-white/90 py-2 pl-9 pr-3 text-[12px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:bg-white focus:ring-2 focus:ring-[#2a3fa4]/15"
+                                    className="w-full rounded-lg border border-[#cfdbfb] bg-white/90 py-1.5 pl-8 pr-2.5 text-[11px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:bg-white focus:ring-2 focus:ring-[#2a3fa4]/15"
                                 />
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-1.5 sm:gap-2">
                             <button
                                 type="button"
-                                className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#cfdbfb] bg-white text-[#53638f] transition-colors hover:bg-[#f5f8ff]"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#cfdbfb] bg-white text-[#53638f] transition-colors hover:bg-[#f5f8ff]"
                                 title="Notifications"
                             >
-                                <Bell className="h-[18px] w-[18px]" strokeWidth={2} />
+                                <Bell className="h-4 w-4" strokeWidth={2} />
                             </button>
-                            <div className="flex items-center gap-2 rounded-xl border border-[#cfdbfb] bg-white py-1 pl-1.5 pr-2.5 shadow-sm">
+                            <div className="flex items-center gap-1.5 rounded-lg border border-[#cfdbfb] bg-white py-0.5 pl-1 pr-2 shadow-sm">
                                 <div
-                                    className="flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-extrabold text-white"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-white"
                                     style={{ backgroundColor: TEACHER_BLUE }}
                                 >
                                     {(user?.name || 'T').trim().slice(0, 1).toUpperCase()}
                                 </div>
                                 <div className="hidden leading-tight sm:block">
-                                    <div className="max-w-[120px] truncate text-[12px] font-bold text-slate-800">{user?.name || 'My account'}</div>
-                                    <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                                    <div className="max-w-[100px] truncate text-[11px] font-bold text-slate-800">{user?.name || 'My account'}</div>
+                                    <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500">
                                         {(user?.department || 'Faculty').toUpperCase()}
                                     </div>
                                 </div>
@@ -303,13 +303,13 @@ const DashboardLayout = ({ children }) => {
                         </div>
                     </header>
 
-                    <main className="app-shell-main px-4 py-6 sm:px-6 lg:px-8 lg:py-8" style={{ backgroundColor: CONTENT_BG }}>
-                        <div className="app-shell-page">{children ?? <Outlet />}</div>
+                    <main className="app-shell-main px-3 py-2 sm:px-3 lg:px-4 lg:py-3" style={{ backgroundColor: CONTENT_BG }}>
+                        <div className="app-shell-page app-page">{children ?? <Outlet />}</div>
                     </main>
                 </div>
             </div>
             {showLogoutConfirm && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <button
                         type="button"
                         className="absolute inset-0 bg-[#0f1a3d]/50 backdrop-blur-[2px]"
@@ -320,40 +320,40 @@ const DashboardLayout = ({ children }) => {
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="logout-dialog-title"
-                        className="relative w-full max-w-2xl overflow-hidden rounded-[28px] border border-[#cfdbfb] bg-white shadow-[0_24px_80px_-12px_rgba(29,47,130,0.25)]"
+                        className="relative w-full max-w-md overflow-hidden rounded-xl border border-[#cfdbfb] bg-white shadow-[0_16px_48px_-12px_rgba(29,47,130,0.22)]"
                     >
-                        <div className="border-b border-[#e8eefc] bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-8 py-10 sm:px-10 sm:py-12">
-                            <div className="flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left sm:gap-6">
+                        <div className="border-b border-[#e8eefc] bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-4 py-4 sm:px-5">
+                            <div className="flex items-start gap-3">
                                 <div
-                                    className="mb-5 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg sm:mb-0 sm:h-[72px] sm:w-[72px]"
-                                    style={{ backgroundColor: TEACHER_BLUE, boxShadow: '0 12px 32px -8px rgba(30,86,227,0.45)' }}
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white shadow-md"
+                                    style={{ backgroundColor: TEACHER_BLUE }}
                                 >
-                                    <LogOut className="h-8 w-8" strokeWidth={2.25} />
+                                    <LogOut className="h-5 w-5" strokeWidth={2.25} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-[#51628f]">Session</p>
-                                    <h3 id="logout-dialog-title" className="mt-1 text-2xl font-black tracking-tight text-[#1d2f82] sm:text-3xl">
+                                    <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#51628f]">Session</p>
+                                    <h3 id="logout-dialog-title" className="mt-0.5 text-base font-black tracking-tight text-[#1d2f82]">
                                         Sign out of your account?
                                     </h3>
-                                    <p className="mt-3 max-w-xl text-[15px] font-semibold leading-relaxed text-[#51628f]">
+                                    <p className="mt-1.5 text-[12px] font-medium leading-snug text-[#51628f]">
                                         You will need to sign in again to access the teacher dashboard, assignments, and class tools.
                                     </p>
                                 </div>
                             </div>
                         </div>
-                        <div className="flex flex-col-reverse gap-3 px-8 py-8 sm:flex-row sm:items-center sm:justify-end sm:gap-4 sm:px-10 sm:py-9">
+                        <div className="flex flex-col-reverse gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-5">
                             <button
                                 type="button"
                                 onClick={() => setShowLogoutConfirm(false)}
-                                className="w-full rounded-2xl border-2 border-[#cfdbfb] bg-white px-6 py-3.5 text-[15px] font-extrabold text-[#1d2f82] transition-colors hover:bg-[#f5f8ff] sm:w-auto sm:min-w-[140px]"
+                                className="w-full rounded-lg border border-[#cfdbfb] bg-white px-4 py-2 text-[12px] font-bold text-[#1d2f82] transition-colors hover:bg-[#f5f8ff] sm:w-auto"
                             >
                                 Stay signed in
                             </button>
                             <button
                                 type="button"
                                 onClick={confirmLogout}
-                                className="w-full rounded-2xl px-6 py-3.5 text-[15px] font-extrabold text-white shadow-lg transition-[filter] hover:brightness-110 sm:w-auto sm:min-w-[160px]"
-                                style={{ backgroundColor: TEACHER_BLUE, boxShadow: '0 10px 28px -6px rgba(30,86,227,0.55)' }}
+                                className="w-full rounded-lg px-4 py-2 text-[12px] font-bold text-white shadow-sm transition-[filter] hover:brightness-110 sm:w-auto"
+                                style={{ backgroundColor: TEACHER_BLUE }}
                             >
                                 Sign out
                             </button>

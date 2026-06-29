@@ -58,11 +58,20 @@ const studentService = {
         return response.data;
     },
 
-    /** Multipart ZIP field name: codeArchive */
-    submitProjectCode: async (assignmentId, file) => {
+    /** Multipart: codeArchive (zip), optional projectScreenshot (image) */
+    submitProjectCode: async (assignmentId, file, projectStackHint = '', screenshotFile = null) => {
         const fd = new FormData();
         fd.append('codeArchive', file);
+        if (projectStackHint) fd.append('projectStackHint', projectStackHint);
+        if (screenshotFile) fd.append('projectScreenshot', screenshotFile);
         const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd);
+        return response.data;
+    },
+
+    submitProjectScreenshot: async (assignmentId, screenshotFile) => {
+        const fd = new FormData();
+        fd.append('projectScreenshot', screenshotFile);
+        const response = await api.post(`${base}/assignments/${assignmentId}/project-screenshot`, fd);
         return response.data;
     },
 

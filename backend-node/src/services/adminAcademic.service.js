@@ -233,12 +233,29 @@ export async function assignTeacherToClass(code, body) {
     ? body.subjectIds.map((id) => toObjectId(id)).filter(Boolean)
     : [];
 
+  if (body.subjectIds !== undefined && requestedSubjectIds.length === 0) {
+    const err = new Error('Select at least one subject for this teacher in this class.');
+    err.status = 400;
+    throw err;
+  }
+
+  const classSubjectIds = new Set((cls.subjects || []).map((sid) => String(sid)));
+  const invalidSubjects = requestedSubjectIds.filter((sid) => !classSubjectIds.has(String(sid)));
+  if (invalidSubjects.length) {
+    const err = new Error(
+      'One or more subjects are not linked to this class. Save class subjects first, then assign the teacher.'
+    );
+    err.status = 400;
+    throw err;
+  }
+
   const existingAssignment = (cls.teacherAssignments || []).find(
     (t) => String(t.teacher) === String(profile.user)
   );
   if (!existingAssignment) {
     cls.teacherAssignments.push({ teacher: profile.user, subjects: requestedSubjectIds });
   } else if (body.subjectIds !== undefined) {
+    // Replace with the full checkbox selection (supports 1..N subjects per teacher in this class).
     existingAssignment.subjects = requestedSubjectIds;
   }
   await cls.save();

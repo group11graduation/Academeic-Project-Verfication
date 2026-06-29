@@ -54,38 +54,38 @@ const AdminStudentImport = () => {
     };
 
     return (
-        <div className="min-h-full w-full py-2 font-sans">
+        <div className="w-full font-sans text-[13px]">
             <button
                 type="button"
                 onClick={() => navigate('/admin/students')}
-                className="inline-flex items-center gap-2 text-[14px] font-bold text-slate-600 hover:text-slate-900 mb-6"
+                className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-600 hover:text-slate-900 mb-3"
             >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-3.5 w-3.5" />
                 Back to students
             </button>
 
-            <h1 className="text-[26px] font-extrabold text-slate-900 tracking-tight mb-2">Import students</h1>
-            <p className="text-[15px] text-slate-500 mb-6">
+            <h1 className="text-base font-extrabold text-slate-900 tracking-tight mb-1">Import students</h1>
+            <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
                 Upload CSV/Excel or paste rows below. Header row required. Columns:{' '}
-                <code className="text-[13px] bg-slate-200/80 px-1.5 py-0.5 rounded">
+                <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
                     name, email, studentId, password, classCode, faculty, program, score, gpa
                 </code>
-                . If <code className="text-[13px]">studentId</code> or <code className="text-[13px]">password</code> are omitted,
+                . If <code className="text-[10px]">studentId</code> or <code className="text-[10px]">password</code> are omitted,
                 the system auto-generates them.
             </p>
 
-            <div className="rounded-3xl bg-white shadow ring-1 ring-slate-200/60 p-6 md:p-8 space-y-4">
+            <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/60 p-4 space-y-3">
                 <div>
-                    <label className="block text-[13px] font-bold text-slate-600 mb-2">CSV or Excel file</label>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">CSV or Excel file</label>
                     <input
                         type="file"
                         accept=".csv,.xlsx,.xls,text/csv"
                         onChange={onFile}
-                        className="block w-full text-[14px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700"
+                        className="block w-full text-[12px] text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700"
                     />
                 </div>
                 <div>
-                    <label className="block text-[13px] font-bold text-slate-600 mb-2">Or paste CSV</label>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Or paste CSV</label>
                     <textarea
                         value={text}
                         onChange={(e) => {
@@ -93,22 +93,22 @@ const AdminStudentImport = () => {
                             setResult(null);
                             setError('');
                         }}
-                        rows={12}
+                        rows={10}
                         placeholder={`name,email,studentId,classCode,faculty,score,gpa
 Jane Doe,jane@school.edu,S-1001,CS401,Computer Science,88,3.4`}
-                        className="w-full rounded-2xl border border-slate-200 p-4 text-[14px] font-mono text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/30"
+                        className="w-full rounded-lg border border-slate-200 p-3 text-[12px] font-mono text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/30"
                     />
                 </div>
 
                 {error && (
-                    <div className="flex items-start gap-2 rounded-xl bg-red-50 text-red-800 px-4 py-3 text-[14px] font-semibold">
-                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-2 rounded-lg bg-red-50 text-red-800 px-3 py-2 text-[12px] font-semibold">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                         {error}
                     </div>
                 )}
 
                 {result && (
-                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-[14px] text-emerald-900">
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-[12px] text-emerald-900">
                         <div className="flex items-center gap-2 font-bold mb-2">
                             <CheckCircle2 className="h-5 w-5" />
                             Import finished: {result.created?.length ?? 0} created, {result.failed?.length ?? 0} failed (of{' '}
@@ -162,20 +162,20 @@ Jane Doe,jane@school.edu,S-1001,CS401,Computer Science,88,3.4`}
                     </div>
                 )}
 
-                <div className="flex flex-wrap gap-3 pt-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                     <button
                         type="button"
                         onClick={handleSubmit}
                         disabled={submitting || !text.trim()}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-6 py-3.5 text-[14px] font-bold text-white shadow-md hover:bg-blue-700 disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                     >
-                        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                         {submitting ? 'Importing…' : 'Run import'}
                     </button>
                     <button
                         type="button"
                         onClick={() => navigate('/admin/students')}
-                        className="rounded-2xl border border-slate-200 px-6 py-3.5 text-[14px] font-bold text-slate-700 hover:bg-slate-50"
+                        className="rounded-lg border border-slate-200 px-4 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-50"
                     >
                         Cancel
                     </button>

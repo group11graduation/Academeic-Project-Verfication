@@ -5,13 +5,15 @@ import net from 'net';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { exec, spawn } from 'child_process';
-import AdmZip from 'adm-zip';
+import { safeExtractProjectZip } from './previewZipExtract.service.js';
 import {
   resolveMernPair,
   patchFrontendApiPort,
   patchBackendForPreview,
   previewMongoHostName,
   buildPreviewMongoUri,
+  splitStackDisplayLabel,
+  classifyPackageJson,
 } from './previewMern.service.js';
 import {
   patchPhpForPreview,
@@ -19,6 +21,7 @@ import {
   previewMysqlHostName,
 } from './previewPhp.service.js';
 import { resolveFlutterNodePair, patchFlutterApiPort } from './previewFlutter.service.js';
+import { resolveSpringReactPair, patchSpringForPreview, springReactDisplayLabel } from './previewSpring.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, '../..');
@@ -30,12 +33,18 @@ const BUILD_TIMEOUT_MS = Number(process.env.PREVIEW_BUILD_TIMEOUT_MS || 600_000)
 const FLUTTER_BUILD_TIMEOUT_MS = Number(
   process.env.PREVIEW_FLUTTER_BUILD_TIMEOUT_MS || process.env.PREVIEW_BUILD_TIMEOUT_MS || 900_000
 );
+const SPRING_BUILD_TIMEOUT_MS = Number(
+  process.env.PREVIEW_SPRING_BUILD_TIMEOUT_MS || process.env.PREVIEW_BUILD_TIMEOUT_MS || 900_000
+);
+const PREVIEW_JAVA_BASE_IMAGE = process.env.PREVIEW_JAVA_BASE_IMAGE || 'eclipse-temurin:17-jdk-jammy';
+const PREVIEW_JAVA_PULL_TIMEOUT_MS = Number(process.env.PREVIEW_JAVA_PULL_TIMEOUT_MS || 600_000);
 const PREVIEW_NODE_BASE_IMAGE = process.env.PREVIEW_NODE_BASE_IMAGE || 'scholarverify-preview-node:latest';
 const PREVIEW_NODE_FLUTTER_BASE_IMAGE =
   process.env.PREVIEW_NODE_FLUTTER_BASE_IMAGE || 'scholarverify-preview-node-flutter:latest';
+const PREVIEW_SPRING_REACT_BASE_IMAGE =
+  process.env.PREVIEW_SPRING_REACT_BASE_IMAGE || 'scholarverify-preview-java-spring-react:latest';
+const PREVIEW_JUPYTER_BASE_IMAGE = process.env.PREVIEW_JUPYTER_BASE_IMAGE || 'scholarverify-preview-jupyter:latest';
 const MAX_SCAN_FILES = Number(process.env.PREVIEW_STACK_SCAN_MAX_FILES || 2000);
-const MAX_EXTRACT_FILES = Number(process.env.PREVIEW_MAX_EXTRACT_FILES || 500);
-const MAX_EXTRACT_BYTES = Number(process.env.PREVIEW_MAX_EXTRACT_BYTES || 52_428_800);
 
 /** Host ports reserved by active preview deployments in this API process */
 const allocatedPorts = new Set();
@@ -55,10 +64,25 @@ export const STACK_BLUEPRINTS = {
     internalPort: 3000,
     imagePrefix: 'sv-project-node',
   },
+  'static-html': {
+    templateDir: 'node-js',
+    internalPort: 3000,
+    imagePrefix: 'sv-project-static-html',
+  },
+  'static-html-js': {
+    templateDir: 'node-js',
+    internalPort: 3000,
+    imagePrefix: 'sv-project-static-html-js',
+  },
   jupyter: {
     templateDir: 'jupyter',
     internalPort: 8888,
     imagePrefix: 'sv-project-jupyter',
+  },
+  'java-spring-react': {
+    templateDir: 'java-spring-react',
+    internalPort: 3000,
+    imagePrefix: 'sv-project-spring-react',
   },
 };
 
@@ -175,6 +199,11 @@ function spawnProcess(binary, args, { cwd, timeoutMs = BUILD_TIMEOUT_MS } = {}) 
       timeoutMs > 0
         ? setTimeout(() => {
             child.kill('SIGTERM');
+            const nameIdx = args.indexOf('--name');
+            const containerName = nameIdx >= 0 ? args[nameIdx + 1] : null;
+            if (binary === 'docker' && containerName) {
+              runCommand(`docker rm -f ${containerName}`, { timeoutMs: 15_000 }).catch(() => {});
+            }
             reject(new Error(`Process timed out after ${timeoutMs}ms: ${binary} ${args.join(' ')}`.slice(0, 200)));
           }, timeoutMs)
         : null;
@@ -314,34 +343,7 @@ export function assertSafeProjectPath(projectPath, allowedRoot = null) {
 }
 
 function safeExtractZip(zipAbs, destDir) {
-  const zip = new AdmZip(zipAbs);
-  const entries = zip.getEntries();
-  let totalBytes = 0;
-  let fileCount = 0;
-  const destResolved = path.resolve(destDir);
-
-  for (const entry of entries) {
-    if (entry.isDirectory) continue;
-    fileCount += 1;
-    if (fileCount > MAX_EXTRACT_FILES) {
-      throw new Error(`Archive exceeds file limit (${MAX_EXTRACT_FILES})`);
-    }
-    const raw = entry.entryName.replace(/\\/g, '/');
-    if (raw.startsWith('/') || raw.includes('..')) {
-      throw new Error('Unsafe path in archive');
-    }
-    const target = path.resolve(destDir, raw);
-    if (!target.startsWith(destResolved + path.sep) && target !== destResolved) {
-      throw new Error('Path traversal blocked in archive');
-    }
-    const data = entry.getData();
-    totalBytes += data.length;
-    if (totalBytes > MAX_EXTRACT_BYTES) {
-      throw new Error('Extracted size exceeds configured limit');
-    }
-    fsSync.mkdirSync(path.dirname(target), { recursive: true });
-    fsSync.writeFileSync(target, data);
-  }
+  safeExtractProjectZip(zipAbs, destDir);
 }
 
 /**
@@ -395,12 +397,16 @@ function scoreNodePackageJson(pkg) {
   const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
   let score = 0;
   if (deps.react || deps['react-dom']) score += 20;
+  if (deps.vue || deps['@vue/cli-service'] || deps['@vitejs/plugin-vue']) score += 18;
+  if (deps['@angular/core']) score += 18;
+  if (deps.svelte || deps['@sveltejs/kit']) score += 16;
+  if (deps.next) score += 16;
+  if (deps.nuxt || deps.nuxt3) score += 16;
   if (deps.vite || deps['@vitejs/plugin-react']) score += 18;
   if (deps['react-scripts']) score += 16;
-  if (deps.next) score += 14;
-  if (deps.vue) score += 12;
-  if (deps.express && !deps.react) score -= 15;
-  if (deps.mongoose && !deps.react) score -= 8;
+  if (deps.express && !deps.react && !deps.vue) score -= 15;
+  if (deps.fastify || deps.koa || deps['@nestjs/core']) score -= 6;
+  if (deps.mongoose && !deps.react && !deps.vue) score -= 8;
   const scripts = pkg.scripts || {};
   if (scripts.dev || scripts.start) score += 4;
   if (scripts.build) score += 2;
@@ -415,8 +421,14 @@ async function collectNodePackageDirs(dir, buildContext, found, depth = 0) {
     try {
       const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
       const rel = path.relative(buildContext, dir).replace(/\\/g, '/') || '.';
+      const classified = classifyPackageJson(pkg);
       if (!found.some((f) => f.rel === rel)) {
-        found.push({ rel, score: scoreNodePackageJson(pkg) });
+        found.push({
+          rel,
+          score: scoreNodePackageJson(pkg),
+          role: classified.role,
+          frontendScore: classified.frontendScore,
+        });
       }
     } catch {
       /* ignore invalid json */
@@ -441,12 +453,15 @@ export async function resolveAppSubdir(buildContext, stack) {
     await collectNodePackageDirs(buildContext, buildContext, found);
     if (found.length === 0) return '.';
 
-    found.sort((a, b) => b.score - a.score);
-    const best = found[0];
+    const uiCandidates = found.filter((f) => f.role !== 'backend' || f.frontendScore > 0);
+    const pool = uiCandidates.length ? uiCandidates : found;
+
+    pool.sort((a, b) => b.score - a.score || b.frontendScore - a.frontendScore);
+    const best = pool[0];
 
     const preferred = ['frontend', 'Frontend', 'client', 'Client', 'web', 'app', 'ui', 'public'];
     for (const name of preferred) {
-      const match = found.find((f) => f.rel === name || f.rel.endsWith(`/${name}`));
+      const match = pool.find((f) => f.rel === name || f.rel.endsWith(`/${name}`));
       if (match && match.score >= best.score) return match.rel;
     }
 
@@ -459,10 +474,33 @@ export async function resolveAppSubdir(buildContext, stack) {
     if (best.score > 0) return best.rel;
 
     for (const name of preferred) {
-      const match = found.find((f) => f.rel === name || f.rel.endsWith(`/${name}`));
+      const match = pool.find((f) => f.rel === name || f.rel.endsWith(`/${name}`));
       if (match) return match.rel;
     }
-    return found[0].rel;
+    return pool[0].rel;
+  }
+
+  if (stack === 'static-html' || stack === 'static-html-js') {
+    if (await pathExists(path.join(buildContext, 'index.html'))) return '.';
+    const entries = await fs.readdir(buildContext, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name === '.git') continue;
+      const sub = path.join(buildContext, entry.name);
+      // eslint-disable-next-line no-await-in-loop
+      if (await pathExists(path.join(sub, 'index.html'))) return entry.name;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name === '.git') continue;
+      const sub = path.join(buildContext, entry.name);
+      const nested = await fs.readdir(sub, { withFileTypes: true }).catch(() => []);
+      for (const child of nested) {
+        if (!child.isDirectory()) continue;
+        const rel = path.join(entry.name, child.name).replace(/\\/g, '/');
+        // eslint-disable-next-line no-await-in-loop
+        if (await pathExists(path.join(buildContext, rel, 'index.html'))) return rel;
+      }
+    }
+    return '.';
   }
 
   if (stack === 'php-apache') {
@@ -483,11 +521,147 @@ export async function resolveAppSubdir(buildContext, stack) {
 /**
  * Infer stack from assignment title/description (e.g. "Final React Assignment").
  */
+function usesVolumePreviewStack(stack) {
+  return (
+    stack === 'node-js' ||
+    stack === 'static-html' ||
+    stack === 'static-html-js' ||
+    stack === 'php-apache' ||
+    stack === 'jupyter' ||
+    stack === 'java-spring-react'
+  );
+}
+
+function previewProjectMountPath(stack) {
+  if (stack === 'php-apache') return '/var/www/html';
+  if (stack === 'jupyter') return '/workspace';
+  return '/app';
+}
+
+/** Human-readable label for logs and teacher UI */
+export function previewStackDisplayName(stack, splitPair = null) {
+  if (splitPair?.frontendFramework || splitPair?.backendFramework) {
+    return splitStackDisplayLabel(splitPair);
+  }
+  const map = {
+    'node-js': 'Full-stack JavaScript',
+    'php-apache': 'PHP / Apache',
+    jupyter: 'Jupyter notebook',
+    'static-html': 'HTML + CSS',
+    'static-html-js': 'HTML + CSS + JavaScript',
+    'java-spring-react': 'React + Spring Boot',
+  };
+  return map[stack] || stack || 'Unknown';
+}
+
+async function ensurePreviewPhpBaseImage({ forceRebuild = false } = {}) {
+  const imageTag = PREVIEW_PHP_BASE_IMAGE;
+  if (!forceRebuild && (await dockerImageExists(imageTag))) {
+    return { imageTag, reused: true };
+  }
+  const stageDir = await stagePreviewBaseBuildDir('php-apache');
+  try {
+    await spawnProcess('docker', ['build', '-t', imageTag, '.'], { cwd: stageDir, timeoutMs: BUILD_TIMEOUT_MS });
+  } finally {
+    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
+  }
+  return { imageTag, reused: false };
+}
+
+async function ensurePreviewJavaBaseImage() {
+  try {
+    await spawnProcess('docker', ['image', 'inspect', PREVIEW_JAVA_BASE_IMAGE], { timeoutMs: 20_000 });
+    return { pulled: false };
+  } catch {
+    /* not local — pull below */
+  }
+
+  const maxAttempts = 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await spawnProcess('docker', ['pull', PREVIEW_JAVA_BASE_IMAGE], {
+        timeoutMs: PREVIEW_JAVA_PULL_TIMEOUT_MS,
+      });
+      return { pulled: true };
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 5000 * attempt));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+async function ensurePreviewSpringReactBaseImage({ forceRebuild = false } = {}) {
+  const imageTag = PREVIEW_SPRING_REACT_BASE_IMAGE;
+  if (!forceRebuild && (await dockerImageExists(imageTag))) {
+    return { imageTag, reused: true };
+  }
+  await ensurePreviewJavaBaseImage();
+  const stageDir = await stagePreviewBaseBuildDir('java-spring-react');
+  try {
+    await spawnProcess('docker', ['build', '-t', imageTag, '.'], {
+      cwd: stageDir,
+      timeoutMs: SPRING_BUILD_TIMEOUT_MS,
+    });
+  } finally {
+    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
+  }
+  return { imageTag, reused: false };
+}
+
+async function ensurePreviewJupyterBaseImage({ forceRebuild = false } = {}) {
+  const imageTag = PREVIEW_JUPYTER_BASE_IMAGE;
+  if (!forceRebuild && (await dockerImageExists(imageTag))) {
+    return { imageTag, reused: true };
+  }
+  const stageDir = await stagePreviewBaseBuildDir('jupyter');
+  try {
+    await spawnProcess('docker', ['build', '-t', imageTag, '.'], { cwd: stageDir, timeoutMs: BUILD_TIMEOUT_MS });
+  } finally {
+    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
+  }
+  return { imageTag, reused: false };
+}
+
+/**
+ * Pick the pre-built Docker base image for a detected stack (ZIP mounted at runtime — no per-ZIP build).
+ */
+async function ensurePreviewBaseImage(stack, { flutterPair = null, forceRebuild = false } = {}) {
+  if (stack === 'php-apache') {
+    return ensurePreviewPhpBaseImage({ forceRebuild });
+  }
+  if (stack === 'jupyter') {
+    return ensurePreviewJupyterBaseImage({ forceRebuild });
+  }
+  if (stack === 'java-spring-react') {
+    return ensurePreviewSpringReactBaseImage({ forceRebuild });
+  }
+  if (stack === 'static-html' || stack === 'static-html-js' || stack === 'node-js') {
+    return ensurePreviewNodeBaseImage(flutterPair, { forceRebuild });
+  }
+  const err = new Error(`No preview base image for stack: ${stack}`);
+  err.status = 500;
+  throw err;
+}
+
 export function inferStackHintFromAssignment(assignment) {
   const text = `${assignment?.title || ''} ${assignment?.description || ''}`.toLowerCase();
-  if (/react|node\.?js|vite|mern|next\.?js|vue|angular|frontend|javascript/.test(text)) {
+  if (/html\s*\+\s*css\s*\+\s*js|html.*css.*javascript|static\s+web|vanilla\s+js/.test(text)) {
+    return 'static-html-js';
+  }
+  if (/html\s*\+\s*css|static\s+html|html\s*css\s*only|web\s+design/.test(text)) {
+    return 'static-html';
+  }
+  if (/spring\s*boot|springboot|java\s*\+\s*react|react\s*\+\s*spring/.test(text)) {
+    return 'java-spring-react';
+  }
+  if (/react|node\.?js|vite|mern|next\.?js|vue|angular|frontend/.test(text)) {
     return 'node-js';
   }
+  if (/javascript/.test(text) && !/react|node|vue|angular/.test(text)) return 'static-html-js';
   if (/php|laravel|apache|mysql|xampp/.test(text)) return 'php-apache';
   if (/jupyter|ipython|\.ipynb|python\s+notebook/.test(text)) return 'jupyter';
   return null;
@@ -495,7 +669,6 @@ export function inferStackHintFromAssignment(assignment) {
 
 async function findReactStaticSignals(projectPath) {
   const htmlPaths = [];
-  let hasJsAssets = false;
 
   async function walk(dir, depth = 0) {
     if (depth > 6 || htmlPaths.length > 8) return;
@@ -505,13 +678,6 @@ async function findReactStaticSignals(projectPath) {
       const full = path.join(dir, entry.name);
       const lower = entry.name.toLowerCase();
       if (entry.isDirectory()) {
-        if (['assets', 'static', 'dist', 'build', 'public'].includes(lower)) {
-          // eslint-disable-next-line no-await-in-loop
-          const sub = await fs.readdir(full, { withFileTypes: true });
-          if (sub.some((f) => f.isFile() && /\.(js|mjs|cjs)$/i.test(f.name))) {
-            hasJsAssets = true;
-          }
-        }
         // eslint-disable-next-line no-await-in-loop
         await walk(full, depth + 1);
         continue;
@@ -531,7 +697,12 @@ async function findReactStaticSignals(projectPath) {
       if (/\/assets\/index-[\w-]+\.js/i.test(html) || html.includes('/static/js/')) {
         return { reactStatic: true, reason: 'built JS bundle in index.html' };
       }
-      if (html.includes('react') && (html.includes('type="module"') || html.includes('.js'))) {
+      if (
+        /\bfrom\s+['"]react['"]/i.test(html) ||
+        /\breact-dom\b/i.test(html) ||
+        html.includes('react-scripts') ||
+        html.includes('@vitejs')
+      ) {
         return { reactStatic: true, reason: 'React markers in index.html' };
       }
     } catch {
@@ -539,11 +710,39 @@ async function findReactStaticSignals(projectPath) {
     }
   }
 
-  if (hasJsAssets && htmlPaths.length > 0) {
-    return { reactStatic: true, reason: 'index.html + assets/*.js (frontend build)' };
-  }
-
   return { reactStatic: false, reason: '' };
+}
+
+function isStrongReactStaticSignal(reactStatic) {
+  if (!reactStatic?.reactStatic) return false;
+  const r = reactStatic.reason || '';
+  return (
+    r.includes('#root') ||
+    r.includes('built JS bundle') ||
+    r.includes('/static/js/') ||
+    r.includes('React markers')
+  );
+}
+
+/** Student HTML/CSS sites often have js/ or assets/*.js — not a React build. */
+function detectPlainStaticStack(signals, bestNodePkgScore, reactStatic) {
+  if (!signals.indexHtml && signals.htmlFiles === 0) return null;
+  if (signals.pubspecYaml || signals.composerJson || signals.artisanPhp || signals.indexPhp) return null;
+  if (signals.viteConfig || signals.jsxTsxFiles > 0 || signals.vueSvelteFiles > 0) return null;
+  if (isStrongReactStaticSignal(reactStatic)) return null;
+  if (bestNodePkgScore >= 12) return null;
+
+  const stack = signals.jsFiles > 0 ? 'static-html-js' : 'static-html';
+  const reasons =
+    stack === 'static-html-js'
+      ? [
+          'plain HTML/CSS/JavaScript website',
+          `${signals.htmlFiles || 1} HTML file(s)`,
+          `${signals.cssFiles} CSS file(s)`,
+          `${signals.jsFiles} JavaScript file(s)`,
+        ]
+      : ['plain HTML/CSS website', `${signals.htmlFiles || 1} HTML file(s)`, `${signals.cssFiles} CSS file(s)`];
+  return { stack, reasons };
 }
 
 /**
@@ -562,6 +761,13 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     ipynbFiles: 0,
     indexPhp: false,
     indexHtml: false,
+    htmlFiles: 0,
+    cssFiles: 0,
+    jsFiles: 0,
+    pomXmlCount: 0,
+    gradleBuild: false,
+    springBootJava: false,
+    javaSampled: 0,
   };
   let scanned = 0;
 
@@ -584,6 +790,17 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
 
       scanned += 1;
       if (lower === 'package.json') signals.packageJsonPaths.push(full);
+      if (lower === 'pom.xml') signals.pomXmlCount += 1;
+      if (lower === 'build.gradle' || lower === 'build.gradle.kts') signals.gradleBuild = true;
+      if (lower.endsWith('.java') && signals.javaSampled < 20) {
+        signals.javaSampled += 1;
+        try {
+          const snippet = (await fs.readFile(full, 'utf8')).slice(0, 4000);
+          if (/@SpringBootApplication/.test(snippet)) signals.springBootJava = true;
+        } catch {
+          /* ignore */
+        }
+      }
       if (lower === 'pubspec.yaml') signals.pubspecYaml = true;
       if (lower === 'composer.json') signals.composerJson = true;
       if (lower === 'artisan') signals.artisanPhp = true;
@@ -594,6 +811,9 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
       if (lower.endsWith('.vue') || lower.endsWith('.svelte')) signals.vueSvelteFiles += 1;
       if (lower.endsWith('.ipynb')) signals.ipynbFiles += 1;
       if (lower === 'index.html') signals.indexHtml = true;
+      if (lower.endsWith('.html') || lower.endsWith('.htm')) signals.htmlFiles += 1;
+      if (lower.endsWith('.css')) signals.cssFiles += 1;
+      if (lower.endsWith('.js') && !lower.endsWith('.jsx')) signals.jsFiles += 1;
     }
   }
 
@@ -615,20 +835,20 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   }
 
   let hasNode =
-    nodePkgCount > 0 ||
+    bestNodePkgScore >= 12 ||
     signals.viteConfig ||
     signals.jsxTsxFiles > 0 ||
     signals.vueSvelteFiles > 0 ||
-    reactStatic.reactStatic;
+    isStrongReactStaticSignal(reactStatic);
 
   let hasPhp =
     signals.composerJson ||
     signals.artisanPhp ||
     signals.indexPhp ||
-    (signals.phpFiles >= 2 && nodePkgCount === 0 && !reactStatic.reactStatic) ||
+    (signals.phpFiles >= 2 && bestNodePkgScore < 12 && !isStrongReactStaticSignal(reactStatic)) ||
     (signals.phpFiles >= 1 && !hasNode);
 
-  if (reactStatic.reactStatic && !signals.composerJson && !signals.artisanPhp) {
+  if (isStrongReactStaticSignal(reactStatic) && !signals.composerJson && !signals.artisanPhp) {
     hasNode = true;
     if (signals.phpFiles <= 3 && !signals.indexPhp) {
       hasPhp = false;
@@ -636,20 +856,88 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   }
 
   const hasJupyter = signals.ipynbFiles > 0;
+  const hasSpring = signals.pomXmlCount > 0 || signals.gradleBuild || signals.springBootJava;
 
   const reasons = [];
   let stack = null;
+
+  const hint = options.stackHint || null;
+  const weakNode = bestNodePkgScore < 12;
+  if (hint === 'static-html' && (signals.indexHtml || signals.htmlFiles > 0) && weakNode && !hasPhp) {
+    return {
+      stack: 'static-html',
+      reasons: ['student declared HTML + CSS', `${signals.htmlFiles || 1} HTML file(s)`, `${signals.cssFiles} CSS file(s)`],
+      signals: { packageJsonCount: nodePkgCount, phpFiles: signals.phpFiles, ipynbFiles: signals.ipynbFiles },
+    };
+  }
+  if (
+    hint === 'static-html-js' &&
+    (signals.indexHtml || signals.htmlFiles > 0) &&
+    weakNode &&
+    !hasPhp
+  ) {
+    return {
+      stack: 'static-html-js',
+      reasons: [
+        'student declared HTML + CSS + JavaScript',
+        `${signals.htmlFiles || 1} HTML file(s)`,
+        `${signals.jsFiles} JavaScript file(s)`,
+      ],
+      signals: { packageJsonCount: nodePkgCount, phpFiles: signals.phpFiles, ipynbFiles: signals.ipynbFiles },
+    };
+  }
+
+  const plainStatic = detectPlainStaticStack(signals, bestNodePkgScore, reactStatic);
+  if (plainStatic) {
+    return {
+      stack: plainStatic.stack,
+      reasons: plainStatic.reasons,
+      signals: {
+        packageJsonCount: nodePkgCount,
+        phpFiles: signals.phpFiles,
+        ipynbFiles: signals.ipynbFiles,
+        viteConfig: signals.viteConfig,
+        jsxTsxFiles: signals.jsxTsxFiles,
+      },
+    };
+  }
 
   // Jupyter only when notebooks are the primary artifact
   if (hasJupyter && !hasNode && !hasPhp) {
     stack = 'jupyter';
     reasons.push(`${signals.ipynbFiles} notebook(s)`);
+  } else if (!hasNode && !hasPhp && !hasJupyter && (signals.indexHtml || signals.htmlFiles > 0)) {
+    if (signals.jsFiles > 0) {
+      stack = 'static-html-js';
+      reasons.push('HTML + CSS + JavaScript static site');
+      if (signals.htmlFiles) reasons.push(`${signals.htmlFiles} HTML file(s)`);
+      if (signals.cssFiles) reasons.push(`${signals.cssFiles} CSS file(s)`);
+      reasons.push(`${signals.jsFiles} JavaScript file(s)`);
+    } else {
+      stack = 'static-html';
+      reasons.push('HTML + CSS static site');
+      if (signals.htmlFiles) reasons.push(`${signals.htmlFiles} HTML file(s)`);
+      if (signals.cssFiles) reasons.push(`${signals.cssFiles} CSS file(s)`);
+    }
+  } else if (
+    hasSpring &&
+    (hasNode || signals.jsxTsxFiles > 0 || reactStatic.reactStatic || signals.packageJsonPaths.length > 0)
+  ) {
+    stack = 'java-spring-react';
+    reasons.push('Spring Boot Java backend with React/JavaScript frontend');
+    if (signals.pomXmlCount) reasons.push(`${signals.pomXmlCount} pom.xml`);
+    if (signals.gradleBuild) reasons.push('Gradle build');
+    if (signals.springBootJava) reasons.push('@SpringBootApplication');
+    if (signals.jsxTsxFiles) reasons.push(`${signals.jsxTsxFiles} JSX/TSX file(s)`);
+    if (nodePkgCount) reasons.push(`${nodePkgCount} JavaScript package.json`);
+    if (reactStatic.reactStatic) reasons.push(reactStatic.reason);
   } else if (hasNode && !hasPhp) {
     stack = 'node-js';
     if (nodePkgCount) reasons.push(`${nodePkgCount} package.json`);
     if (signals.pubspecYaml) reasons.push('pubspec.yaml (Flutter + Node)');
     if (signals.viteConfig) reasons.push('vite config');
     if (signals.jsxTsxFiles) reasons.push(`${signals.jsxTsxFiles} JSX/TSX file(s)`);
+    if (signals.vueSvelteFiles) reasons.push(`${signals.vueSvelteFiles} Vue/Svelte file(s)`);
     if (reactStatic.reactStatic) reasons.push(reactStatic.reason);
   } else if (hasPhp && !hasNode) {
     stack = 'php-apache';
@@ -667,7 +955,6 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     }
   }
 
-  const hint = options.stackHint || null;
   if (!stack && hint && STACK_BLUEPRINTS[hint]) {
     stack = hint;
     reasons.push(`assignment hint (${hint}) — no strong file signals`);
@@ -675,7 +962,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
 
   if (!stack) {
     const err = new Error(
-      'Could not detect project stack from files. Include package.json (Node), .php/composer.json (PHP), or .ipynb (Jupyter).'
+      'Could not detect project stack from files. Include index.html + CSS (HTML/CSS), index.html + CSS + .js (HTML/CSS/JS), package.json (Node), .php (PHP), or .ipynb (Jupyter).'
     );
     err.status = 400;
     throw err;
@@ -793,8 +1080,12 @@ async function runPreviewContainer({
   apiHostPort = null,
   mernPair = null,
   flutterPair = null,
+  springPair = null,
   dockerNetwork = null,
   projectMount = null,
+  memoryLimit = process.env.PREVIEW_SANDBOX_MEMORY || '256m',
+  cpuLimit = process.env.PREVIEW_SANDBOX_CPUS || '0.5',
+  initTimeoutMs = Number(process.env.PREVIEW_CONTAINER_INIT_TIMEOUT_MS || 30_000),
 }) {
   const portMapping = `${hostPort}:${internalPort}`;
   const args = [
@@ -804,6 +1095,10 @@ async function runPreviewContainer({
     containerName,
     '-p',
     portMapping,
+    '--memory',
+    memoryLimit,
+    '--cpus',
+    cpuLimit,
     '--label',
     'scholarverify.preview=1',
     '--add-host',
@@ -811,14 +1106,24 @@ async function runPreviewContainer({
   ];
 
   if (projectMount) {
-    args.push('-v', `${dockerVolumePath(projectMount)}:/app`);
+    const mountPath = previewProjectMountPath(stack);
+    args.push('-v', `${dockerVolumePath(projectMount)}:${mountPath}`);
   }
 
   if (dockerNetwork) {
     args.push('--network', dockerNetwork);
   }
 
-  if (apiHostPort) {
+  if (apiHostPort && springPair) {
+    args.push('-p', `${apiHostPort}:8080`);
+    args.push('-e', 'API_PORT=8080');
+    args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
+    args.push('-e', `VITE_API_URL=http://localhost:${apiHostPort}`);
+    args.push('-e', `REACT_APP_API_URL=http://localhost:${apiHostPort}`);
+    args.push('-e', `SPRING_SUBDIR=${springPair.springSubdir}`);
+    args.push('-e', `FRONTEND_SUBDIR=${springPair.frontendSubdir}`);
+    args.push('-e', 'PREVIEW_SPRING_MODE=1');
+  } else if (apiHostPort) {
     args.push('-p', `${apiHostPort}:5000`);
     args.push('-e', 'API_PORT=5000');
     args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
@@ -835,8 +1140,11 @@ async function runPreviewContainer({
     }
   }
 
-  if (stack === 'node-js') {
+  if (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js') {
     args.push('-e', `PORT=${internalPort}`, '-e', `APP_SUBDIR=${appSubdir}`);
+    if (stack === 'static-html' || stack === 'static-html-js') {
+      args.push('-e', `PREVIEW_STATIC_STACK=${stack}`);
+    }
   } else if (stack === 'php-apache') {
     args.push('-e', `APP_SUBDIR=${appSubdir}`);
     const previewBaseUrl = `${getPublicPreviewBase()}:${hostPort}/`;
@@ -861,8 +1169,13 @@ async function runPreviewContainer({
 
   args.push(imageTag);
 
-  const { stdout } = await spawnProcess('docker', args, { timeoutMs: 120_000 });
-  return stdout.split('\n').pop()?.trim() || stdout.trim();
+  try {
+    const { stdout } = await spawnProcess('docker', args, { timeoutMs: initTimeoutMs });
+    return stdout.split('\n').pop()?.trim() || stdout.trim();
+  } catch (e) {
+    await removeContainerIfExists(containerName).catch(() => {});
+    throw e;
+  }
 }
 
 /**
@@ -902,6 +1215,26 @@ export async function ensurePreviewNodeBaseImages() {
   if (!(await dockerAvailable())) return { node: false, flutter: false };
   const node = await ensurePreviewNodeBaseImage(null).then(() => true).catch(() => false);
   return { node, flutter: false };
+}
+
+/** Warm all reusable preview base images once at API startup. */
+export async function warmPreviewBaseImages() {
+  if (process.env.DOCKER_PREVIEW_ENABLED === 'false') return {};
+  if (!(await dockerAvailable())) return {};
+  const results = {};
+  results.node = await ensurePreviewNodeBaseImage(null)
+    .then((r) => r.reused ? 'ready' : 'built')
+    .catch(() => 'failed');
+  results.php = await ensurePreviewPhpBaseImage()
+    .then((r) => (r.reused ? 'ready' : 'built'))
+    .catch(() => 'failed');
+  results.jupyter = await ensurePreviewJupyterBaseImage()
+    .then((r) => (r.reused ? 'ready' : 'built'))
+    .catch(() => 'failed');
+  results.springReact = await ensurePreviewSpringReactBaseImage()
+    .then((r) => (r.reused ? 'ready' : 'built'))
+    .catch(() => 'failed');
+  return results;
 }
 
 export async function ensurePreviewMongoImage() {
@@ -1115,23 +1448,35 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   const stack = detection.stack;
   let mernPair = null;
   let flutterPair = null;
+  let springPair = null;
   if (stack === 'node-js') {
     flutterPair = await resolveFlutterNodePair(buildContext);
     if (!flutterPair) {
       mernPair = await resolveMernPair(buildContext);
     }
   }
-  const usesNodeVolumePreview = stack === 'node-js';
-  let blueprint = STACK_BLUEPRINTS[stack];
-  if (!usesNodeVolumePreview) {
-    blueprint = await materializeDockerTemplate(stack, buildContext, {
-      templateDir: flutterPair ? 'node-js-flutter' : undefined,
-    });
+  if (stack === 'java-spring-react') {
+    springPair = await resolveSpringReactPair(buildContext);
+    if (!springPair) {
+      const err = new Error(
+        'Could not find Spring Boot (pom.xml / mvnw / Gradle) and React (package.json) in separate folders. ' +
+          'ZIP should contain e.g. backend/ with Java and frontend/ with React — not only one package.json.'
+      );
+      err.status = 400;
+      throw err;
+    }
+  }
+  const blueprint = STACK_BLUEPRINTS[stack];
+  if (!blueprint) {
+    const err = new Error(`Unsupported preview stack: ${stack}`);
+    err.status = 400;
+    throw err;
   }
 
   const appSubdir =
     flutterPair?.flutterSubdir ||
     mernPair?.frontendSubdir ||
+    springPair?.frontendSubdir ||
     (await resolveAppSubdir(buildContext, stack));
 
   let imageTag = buildImageTag(imageKey, stack);
@@ -1169,62 +1514,60 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     phpLoginPath = patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));
   }
 
-  const splitStackPair = flutterPair || mernPair;
+  const splitStackPair = flutterPair || mernPair || springPair;
   if (splitStackPair) {
     apiHostPort = await allocateHostPort();
     while (apiHostPort === hostPort) {
       apiHostPort = await allocateHostPort();
     }
 
-    if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
-      const sidecar = await startPreviewMongoSidecar(projectId);
-      previewDockerNetwork = sidecar.networkName;
-      const mongoUri = buildPreviewMongoUri(projectId, { sidecarHost: sidecar.mongoName });
-      mergedCredentialEnv = {
-        ...mergedCredentialEnv,
-        MONGO_URI: mongoUri,
-        MONGODB_URI: mongoUri,
-        DATABASE_URL: mongoUri,
-        PREVIEW_SANDBOX: '1',
-      };
-    }
-
-    if (flutterPair) {
-      await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort);
+    if (springPair) {
+      await patchSpringForPreview(buildContext, springPair.springSubdir, {
+        apiHostPort,
+        uiHostPort: hostPort,
+      });
+      await patchFrontendApiPort(buildContext, springPair.frontendSubdir, apiHostPort);
     } else {
-      await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
+      if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
+        const sidecar = await startPreviewMongoSidecar(projectId);
+        previewDockerNetwork = sidecar.networkName;
+        const mongoUri = buildPreviewMongoUri(projectId, { sidecarHost: sidecar.mongoName });
+        mergedCredentialEnv = {
+          ...mergedCredentialEnv,
+          MONGO_URI: mongoUri,
+          MONGODB_URI: mongoUri,
+          DATABASE_URL: mongoUri,
+          PREVIEW_SANDBOX: '1',
+        };
+      }
+
+      if (flutterPair) {
+        await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort);
+      } else if (mernPair) {
+        await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
+      }
+      const mongoUri =
+        mergedCredentialEnv.MONGO_URI ||
+        mergedCredentialEnv.MONGODB_URI ||
+        buildPreviewMongoUri(projectId);
+      await patchBackendForPreview(buildContext, splitStackPair.backendSubdir, {
+        mongoUri,
+        hostPort,
+        jwtSecret: mergedCredentialEnv.JWT_SECRET,
+      });
     }
-    const mongoUri =
-      mergedCredentialEnv.MONGO_URI ||
-      mergedCredentialEnv.MONGODB_URI ||
-      buildPreviewMongoUri(projectId);
-    await patchBackendForPreview(buildContext, splitStackPair.backendSubdir, {
-      mongoUri,
-      hostPort,
-      jwtSecret: mergedCredentialEnv.JWT_SECRET,
-    });
   }
 
   let imageReused = false;
   let projectMount = null;
   try {
-    if (usesNodeVolumePreview) {
-      const baseMeta = await ensurePreviewNodeBaseImage(flutterPair, {
-        forceRebuild: forceRebuild && process.env.PREVIEW_FORCE_REBUILD_BASE === 'true',
-      });
-      imageTag = baseMeta.imageTag;
-      imageReused = Boolean(baseMeta.reused);
-      projectMount = buildContext;
-    } else {
-      const buildMeta = await buildPreviewImage({
-        imageTag,
-        buildContext,
-        appSubdir,
-        forceRebuild,
-        buildTimeoutMs: flutterPair ? FLUTTER_BUILD_TIMEOUT_MS : BUILD_TIMEOUT_MS,
-      });
-      imageReused = Boolean(buildMeta.reused);
-    }
+    const baseMeta = await ensurePreviewBaseImage(stack, {
+      flutterPair,
+      forceRebuild: forceRebuild && process.env.PREVIEW_FORCE_REBUILD_BASE === 'true',
+    });
+    imageTag = baseMeta.imageTag;
+    imageReused = Boolean(baseMeta.reused);
+    projectMount = buildContext;
   } catch (e) {
     const err = new Error(`Docker build failed: ${e.stderr || e.message}`);
     err.status = 500;
@@ -1245,8 +1588,12 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       apiHostPort,
       mernPair,
       flutterPair,
+      springPair,
       dockerNetwork: previewDockerNetwork,
       projectMount,
+      memoryLimit: springPair
+        ? process.env.PREVIEW_SPRING_SANDBOX_MEMORY || '768m'
+        : process.env.PREVIEW_SANDBOX_MEMORY || '256m',
     });
   } catch (e) {
     releaseHostPort(hostPort);
@@ -1258,6 +1605,9 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
 
   const previewUrl = buildPreviewUrl(hostPort, stack);
   const previewApiUrl = apiHostPort ? buildPreviewUrl(apiHostPort, stack) : '';
+  const stackDisplayName = springPair
+    ? springReactDisplayLabel(springPair)
+    : previewStackDisplayName(stack, mernPair);
 
   return {
     previewUrl,
@@ -1266,8 +1616,10 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     apiHostPort,
     mernPair,
     flutterPair,
+    springPair,
     internalPort,
     stack,
+    stackDisplayName,
     containerName,
     imageTag,
     containerId,
@@ -1275,7 +1627,14 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     appSubdir,
     tempDir,
     imageReused,
-    detectionReason: detection.reasons.join(', '),
+    detectionReason: [
+      ...detection.reasons,
+      mernPair?.detectionNote,
+      springPair?.detectionNote,
+      flutterPair ? 'Flutter + Node split stack' : null,
+    ]
+      .filter(Boolean)
+      .join(', '),
     detectionSignals: detection.signals,
     phpLoginPath,
   };
@@ -1333,6 +1692,95 @@ export async function isPreviewContainerRunning(containerName) {
   }
 }
 
+/** True when HTTP body is the built-in “still installing” holder page (not the student app). */
+export function isPreviewPlaceholderBody(body = '') {
+  const text = String(body);
+  return (
+    /scholarverify-preview-placeholder/i.test(text) ||
+    text.includes('Preview container is running') ||
+    text.includes('<title>Preview starting</title>')
+  );
+}
+
+async function fetchPreviewHttp(url) {
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+    if (res && res.status >= 200 && res.status < 500) {
+      return { ok: true, status: res.status, body: await res.text().catch(() => '') };
+    }
+  } catch {
+    /* try manual redirect */
+  }
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'manual' });
+    if (res && res.status >= 200 && res.status < 400) {
+      return { ok: true, status: res.status, body: '', redirect: true };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { ok: false, status: 0, body: '' };
+}
+
+/**
+ * HTTP probe used by readiness polling and teacher session refresh.
+ * Returns ready only when the student UI responds (not the Docker placeholder page).
+ */
+export async function checkPreviewAppHttpReady({
+  previewUrl,
+  apiPreviewUrl = '',
+  stack = 'node-js',
+} = {}) {
+  if (!previewUrl) return { ready: false, reason: 'no_url' };
+
+  const urlsToTry = [previewUrl];
+  if (stack === 'php-apache') {
+    urlsToTry.push(`${previewUrl.replace(/\/$/, '')}/index.php`);
+  }
+  if (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js') {
+    urlsToTry.push(`${previewUrl.replace(/\/$/, '')}/index.html`);
+  }
+
+  let uiReady = false;
+  for (const url of urlsToTry) {
+    const hit = await fetchPreviewHttp(url);
+    if (!hit.ok) continue;
+    if (hit.redirect) {
+      uiReady = true;
+      break;
+    }
+    if (hit.body.length > 0 && !isPreviewPlaceholderBody(hit.body)) {
+      uiReady = true;
+      break;
+    }
+  }
+
+  if (!uiReady) {
+    return { ready: false, reason: 'placeholder_or_empty' };
+  }
+
+  if (apiPreviewUrl) {
+    const apiTarget = parseHostPortFromPreviewUrl(apiPreviewUrl);
+    const apiCheckHost = apiTarget.host === 'localhost' ? '127.0.0.1' : apiTarget.host;
+    const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
+    if (!apiOpen) {
+      return { ready: false, reason: 'api_port_closed' };
+    }
+    const healthUrl = `${apiPreviewUrl.replace(/\/$/, '')}/api/health`;
+    const healthHit = await fetchPreviewHttp(healthUrl);
+    if (healthHit.ok && healthHit.status < 500) {
+      return { ready: true, reason: 'http_mern' };
+    }
+    const apiHit = await fetchPreviewHttp(apiPreviewUrl);
+    if (apiHit.ok && apiHit.status < 500) {
+      return { ready: true, reason: 'api_http' };
+    }
+    return { ready: false, reason: 'api_not_http' };
+  }
+
+  return { ready: true, reason: 'http' };
+}
+
 /**
  * Poll until the mapped host port accepts traffic and HTTP responds (or TCP open for slow SPAs).
  */
@@ -1344,7 +1792,13 @@ export async function waitForPreviewReady({
   timeoutMs = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 300_000),
 } = {}) {
   const nodeTimeout = Number(process.env.PREVIEW_NODE_STARTUP_TIMEOUT_MS || 600_000);
-  const effectiveTimeout = stack === 'node-js' ? Math.max(timeoutMs, nodeTimeout) : timeoutMs;
+  const springTimeout = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 900_000);
+  const effectiveTimeout =
+    stack === 'java-spring-react'
+      ? Math.max(timeoutMs, springTimeout)
+      : stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js'
+      ? Math.max(timeoutMs, nodeTimeout)
+      : timeoutMs;
   const { host, port } = parseHostPortFromPreviewUrl(previewUrl);
   const checkHost = host === 'localhost' ? '127.0.0.1' : host;
   const apiTarget = apiPreviewUrl ? parseHostPortFromPreviewUrl(apiPreviewUrl) : null;
@@ -1375,76 +1829,22 @@ export async function waitForPreviewReady({
     const uiReady = portOpen && (!apiTarget || sawApiPortOpen);
 
     if (uiReady) {
-      const urlsToTry = [previewUrl];
-      if (stack === 'php-apache') {
-        urlsToTry.push(`${previewUrl.replace(/\/$/, '')}/index.php`);
-      }
-      if (stack === 'node-js') {
-        urlsToTry.push(`${previewUrl.replace(/\/$/, '')}/index.html`);
-      }
-
-      for (const url of urlsToTry) {
-        try {
-          const res = await fetch(url, { method: 'GET', redirect: 'follow' });
-          if (res && res.status >= 200 && res.status < 500) {
-            const body = await res.text().catch(() => '');
-            if (body.length > 0 || stack !== 'node-js') {
-              return { ready: true, reason: apiTarget ? 'http_mern' : 'http' };
-            }
-          }
-        } catch {
-          /* try next */
-        }
-        try {
-          const res = await fetch(url, { method: 'GET', redirect: 'manual' });
-          if (res && res.status >= 200 && res.status < 400) {
-            return { ready: true, reason: apiTarget ? 'http_redirect_mern' : 'http_redirect' };
-          }
-        } catch {
-          /* try next */
-        }
+      const probe = await checkPreviewAppHttpReady({
+        previewUrl,
+        apiPreviewUrl,
+        stack,
+      });
+      if (probe.ready) {
+        return { ready: true, reason: probe.reason };
       }
 
-      if (apiTarget && sawApiPortOpen) {
-        try {
-          const healthUrl = `${apiPreviewUrl.replace(/\/$/, '')}/api/health`;
-          const res = await fetch(healthUrl, { method: 'GET' });
-          if (res && res.status < 500) {
-            return { ready: true, reason: 'api_health' };
-          }
-        } catch {
-          /* fall through */
-        }
-        try {
-          const res = await fetch(apiPreviewUrl, { method: 'GET' });
-          if (res && res.status < 500) {
-            return { ready: true, reason: 'api_http' };
-          }
-        } catch {
-          /* fall through */
-        }
-      }
-
-      if (sawPortOpen && stack !== 'node-js') {
+      if (sawPortOpen && stack !== 'node-js' && stack !== 'static-html' && stack !== 'static-html-js') {
         return { ready: true, reason: 'tcp' };
-      }
-
-      const nodeTcpGraceMs = Number(process.env.PREVIEW_NODE_TCP_GRACE_MS || 90_000);
-      const mernGraceMs = Number(process.env.PREVIEW_MERN_API_GRACE_MS || 180_000);
-      const graceMs = apiTarget ? mernGraceMs : nodeTcpGraceMs;
-      if (uiReady && stack === 'node-js' && Date.now() - started >= graceMs) {
-        if (!apiTarget || sawApiPortOpen) {
-          return { ready: true, reason: apiTarget ? 'mern_tcp_warmup' : 'tcp_warmup' };
-        }
       }
     }
 
     // eslint-disable-next-line no-await-in-loop
     await sleep(Number(process.env.PREVIEW_STARTUP_POLL_MS || 2000));
-  }
-
-  if (sawPortOpen && stack === 'node-js' && (!apiTarget || sawApiPortOpen)) {
-    return { ready: true, reason: apiTarget ? 'mern_tcp_slow' : 'tcp_slow' };
   }
 
   if (apiTarget && !sawApiPortOpen && sawPortOpen) {

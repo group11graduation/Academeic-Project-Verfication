@@ -25,30 +25,31 @@ const ManageClasses = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#F8FAFB] dark:bg-slate-900 transition-colors">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+            <div className="min-h-[40vh] flex flex-col items-center justify-center">
+                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin mb-2" />
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading classes...</p>
             </div>
         );
     }
 
     return (
-        <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors">
+        <div className="font-sans text-[13px] transition-colors">
             {/* Header */}
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-12 gap-4">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 gap-3">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-black text-[#0F172A] dark:text-white mb-1 md:mb-2 tracking-tight transition-colors">My Classes</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm md:text-base font-medium transition-colors">View and manage all your assigned classes for the current semester.</p>
+                    <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">My Classes</h1>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Assigned classes for the current semester.</p>
                 </div>
-                <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-4 py-2 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-                    <span className="text-slate-700 dark:text-slate-300 text-sm font-bold">Spring 2024</span>
-                    <div className="bg-[#EBF3FF] dark:bg-blue-900/30 p-1.5 rounded-full transition-colors">
-                        <CalendarIcon className="h-4 w-4 text-[#1D68E3] dark:text-blue-400" />
+                <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
+                    <span className="text-slate-700 dark:text-slate-300 text-[12px] font-bold">Spring 2024</span>
+                    <div className="bg-[#EBF3FF] dark:bg-blue-900/30 p-1 rounded-full transition-colors">
+                        <CalendarIcon className="h-3.5 w-3.5 text-[#1D68E3] dark:text-blue-400" />
                     </div>
                 </div>
             </header>
 
             {/* Active Classes Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
                 {classes.length > 0 ? (
                     classes.map((cls, index) => (
                         <ClassCard
@@ -62,8 +63,8 @@ const ManageClasses = () => {
                         />
                     ))
                 ) : (
-                    <div className="col-span-full text-center py-12 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-[32px] transition-colors">
-                        <p className="text-slate-500 dark:text-slate-400 font-bold">You have no active classes assigned.</p>
+                    <div className="col-span-full text-center py-8 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl transition-colors">
+                        <p className="text-[12px] text-slate-500 dark:text-slate-400 font-bold">You have no active classes assigned.</p>
                     </div>
                 )}
             </div>

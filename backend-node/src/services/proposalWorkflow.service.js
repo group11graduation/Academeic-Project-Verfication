@@ -13,6 +13,10 @@ import { Class } from '../models/Class.js';
 import { analyzeProposalPayload } from './aiClient.service.js';
 import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
 import { parseStructuredProposalText } from '../utils/proposalFileParser.js';
+import {
+  distinctAssignmentIdsForTeacher,
+  findAssignmentVisibleToTeacher,
+} from './teacherAssignmentAccess.service.js';
 
 const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_CANDIDATES || 40);
 const AI_LEGACY_MAX_CANDIDATES = Number(process.env.AI_LEGACY_MAX_CANDIDATES || 40);
@@ -708,9 +712,15 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
     throw err;
   }
   if (!proposal.assignment.teacher.equals(teacherId)) {
-    const err = new Error('Forbidden');
-    err.status = 403;
-    throw err;
+    const isCoTeacher =
+      proposal.assignment.isCollaborative &&
+      proposal.assignment.coTeacherId &&
+      String(proposal.assignment.coTeacherId) === String(teacherId);
+    if (!isCoTeacher) {
+      const err = new Error('Forbidden');
+      err.status = 403;
+      throw err;
+    }
   }
 
   if (action === 'comment') {
@@ -767,11 +777,11 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
 export async function listProposalsForTeacher(teacherId, assignmentId) {
   let filter;
   if (assignmentId) {
-    const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId });
+    const a = await findAssignmentVisibleToTeacher(teacherId, assignmentId, { isActive: true });
     if (!a) return [];
     filter = { assignment: assignmentId };
   } else {
-    const assignmentIds = await Assignment.find({ teacher: teacherId }).distinct('_id');
+    const assignmentIds = await distinctAssignmentIdsForTeacher(teacherId, { isActive: true });
     filter = { assignment: { $in: assignmentIds } };
   }
   const list = await Proposal.find(filter)

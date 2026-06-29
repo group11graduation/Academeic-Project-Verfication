@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const PREVIEW_STATUSES = ['starting', 'running', 'stopped', 'failed', 'expired'];
+const PREVIEW_STATUSES = ['starting', 'running', 'stopped', 'failed', 'expired', 'runtime_error'];
 
 const logEntrySchema = new mongoose.Schema(
   {
@@ -25,8 +25,10 @@ const previewSessionSchema = new mongoose.Schema(
     previewUrl: { type: String, default: '' },
     previewApiUrl: { type: String, default: '' },
     previewImage: { type: String, default: '' },
-    /** Detected runtime stack: node-js | php-apache | jupyter */
+    /** Detected runtime stack: node-js | php-apache | jupyter | static-html | static-html-js */
     previewStack: { type: String, default: '' },
+    /** Human label e.g. "Vue + Express", "React + Express API" */
+    previewStackLabel: { type: String, default: '' },
     /** Demo admin login for teacher review inside student app */
     previewLoginEmail: { type: String, default: '' },
     previewLoginPassword: { type: String, default: '' },
@@ -48,6 +50,15 @@ const previewSessionSchema = new mongoose.Schema(
     extractDirPath: { type: String, default: '' },
     logs: [logEntrySchema],
     errorMessage: { type: String, default: '' },
+    /** Full docker stderr/stdout tail when status is runtime_error */
+    runtimeTraceback: { type: String, default: '' },
+    validationFailures: [
+      {
+        rule: { type: String, default: '' },
+        message: { type: String, default: '' },
+        path: { type: String, default: '' },
+      },
+    ],
     startedAt: { type: Date },
     endedAt: { type: Date },
   },

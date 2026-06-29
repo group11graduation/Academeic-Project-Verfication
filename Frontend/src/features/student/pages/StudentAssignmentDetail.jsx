@@ -11,7 +11,7 @@ import {
     ChevronRight,
     Printer,
 } from 'lucide-react';
-import { Z_PAGE, Z_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK } from '../../../shared/ui/zendentaLayout';
 
 function DetailRow({ label, value }) {
     return (
@@ -64,7 +64,7 @@ const StudentAssignmentDetail = () => {
 
     if (loading) {
         return (
-            <div className={`${Z_PAGE} flex flex-1 items-center justify-center`}>
+            <div className={`${Z_SHELL} flex flex-1 items-center justify-center`}>
                 <Loader2 className="h-10 w-10 animate-spin text-[#1e56e3]" />
             </div>
         );
@@ -72,8 +72,8 @@ const StudentAssignmentDetail = () => {
 
     if (!row?.assignment) {
         return (
-            <div className={Z_PAGE}>
-                <div className={Z_INNER}>
+            <div className={Z_SHELL}>
+                <div className={Z_SHELL_INNER}>
                     <h2 className="text-lg font-bold text-slate-500">Assignment not found</h2>
                     <button type="button" onClick={() => navigate('/student/assignments')} className={`${Z_LINK} mt-4`}>
                         Back to assignments
@@ -129,8 +129,8 @@ const StudentAssignmentDetail = () => {
     const studentName = user?.name || 'Student';
 
     return (
-        <div className={`${Z_PAGE} flex-1`}>
-            <div className={Z_INNER}>
+        <div className={`${Z_SHELL} flex-1`}>
+            <div className={Z_SHELL_INNER}>
                 <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
                     <Link to="/student/assignments" className={Z_LINK}>
                         Assignments
@@ -167,17 +167,17 @@ const StudentAssignmentDetail = () => {
                     </div>
                 </div>
 
-                <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    <div className={`${Z_CARD} p-5`}>
+                <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    <div className={`${Z_CARD} p-4`}>
                         <div className="flex flex-col items-center text-center">
-                            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-2xl font-bold text-white shadow-md">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-lg font-bold text-white shadow-md">
                                 {displayTitle.charAt(0).toUpperCase()}
                             </div>
-                            <h1 className="mt-4 text-lg font-bold leading-snug text-slate-900">{displayTitle}</h1>
-                            <p className="mt-1 text-sm text-slate-500">{subjectLabel}</p>
-                            <div className="mt-5 grid w-full grid-cols-2 gap-3 border-t border-slate-100 pt-5">
-                                <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                    <p className="text-xl font-bold text-slate-900">
+                            <h2 className="mt-3 text-base font-bold leading-snug text-slate-900">{displayTitle}</h2>
+                            <p className="mt-0.5 text-[12px] text-slate-500">{subjectLabel}</p>
+                            <div className="mt-4 grid w-full grid-cols-2 gap-2 border-t border-slate-100 pt-4">
+                                <div className="rounded-lg bg-slate-50 py-1.5 text-center">
+                                    <p className="text-base font-bold text-slate-900">
                                         {isNormalAssignment
                                             ? row?.latestNormalSubmission
                                                 ? '1'
@@ -188,8 +188,8 @@ const StudentAssignmentDetail = () => {
                                     </p>
                                     <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Your uploads</p>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                    <p className="text-xl font-bold text-slate-900">
+                                <div className="rounded-lg bg-slate-50 py-1.5 text-center">
+                                    <p className="text-base font-bold text-slate-900">
                                         {assignment.projectDeadline || assignment.proposalDeadline
                                             ? new Date(
                                                   assignment.projectDeadline || assignment.proposalDeadline
@@ -200,7 +200,7 @@ const StudentAssignmentDetail = () => {
                                 </div>
                             </div>
                             {!isNormalAssignment ? (
-                                <Link to={`/student/assignments/${assignment._id}/proposal`} className={`${Z_BTN_PRIMARY} mt-5 w-full`}>
+                                <Link to={`/student/assignments/${assignment._id}/proposal`} className={`${Z_BTN_PRIMARY} mt-4 w-full`}>
                                     Open proposal
                                 </Link>
                             ) : (
@@ -210,7 +210,7 @@ const StudentAssignmentDetail = () => {
                                         setTab('workspace');
                                         document.getElementById('normal-upload-anchor')?.scrollIntoView({ behavior: 'smooth' });
                                     }}
-                                    className={`${Z_BTN_PRIMARY} mt-5 w-full`}
+                                    className={`${Z_BTN_PRIMARY} mt-4 w-full`}
                                 >
                                     {row?.latestNormalSubmission ? 'Replace upload' : 'Submit file'}
                                 </button>
@@ -218,9 +218,9 @@ const StudentAssignmentDetail = () => {
                         </div>
                     </div>
 
-                    <div className={`${Z_CARD} p-5`}>
-                        <h2 className="text-sm font-bold text-slate-900">Assignment details</h2>
-                        <p className="mb-4 text-xs text-slate-500">Information from your teacher.</p>
+                    <div className={`${Z_CARD} p-4`}>
+                        <h2 className="text-[12px] font-bold text-slate-900">Assignment details</h2>
+                        <p className="mb-3 text-[11px] text-slate-500">Information from your teacher.</p>
                         <div>
                             <DetailRow label="Teacher" value={teacherName} />
                             <DetailRow label="Subject" value={subjectLabel} />
@@ -231,9 +231,9 @@ const StudentAssignmentDetail = () => {
                         </div>
                     </div>
 
-                    <div className={`${Z_CARD} flex flex-col p-5`}>
+                    <div className={`${Z_CARD} flex flex-col p-4`}>
                         <div className="mb-2 flex items-start justify-between gap-2">
-                            <h2 className="text-sm font-bold text-slate-900">Notes</h2>
+                            <h2 className="text-[12px] font-bold text-slate-900">Notes</h2>
                             <span className="text-xs font-semibold text-[#1e56e3]">{studentName}</span>
                         </div>
                         {row?.proposal?.teacherComment ? (
@@ -262,10 +262,10 @@ const StudentAssignmentDetail = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:gap-4">
                     <div className="lg:col-span-3">
-                        <div className={`${Z_CARD} flex min-h-[380px] flex-col overflow-hidden`}>
-                            <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 pt-2">
+                        <div className={`${Z_CARD} flex min-h-[280px] flex-col overflow-hidden`}>
+                            <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 pt-1.5">
                                 {[
                                     { id: 'workspace', label: isNormalAssignment ? 'Submit work' : 'Workflow' },
                                     { id: 'activity', label: 'Activity' },
@@ -285,7 +285,7 @@ const StudentAssignmentDetail = () => {
                                     </button>
                                 ))}
                             </div>
-                            <div className="min-h-0 flex-1 bg-white p-4 md:p-5">
+                            <div className="min-h-0 flex-1 bg-white p-3 md:p-4">
                                 {tab === 'activity' && (
                                     <div className="relative pl-6">
                                         <div className="absolute bottom-2 left-[11px] top-2 w-0.5 bg-[#1e56e3]/20" />
@@ -355,12 +355,12 @@ const StudentAssignmentDetail = () => {
                                 {tab === 'workspace' && (
                                     <div className="space-y-6">
                                         {isNormalAssignment ? (
-                                            <div id="normal-upload-anchor" className="rounded-xl border border-slate-200 bg-slate-50/80 p-5">
-                                                <div className="mb-2 text-xs font-bold uppercase tracking-widest text-[#1e56e3]">
+                                            <div id="normal-upload-anchor" className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                                                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[#1e56e3]">
                                                     Normal assignment
                                                 </div>
-                                                <h3 className="text-base font-bold text-slate-900">Upload your file</h3>
-                                                <p className="mt-1 text-sm text-slate-600">
+                                                <h3 className="text-sm font-bold text-slate-900">Upload your file</h3>
+                                                <p className="mt-1 text-[12px] text-slate-600">
                                                     Allowed: pdf, docx, txt, md, json, csv, Jupyter (.ipynb), and common code files.
                                                 </p>
                                                 <input
@@ -395,26 +395,26 @@ const StudentAssignmentDetail = () => {
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <Link
                                                     to={`/student/assignments/${assignment._id}/proposal`}
-                                                    className={`${Z_CARD} border-slate-200 p-5 transition hover:border-[#1e56e3]/35 hover:shadow-md`}
+                                                    className={`${Z_CARD} border-slate-200 p-4 transition hover:border-[#1e56e3]/35 hover:shadow-md`}
                                                 >
-                                                    <div className="text-xs font-bold uppercase tracking-widest text-[#1e56e3]">Step 1</div>
-                                                    <h3 className="mt-2 text-base font-bold text-slate-900">Proposal</h3>
-                                                    <p className="mt-1 text-sm text-slate-600">Describe your idea for AI and teacher review.</p>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-[#1e56e3]">Step 1</div>
+                                                    <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
+                                                    <p className="mt-1 text-[12px] text-slate-600">Describe your idea for AI and teacher review.</p>
                                                 </Link>
                                                 {proposalApprovedOrProjectUploaded ? (
                                                     <Link
                                                         to={`/student/project/${assignment._id}`}
-                                                        className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-5 transition hover:border-emerald-300 hover:shadow-md`}
+                                                        className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
                                                     >
-                                                        <div className="text-xs font-bold uppercase tracking-widest text-emerald-700">Step 2</div>
-                                                        <h3 className="mt-2 text-base font-bold text-slate-900">Project ZIP</h3>
-                                                        <p className="mt-1 text-sm text-slate-600">Upload your final project archive.</p>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 2</div>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
+                                                        <p className="mt-1 text-[12px] text-slate-600">Upload your final project archive.</p>
                                                     </Link>
                                                 ) : (
-                                                    <div className={`${Z_CARD} border-dashed border-slate-200 bg-slate-50 p-5 opacity-90`}>
-                                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Step 2 (locked)</div>
-                                                        <h3 className="mt-2 text-base font-bold text-slate-800">Project ZIP</h3>
-                                                        <p className="mt-1 text-sm text-slate-600">Available after teacher approves your proposal.</p>
+                                                    <div className={`${Z_CARD} border-dashed border-slate-200 bg-slate-50 p-4 opacity-90`}>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Step 2 (locked)</div>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-800">Project ZIP</h3>
+                                                        <p className="mt-1 text-[12px] text-slate-600">Available after teacher approves your proposal.</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -444,9 +444,9 @@ const StudentAssignmentDetail = () => {
                     </div>
 
                     <div className="lg:col-span-2">
-                        <div className={`${Z_CARD} p-5`}>
-                            <div className="mb-4 flex items-center justify-between gap-2">
-                                <h2 className="text-sm font-bold text-slate-900">Files / documents</h2>
+                        <div className={`${Z_CARD} p-4`}>
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <h2 className="text-[12px] font-bold text-slate-900">Files / documents</h2>
                             </div>
                             <ul className="space-y-2">
                                 {teacherFileUrl ? (

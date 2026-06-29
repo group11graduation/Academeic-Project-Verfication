@@ -180,6 +180,75 @@ const teacherService = {
         return response.data;
     },
 
+    getAcceptedCollaborators: async () => {
+        const response = await api.get(`${base}/collaborations/accepted`);
+        return response.data;
+    },
+
+    getCollaborations: async () => {
+        const response = await api.get(`${base}/collaborations`);
+        return response.data;
+    },
+
+    getCollaborationCandidates: async () => {
+        const response = await api.get(`${base}/collaborations/teachers`);
+        return response.data;
+    },
+
+    requestCollaboration: async (body) => {
+        const response = await api.post(`${base}/collaborations/request`, body);
+        return response.data;
+    },
+
+    respondToCollaboration: async (collaborationId, action) => {
+        const response = await api.patch(`${base}/collaborations/${encodeURIComponent(collaborationId)}/respond`, {
+            action,
+        });
+        return response.data;
+    },
+
+    createCollaborativeAssignment: async (body) => {
+        const response = await api.post(`${base}/assignments/collaborative`, body);
+        return response.data;
+    },
+
+    listCollaborativeDrafts: async () => {
+        const response = await api.get(`${base}/assignments/collaborative/drafts`);
+        return response.data;
+    },
+
+    getCollaborativeDraft: async (draftId) => {
+        const response = await api.get(`${base}/assignments/collaborative/drafts/${encodeURIComponent(draftId)}`);
+        return response.data;
+    },
+
+    createCollaborativeDraft: async (body) => {
+        const response = await api.post(`${base}/assignments/collaborative/drafts`, body);
+        return response.data;
+    },
+
+    updateCollaborativeDraft: async (draftId, body) => {
+        const response = await api.patch(`${base}/assignments/collaborative/drafts/${encodeURIComponent(draftId)}`, body);
+        return response.data;
+    },
+
+    uploadCollaborativeDraftSectionFile: async (draftId, section, file) => {
+        const fd = new FormData();
+        fd.append('requirementsFile', file);
+        fd.append('section', section);
+        const response = await api.post(
+            `${base}/assignments/collaborative/drafts/${encodeURIComponent(draftId)}/requirements-file`,
+            fd,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        return response.data;
+    },
+
+    publishCollaborativeDraft: async (draftId) => {
+        const response = await api.post(`${base}/assignments/collaborative/drafts/${encodeURIComponent(draftId)}/publish`);
+        return response.data;
+    },
+
     getMyAssignments: async (semesterId) => {
         const response = await api.get(`${base}/assignments`, {
             params: semesterId ? { semesterId } : undefined
@@ -252,9 +321,8 @@ const teacherService = {
     },
 
     startProposalPreview: async (proposalId, options = {}) => {
-        const opts = typeof options === 'string' ? { stack: options } : options || {};
+        const opts = typeof options === 'string' ? {} : options || {};
         const body = {};
-        if (opts.stack && opts.stack !== 'auto') body.stack = opts.stack;
         if (opts.adminEmail) body.adminEmail = opts.adminEmail;
         if (opts.adminPassword) body.adminPassword = opts.adminPassword;
         const response = await api.post(`${base}/proposals/${proposalId}/preview/start`, body);

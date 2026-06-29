@@ -1,8 +1,36 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-const FRONTEND_DIR_NAMES = ['frontend', 'Frontend', 'client', 'Client', 'web', 'ui'];
-const BACKEND_DIR_NAMES = ['backend', 'Backend', 'server', 'api', 'API'];
+const FRONTEND_DIR_HINTS = [
+  'frontend',
+  'Frontend',
+  'client',
+  'Client',
+  'web',
+  'ui',
+  'app',
+  'portal',
+  'dashboard',
+  'webapp',
+  'web-app',
+  'user-interface',
+  'userinterface',
+];
+
+const BACKEND_DIR_HINTS = [
+  'backend',
+  'Backend',
+  'server',
+  'api',
+  'API',
+  'services',
+  'service',
+  'rest',
+  'rest-api',
+  'api-server',
+  'apiserver',
+];
+
 const SOURCE_EXT = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.env', '.env.example', '.env.local']);
 
 const API_URL_PATTERNS = [
@@ -20,29 +48,123 @@ async function pathExists(p) {
   }
 }
 
-async function readPackageScore(pkgPath) {
+function dirNameHintScore(rel, hints) {
+  const base = rel.split('/').pop()?.toLowerCase() || '';
+  const full = rel.toLowerCase();
+  for (const hint of hints) {
+    const h = hint.toLowerCase();
+    if (base === h || full.endsWith(`/${h}`)) return 12;
+    if (base.includes(h) || full.includes(h)) return 6;
+  }
+  return 0;
+}
+
+/**
+ * Classify a package.json as frontend, backend, fullstack, or unknown.
+ * Supports React, Vue, Angular, Svelte, Next, Vite + Express, Fastify, Koa, Nest.
+ */
+export function classifyPackageJson(pkg) {
+  const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+  const scripts = pkg.scripts || {};
+
+  const frontendFlags = {
+    react: Boolean(deps.react || deps['react-dom'] || deps['react-scripts']),
+    vue: Boolean(deps.vue || deps['@vue/cli-service'] || deps['@vitejs/plugin-vue']),
+    angular: Boolean(deps['@angular/core']),
+    svelte: Boolean(deps.svelte || deps['@sveltejs/kit']),
+    next: Boolean(deps.next),
+    nuxt: Boolean(deps.nuxt || deps.nuxt3),
+    vite: Boolean(deps.vite),
+  };
+
+  const backendFlags = {
+    express: Boolean(deps.express),
+    fastify: Boolean(deps.fastify),
+    koa: Boolean(deps.koa),
+    nest: Boolean(deps['@nestjs/core']),
+    hapi: Boolean(deps['@hapi/hapi']),
+  };
+
+  const hasFrontend = Object.values(frontendFlags).some(Boolean);
+  const hasBackend = Object.values(backendFlags).some(Boolean);
+  const hasDb = Boolean(deps.mongoose || deps.mysql || deps.mysql2 || deps.pg || deps.sequelize || deps.prisma);
+
+  let role = 'unknown';
+  if (hasFrontend && hasBackend) role = 'fullstack';
+  else if (hasFrontend) role = 'frontend';
+  else if (hasBackend || hasDb) role = 'backend';
+
+  let frontendFramework = '';
+  if (frontendFlags.next) frontendFramework = 'Next.js';
+  else if (frontendFlags.nuxt) frontendFramework = 'Nuxt';
+  else if (frontendFlags.vue) frontendFramework = 'Vue';
+  else if (frontendFlags.angular) frontendFramework = 'Angular';
+  else if (frontendFlags.svelte) frontendFramework = 'Svelte';
+  else if (frontendFlags.react) frontendFramework = 'React';
+  else if (frontendFlags.vite) frontendFramework = 'Vite';
+
+  let backendFramework = '';
+  if (backendFlags.nest) backendFramework = 'NestJS';
+  else if (backendFlags.express) backendFramework = 'Express';
+  else if (backendFlags.fastify) backendFramework = 'Fastify';
+  else if (backendFlags.koa) backendFramework = 'Koa';
+  else if (backendFlags.hapi) backendFramework = 'Hapi';
+  else if (hasDb && role === 'backend') backendFramework = 'Node API';
+
+  let frontendScore = 0;
+  if (frontendFlags.react) frontendScore += 24;
+  if (frontendFlags.vue) frontendScore += 22;
+  if (frontendFlags.angular) frontendScore += 22;
+  if (frontendFlags.svelte) frontendScore += 20;
+  if (frontendFlags.next) frontendScore += 26;
+  if (frontendFlags.nuxt) frontendScore += 24;
+  if (frontendFlags.vite) frontendScore += 16;
+  if (scripts.dev || scripts.start) frontendScore += 4;
+  if (scripts.build) frontendScore += 3;
+
+  let backendScore = 0;
+  if (backendFlags.express) backendScore += 20;
+  if (backendFlags.fastify) backendScore += 18;
+  if (backendFlags.koa) backendScore += 16;
+  if (backendFlags.nest) backendScore += 22;
+  if (backendFlags.hapi) backendScore += 16;
+  if (hasDb) backendScore += 8;
+  if (scripts.dev || scripts.start) backendScore += 4;
+
+  return {
+    role,
+    frontendFramework,
+    backendFramework,
+    frontendScore,
+    backendScore,
+    hasFrontend,
+    hasBackend,
+    hasExpress: backendFlags.express,
+    hasReact: frontendFlags.react,
+  };
+}
+
+async function readPackageMeta(pkgPath) {
   try {
     const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
-    const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
-    let score = 0;
-    if (deps.react || deps['react-dom']) score += 20;
-    if (deps.vite || deps['@vitejs/plugin-react']) score += 18;
-    if (deps.express && !deps.react) score -= 12;
-    if (deps.mongoose) score -= 4;
-    return { score, hasExpress: Boolean(deps.express), hasReact: Boolean(deps.react || deps['react-dom']) };
+    return classifyPackageJson(pkg);
   } catch {
-    return { score: 0, hasExpress: false, hasReact: false };
+    return classifyPackageJson({});
   }
 }
 
-async function collectPackages(buildContext, dir, found, depth = 0) {
-  if (depth > 5 || found.length > 40) return;
+export async function collectPackages(buildContext, dir, found, depth = 0) {
+  if (depth > 6 || found.length > 50) return;
   const pkgPath = path.join(dir, 'package.json');
   if (await pathExists(pkgPath)) {
     const rel = path.relative(buildContext, dir).replace(/\\/g, '/') || '.';
     if (!found.some((f) => f.rel === rel)) {
-      const meta = await readPackageScore(pkgPath);
-      found.push({ rel, ...meta });
+      const meta = await readPackageMeta(pkgPath);
+      found.push({
+        rel,
+        ...meta,
+        score: meta.frontendScore + meta.backendScore,
+      });
     }
   }
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -53,28 +175,137 @@ async function collectPackages(buildContext, dir, found, depth = 0) {
   }
 }
 
+async function hasStaticWebRoot(absDir) {
+  if (!(await pathExists(absDir))) return false;
+  const checks = ['index.html', 'dist/index.html', 'build/index.html', 'public/index.html'];
+  for (const rel of checks) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await pathExists(path.join(absDir, rel))) return true;
+  }
+  return false;
+}
+
 /**
- * Detect separate frontend + backend folders (typical MERN capstone zip).
+ * Backend-only ZIPs often ship a sibling folder with built/static UI (no package.json).
+ */
+async function findCompanionFrontendDir(buildContext, backendRel) {
+  const backendAbs = path.join(buildContext, backendRel);
+  const parentAbs = path.dirname(backendAbs);
+  const parentRel = path.relative(buildContext, parentAbs).replace(/\\/g, '/') || '.';
+
+  const tryRel = async (rel) => {
+    const abs = path.join(buildContext, rel);
+    if (rel === backendRel) return null;
+    // eslint-disable-next-line no-await-in-loop
+    if (await hasStaticWebRoot(abs)) return rel;
+    return null;
+  };
+
+  for (const hint of FRONTEND_DIR_HINTS) {
+    const rel = parentRel === '.' ? hint : `${parentRel}/${hint}`;
+    // eslint-disable-next-line no-await-in-loop
+    const hit = await tryRel(rel);
+    if (hit) return { rel: hit, staticOnly: true, frontendFramework: 'Static build' };
+  }
+
+  if (parentRel === '.') {
+    const entries = await fs.readdir(buildContext, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name === '.git') continue;
+      const rel = entry.name;
+      if (rel === backendRel) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const hit = await tryRel(rel);
+      if (hit) return { rel: hit, staticOnly: true, frontendFramework: 'Static build' };
+    }
+  }
+
+  return null;
+}
+
+function pickBestFrontend(found) {
+  const candidates = found.filter((f) => f.role === 'frontend' || f.role === 'fullstack');
+  if (!candidates.length) {
+    return found.filter((f) => f.hasFrontend).sort((a, b) => b.frontendScore - a.frontendScore)[0] || null;
+  }
+  return [...candidates].sort((a, b) => {
+    const aScore = a.frontendScore + dirNameHintScore(a.rel, FRONTEND_DIR_HINTS);
+    const bScore = b.frontendScore + dirNameHintScore(b.rel, FRONTEND_DIR_HINTS);
+    return bScore - aScore;
+  })[0];
+}
+
+function pickBestBackend(found, excludeRel = null) {
+  const candidates = found.filter(
+    (f) => (f.role === 'backend' || f.role === 'fullstack') && f.rel !== excludeRel
+  );
+  if (!candidates.length) {
+    return (
+      found
+        .filter((f) => f.hasBackend && !f.hasFrontend && f.rel !== excludeRel)
+        .sort((a, b) => b.backendScore - a.backendScore)[0] || null
+    );
+  }
+  return [...candidates].sort((a, b) => {
+    const aScore = a.backendScore + dirNameHintScore(a.rel, BACKEND_DIR_HINTS);
+    const bScore = b.backendScore + dirNameHintScore(b.rel, BACKEND_DIR_HINTS);
+    return bScore - aScore;
+  })[0];
+}
+
+export function splitStackDisplayLabel(pair) {
+  if (!pair) return '';
+  const fe = pair.frontendFramework || 'Frontend';
+  const be = pair.backendFramework || 'API';
+  if (pair.staticFrontend) return `${fe} + ${be}`;
+  return `${fe} + ${be}`;
+}
+
+/**
+ * Detect separate frontend + backend (any common framework / folder naming).
  */
 export async function resolveMernPair(buildContext) {
   const found = [];
   await collectPackages(buildContext, buildContext, found);
-  if (found.length < 2) return null;
+  if (found.length === 0) return null;
 
-  let frontend = found.find((f) => FRONTEND_DIR_NAMES.some((n) => f.rel === n || f.rel.endsWith(`/${n}`)) && f.hasReact);
-  let backend = found.find(
-    (f) => BACKEND_DIR_NAMES.some((n) => f.rel === n || f.rel.endsWith(`/${n}`)) && f.hasExpress
-  );
+  let frontend = pickBestFrontend(found);
+  let backend = pickBestBackend(found, frontend?.rel);
 
-  if (!frontend) {
-    frontend = [...found].filter((f) => f.hasReact).sort((a, b) => b.score - a.score)[0];
-  }
-  if (!backend) {
-    backend = [...found].filter((f) => f.hasExpress && !f.hasReact).sort((a, b) => a.score - b.score)[0];
+  if (frontend?.role === 'fullstack' && !backend) {
+    return null;
   }
 
-  if (!frontend || !backend || frontend.rel === backend.rel) return null;
-  return { frontendSubdir: frontend.rel, backendSubdir: backend.rel };
+  if (frontend && backend && frontend.rel !== backend.rel) {
+    return {
+      frontendSubdir: frontend.rel,
+      backendSubdir: backend.rel,
+      frontendFramework: frontend.frontendFramework || 'Frontend',
+      backendFramework: backend.backendFramework || 'Node API',
+      staticFrontend: false,
+      detectionNote: `${splitStackDisplayLabel({
+        frontendFramework: frontend.frontendFramework,
+        backendFramework: backend.backendFramework,
+      })} (${frontend.rel} + ${backend.rel})`,
+    };
+  }
+
+  if (found.length === 1 && found[0].role === 'backend') {
+    const only = found[0];
+    const companion = await findCompanionFrontendDir(buildContext, only.rel);
+    if (companion) {
+      return {
+        frontendSubdir: companion.rel,
+        backendSubdir: only.rel,
+        frontendFramework: companion.frontendFramework || 'Static build',
+        backendFramework: only.backendFramework || 'Node API',
+        staticFrontend: true,
+        detectionNote: `${companion.frontendFramework || 'Static UI'} + ${only.backendFramework || 'API'} (${companion.rel} + ${only.rel})`,
+      };
+    }
+  }
+
+  return null;
 }
 
 async function walkReplaceApiUrl(dir, apiHostPort, depth = 0) {
@@ -240,12 +471,15 @@ export async function patchFrontendApiPort(extractDir, frontendSubdir, apiHostPo
     `REACT_APP_API_URL=http://localhost:${apiHostPort}`,
     `VITE_API_BASE_URL=http://localhost:${apiHostPort}`,
     `NEXT_PUBLIC_API_URL=http://localhost:${apiHostPort}`,
+    `NUXT_PUBLIC_API_URL=http://localhost:${apiHostPort}`,
     '',
   ].join('\n');
-  await fs.writeFile(envLocal, envBlock, 'utf8');
+  if (await pathExists(path.join(frontendRoot, 'package.json'))) {
+    await fs.writeFile(envLocal, envBlock, 'utf8');
+  }
 
   const replaced = await walkReplaceApiUrl(frontendRoot, apiHostPort);
-  return { files: replaced.files + 1 };
+  return { files: replaced.files + (await pathExists(path.join(frontendRoot, 'package.json')) ? 1 : 0) };
 }
 
 export function previewMongoHostName(projectId) {

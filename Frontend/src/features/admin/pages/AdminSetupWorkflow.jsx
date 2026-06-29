@@ -87,84 +87,84 @@ const AdminSetupWorkflow = () => {
 
     if (loading) {
         return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+            <div className="admin-page min-h-[40vh] flex items-center justify-center">
+                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="max-w-[1400px] mx-auto">
-            <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6">
-                <h1 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">Setup Workflow Center</h1>
-                <p className="text-slate-600 font-medium">
+        <div className="admin-page font-sans text-[13px]">
+            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+                <h1 className="text-base font-black text-slate-900 mb-1">Setup Workflow Center</h1>
+                <p className="text-[12px] text-slate-600 font-medium">
                     Keep setup in its own pages, and follow this order to avoid confusion.
                 </p>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <p className="text-sm font-bold text-[#1D68E3]">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <p className="text-[11px] font-bold text-[#1D68E3]">
                         Progress: {completedSteps}/{steps.length} setup steps completed
                     </p>
                     <button
                         type="button"
                         onClick={() => loadStats(false)}
                         disabled={refreshing}
-                        className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-black hover:bg-slate-200 disabled:opacity-60"
+                        className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-[10px] font-black hover:bg-slate-200 disabled:opacity-60"
                     >
                         {refreshing ? 'Refreshing...' : 'Refresh data'}
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Semesters</p>
-                    <p className="text-2xl font-black text-slate-900">{semestersCount}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Semesters</p>
+                    <p className="text-lg font-black text-slate-900 leading-tight">{semestersCount}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Subjects</p>
-                    <p className="text-2xl font-black text-slate-900">{subjectsCount}</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Subjects</p>
+                    <p className="text-lg font-black text-slate-900 leading-tight">{subjectsCount}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Classes</p>
-                    <p className="text-2xl font-black text-slate-900">{classesCount}</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Classes</p>
+                    <p className="text-lg font-black text-slate-900 leading-tight">{classesCount}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Teachers</p>
-                    <p className="text-2xl font-black text-slate-900">{teachersCount}</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Teachers</p>
+                    <p className="text-lg font-black text-slate-900 leading-tight">{teachersCount}</p>
                 </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
                 {steps.map((step, index) => {
                     const Icon = step.icon;
                     return (
-                        <div key={step.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-1">
+                        <div key={step.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-start gap-2 min-w-0">
+                                    <div className="mt-0.5 shrink-0">
                                         {step.done ? (
-                                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                                         ) : (
-                                            <Circle className="h-5 w-5 text-slate-400" />
+                                            <Circle className="h-4 w-4 text-slate-400" />
                                         )}
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
                                             Step {index + 1}
                                         </p>
-                                        <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                                            <Icon className="h-4 w-4 text-[#1D68E3]" />
-                                            {step.title}
+                                        <h3 className="text-[13px] font-black text-slate-900 flex items-center gap-1.5">
+                                            <Icon className="h-3.5 w-3.5 text-[#1D68E3] shrink-0" />
+                                            <span className="truncate">{step.title}</span>
                                         </h3>
-                                        <p className="text-sm font-medium text-slate-600 mt-1">{step.description}</p>
+                                        <p className="text-[11px] font-medium text-slate-600 mt-0.5 leading-snug">{step.description}</p>
                                     </div>
                                 </div>
                                 <Link
                                     to={step.to}
-                                    className="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-[#1D68E3] text-white text-sm font-bold hover:bg-blue-700"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1D68E3] text-white text-[11px] font-bold hover:bg-blue-700 shrink-0 whitespace-nowrap"
                                 >
                                     {step.cta}
-                                    <ArrowRight className="h-4 w-4" />
+                                    <ArrowRight className="h-3.5 w-3.5" />
                                 </Link>
                             </div>
                         </div>
@@ -172,24 +172,24 @@ const AdminSetupWorkflow = () => {
                 })}
             </div>
 
-            <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
-                <h2 className="text-lg font-black text-slate-900 mb-4">Role Workflow (Clear Sequence)</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                        <p className="font-black text-[#1D68E3] mb-2">Admin</p>
-                        <p className="font-medium text-slate-700">
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                <h2 className="text-sm font-black text-slate-900 mb-3">Role Workflow (Clear Sequence)</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]">
+                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                        <p className="font-black text-[#1D68E3] mb-1.5 text-[12px]">Admin</p>
+                        <p className="font-medium text-slate-700 leading-relaxed">
                             1) Create semester/year in Semesters page. 2) Create subjects in Subjects page. 3) Create classes and link subjects in Classes page. 4) Assign teacher+subject from Class Detail. 5) Add/import students.
                         </p>
                     </div>
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                        <p className="font-black text-[#1D68E3] mb-2">Teacher</p>
-                        <p className="font-medium text-slate-700">
+                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                        <p className="font-black text-[#1D68E3] mb-1.5 text-[12px]">Teacher</p>
+                        <p className="font-medium text-slate-700 leading-relaxed">
                             1) See assigned classes. 2) Create assignment. 3) Set requirement text + required tech keywords. 4) Review proposals. 5) Approve/reject/revision.
                         </p>
                     </div>
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                        <p className="font-black text-[#1D68E3] mb-2">Student</p>
-                        <p className="font-medium text-slate-700">
+                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                        <p className="font-black text-[#1D68E3] mb-1.5 text-[12px]">Student</p>
+                        <p className="font-medium text-slate-700 leading-relaxed">
                             1) Open assignment. 2) Submit proposal matching required technologies. 3) Revise if rejected. 4) Upload project ZIP after approval.
                         </p>
                     </div>

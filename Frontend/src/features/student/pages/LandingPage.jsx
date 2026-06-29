@@ -1,161 +1,287 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { BookOpen, CheckCircle2, Clock3, FileText, Loader2, MessageSquare, Rocket } from 'lucide-react';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import {
+    ArrowRight,
+    BookOpen,
+    BrainCircuit,
+    Container,
+    GraduationCap,
+    Layers,
+    ShieldCheck,
+    UserCog,
+    Users,
+    Workflow,
+} from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import studentService from '../../../services/studentService';
 import StudentHeader from '../components/StudentHeader';
+import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
+import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 
-const ACCENT = '#2a3fa4';
+const workflowSteps = [
+    { step: '1', title: 'Teacher publishes assignment', detail: 'Final or normal tasks with requirements, deadlines, and optional group mode.' },
+    { step: '2', title: 'Student submits proposal', detail: 'Title, features, and description run through requirement and AI similarity checks.' },
+    { step: '3', title: 'Teacher reviews & approves', detail: 'Feedback, scores, and approval unlock the project submission phase.' },
+    { step: '4', title: 'Project ZIP & live preview', detail: 'Students upload code; teachers preview in Docker with auto stack detection.' },
+];
+
+const systemModules = [
+    {
+        title: 'Student workspace',
+        icon: GraduationCap,
+        points: ['View assignments by subject', 'Submit proposals and project ZIPs', 'Track teacher feedback and deadlines'],
+        link: '/student',
+        linkLabel: 'Open student workspace',
+        roles: ['student'],
+    },
+    {
+        title: 'Teacher workspace',
+        icon: Users,
+        points: ['Manage classes, groups, and assignments', 'Review proposals with AI assistance', 'Run sandbox previews on submissions'],
+        link: '/teacher',
+        linkLabel: 'Open teacher dashboard',
+        roles: ['teacher'],
+    },
+    {
+        title: 'Administration',
+        icon: UserCog,
+        points: ['Classes, subjects, semesters', 'Teacher & student accounts', 'Academic structure setup'],
+        link: '/admin',
+        linkLabel: 'Open admin panel',
+        roles: ['admin'],
+    },
+    {
+        title: 'Integrity engine',
+        icon: BrainCircuit,
+        points: ['Same-semester similarity detection', 'Legacy project cross-check', 'Keyword & technology requirement gates'],
+        link: '/about',
+        linkLabel: 'Read platform guide',
+        roles: ['guest', 'student', 'teacher', 'admin'],
+    },
+    {
+        title: 'Preview sandbox',
+        icon: Container,
+        points: ['React, Spring Boot, MERN, PHP stacks', 'Isolated Docker containers', 'Teacher-only live preview sessions'],
+        link: '/about',
+        linkLabel: 'How previews work',
+        roles: ['guest', 'student', 'teacher', 'admin'],
+    },
+    {
+        title: 'Collaborative teaching',
+        icon: Layers,
+        points: ['Dual-teacher assignments', 'Split frontend/backend requirements', 'Shared assignment on both dashboards'],
+        link: '/about',
+        linkLabel: 'Collaboration workflow',
+        roles: ['guest', 'teacher', 'admin'],
+    },
+];
 
 const LandingPage = () => {
-    const navigate = useNavigate();
     const { user } = useAuth();
-    const [rows, setRows] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const role = user?.role || 'guest';
 
-    useEffect(() => {
-        const load = async () => {
-            try {
-                const res = await studentService.getAssignments();
-                if (res.success) {
-                    const list = Array.isArray(res.data) ? res.data : res.data?.assignments || [];
-                    setRows(list);
-                }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
-    }, []);
+    const workspacePath =
+        role === 'student' ? '/student' : role === 'teacher' ? '/teacher' : role === 'admin' ? '/admin' : '/login';
 
-    const stats = useMemo(() => {
-        const total = rows.length;
-        const proposalApproved = rows.filter((r) => r?.proposal?.status === 'teacher_approved').length;
-        const waitingReview = rows.filter((r) => r?.proposal?.status === 'pending_teacher_approval').length;
-        const projectSubmitted = rows.filter((r) => Boolean(r?.latestProjectSubmission)).length;
-        return { total, proposalApproved, waitingReview, projectSubmitted };
-    }, [rows]);
-
-    const recentRows = useMemo(() => rows.slice(0, 4), [rows]);
-    const canOpenProject = (row) =>
-        Boolean(row?.latestProjectSubmission || row?.proposal?.status === 'teacher_approved');
+    const visibleModules = systemModules.filter((m) => m.roles.includes(role));
 
     return (
-        <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900">
+        <div className="min-h-screen font-sans text-slate-900" style={{ backgroundColor: BRAND.pageBg }}>
             <StudentHeader />
 
-            <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <section className="rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm mb-6">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Student Home</p>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">
-                        Welcome {user?.name ? `, ${user.name}` : ''}
-                    </h1>
-                    <p className="text-sm text-slate-600 font-medium mb-5">
-                        Manage your assignments, check teacher feedback, and continue your proposal/project workflow.
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/student/assignments')}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold"
-                            style={{ backgroundColor: ACCENT }}
+            <main>
+                {/* System hero */}
+                <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12 md:pt-14">
+                    {user && (
+                        <div
+                            className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-blue-200/80 bg-white px-5 py-4 shadow-sm"
                         >
-                            <BookOpen className="h-4 w-4" /> Open Assignments
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate('/student')}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700"
-                        >
-                            <Rocket className="h-4 w-4" /> My Projects
-                        </button>
-                    </div>
-                </section>
-
-                <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    {[
-                        { label: 'Total Assignments', value: stats.total, icon: BookOpen, tone: 'text-slate-700 bg-slate-100' },
-                        { label: 'Proposal Approved', value: stats.proposalApproved, icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-100' },
-                        { label: 'Waiting Review', value: stats.waitingReview, icon: Clock3, tone: 'text-amber-700 bg-amber-100' },
-                        { label: 'Project Submitted', value: stats.projectSubmitted, icon: Rocket, tone: 'text-blue-700 bg-blue-100' },
-                    ].map((s) => (
-                        <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${s.tone}`}>
-                                <s.icon className="h-5 w-5" />
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-widest text-[#2a3fa4] mb-1">
+                                    Signed in as {role}
+                                </p>
+                                <p className="text-sm font-bold text-slate-800">
+                                    Welcome back, {user.name || user.email}. Jump to your workspace or explore the platform below.
+                                </p>
                             </div>
-                            <p className="text-2xl font-black text-slate-900">{s.value}</p>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mt-1">{s.label}</p>
-                        </div>
-                    ))}
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-black text-slate-900">Recent Assignment Activity</h2>
-                        <Link to="/student/assignments" className="text-xs font-black uppercase tracking-widest text-[#2a3fa4]">
-                            View all
-                        </Link>
-                    </div>
-
-                    {loading ? (
-                        <div className="py-10 flex justify-center">
-                            <Loader2 className="h-6 w-6 animate-spin text-[#2a3fa4]" />
-                        </div>
-                    ) : recentRows.length === 0 ? (
-                        <p className="text-sm font-semibold text-slate-500">No assignments found for your account yet.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {recentRows.map((row) => {
-                                const assignment = row?.assignment || {};
-                                return (
-                                    <div key={assignment._id} className="rounded-2xl border border-slate-200 p-4">
-                                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                            <div>
-                                                <p className="text-sm font-black text-slate-900">{assignment.title || 'Assignment'}</p>
-                                                <p className="text-xs font-semibold text-slate-500 mt-1">
-                                                    {row?.proposal?.status === 'teacher_approved' ? 'Proposal Accepted' : 'Continue proposal workflow'}
-                                                </p>
-                                                {row?.proposal?.teacherComment ? (
-                                                    <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
-                                                        <MessageSquare className="h-3.5 w-3.5" />
-                                                        Teacher feedback available
-                                                    </p>
-                                                ) : null}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Link
-                                                    to={`/student/assignments/${assignment._id}`}
-                                                    className="px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700"
-                                                >
-                                                    Details
-                                                </Link>
-                                                {canOpenProject(row) ? (
-                                                    <Link
-                                                        to={`/student/project/${assignment._id}`}
-                                                        className="px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
-                                                    >
-                                                        Project
-                                                    </Link>
-                                                ) : (
-                                                    <Link
-                                                        to={`/student/assignments/${assignment._id}/proposal`}
-                                                        className="px-3.5 py-2 rounded-lg text-white text-xs font-bold"
-                                                        style={{ backgroundColor: ACCENT }}
-                                                    >
-                                                        Proposal
-                                                    </Link>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            <Link
+                                to={workspacePath}
+                                className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black text-white shrink-0"
+                                style={{ backgroundColor: BRAND.primary }}
+                            >
+                                Go to my workspace <ArrowRight className="h-4 w-4" />
+                            </Link>
                         </div>
                     )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
+                        <div className="lg:col-span-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">
+                                ScholarVerify · System overview
+                            </p>
+                            <h1 className="text-3xl md:text-4xl lg:text-[2.75rem] font-black text-slate-900 leading-tight tracking-tight mb-5">
+                                Academic project verification — from proposal to graded submission
+                            </h1>
+                            <p className="text-base md:text-lg text-slate-600 font-medium leading-relaxed max-w-2xl mb-8">
+                                ScholarVerify is your institution&apos;s workflow for capstone and coursework projects: assignments,
+                                AI-assisted integrity checks, teacher review, collaborative dual-teacher tasks, and Docker previews
+                                — all in one place.
+                            </p>
+                            {!user && (
+                                <div className="flex flex-wrap gap-3">
+                                    <Link
+                                        to="/login"
+                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-black"
+                                        style={{ background: BRAND_GRADIENT }}
+                                    >
+                                        Sign in to the platform <ArrowRight className="h-4 w-4" />
+                                    </Link>
+                                    <Link
+                                        to="/about"
+                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Platform guide
+                                    </Link>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+                            {[
+                                { label: 'Proposal → project pipeline', icon: Workflow },
+                                { label: 'AI similarity screening', icon: BrainCircuit },
+                                { label: 'Teacher sandbox previews', icon: Container },
+                                { label: 'Academic integrity focus', icon: ShieldCheck },
+                            ].map(({ label, icon: Icon }) => (
+                                <div
+                                    key={label}
+                                    className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm"
+                                >
+                                    <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#2a3fa4] flex items-center justify-center mb-3">
+                                        <Icon className="h-4 w-4" />
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-700 leading-snug">{label}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* Workflow */}
+                <section className="border-y border-slate-200/80 bg-white">
+                    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Workflow className="h-5 w-5 text-[#2a3fa4]" />
+                            <p className="text-xs font-black uppercase tracking-widest text-[#2a3fa4]">
+                                End-to-end workflow
+                            </p>
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-8">
+                            How a project moves through the system
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {workflowSteps.map((s) => (
+                                <div
+                                    key={s.step}
+                                    className="rounded-2xl border border-slate-200 bg-[#f8faff] p-5 relative"
+                                >
+                                    <span
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-black text-white mb-4"
+                                        style={{ backgroundColor: BRAND.primary }}
+                                    >
+                                        {s.step}
+                                    </span>
+                                    <h3 className="text-sm font-black text-slate-900 mb-2">{s.title}</h3>
+                                    <p className="text-xs font-medium text-slate-600 leading-relaxed">{s.detail}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* System modules */}
+                <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+                    <div className="flex items-center gap-2 mb-2">
+                        <BookOpen className="h-5 w-5 text-[#2a3fa4]" />
+                        <p className="text-xs font-black uppercase tracking-widest text-[#2a3fa4]">
+                            Platform modules
+                        </p>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-8">
+                        What you can do in ScholarVerify
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                        {visibleModules.map((mod) => {
+                            const Icon = mod.icon;
+                            return (
+                                <div
+                                    key={mod.title}
+                                    className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm flex flex-col"
+                                >
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#2a3fa4] flex items-center justify-center">
+                                            <Icon className="h-5 w-5" />
+                                        </div>
+                                        <h3 className="text-base font-black text-slate-900">{mod.title}</h3>
+                                    </div>
+                                    <ul className="space-y-2 mb-5 flex-1">
+                                        {mod.points.map((p) => (
+                                            <li key={p} className="text-sm font-medium text-slate-600 flex gap-2">
+                                                <span className="text-[#2a3fa4] shrink-0">•</span>
+                                                {p}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <Link
+                                        to={user ? mod.link : '/login'}
+                                        className="inline-flex items-center gap-1 text-sm font-black text-[#2a3fa4] hover:underline"
+                                    >
+                                        {mod.linkLabel} <ArrowRight className="h-3.5 w-3.5" />
+                                    </Link>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                {/* Quick links */}
+                <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+                    <div
+                        className="rounded-[1.75rem] overflow-hidden px-6 py-10 md:px-10 md:py-12 text-center"
+                        style={{ background: BRAND_GRADIENT }}
+                    >
+                        <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
+                            Explore the platform
+                        </h2>
+                        <p className="text-blue-100 font-medium mb-8 max-w-xl mx-auto">
+                            Read the full platform guide or browse verified student projects from previous terms.
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-3">
+                            <Link
+                                to="/about"
+                                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-[#2a3fa4] text-sm font-black hover:bg-blue-50"
+                            >
+                                Platform guide
+                            </Link>
+                            <Link
+                                to="/gallery"
+                                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-white/40 text-white text-sm font-black hover:bg-white/10"
+                            >
+                                Verified projects
+                            </Link>
+                            {!user && (
+                                <Link
+                                    to="/login"
+                                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#223688] text-white text-sm font-black hover:opacity-95"
+                                >
+                                    Sign in
+                                </Link>
+                            )}
+                        </div>
+                    </div>
                 </section>
             </main>
+
+            <PublicSiteFooter />
         </div>
     );
 };

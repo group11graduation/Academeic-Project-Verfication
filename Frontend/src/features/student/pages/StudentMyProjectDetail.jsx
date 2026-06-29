@@ -15,6 +15,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../../context/authContext';
 import studentService from '../../../services/studentService';
 import { getApiOrigin } from '../../../lib/api';
+import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY } from '../../../shared/ui/zendentaLayout';
 
 const StudentMyProjectDetail = () => {
     const { user } = useAuth();
@@ -32,9 +33,14 @@ const StudentMyProjectDetail = () => {
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef(null);
     const zipInputRef = useRef(null);
+    const screenshotInputRef = useRef(null);
     const [codeZipBusy, setCodeZipBusy] = useState(false);
     const [codeZipMessage, setCodeZipMessage] = useState('');
     const [selectedZipFile, setSelectedZipFile] = useState(null);
+    const [selectedScreenshotFile, setSelectedScreenshotFile] = useState(null);
+    const [screenshotBusy, setScreenshotBusy] = useState(false);
+    /** '' | static-html | static-html-js */
+    const [projectStackHint, setProjectStackHint] = useState('');
 
     const project = useMemo(() => {
         if (!row?.assignment) return null;
@@ -177,7 +183,12 @@ const StudentMyProjectDetail = () => {
         setCodeZipBusy(true);
         setCodeZipMessage('');
         try {
-            const res = await studentService.submitProjectCode(assignmentId, selectedZipFile);
+            const res = await studentService.submitProjectCode(
+                assignmentId,
+                selectedZipFile,
+                projectStackHint,
+                selectedScreenshotFile
+            );
             if (res.success) {
                 const v = res.data?.version;
                 const updated = res.data?.isUpdate;
@@ -187,6 +198,7 @@ const StudentMyProjectDetail = () => {
                         : `Uploaded: ${res.data?.originalFilename || selectedZipFile.name}. You can replace it until the project deadline.`
                 );
                 setSelectedZipFile(null);
+                setSelectedScreenshotFile(null);
                 const assignRes = await studentService.getAssignment(assignmentId);
                 if (assignRes.success) setRow(assignRes.data);
             } else {
@@ -197,6 +209,33 @@ const StudentMyProjectDetail = () => {
         } finally {
             setCodeZipBusy(false);
             if (zipInputRef.current) zipInputRef.current.value = '';
+            if (screenshotInputRef.current) screenshotInputRef.current.value = '';
+        }
+    };
+
+    const handleScreenshotUpload = async () => {
+        if (!selectedScreenshotFile || !assignmentId) return;
+        if (row?.projectDeadlinePassed) {
+            setCodeZipMessage('Project deadline has passed. You cannot upload or update.');
+            return;
+        }
+        setScreenshotBusy(true);
+        setCodeZipMessage('');
+        try {
+            const res = await studentService.submitProjectScreenshot(assignmentId, selectedScreenshotFile);
+            if (res.success) {
+                setCodeZipMessage('Screenshot saved. Your project can appear in Verified Projects.');
+                setSelectedScreenshotFile(null);
+                const assignRes = await studentService.getAssignment(assignmentId);
+                if (assignRes.success) setRow(assignRes.data);
+            } else {
+                setCodeZipMessage(res.message || 'Screenshot upload failed.');
+            }
+        } catch (e) {
+            setCodeZipMessage(e.response?.data?.message || e.message || 'Screenshot upload failed.');
+        } finally {
+            setScreenshotBusy(false);
+            if (screenshotInputRef.current) screenshotInputRef.current.value = '';
         }
     };
 
@@ -218,59 +257,57 @@ const StudentMyProjectDetail = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#F8FAFB] font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+        <div className={Z_SHELL}>
             {loading ? (
-                <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-                    <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
-                    <p className="font-bold text-slate-400 uppercase tracking-widest text-xs">Loading Project details...</p>
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <Loader2 className="h-8 w-8 text-[#1D68E3] animate-spin" />
+                    <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">Loading project details…</p>
                 </div>
             ) : accessDenied ? (
-                <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-                    <div className="bg-white rounded-2xl border border-slate-200 p-10 shadow-sm">
-                        <ShieldCheck className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                        <h1 className="text-xl font-black text-[#0F172A] mb-3">Project submission locked</h1>
-                        <p className="text-slate-600 font-medium mb-8">{accessDenied}</p>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <div className={`${Z_CARD} p-6 text-center`}>
+                        <ShieldCheck className="h-9 w-9 text-amber-500 mx-auto mb-3" />
+                        <h2 className="text-sm font-bold text-[#0F172A] mb-2">Project submission locked</h2>
+                        <p className="text-[12px] text-slate-600 font-medium mb-4">{accessDenied}</p>
+                        <div className="flex flex-col sm:flex-row gap-2 justify-center">
                             <Link
                                 to="/student"
-                                className="inline-flex justify-center items-center px-6 py-3 rounded-xl bg-slate-100 text-slate-800 font-black text-xs uppercase tracking-widest"
+                                className="inline-flex justify-center items-center px-4 py-2 rounded-xl bg-slate-100 text-slate-800 font-bold text-[11px] uppercase tracking-widest"
                             >
                                 Back to dashboard
                             </Link>
                             {assignmentId ? (
                                 <Link
                                     to={`/student/assignments/${assignmentId}/proposal`}
-                                    className="inline-flex justify-center items-center px-6 py-3 rounded-xl bg-[#1D68E3] text-white font-black text-xs uppercase tracking-widest"
+                                    className={`${Z_BTN_PRIMARY}`}
                                 >
                                     Proposal workspace
                                 </Link>
                             ) : null}
                         </div>
-                    </div>
-                </main>
+                </div>
             ) : !project ? (
-                <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center text-slate-500 font-bold">
+                <div className="py-12 text-center text-[12px] text-slate-500 font-bold">
                     No assignment data loaded.
-                </main>
+                </div>
             ) : (
-                <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div className={Z_SHELL_INNER}>
                 
-                {/* Page Header */}
-                <div className="mb-6">
-                    <div className="flex justify-between items-start">
+                {/* Project meta */}
+                <div className="mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <div className="text-[10px] font-black text-[#1D68E3] uppercase tracking-[0.2em] mb-3">
+                            <div className="text-[10px] font-bold text-[#1D68E3] uppercase tracking-[0.2em] mb-1">
                                 {project.classCode} / {project.type?.toUpperCase()}
                             </div>
-                            <h1 className="text-[48px] font-black text-[#0F172A] leading-[1.05] tracking-tight max-w-[800px]">
+                            <h2 className="text-base font-bold text-[#0F172A] leading-snug tracking-tight max-w-[800px]">
                                 {project.title}
-                            </h1>
+                            </h2>
                         </div>
-                        <div className="flex gap-3 pt-2">
-                            <div className="bg-slate-200 text-slate-600 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest">
+                        <div className="flex gap-2 pt-1">
+                            <div className="bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest">
                                 {project.status}
                             </div>
-                            <div className="bg-slate-200 text-slate-600 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest">
+                            <div className="bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest">
                                 ID: {String(project._id || '').slice(0, 10).toUpperCase()}
                             </div>
                         </div>
@@ -278,60 +315,55 @@ const StudentMyProjectDetail = () => {
                 </div>
 
                 {/* Project Evolution Stepper */}
-                <div className="bg-[#F1F5F9] rounded-2xl p-8 mb-8 relative">
-                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-10">
-                        PROJECT EVOLUTION
+                <div className="bg-[#F1F5F9] rounded-xl p-4 mb-4 relative">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-4">
+                        Project evolution
                     </div>
                     
                     <div className="flex justify-between items-center relative max-w-[1000px] mx-auto">
-                        <div className="absolute left-0 right-0 top-6 h-0.5 bg-slate-300 -z-10"></div>
+                        <div className="absolute left-0 right-0 top-5 h-0.5 bg-slate-300 -z-10"></div>
                         
-                        {/* Node 1 */}
                         <div className="flex flex-col items-center">
-                            <div className="w-12 h-12 bg-[#1D68E3] rounded-full flex items-center justify-center shadow-[0_0_0_4px_#F1F5F9] mb-3">
-                                <Check className="h-5 w-5 text-white" />
+                            <div className="w-9 h-9 bg-[#1D68E3] rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2">
+                                <Check className="h-4 w-4 text-white" />
                             </div>
-                            <div className="text-[10px] font-black text-[#0F172A] uppercase tracking-widest">SUBMITTED</div>
-                            <div className="text-[10px] font-medium text-slate-400">Oct 12, 2024</div>
+                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">Submitted</div>
+                            <div className="text-[9px] font-medium text-slate-400">Oct 12, 2024</div>
                         </div>
 
-                        {/* Node 2 */}
                         <div className="flex flex-col items-center">
-                            <div className="w-12 h-12 bg-[#1D68E3] rounded-full flex items-center justify-center shadow-[0_0_0_4px_#F1F5F9] mb-3 relative group">
-                                <Cpu className="h-5 w-5 text-white" />
+                            <div className="w-9 h-9 bg-[#1D68E3] rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2">
+                                <Cpu className="h-4 w-4 text-white" />
                             </div>
-                            <div className="text-[10px] font-black text-[#0F172A] uppercase tracking-widest">ML ANALYSIS</div>
-                            <div className="text-[10px] font-medium text-slate-400">Oct 14, 2024</div>
+                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">ML analysis</div>
+                            <div className="text-[9px] font-medium text-slate-400">Oct 14, 2024</div>
                         </div>
 
-                        {/* Node 3 (Active) */}
                         <div className="flex flex-col items-center">
-                            <div className="w-12 h-12 bg-[#1D68E3] rounded-xl flex items-center justify-center shadow-[0_0_0_4px_#F1F5F9] mb-3 relative">
-                                <MessageSquare className="h-5 w-5 text-white fill-current" />
+                            <div className="w-9 h-9 bg-[#1D68E3] rounded-lg flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2">
+                                <MessageSquare className="h-4 w-4 text-white fill-current" />
                             </div>
-                            <div className="text-[10px] font-black text-[#1D68E3] uppercase tracking-widest">REVIEW</div>
-                            <div className="text-[11px] font-medium text-[#1D68E3] italic">Ongoing</div>
+                            <div className="text-[9px] font-bold text-[#1D68E3] uppercase tracking-widest">Review</div>
+                            <div className="text-[10px] font-medium text-[#1D68E3] italic">Ongoing</div>
                         </div>
 
-                        {/* Node 4 (Pending) */}
                         <div className="flex flex-col items-center grayscale opacity-50">
-                            <div className="w-12 h-12 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center shadow-[0_0_0_4px_#F1F5F9] mb-3 text-slate-400">
-                                <Check className="h-5 w-5" />
+                            <div className="w-9 h-9 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2 text-slate-400">
+                                <Check className="h-4 w-4" />
                             </div>
-                            <div className="text-[10px] font-black text-[#0F172A] uppercase tracking-widest">DECISION</div>
-                            <div className="text-[10px] font-medium text-slate-400">Pending</div>
+                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">Decision</div>
+                            <div className="text-[9px] font-medium text-slate-400">Pending</div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row gap-8">
-                    {/* Left Column */}
-                    <div className="flex-1 space-y-8">
+                <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex-1 space-y-4">
                         
                         {/* Abstract */}
-                        <div className="bg-white rounded-2xl p-10 border border-slate-100 shadow-sm relative group">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-[28px] font-black text-[#0F172A] tracking-tight">Research Abstract</h2>
+                        <div className={`${Z_CARD} p-4 relative group`}>
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="text-sm font-bold text-[#0F172A] tracking-tight">Research abstract</h3>
                                 <button 
                                     onClick={() => setIsEditingAbstract(!isEditingAbstract)}
                                     className="p-2 text-slate-400 hover:text-[#1D68E3] hover:bg-blue-50 rounded-lg transition-colors"
@@ -342,33 +374,33 @@ const StudentMyProjectDetail = () => {
                             </div>
 
                             {isEditingAbstract ? (
-                                <div className="mb-10">
+                                <div className="mb-4">
                                     <textarea 
                                         value={abstractText}
                                         onChange={(e) => setAbstractText(e.target.value)}
-                                        className="w-full min-h-[200px] p-4 bg-[#F8FAFB] border border-slate-200 rounded-xl text-[15px] font-medium text-slate-600 focus:outline-none focus:border-[#1D68E3] focus:ring-2 focus:ring-blue-100 transition-all resize-y"
+                                        className="w-full min-h-[140px] p-3 bg-[#F8FAFB] border border-slate-200 rounded-xl text-[13px] font-medium text-slate-600 focus:outline-none focus:border-[#1D68E3] focus:ring-2 focus:ring-blue-100 transition-all resize-y"
                                         placeholder="Write your research abstract here..."
                                     />
-                                    <div className="flex justify-end mt-4">
+                                    <div className="flex justify-end mt-2">
                                         <button 
                                             onClick={() => setIsEditingAbstract(false)}
-                                            className="bg-[#1D68E3] text-white px-6 py-2 rounded-lg text-[13px] font-black tracking-wide hover:shadow-lg transition-all"
+                                            className={`${Z_BTN_PRIMARY}`}
                                         >
-                                            Save Abstract
+                                            Save abstract
                                         </button>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="mb-10 space-y-4">
+                                <div className="mb-4 space-y-2">
                                     {abstractText.split('\n\n').map((paragraph, idx) => (
-                                        <p key={idx} className="text-[15px] font-medium text-slate-500 leading-relaxed">
+                                        <p key={idx} className="text-[13px] font-medium text-slate-500 leading-relaxed">
                                             {paragraph}
                                         </p>
                                     ))}
                                 </div>
                             )}
                             
-                            <hr className="border-slate-100 mb-8" />
+                            <hr className="border-slate-100 mb-3" />
                             
                             <div className="flex gap-2 flex-wrap">
                                 {(project.featureTags.length ? project.featureTags : ['Proposal features']).map((tag, ti) => (
@@ -379,13 +411,13 @@ const StudentMyProjectDetail = () => {
                             </div>
                         </div>
 
-                        {/* Project code ZIP — used for teacher Docker preview */}
-                        <div className="bg-white rounded-2xl p-10 border border-emerald-100 shadow-sm">
-                            <div className="flex items-start gap-3 mb-4">
-                                <FileArchive className="h-8 w-8 text-emerald-600 shrink-0" />
+                        {/* Project code ZIP */}
+                        <div className={`${Z_CARD} border-emerald-100 p-4`}>
+                            <div className="flex items-start gap-2 mb-3">
+                                <FileArchive className="h-6 w-6 text-emerald-600 shrink-0" />
                                 <div>
-                                    <h2 className="text-[22px] font-black text-[#0F172A] tracking-tight">Project code (.zip)</h2>
-                                    <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                                    <h3 className="text-sm font-bold text-[#0F172A] tracking-tight">Project code (.zip)</h3>
+                                    <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">
                                         Select your ZIP, then click Upload. You can replace the file until the project deadline (same
                                         submission id, version increments).
                                     </p>
@@ -417,6 +449,31 @@ const StudentMyProjectDetail = () => {
                                 </p>
                             ) : (
                                 <>
+                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 mt-4">
+                                        Project type
+                                    </p>
+                                    <select
+                                        value={projectStackHint}
+                                        onChange={(e) => setProjectStackHint(e.target.value)}
+                                        disabled={codeZipBusy}
+                                        className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800"
+                                    >
+                                        <option value="">General project (auto-detect on preview)</option>
+                                        <option value="static-html">HTML + CSS only</option>
+                                        <option value="static-html-js">HTML + CSS + JavaScript</option>
+                                    </select>
+                                    {projectStackHint === 'static-html' && (
+                                        <p className="mb-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-900">
+                                            ZIP must include <strong>index.html</strong> and <strong>.css</strong> files (no{' '}
+                                            <strong>.js</strong>). Example: index.html, styles.css, about.html
+                                        </p>
+                                    )}
+                                    {projectStackHint === 'static-html-js' && (
+                                        <p className="mb-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-900">
+                                            ZIP must include <strong>index.html</strong>, <strong>.css</strong>, and{' '}
+                                            <strong>.js</strong> files. Example: index.html, style.css, script.js
+                                        </p>
+                                    )}
                                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
                                         Step 1 — Choose ZIP
                                     </p>
@@ -440,7 +497,7 @@ const StudentMyProjectDetail = () => {
                                         type="button"
                                         disabled={codeZipBusy || !selectedZipFile}
                                         onClick={handleProjectZipUpload}
-                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50"
+                                        className={`${Z_BTN_PRIMARY} bg-emerald-600 hover:bg-emerald-700`}
                                     >
                                         {codeZipBusy ? (
                                             <>
@@ -454,6 +511,43 @@ const StudentMyProjectDetail = () => {
                                             </>
                                         )}
                                     </button>
+                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 mt-6">
+                                        Step 3 — Project screenshot (for Verified Projects gallery)
+                                    </p>
+                                    <p className="mb-3 text-xs font-medium text-slate-500">
+                                        Upload a PNG or JPG showing how your app looks (homepage or main screen).
+                                    </p>
+                                    <input
+                                        type="file"
+                                        ref={screenshotInputRef}
+                                        accept="image/png,image/jpeg,image/webp,image/gif"
+                                        disabled={codeZipBusy || screenshotBusy}
+                                        onChange={(e) => setSelectedScreenshotFile(e.target.files?.[0] || null)}
+                                        className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                                    />
+                                    {selectedScreenshotFile ? (
+                                        <p className="mb-3 text-sm font-semibold text-slate-700">
+                                            Selected: {selectedScreenshotFile.name}
+                                        </p>
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        disabled={screenshotBusy || !selectedScreenshotFile || !row?.latestProjectSubmission}
+                                        onClick={handleScreenshotUpload}
+                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[#2a3fa4] text-[#2a3fa4] text-sm font-black uppercase tracking-widest hover:bg-blue-50 disabled:opacity-50"
+                                    >
+                                        {screenshotBusy ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Saving…
+                                            </>
+                                        ) : (
+                                            'Save screenshot only'
+                                        )}
+                                    </button>
+                                    {!row?.latestProjectSubmission ? (
+                                        <p className="mt-2 text-xs text-slate-400">Upload your ZIP first, or attach a screenshot with the ZIP upload above.</p>
+                                    ) : null}
                                 </>
                             )}
                             {codeZipMessage && (
@@ -461,10 +555,10 @@ const StudentMyProjectDetail = () => {
                             )}
                         </div>
 
-                        {/* Asset Repository & Uploader */}
-                        <div className="bg-white rounded-2xl p-10 border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-center mb-8">
-                                <h2 className="text-[28px] font-black text-[#0F172A] tracking-tight">Asset Repository</h2>
+                        {/* Asset Repository */}
+                        <div className={`${Z_CARD} p-4`}>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-sm font-bold text-[#0F172A] tracking-tight">Asset repository</h3>
                                 <button 
                                     onClick={() => fileInputRef.current?.click()}
                                     className="text-[13px] font-black text-[#1D68E3] flex items-center gap-2 hover:underline"
@@ -479,7 +573,7 @@ const StudentMyProjectDetail = () => {
                                 onDragOver={onDragOver}
                                 onDragLeave={onDragLeave}
                                 onDrop={onDrop}
-                                className={`border-2 border-dashed rounded-xl p-8 mb-10 relative overflow-hidden group transition-all cursor-pointer text-center flex flex-col items-center justify-center 
+                                className={`border-2 border-dashed rounded-xl p-4 mb-4 relative overflow-hidden group transition-all cursor-pointer text-center flex flex-col items-center justify-center 
                                     ${isDragging ? 'border-[#1D68E3] bg-blue-50/50' : 'border-slate-200 bg-white hover:border-[#1D68E3] hover:bg-blue-50/50'}`}
                             >
                                 <input 
@@ -541,24 +635,23 @@ const StudentMyProjectDetail = () => {
                     </div>
 
                     {/* Right Column / Sidebar */}
-                    <div className="w-full lg:w-[350px] space-y-6">
+                    <div className="w-full lg:w-[280px] space-y-3">
                         
-                        {/* Group Members */}
-                        <div className="bg-[#F1F5F9] rounded-2xl p-8">
-                            <h3 className="text-[20px] font-black text-[#0F172A] mb-6">Group Members</h3>
+                        <div className="bg-[#F1F5F9] rounded-xl p-4">
+                            <h3 className="text-sm font-bold text-[#0F172A] mb-3">Group members</h3>
                             
-                            <div className="space-y-6">
+                            <div className="space-y-3">
                                 {project.members?.map((member, mIdx) => (
-                                    <div key={String(member._id || mIdx)} className="flex items-center gap-4">
+                                    <div key={String(member._id || mIdx)} className="flex items-center gap-3">
                                         <img 
                                             src={member.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=cbd5e1&color=0f172a`} 
                                             alt={member.name} 
-                                            className="w-12 h-12 rounded-xl object-cover shadow-sm bg-white" 
+                                            className="w-9 h-9 rounded-lg object-cover shadow-sm bg-white" 
                                         />
                                         <div>
-                                            <div className="text-[13px] font-black text-[#0F172A]">{member.name}</div>
-                                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-0.5">
-                                                {mIdx === 0 ? 'PROJECT LEAD' : 'COLABORATOR'}
+                                            <div className="text-[12px] font-bold text-[#0F172A]">{member.name}</div>
+                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                                                {mIdx === 0 ? 'Project lead' : 'Collaborator'}
                                             </div>
                                         </div>
                                     </div>
@@ -566,33 +659,31 @@ const StudentMyProjectDetail = () => {
                             </div>
                         </div>
 
-                        {/* ML Insights */}
-                        <div className="bg-[#1D68E3] rounded-2xl p-8 text-white relative overflow-hidden">
-                            <h3 className="text-[18px] font-black mb-6 relative z-10">ML Insights</h3>
+                        <div className="bg-[#1D68E3] rounded-xl p-4 text-white relative overflow-hidden">
+                            <h3 className="text-sm font-bold mb-3 relative z-10">ML insights</h3>
                             
-                            <div className="space-y-4 mb-6 relative z-10">
+                            <div className="space-y-3 mb-3 relative z-10">
                                 <div className="flex justify-between items-baseline">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-[#93C5FD]">UNIQUENESS</div>
-                                    <div className="text-[24px] font-black">{100 - (project.similarity || 0)}%</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-widest text-[#93C5FD]">Uniqueness</div>
+                                    <div className="text-lg font-bold">{100 - (project.similarity || 0)}%</div>
                                 </div>
-                                <div className="flex justify-between items-baseline pt-2 border-t border-blue-500/50">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-[#93C5FD]">SIMILARITY</div>
-                                    <div className="text-[20px] font-black">{project.similarityLevel || 'Low'}</div>
+                                <div className="flex justify-between items-baseline pt-1.5 border-t border-blue-500/50">
+                                    <div className="text-[10px] font-bold uppercase tracking-widest text-[#93C5FD]">Similarity</div>
+                                    <div className="text-base font-bold">{project.similarityLevel || 'Low'}</div>
                                 </div>
                             </div>
 
-                            <p className="text-[13px] font-medium leading-relaxed text-blue-100 relative z-10">
+                            <p className="text-[12px] font-medium leading-relaxed text-blue-100 relative z-10">
                                 {project.similarity > 50 
                                     ? "Critical: Significant similarity detected. Please review citations." 
                                     : "The analysis confirms good implementation and technical originality."}
                             </p>
                         </div>
 
-                        {/* Project Details Sheet */}
-                        <div className="bg-[#F1F5F9] rounded-2xl p-8">
-                            <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] mb-6">PROJECT DETAILS</h3>
+                        <div className="bg-[#F1F5F9] rounded-xl p-4">
+                            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-3">Project details</h3>
                             
-                            <div className="space-y-4 text-[13px]">
+                            <div className="space-y-2 text-[12px]">
                                 <div className="flex justify-between">
                                     <span className="text-slate-500 font-medium">Class Code</span>
                                     <span className="font-black text-[#0F172A]">{project.classCode}</span>
@@ -610,28 +701,9 @@ const StudentMyProjectDetail = () => {
 
                     </div>
                 </div>
-
-                </main>
+                </div>
             )}
 
-            {/* ScholarVerify Footer */}
-            <footer className="mt-20 py-12 bg-[#1B2533] text-white text-center flex flex-col md:flex-row items-center justify-between px-10 max-w-[1536px] mx-auto w-full">
-                <div className="font-black text-white mb-6 md:mb-0 text-xl tracking-tighter">
-                    ScholarVerify
-                </div>
-                
-                <div className="flex gap-8 mb-6 md:mb-0">
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Privacy Policy</a>
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Terms of Service</a>
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Institutional Access</a>
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Support</a>
-                </div>
-
-                <div className="flex items-center gap-6 text-[11px] font-medium text-slate-400">
-                    <div>&copy; 2024 ScholarVerify Academic Systems. All research rights reserved.</div>
-                    <a href="#" className="text-[#1D68E3] hover:text-blue-300 transition-colors">English</a>
-                </div>
-            </footer>
         </div>
     );
 };

@@ -6,9 +6,15 @@ import { Class } from '../models/Class.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Semester } from '../models/Semester.js';
 import { Proposal } from '../models/Proposal.js';
-import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import {
+  distinctAssignmentIdsForTeacher,
+  findAssignmentVisibleToTeacher,
+  resolveCollaborationRole,
+  teacherAssignmentVisibilityFilter,
+  teacherCanManageAssignment,
+} from './teacherAssignmentAccess.service.js';
 
-function normalizeAssignmentClasses(assignment) {
+function normalizeAssignmentClasses(assignment, viewerTeacherId = null) {
   const rawClasses = Array.isArray(assignment?.classes) && assignment.classes.length
     ? assignment.classes
     : assignment?.class
@@ -23,10 +29,13 @@ function normalizeAssignmentClasses(assignment) {
     assignedClasses: classes.map((c) => c?.code || c?.name).filter(Boolean),
     classAssignmentMode: assignment?.classAssignmentMode || (classes.length > 1 ? 'multiple' : 'single'),
     assignmentType: assignment?.assignmentType || 'normal',
+    isCollaborative: Boolean(assignment?.isCollaborative),
+    collaborationRole: viewerTeacherId ? resolveCollaborationRole(viewerTeacherId, assignment) : null,
+    primaryTeacherId: assignment?.teacher?._id || assignment?.teacher || null,
   };
 }
 
-function parseObjectIdList(value) {
+export function parseObjectIdList(value) {
   if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
   if (typeof value === 'string') {
     return value.split(',').map((x) => x.trim()).filter(Boolean);
@@ -38,7 +47,7 @@ function parseObjectIdList(value) {
  * For assignments spanning multiple classes, all classes must share the same
  * semester and academic year so AI same-/cross-semester checks stay consistent.
  */
-function assertClassSemesterAlignment(classDocs) {
+export function assertClassSemesterAlignment(classDocs) {
   if (!classDocs || classDocs.length <= 1) return;
   const sems = classDocs.map((c) => c.semester).filter(Boolean);
   const ays = classDocs.map((c) => c.academicYear).filter(Boolean);
@@ -85,7 +94,7 @@ function resolveCatalogSubjects(classDoc, teacherAssignment) {
   return [...merged.values()];
 }
 
-function teacherCanUseSubject(classDoc, teacherAssignment, subjectId) {
+export function teacherCanUseSubject(classDoc, teacherAssignment, subjectId) {
   const sid = String(subjectId);
   const classIds = new Set((classDoc?.subjects || []).map((s) => String(s?._id || s)));
   const teacherIds = new Set((teacherAssignment?.subjects || []).map((s) => String(s?._id || s)));
@@ -181,7 +190,7 @@ export async function getClassDetailsForTeacher(teacherId, classCodeOrId) {
 }
 
 export async function listAssignmentsForTeacher(teacherId, { semesterId: semesterFilter } = {}) {
-  const q = { teacher: teacherId, isActive: true };
+  const q = teacherAssignmentVisibilityFilter(teacherId, { isActive: true });
   if (semesterFilter && mongoose.Types.ObjectId.isValid(String(semesterFilter))) {
     q.semester = new mongoose.Types.ObjectId(String(semesterFilter));
   }
@@ -191,20 +200,24 @@ export async function listAssignmentsForTeacher(teacherId, { semesterId: semeste
     .populate('subject', 'code name')
     .populate('semester', 'name')
     .populate('academicYear', 'label')
+    .populate('teacher', 'name email')
+    .populate('coTeacherId', 'name email')
     .sort({ createdAt: -1 })
     .lean();
-  return rows.map(normalizeAssignmentClasses);
+  return rows.map((row) => normalizeAssignmentClasses(row, teacherId));
 }
 
 export async function getAssignmentForTeacher(teacherId, assignmentId) {
-  const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId })
+  const a = await Assignment.findOne(teacherAssignmentVisibilityFilter(teacherId, { _id: assignmentId }))
     .populate('class')
     .populate('classes')
     .populate('subject')
     .populate('semester')
     .populate('academicYear')
+    .populate('teacher', 'name email')
+    .populate('coTeacherId', 'name email')
     .lean();
-  return a ? normalizeAssignmentClasses(a) : null;
+  return a ? normalizeAssignmentClasses(a, teacherId) : null;
 }
 
 export async function getTeacherCatalog(teacherId) {
@@ -365,9 +378,9 @@ export async function createAssignment(teacherId, payload) {
 }
 
 export async function updateAssignment(teacherId, assignmentId, payload) {
-  const assignment = await Assignment.findOne({ _id: assignmentId, teacher: teacherId });
+  const assignment = await Assignment.findOne({ _id: assignmentId, teacher: teacherId, isActive: true });
   if (!assignment) {
-    const err = new Error('Assignment not found');
+    const err = new Error('Assignment not found or you are not the primary teacher');
     err.status = 404;
     throw err;
   }
@@ -475,9 +488,9 @@ export async function attachRequirementsFile(teacherId, assignmentId, file) {
     err.status = 400;
     throw err;
   }
-  const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId });
-  if (!a) {
-    const err = new Error('Assignment not found');
+  const a = await findAssignmentVisibleToTeacher(teacherId, assignmentId, { isActive: true });
+  if (!a || !teacherCanManageAssignment(teacherId, a)) {
+    const err = new Error('Assignment not found or you are not the primary teacher');
     err.status = 404;
     throw err;
   }
@@ -488,7 +501,7 @@ export async function attachRequirementsFile(teacherId, assignmentId, file) {
 }
 
 export async function createGroupForAssignment(teacherId, assignmentId, { name, leaderUserId, memberUserIds }) {
-  const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId });
+  const a = await findAssignmentVisibleToTeacher(teacherId, assignmentId, { isActive: true });
   if (!a) {
     const err = new Error('Assignment not found');
     err.status = 404;
@@ -514,7 +527,7 @@ export async function createGroupForAssignment(teacherId, assignmentId, { name, 
 }
 
 export async function listGroupsForAssignment(teacherId, assignmentId) {
-  const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId });
+  const a = await findAssignmentVisibleToTeacher(teacherId, assignmentId, { isActive: true });
   if (!a) {
     const err = new Error('Assignment not found');
     err.status = 404;
@@ -528,7 +541,7 @@ export async function listGroupsForAssignment(teacherId, assignmentId) {
 
 export async function getTeacherDashboardStats(teacherId) {
   const classes = await listClassesForTeacher(teacherId);
-  const assignmentIds = await Assignment.find({ teacher: teacherId, isActive: true }).distinct('_id');
+  const assignmentIds = await distinctAssignmentIdsForTeacher(teacherId, { isActive: true });
   const [pendingReviews, reviewed, similarityAlerts] = assignmentIds.length
     ? await Promise.all([
         Proposal.countDocuments({ assignment: { $in: assignmentIds }, status: 'pending_teacher_approval' }),
@@ -545,11 +558,12 @@ export async function getTeacherDashboardStats(teacherId) {
 
   const activeClasses = await Promise.all(
     classes.slice(0, 8).map(async (cls) => {
-      const classAssignmentIds = await Assignment.find({
-        teacher: teacherId,
-        isActive: true,
-        $or: [{ class: cls._id }, { classes: cls._id }],
-      }).distinct('_id');
+      const classAssignmentIds = await Assignment.find(
+        teacherAssignmentVisibilityFilter(teacherId, {
+          isActive: true,
+          $or: [{ class: cls._id }, { classes: cls._id }],
+        })
+      ).distinct('_id');
       const pending = classAssignmentIds.length
         ? await Proposal.countDocuments({ assignment: { $in: classAssignmentIds }, status: 'pending_teacher_approval' })
         : 0;
@@ -582,9 +596,10 @@ export async function listAllGroupsForTeacher(teacherId) {
   const teacherClasses = await Class.find({ 'teacherAssignments.teacher': tid }).select('_id code name').lean();
   const classMetaById = new Map(teacherClasses.map((c) => [String(c._id), c]));
 
-  const assignments = await Assignment.find({ teacher: teacherId, isActive: true })
+  const assignments = await Assignment.find(teacherAssignmentVisibilityFilter(teacherId, { isActive: true }))
     .populate('class', 'code name')
     .populate('subject', 'code name')
+    .populate('coTeacherId', 'name email')
     .lean();
 
   const assignmentIds = assignments.map((a) => a._id);

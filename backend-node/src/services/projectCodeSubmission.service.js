@@ -1,11 +1,19 @@
 import fs from 'fs/promises';
-import fsSync from 'fs';
 import path from 'path';
+import os from 'os';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { Assignment } from '../models/Assignment.js';
 import { Proposal } from '../models/Proposal.js';
 import * as proposalWorkflow from './proposalWorkflow.service.js';
 import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
+import {
+  executeZipExtractionBarrier,
+  executeTechAuditBarrier,
+  rmExtractDirSafe,
+  flagSubmissionPipelineStatus,
+  SubmissionPipelineError,
+  SUBMISSION_PIPELINE_STATUSES,
+} from './submissionErrorHandler.service.js';
 
 export function isProjectDeadlineOpen(assignment) {
   if (!assignment?.projectDeadline) return true;
@@ -25,10 +33,44 @@ function normalizeZipExt(originalName) {
   return ext === '.zip' ? '.zip' : '.zip';
 }
 
+async function persistProjectScreenshot(proposalId, file) {
+  if (!file?.path) return null;
+
+  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const relDir = path.join('project-screenshots', String(proposalId));
+  const destDir = path.join(uploadsRoot, relDir);
+  await fs.mkdir(destDir, { recursive: true });
+
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const safeExt = ['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext) ? ext : '.png';
+  const storedRelativePath = path.join(relDir, `screenshot${safeExt}`).replace(/\\/g, '/');
+  const destPath = path.join(uploadsRoot, storedRelativePath);
+
+  try {
+    const existing = await fs.readdir(destDir);
+    for (const name of existing) {
+      if (name.startsWith('screenshot')) {
+        await fs.unlink(path.join(destDir, name)).catch(() => {});
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    await fs.rename(file.path, destPath);
+  } catch {
+    await fs.copyFile(file.path, destPath);
+    await fs.unlink(file.path).catch(() => {});
+  }
+
+  return storedRelativePath;
+}
+
 /**
  * One submission record per proposal; re-upload replaces the file and bumps version (same MongoDB id).
  */
-async function upsertProjectZipForProposal(proposal, submittedByUserId, file) {
+async function upsertProjectZipForProposal(proposal, submittedByUserId, file, projectStackHint = '', screenshotFile = null) {
   if (!file?.path) {
     const err = new Error('No file uploaded');
     err.status = 400;
@@ -103,6 +145,14 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file) {
   }
 
   const stat = await fs.stat(destPath);
+  const hint =
+    projectStackHint && ['static-html', 'static-html-js'].includes(projectStackHint) ? projectStackHint : '';
+
+  let screenshotRelativePath = primary?.screenshotRelativePath || '';
+  if (screenshotFile) {
+    screenshotRelativePath = (await persistProjectScreenshot(proposal._id, screenshotFile)) || screenshotRelativePath;
+  }
+
   const payload = {
     storedRelativePath,
     originalFilename: file.originalname || `project${ext}`,
@@ -111,24 +161,55 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file) {
     submittedBy: submittedByUserId,
     assignment: proposal.assignment,
     group: proposal.group || null,
+    projectStackHint: hint,
+    pipelineStatus: '',
+    pipelineFailures: [],
+    pipelineError: '',
+    screenshotRelativePath,
   };
 
+  let saved;
   if (primary) {
     primary.set(payload);
     primary.version = (primary.version || 1) + 1;
     await primary.save();
-    return { submission: primary.toObject ? primary.toObject() : primary, isUpdate: true };
+    saved = primary;
+  } else {
+    saved = await ProjectSubmission.create({
+      proposal: proposal._id,
+      ...payload,
+      version: 1,
+    });
   }
 
-  const rec = await ProjectSubmission.create({
-    proposal: proposal._id,
-    ...payload,
-    version: 1,
-  });
-  return { submission: rec.toObject ? rec.toObject() : rec, isUpdate: false };
+  const submissionId = saved._id;
+  const auditDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scholar-upload-audit-'));
+  try {
+    await executeZipExtractionBarrier({
+      zipAbs: destPath,
+      destDir: auditDir,
+      submissionId,
+    });
+    await executeTechAuditBarrier({
+      extractDir: auditDir,
+      submissionId,
+      stackHint: hint,
+      assignment,
+    });
+    await flagSubmissionPipelineStatus(submissionId, SUBMISSION_PIPELINE_STATUSES.ACCEPTED);
+  } catch (e) {
+    await rmExtractDirSafe(auditDir);
+    if (e instanceof SubmissionPipelineError) throw e;
+    throw e;
+  } finally {
+    await rmExtractDirSafe(auditDir);
+  }
+
+  const submission = saved.toObject ? saved.toObject() : saved;
+  return { submission, isUpdate: Boolean(primary) };
 }
 
-export async function submitProjectZip(userId, assignmentId, file) {
+export async function submitProjectZip(userId, assignmentId, file, projectStackHint = '', screenshotFile = null) {
   const access = await proposalWorkflow.canAccessProjectSubmission(userId, assignmentId);
   if (!access.allowed) {
     const err = new Error(access.reason);
@@ -136,7 +217,43 @@ export async function submitProjectZip(userId, assignmentId, file) {
     throw err;
   }
 
-  return upsertProjectZipForProposal(access.proposal, userId, file);
+  return upsertProjectZipForProposal(access.proposal, userId, file, projectStackHint, screenshotFile);
+}
+
+export async function submitProjectScreenshotOnly(userId, assignmentId, screenshotFile) {
+  if (!screenshotFile?.path) {
+    const err = new Error('Screenshot image is required.');
+    err.status = 400;
+    throw err;
+  }
+
+  const access = await proposalWorkflow.canAccessProjectSubmission(userId, assignmentId);
+  if (!access.allowed) {
+    const err = new Error(access.reason);
+    err.status = 403;
+    throw err;
+  }
+
+  const proposal = access.proposal;
+  if (proposal.status !== 'teacher_approved') {
+    const err = new Error('Proposal must be teacher-approved before uploading a project screenshot.');
+    err.status = 400;
+    throw err;
+  }
+
+  const screenshotRelativePath = await persistProjectScreenshot(proposal._id, screenshotFile);
+  const primary = await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 });
+
+  if (!primary) {
+    const err = new Error('Upload your project ZIP first, then add a UI screenshot for the verified gallery.');
+    err.status = 400;
+    throw err;
+  }
+
+  primary.screenshotRelativePath = screenshotRelativePath;
+  await primary.save();
+
+  return { submission: primary.toObject ? primary.toObject() : primary };
 }
 
 export async function getLatestSubmissionForProposal(proposalId) {

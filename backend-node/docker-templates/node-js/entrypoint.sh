@@ -390,6 +390,29 @@ run_frontend_preview() {
   return 1
 }
 
+run_static_site_preview() {
+  echo "[preview] static site mode: ${PREVIEW_STATIC_STACK:-static-html}"
+  if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ]; then
+    cd "$ROOT/$APP_SUBDIR" || return 1
+  else
+    cd "$ROOT" || return 1
+  fi
+  if [ ! -f index.html ]; then
+    for d in */; do
+      if [ -f "${d}index.html" ]; then
+        cd "$d" || continue
+        break
+      fi
+    done
+  fi
+  if [ ! -f index.html ]; then
+    echo "[preview] ERROR: index.html not found — ZIP should contain index.html at the root or in one folder"
+    return 1
+  fi
+  echo "[preview] serving HTML/CSS site from $(pwd)"
+  serve_dir "$(pwd)"
+}
+
 hold_port_with_fallback
 
 if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ]; then
@@ -402,6 +425,10 @@ echo "[preview] Node app directory: $(pwd)"
 echo "[preview] PORT=${PORT}"
 
 write_preview_env_files
+
+if [ "$PREVIEW_STATIC_STACK" = "static-html" ] || [ "$PREVIEW_STATIC_STACK" = "static-html-js" ]; then
+  run_static_site_preview || serve_fallback_forever
+fi
 
 if [ "$PREVIEW_FLUTTER_MODE" = "1" ] && [ -n "$BACKEND_SUBDIR" ] && [ -n "$FLUTTER_SUBDIR" ]; then
   echo "[preview] Flutter+Node mode flutter=$FLUTTER_SUBDIR backend=$BACKEND_SUBDIR host API port=$PREVIEW_API_HOST_PORT"

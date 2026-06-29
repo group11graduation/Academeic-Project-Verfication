@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireRoles } from '../middleware/auth.js';
 import * as student from '../controllers/studentProposal.controller.js';
-import { uploadProjectZip } from '../middleware/projectZipUpload.js';
+import { uploadProjectArtifacts, uploadProjectScreenshotOnly } from '../middleware/projectArtifactsUpload.js';
 import { uploadProposalFile } from '../middleware/proposalUpload.js';
 import { uploadNormalAssignmentFile } from '../middleware/normalAssignmentUpload.js';
 
@@ -42,7 +42,7 @@ router.get('/assignments/:assignmentId/project-access', student.projectAccess);
 router.post(
   '/assignments/:assignmentId/project-code',
   (req, res, next) => {
-    uploadProjectZip.single('codeArchive')(req, res, (err) => {
+    uploadProjectArtifacts(req, res, (err) => {
       if (err) {
         err.status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
         return next(err);
@@ -51,6 +51,19 @@ router.post(
     });
   },
   student.submitProjectCode
+);
+router.post(
+  '/assignments/:assignmentId/project-screenshot',
+  (req, res, next) => {
+    uploadProjectScreenshotOnly(req, res, (err) => {
+      if (err) {
+        err.status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+        return next(err);
+      }
+      next();
+    });
+  },
+  student.submitProjectScreenshot
 );
 router.post(
   '/assignments/:assignmentId/normal-submission',

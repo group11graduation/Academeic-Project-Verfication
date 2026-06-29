@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus, X, Send, Save, UploadCloud, ChevronRight } from 'lucide-react';
 import studentService from '../../../services/studentService';
-import { Z_PAGE, Z_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK, Z_INPUT } from '../../../shared/ui/zendentaLayout';
 
 const toList = (value) => {
     if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
@@ -299,7 +299,7 @@ const StudentProposalSubmit = () => {
 
     if (loading) {
         return (
-            <div className={`${Z_PAGE} flex flex-1 items-center justify-center`}>
+            <div className={`${Z_SHELL} flex flex-1 items-center justify-center`}>
                 <Loader2 className="h-10 w-10 animate-spin text-[#1e56e3]" />
             </div>
         );
@@ -307,8 +307,8 @@ const StudentProposalSubmit = () => {
 
     if (!row?.assignment) {
         return (
-            <div className={Z_PAGE}>
-                <div className={Z_INNER}>
+            <div className={Z_SHELL}>
+                <div className={Z_SHELL_INNER}>
                     <p className="text-slate-600">Assignment not found or not in your enrollment.</p>
                     <Link to="/student/assignments" className={`${Z_LINK} mt-4 inline-block`}>
                         Back to assignments
@@ -342,9 +342,9 @@ const StudentProposalSubmit = () => {
 
     if (!canEdit) {
         return (
-            <div className={Z_PAGE}>
-                <div className={Z_INNER}>
-                    <p className="text-lg font-bold text-slate-900 mb-2">
+            <div className={Z_SHELL}>
+                <div className={Z_SHELL_INNER}>
+                    <p className="text-sm font-bold text-slate-900 mb-2">
                         Only the group leader can submit the proposal for this assignment.
                     </p>
                     <Link to="/student/assignments" className={Z_LINK}>
@@ -357,9 +357,9 @@ const StudentProposalSubmit = () => {
 
     if (!assignment.proposalPhaseOpen) {
         return (
-            <div className={Z_PAGE}>
-                <div className={Z_INNER}>
-                    <div className={`${Z_CARD} p-6 text-slate-600`}>Proposal phase is closed for this assignment.</div>
+            <div className={Z_SHELL}>
+                <div className={Z_SHELL_INNER}>
+                    <div className={`${Z_CARD} p-4 text-slate-600`}>Proposal phase is closed for this assignment.</div>
                 </div>
             </div>
         );
@@ -367,10 +367,10 @@ const StudentProposalSubmit = () => {
 
     if (isWaitingTeacherApproval && !beforeDeadline) {
         return (
-            <div className={Z_PAGE}>
-                <div className={Z_INNER}>
-                    <div className={`${Z_CARD} border-amber-200 bg-amber-50 px-6 py-5`}>
-                        <p className="text-lg font-bold text-amber-900 mb-2">Proposal sent. Waiting for teacher approval.</p>
+            <div className={Z_SHELL}>
+                <div className={Z_SHELL_INNER}>
+                    <div className={`${Z_CARD} border-amber-200 bg-amber-50 px-4 py-3`}>
+                        <p className="text-sm font-bold text-amber-900 mb-1.5">Proposal sent. Waiting for teacher approval.</p>
                         <p className="text-sm font-semibold text-amber-800 mb-4">
                             Proposal deadline has passed. You cannot update proposal now unless teacher requests revision.
                         </p>
@@ -388,8 +388,8 @@ const StudentProposalSubmit = () => {
     }
 
     return (
-        <div className={`${Z_PAGE} flex-1`}>
-            <div className={Z_INNER}>
+        <div className={`${Z_SHELL} flex-1`}>
+            <div className={Z_SHELL_INNER}>
                 <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
                     <Link to="/student/assignments" className={Z_LINK}>
                         Assignments
@@ -402,19 +402,18 @@ const StudentProposalSubmit = () => {
                     <span className="text-slate-800">Proposal</span>
                 </nav>
 
-                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <button
                         type="button"
                         onClick={() => navigate(`/student/assignments/${assignmentId}`)}
-                        className="flex w-fit items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
+                        className="flex w-fit items-center gap-1.5 text-[12px] font-semibold text-slate-500 transition hover:text-slate-800"
                     >
-                        <ArrowLeft className="h-4 w-4" />
+                        <ArrowLeft className="h-3.5 w-3.5" />
                         Back to assignment
                     </button>
                 </div>
 
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Submit proposal</h1>
-                <p className="mt-1 text-sm text-slate-600 mb-8">{assignment.title}</p>
+                <p className="text-[12px] text-slate-600 mb-4">{assignment.title}</p>
 
                 {showRequirementWarning && (
                     <div
@@ -489,26 +488,26 @@ const StudentProposalSubmit = () => {
                     </div>
                 )}
 
-                <div className="mb-6 inline-flex rounded-xl border border-slate-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900">
+                <div className="mb-4 inline-flex rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900">
                     <button
                         type="button"
                         onClick={() => setInputMode('text')}
-                        className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg ${inputMode === 'text' ? 'bg-[#1D68E3] text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                        className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg ${inputMode === 'text' ? 'bg-[#1D68E3] text-white' : 'text-slate-600 dark:text-slate-300'}`}
                     >
                         Fill form
                     </button>
                     <button
                         type="button"
                         onClick={() => setInputMode('file')}
-                        className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg ${inputMode === 'file' ? 'bg-[#1D68E3] text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                        className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg ${inputMode === 'file' ? 'bg-[#1D68E3] text-white' : 'text-slate-600 dark:text-slate-300'}`}
                     >
                         Upload proposal file
                     </button>
                 </div>
 
                 {inputMode === 'file' && (
-                    <div className="mb-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-                        <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                    <div className={`${Z_CARD} mb-4 p-3`}>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
                             Structured proposal file (.txt, .md, .json, .csv, .docx)
                         </label>
                         <input
@@ -516,7 +515,7 @@ const StudentProposalSubmit = () => {
                             accept=".txt,.md,.json,.csv,.docx,text/plain,text/markdown,application/json,text/csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             onChange={handleProposalFileChange}
                             disabled={parsingFile || lockedByApproval}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm"
+                            className={`${Z_INPUT} text-[12px]`}
                         />
                         {parsingFile && (
                             <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300 inline-flex items-center gap-2">
@@ -632,44 +631,44 @@ const StudentProposalSubmit = () => {
                     </div>
                 )}
 
-                <div className={`${Z_CARD} space-y-6 p-6`}>
+                <div className={`${Z_CARD} space-y-4 p-4`}>
                     {inputMode === 'file' && (
-                        <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm font-semibold text-blue-800 dark:text-blue-200">
+                        <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-[12px] font-semibold text-blue-800 dark:text-blue-200">
                             Upload a file above to auto-fill the fields below. You can edit title, description, and each feature before saving or submitting.
                         </div>
                     )}
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Title</label>
+                        <label className="block text-[12px] font-bold text-slate-700 dark:text-slate-200 mb-1.5">Title</label>
                         <input
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white px-4 py-3 text-sm text-slate-900 dark:text-slate-900 placeholder:text-slate-400"
+                            className={`${Z_INPUT} text-slate-900 dark:text-slate-900 placeholder:text-slate-400`}
                             placeholder="Project title"
                             disabled={lockedByApproval}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
+                        <label className="block text-[12px] font-bold text-slate-700 dark:text-slate-200 mb-1.5">
                             Description
                         </label>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={5}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white px-4 py-3 text-sm text-slate-900 dark:text-slate-900 placeholder:text-slate-400"
+                            className={`${Z_INPUT} text-slate-900 dark:text-slate-900 placeholder:text-slate-400 resize-y`}
                             placeholder="Describe the project scope"
                             disabled={lockedByApproval}
                         />
                     </div>
                     <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-bold text-slate-700 dark:text-slate-200">Features</label>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[12px] font-bold text-slate-700 dark:text-slate-200">Features</label>
                             <button
                                 type="button"
                                 onClick={addFeature}
-                                className="text-sm font-bold text-[#1D68E3] flex items-center gap-1"
+                                className="text-[12px] font-bold text-[#1D68E3] flex items-center gap-1"
                             >
-                                <Plus className="h-4 w-4" /> Add feature
+                                <Plus className="h-3.5 w-3.5" /> Add feature
                             </button>
                         </div>
                         {features.map((f, i) => (
@@ -677,7 +676,7 @@ const StudentProposalSubmit = () => {
                                 <input
                                     value={f}
                                     onChange={(e) => setFeature(i, e.target.value)}
-                                    className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm bg-white dark:bg-white text-slate-900 dark:text-slate-900 placeholder:text-slate-400"
+                                    className={`${Z_INPUT} flex-1 text-slate-900 dark:text-slate-900 placeholder:text-slate-400`}
                                     placeholder={`Feature ${i + 1}`}
                                     disabled={lockedByApproval}
                                 />
@@ -685,17 +684,17 @@ const StudentProposalSubmit = () => {
                                     <button
                                         type="button"
                                         onClick={() => removeFeature(i)}
-                                        className="p-2 text-rose-500"
+                                        className="p-1.5 text-rose-500"
                                         disabled={lockedByApproval}
                                     >
-                                        <X className="h-5 w-5" />
+                                        <X className="h-4 w-4" />
                                     </button>
                                 )}
                             </div>
                         ))}
                     </div>
 
-                    <div className="flex flex-wrap gap-3 pt-4">
+                    <div className="flex flex-wrap gap-2 pt-2">
                         <button
                             type="button"
                             disabled={submitting || lockedByApproval || !beforeDeadline}

@@ -6,7 +6,6 @@ WORKDIR /workspace
 
 RUN pip install --no-cache-dir notebook jupyter
 
-COPY . .
 COPY entrypoint.sh /preview-entrypoint.sh
 RUN chmod +x /preview-entrypoint.sh
 

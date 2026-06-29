@@ -24,6 +24,26 @@ import { getApiOrigin } from '../../../lib/api';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
 
+const PREVIEW_STACK_LABELS = {
+    'static-html': 'HTML + CSS',
+    'static-html-js': 'HTML + CSS + JavaScript',
+    'node-js': 'Full-stack JavaScript',
+    'java-spring-react': 'React + Spring Boot',
+    'php-apache': 'PHP / Apache',
+    jupyter: 'Jupyter notebook',
+};
+
+function previewStackLabel(stack, sess) {
+    if (sess?.previewStackLabel) return sess.previewStackLabel;
+    return PREVIEW_STACK_LABELS[stack] || stack || 'Detecting…';
+}
+
+/** Teacher can open the preview URL only when the student app responds (not the Docker placeholder page). */
+function isPreviewOpenReady(sess) {
+    return sess?.status === 'running' && sess?.previewAppReady === true;
+}
+
+
 const statusLabel = (s) => {
     const map = {
         draft: 'Draft',
@@ -124,8 +144,6 @@ const TeacherProposalStudentDetail = () => {
     const [vsAi, setVsAi] = useState('not_set');
     const [previewSessionByProposal, setPreviewSessionByProposal] = useState({});
     const [previewBusyId, setPreviewBusyId] = useState(null);
-    /** auto | node-js | php-apache | jupyter */
-    const [previewStackChoice, setPreviewStackChoice] = useState('auto');
     const [previewAdminEmail, setPreviewAdminEmail] = useState('admin@preview.demo');
     const [previewAdminPassword, setPreviewAdminPassword] = useState('Preview123!');
     const previewMapRef = useRef({});
@@ -228,7 +246,6 @@ const TeacherProposalStudentDetail = () => {
         setPreviewBusyId(proposal._id);
         try {
             const r = await teacherService.startProposalPreview(proposal._id, {
-                stack: previewStackChoice,
                 adminEmail: previewAdminEmail.trim(),
                 adminPassword: previewAdminPassword,
             });
@@ -240,7 +257,15 @@ const TeacherProposalStudentDetail = () => {
                 alert(r.message || 'Could not start preview');
             }
         } catch (e) {
-            alert(e.response?.data?.message || 'Could not start preview');
+            const data = e.response?.data;
+            if (data?.validationFailures?.length) {
+                alert(
+                    `${data.error || 'Technical audit failed'}\n\n` +
+                        data.validationFailures.map((f) => `• ${f.message}${f.path ? ` (${f.path})` : ''}`).join('\n')
+                );
+            } else {
+                alert(data?.error || data?.message || 'Could not start preview');
+            }
         } finally {
             setPreviewBusyId(null);
         }
@@ -790,7 +815,7 @@ const TeacherProposalStudentDetail = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            {loginUrl && previewRunning && (
+                                            {loginUrl && isPreviewOpenReady(sess) && (
                                                 <p className="mt-4 text-xs font-semibold text-slate-700">
                                                     Student login page:{' '}
                                                     <a
@@ -803,7 +828,7 @@ const TeacherProposalStudentDetail = () => {
                                                     </a>
                                                 </p>
                                             )}
-                                            {previewStarting && (
+                                            {(previewStarting || (previewRunning && !isPreviewOpenReady(sess))) && (
                                                 <p className="mt-4 text-xs font-semibold text-amber-800">
                                                     Wait until status shows “Preview ready” in the log below, then open
                                                     the login page.
@@ -831,42 +856,50 @@ const TeacherProposalStudentDetail = () => {
                                     );
                                 })()}
 
-                                <div className="mb-3">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <label className="text-xs font-bold text-emerald-900" htmlFor="preview-stack">
-                                            Container type
-                                        </label>
-                                        <select
-                                            id="preview-stack"
-                                            value={previewStackChoice}
-                                            onChange={(e) => setPreviewStackChoice(e.target.value)}
-                                            disabled={!!previewBusyId}
-                                            className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800"
-                                        >
-                                            <option value="auto">Any type — auto-detect from ZIP</option>
-                                            <option value="node-js">React / Node.js (manual)</option>
-                                            <option value="php-apache">PHP / Apache (manual)</option>
-                                            <option value="jupyter">Jupyter notebook (manual)</option>
-                                        </select>
-                                    </div>
-                                    {previewStackChoice === 'auto' && (
-                                        <p className="mt-1.5 text-[11px] font-medium text-emerald-800/90">
-                                            Upload any supported project ZIP — the system picks React/Node, PHP, or Jupyter
-                                            from the files inside. Use a manual type only if detection is wrong.
-                                        </p>
-                                    )}
+                                <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5">
+                                    <p className="text-xs font-bold text-emerald-900">
+                                        Automatic preview
+                                    </p>
+                                    <p className="mt-1 text-[11px] font-medium text-emerald-800/90">
+                                        After you click Start preview, the system extracts the student ZIP, detects the
+                                        project type, and runs the matching Docker template (cached for fast start).
+                                    </p>
+                                    {(() => {
+                                        const sess = previewSessionByProposal[proposal._id];
+                                        if (!sess?.previewStack) return null;
+                                        return (
+                                            <p className="mt-2 text-xs font-bold text-emerald-900">
+                                                Detected type:{' '}
+                                                <span className="rounded-md bg-white px-2 py-0.5 text-emerald-800">
+                                                    {previewStackLabel(sess.previewStack, sess)}
+                                                </span>
+                                            </p>
+                                        );
+                                    })()}
                                 </div>
                                 {(() => {
                                     const sess = previewSessionByProposal[proposal._id];
-                                    const terminal = ['stopped', 'failed', 'expired'].includes(sess?.status);
+                                    const terminal = ['stopped', 'failed', 'expired', 'runtime_error'].includes(sess?.status);
                                     const running = sess?.status === 'running';
                                     const starting = sess?.status === 'starting';
-                                    const failed = sess?.status === 'failed';
+                                    const failed = sess?.status === 'failed' || sess?.status === 'runtime_error';
+                                    const previewOpenReady = isPreviewOpenReady(sess);
                                     return (
                                         <div className="space-y-3">
                                         {failed && sess.errorMessage && (
                                             <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800">
+                                                {sess.status === 'runtime_error' ? 'Runtime error: ' : ''}
                                                 {sess.errorMessage}
+                                                {sess.validationFailures?.length > 0 && (
+                                                    <ul className="mt-2 list-disc pl-4 text-xs font-semibold">
+                                                        {sess.validationFailures.map((f, i) => (
+                                                            <li key={`${f.rule}-${i}`}>
+                                                                {f.message}
+                                                                {f.path ? ` (${f.path})` : ''}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </div>
                                         )}
                                         <div className="flex flex-wrap items-center gap-2">
@@ -892,18 +925,28 @@ const TeacherProposalStudentDetail = () => {
                                                     {starting && (
                                                         <span className="flex items-center gap-2 text-sm font-bold text-amber-800">
                                                             <Loader2 className="h-4 w-4 animate-spin" />
-                                                            {sess.previewStack === 'php-apache'
+                                                            {sess.previewStack === 'static-html' || sess.previewStack === 'static-html-js'
+                                                                ? 'Starting static site…'
+                                                                : sess.previewStack === 'php-apache'
                                                                 ? 'Starting Apache…'
                                                                 : sess.previewStack === 'jupyter'
                                                                   ? 'Starting Jupyter…'
                                                                   : 'Installing dependencies & starting app (1–5 min)…'}
                                                         </span>
                                                     )}
-                                                    {running && sess.portReachable === false && (
+                                                    {running && !previewOpenReady && sess.portReachable === false && (
                                                         <span className="text-sm font-bold text-rose-700">
                                                             UI port not responding — click Stop, then Start preview again.
                                                         </span>
                                                     )}
+                                                    {running &&
+                                                        !previewOpenReady &&
+                                                        sess.portReachable &&
+                                                        sess.previewAppReadyReason === 'placeholder_or_empty' && (
+                                                            <span className="text-sm font-bold text-amber-800">
+                                                                Student app is still installing in Docker — wait for “Preview ready” in the log.
+                                                            </span>
+                                                        )}
                                                     {running &&
                                                         sess.previewApiHostPort &&
                                                         sess.apiPortReachable === false && (
@@ -911,35 +954,30 @@ const TeacherProposalStudentDetail = () => {
                                                                 Student API on :{sess.previewApiHostPort} not ready — wait or check MongoDB.
                                                             </span>
                                                         )}
-                                                    {sess.portReachable === false && !running ? (
-                                                        <span
-                                                            className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-400 px-4 py-2 text-sm font-bold text-white opacity-80"
-                                                            title="Waiting for the preview port to open"
+                                                    {previewOpenReady ? (
+                                                        <a
+                                                            href={safePreviewUrl(sess.previewUrl)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 rounded-xl bg-[#1e56e3] px-4 py-2 text-sm font-bold text-white hover:bg-[#1a4dcc]"
+                                                            title="Preview is ready"
                                                         >
                                                             <ExternalLink className="h-4 w-4" />
-                                                            Open preview (starting…)
-                                                        </span>
+                                                            Open preview
+                                                        </a>
                                                     ) : (
-                                                    <a
-                                                        href={safePreviewUrl(sess.previewUrl)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-white ${
-                                                            running && sess.portReachable !== false
-                                                                ? 'bg-[#1e56e3] hover:bg-[#1a4dcc]'
-                                                                : 'bg-amber-600 hover:bg-amber-700'
-                                                        }`}
-                                                        title={
-                                                            running && sess.portReachable !== false
-                                                                ? 'Preview is ready'
-                                                                : 'Placeholder page may show first — refresh after logs say Preview ready'
-                                                        }
-                                                    >
-                                                        <ExternalLink className="h-4 w-4" />
-                                                        {running && sess.portReachable !== false
-                                                            ? 'Open preview'
-                                                            : 'Open preview (loading…)'}
-                                                    </a>
+                                                        <span
+                                                            className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-300 px-4 py-2 text-sm font-bold text-slate-600"
+                                                            title="Wait until the log shows Preview ready"
+                                                        >
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                            {starting
+                                                                ? 'Open preview (starting…)'
+                                                                : sess.previewAppReadyReason === 'api_not_http' ||
+                                                                    sess.previewAppReadyReason === 'api_port_closed'
+                                                                  ? 'Open preview (API starting…)'
+                                                                  : 'Open preview (building…)'}
+                                                        </span>
                                                     )}
                                                     <button
                                                         type="button"

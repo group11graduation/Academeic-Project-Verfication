@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import StudentHeader from '../components/StudentHeader';
+import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 
 const StudentAbout = () => {
     const { user } = useAuth();
@@ -35,35 +36,20 @@ const StudentAbout = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
+        <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900 overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
             {/* Standardized Header */}
             <StudentHeader />
 
             {/* Hero Section */}
-            <section className="pt-32 pb-20 px-6">
-                <div className="max-w-[1536px] mx-auto">
-                    <div className="relative rounded-[40px] overflow-hidden min-h-[500px] flex items-end p-12 md:p-20 lg:p-24 shadow-2xl shadow-blue-900/20">
-                        {/* Background Image */}
-                        <img 
-                            src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=2000" 
-                            alt="Students collaborating on a project" 
-                            className="absolute inset-0 w-full h-full object-cover object-top"
-                        />
-                        
-                        {/* Blue Color Mix Overlay */}
-                        <div className="absolute inset-0 bg-[#1D68E3]/70 mix-blend-multiply"></div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#1D68E3] via-[#1D68E3]/80 to-transparent"></div>
-                        <div className="absolute inset-0 bg-gradient-to-r from-[#1D68E3]/90 to-transparent"></div>
-                        
-                        <div className="relative z-10 max-w-3xl">
-                            <h1 className="text-5xl md:text-6xl lg:text-[64px] font-black text-white leading-[1.1] tracking-tight mb-6 drop-shadow-md">
-                                Upholding Academic Integrity Digitally
-                            </h1>
-                            <p className="text-xl md:text-2xl text-blue-50 font-medium leading-relaxed max-w-2xl drop-shadow-md">
-                                Protecting the value of original research and creative project development in higher education.
-                            </p>
-                        </div>
-                    </div>
+            <section className="pt-24 pb-16 px-6">
+                <div className="max-w-[1400px] mx-auto">
+                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#2a3fa4] mb-4">Platform guide</p>
+                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight mb-4 max-w-3xl">
+                        How ScholarVerify works for your institution
+                    </h1>
+                    <p className="text-lg text-slate-600 font-medium max-w-2xl mb-10">
+                        Detailed reference for students, teachers, and admins — integrity checks, workflows, and preview sandboxes.
+                    </p>
                 </div>
             </section>
 
@@ -82,7 +68,7 @@ const StudentAbout = () => {
                         
                         <div className="space-y-6 text-lg text-slate-600 font-medium leading-relaxed">
                             <p>
-                                ProjectVerify was founded on the core principle that original ideas deserve protection. In an era where digital content is easily replicated, our platform ensures that student work remains unique and authentic.
+                                ScholarVerify was founded on the core principle that original ideas deserve protection. In an era where digital content is easily replicated, our platform ensures that student work remains unique and authentic.
                             </p>
                             <p>
                                 We aim to discourage academic misconduct by providing institutions and students with the tools to verify originality, encouraging genuine learning through the process of creation rather than duplication.
@@ -242,59 +228,7 @@ const StudentAbout = () => {
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="bg-[#0F172A] text-white py-20 px-6 border-t border-slate-800">
-                <div className="max-w-[1536px] mx-auto">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-12 lg:gap-8 mb-16">
-                        <div className="col-span-1 md:col-span-2 space-y-6">
-                            <div className="flex items-center gap-2">
-                                <div className="w-10 h-10 bg-[#1D68E3] rounded-xl flex items-center justify-center">
-                                    <Rocket className="text-white h-6 w-6" />
-                                </div>
-                                <span className="text-2xl font-black tracking-tighter">ProjectVerify</span>
-                            </div>
-                            <p className="text-slate-400 font-medium max-w-sm leading-relaxed">
-                                Building the infrastructure for the next generation of academic integrity. Verification you can trust.
-                            </p>
-                            <div className="flex gap-4">
-                                <a href="#" className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"><Twitter className="h-5 w-5" /></a>
-                                <a href="#" className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"><Github className="h-5 w-5" /></a>
-                                <a href="#" className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"><Linkedin className="h-5 w-5" /></a>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <h4 className="font-extrabold text-white mb-6 uppercase tracking-widest text-sm">Product</h4>
-                            <ul className="space-y-4">
-                                <li><a href="/student" className="text-slate-400 hover:text-[#1D68E3] transition-colors font-medium">My Projects</a></li>
-                                <li><a href="#" className="text-slate-400 hover:text-[#1D68E3] transition-colors font-medium">Technology</a></li>
-                                <li><a href="#" className="text-slate-400 hover:text-[#1D68E3] transition-colors font-medium">Pricing</a></li>
-                                <li><a href="#" className="text-slate-400 hover:text-[#1D68E3] transition-colors font-medium">API</a></li>
-                            </ul>
-                        </div>
-                        
-                        <div>
-                            <h4 className="font-extrabold text-white mb-6 uppercase tracking-widest text-sm">Company</h4>
-                            <ul className="space-y-4">
-                                <li><Link to="/about" className="text-[#1D68E3] transition-colors font-medium">About Us</Link></li>
-                                <li><a href="#" className="text-slate-400 hover:text-[#1D68E3] transition-colors font-medium">Careers</a></li>
-                                <li><a href="#" className="text-slate-400 hover:text-[#1D68E3] transition-colors font-medium">Blog</a></li>
-                                <li><a href="#" className="text-slate-400 hover:text-[#1D68E3] transition-colors font-medium">Contact</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">
-                            © 2024 ProjectVerify. All rights reserved.
-                        </p>
-                        <div className="flex gap-8">
-                            <a href="#" className="text-sm font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-wider">Privacy Policy</a>
-                            <a href="#" className="text-sm font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-wider">Terms of Service</a>
-                        </div>
-                    </div>
-                </div>
-            </footer>
+            <PublicSiteFooter />
         </div>
     );
 };

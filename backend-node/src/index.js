@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { connectDb } from './config/db.js';
 import { logger } from './config/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { submissionErrorHandler } from './middleware/submissionErrorHandler.js';
 import { requireAuth } from './middleware/auth.js';
 
 import authRoutes from './routes/auth.routes.js';
@@ -14,6 +15,7 @@ import adminRoutes from './routes/admin.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import teacherRoutes from './routes/teacher.routes.js';
 import studentRoutes from './routes/student.routes.js';
+import publicRoutes from './routes/public.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,12 +59,14 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/public', publicRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use('/api/teacher', requireAuth, teacherRoutes);
 app.use('/api/student', requireAuth, studentRoutes);
 
+app.use(submissionErrorHandler);
 app.use(errorHandler);
 
 const port = Number(process.env.PORT || 5000);
@@ -72,16 +76,16 @@ connectDb()
     app.listen(port, () => logger.info(`API listening on port ${port}`));
     if (process.env.DOCKER_PREVIEW_ENABLED !== 'false') {
       import('./services/dockerOrchestrator.service.js')
-        .then(({ ensurePreviewMongoImage, ensurePreviewNodeBaseImages }) => {
+        .then(({ ensurePreviewMongoImage, warmPreviewBaseImages }) => {
           if (process.env.PREVIEW_WARM_MONGO_IMAGE !== 'false') {
             ensurePreviewMongoImage()
               .then((r) => logger.info(r.pulled ? 'Preview MongoDB image downloaded' : 'Preview MongoDB image ready'))
               .catch((err) => logger.warn(`Preview MongoDB warm-up: ${err.message}`));
           }
           if (process.env.PREVIEW_WARM_NODE_BASE_IMAGE !== 'false') {
-            ensurePreviewNodeBaseImages()
-              .then((r) => logger.info(r.node ? 'Preview Node base image ready' : 'Preview Node base image skipped'))
-              .catch((err) => logger.warn(`Preview Node base warm-up: ${err.message}`));
+            warmPreviewBaseImages()
+              .then((r) => logger.info(`Preview base images: node=${r.node}, php=${r.php}, jupyter=${r.jupyter}, spring=${r.springReact}`))
+              .catch((err) => logger.warn(`Preview base warm-up: ${err.message}`));
           }
         })
         .catch(() => {});

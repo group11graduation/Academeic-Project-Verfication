@@ -16,6 +16,7 @@ import { StudentProfile } from '../src/models/StudentProfile.js';
 import { Enrollment } from '../src/models/Enrollment.js';
 import { Assignment } from '../src/models/Assignment.js';
 import { LegacyProject } from '../src/models/LegacyProject.js';
+import { TeacherCollaboration } from '../src/models/TeacherCollaboration.js';
 
 const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/academic_verification';
 
@@ -115,6 +116,27 @@ async function run() {
     console.log('Created teacher:', teacherEmail, '/', teacherPass);
   }
 
+  const teacher2Email = process.env.SEED_TEACHER2_EMAIL || 'teacher2@university.edu';
+  const teacher2Pass = process.env.SEED_TEACHER2_PASSWORD || 'Teacher@123';
+  let teacher2User = await User.findOne({ email: teacher2Email });
+  if (!teacher2User) {
+    teacher2User = await User.create({
+      email: teacher2Email,
+      username: 'teacher2',
+      passwordHash: await User.hashPassword(teacher2Pass),
+      role: 'teacher',
+      roles: ['teacher'],
+      name: 'Demo Co-Teacher',
+      isActive: true,
+    });
+    await TeacherProfile.create({
+      user: teacher2User._id,
+      employeeId: 'T-1002',
+      department: 'Computer Science',
+    });
+    console.log('Created co-teacher:', teacher2Email, '/', teacher2Pass);
+  }
+
   const studentEmail = process.env.SEED_STUDENT_EMAIL || 'student@university.edu';
   const studentPass = process.env.SEED_STUDENT_PASSWORD || 'Student@123';
   let studentUser = await User.findOne({ email: studentEmail });
@@ -138,6 +160,7 @@ async function run() {
 
   const classDoc = await Class.findOne({ code: 'CS-SEC-A' });
   const sub401 = await Subject.findOne({ code: 'CS401' });
+  const sub440 = await Subject.findOne({ code: 'CS440' });
   if (classDoc && sub401 && teacherUser) {
     const hasTa = classDoc.teacherAssignments?.some(
       (x) => String(x.teacher) === String(teacherUser._id)
@@ -150,6 +173,39 @@ async function run() {
       });
       await classDoc.save();
       console.log('Linked teacher to class CS-SEC-A / CS401');
+    }
+
+    if (teacher2User) {
+      const hasTa2 = classDoc.teacherAssignments?.some(
+        (x) => String(x.teacher) === String(teacher2User._id)
+      );
+      if (!hasTa2) {
+        classDoc.teacherAssignments = classDoc.teacherAssignments || [];
+        classDoc.teacherAssignments.push({
+          teacher: teacher2User._id,
+          subjects: [sub401._id, ...(sub440?._id ? [sub440._id] : [])],
+        });
+        await classDoc.save();
+        console.log('Linked co-teacher to class CS-SEC-A');
+      }
+
+      const collabExists = await TeacherCollaboration.findOne({
+        $or: [
+          { primaryTeacher: teacherUser._id, coTeacher: teacher2User._id },
+          { primaryTeacher: teacher2User._id, coTeacher: teacherUser._id },
+        ],
+      });
+      if (!collabExists) {
+        await TeacherCollaboration.create({
+          primaryTeacher: teacherUser._id,
+          coTeacher: teacher2User._id,
+          status: 'accepted',
+          initiatedBy: teacherUser._id,
+          acceptedAt: new Date(),
+          notes: 'Seed collaboration for dual-teacher assignments',
+        });
+        console.log('Created accepted teacher collaboration (teacher1 ↔ teacher2)');
+      }
     }
 
     await Enrollment.findOneAndUpdate(

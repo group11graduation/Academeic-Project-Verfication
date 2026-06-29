@@ -204,71 +204,70 @@ const AdminAddStudent = () => {
 
     if (loadingClasses) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-900 flex flex-col items-center justify-center transition-colors">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin mb-4" />
-                <p className="text-slate-500 dark:text-slate-400 font-medium">Initializing enrollment system...</p>
+            <div className="min-h-[40vh] flex flex-col items-center justify-center">
+                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin mb-2" />
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Initializing enrollment system...</p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFB] dark:bg-[#0F172A]/30 font-sans text-[#0F172A] dark:text-slate-200 transition-colors">
+        <div className="font-sans text-[13px] text-[#0F172A] dark:text-slate-200 transition-colors">
             {/* Top Navbar */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between px-6 md:px-10 py-3 md:py-4 sticky top-0 z-10 gap-3 md:gap-0 transition-colors">
+            <div className="border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between pb-3 mb-4 gap-3 transition-colors">
                 <button
                     onClick={() => navigate('/admin/students')}
                     type="button"
-                    className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-[#1D68E3] dark:hover:text-blue-400 transition-all font-bold text-[14px] group"
+                    className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-[#1D68E3] dark:hover:text-blue-400 transition-all font-bold text-[12px] group"
                 >
-                    <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg group-hover:bg-blue-50 dark:group-hover:bg-slate-700 transition-all">
-                        <ChevronLeft className="h-4 w-4" />
+                    <div className="bg-slate-50 dark:bg-slate-800 p-1.5 rounded-lg group-hover:bg-blue-50 dark:group-hover:bg-slate-700 transition-all">
+                        <ChevronLeft className="h-3.5 w-3.5" />
                     </div>
                     Back to Students
                 </button>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                     <button
                         type="button"
                         onClick={() => navigate('/admin/students')}
-                        className="px-8 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-[14px] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-[12px] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={isSubmitting}
-                        className="flex items-center gap-2 px-8 py-2.5 bg-[#1D68E3] text-white rounded-xl font-bold text-[14px] shadow-lg shadow-blue-500/20 hover:bg-blue-600 transition-all disabled:opacity-70"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-[#1D68E3] text-white rounded-lg font-bold text-[12px] hover:bg-blue-600 transition-all disabled:opacity-70"
                     >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
                         {isSubmitting ? 'Registering...' : 'Register Student'}
                     </button>
                 </div>
             </div>
 
-            <div className="p-4 md:p-10 max-w-[1600px] mx-auto">
                 {/* Header */}
-                <div className="mb-6 md:mb-10 text-center md:text-left">
-                    <h1 className="text-xl md:text-2xl font-black tracking-tight mb-1 md:mb-2 text-[#0F172A] dark:text-white transition-colors">Register New Student</h1>
-                    <p className="text-[12px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none transition-colors">Enrollment System</p>
+                <div className="mb-4 text-center md:text-left">
+                    <h1 className="text-base font-black tracking-tight mb-0.5 text-[#0F172A] dark:text-white transition-colors">Register New Student</h1>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none transition-colors">Enrollment System</p>
                 </div>
 
                 {error && (
-                    <div className="mb-6 p-4 bg-red-50 text-red-600 border border-red-100 rounded-xl font-medium">
+                    <div className="mb-4 p-3 bg-red-50 text-red-600 border border-red-100 rounded-lg font-medium text-[12px]">
                         {error}
                     </div>
                 )}
 
-                <form className="grid grid-cols-1 xl:grid-cols-3 gap-8" onSubmit={handleSubmit}>
+                <form className="grid grid-cols-1 xl:grid-cols-3 gap-4" onSubmit={handleSubmit}>
                     {/* Left & Center Column: Form Sections */}
-                    <div className="xl:col-span-2 space-y-8">
+                    <div className="xl:col-span-2 space-y-4">
 
                         {/* Personal Information */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm p-8">
-                            <div className="flex items-center gap-3 mb-8">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                            <div className="flex items-center gap-2 mb-4">
                                 <User className="h-5 w-5 text-[#1D68E3] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Personal Information</h2>
                             </div>
 
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 <div>
                                     <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Full Name (Magaca oo Dhammaystiran) *</label>
                                     <input
@@ -278,11 +277,11 @@ const AdminAddStudent = () => {
                                         value={formData.name}
                                         onChange={handleChange}
                                         placeholder="e.g. Maxamed Cabdi Faarax"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                     <div>
                                         <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Email Address *</label>
                                         <input
@@ -292,7 +291,7 @@ const AdminAddStudent = () => {
                                             value={formData.email}
                                             onChange={handleChange}
                                             placeholder="student@example.com"
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
                                         />
                                     </div>
                                     <div>
@@ -303,19 +302,19 @@ const AdminAddStudent = () => {
                                             value={formData.phone}
                                             onChange={handleChange}
                                             placeholder="+252 ..."
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                     <div className="relative">
                                         <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Gender</label>
                                         <select
                                             name="gender"
                                             value={formData.gender}
                                             onChange={handleChange}
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white"
                                         >
                                             <option>Select Gender</option>
                                             <option>Male</option>
@@ -330,7 +329,7 @@ const AdminAddStudent = () => {
                                             name="dob"
                                             value={formData.dob}
                                             onChange={handleChange}
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -338,13 +337,13 @@ const AdminAddStudent = () => {
                         </div>
 
                         {/* Parent / Guardian Details */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm p-8">
-                            <div className="flex items-center gap-3 mb-8">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                            <div className="flex items-center gap-2 mb-4">
                                 <Users className="h-5 w-5 text-[#1D68E3] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Parent / Guardian Details</h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div>
                                     <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Father's Full Name</label>
                                     <input
@@ -353,7 +352,7 @@ const AdminAddStudent = () => {
                                         value={formData.fatherName}
                                         onChange={handleChange}
                                         placeholder="Father's Name"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -364,12 +363,12 @@ const AdminAddStudent = () => {
                                         value={formData.fatherContact}
                                         onChange={handleChange}
                                         placeholder="+252 ..."
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Mother's Full Name</label>
                                     <input
@@ -378,7 +377,7 @@ const AdminAddStudent = () => {
                                         value={formData.motherName}
                                         onChange={handleChange}
                                         placeholder="Mother's Name"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -389,20 +388,20 @@ const AdminAddStudent = () => {
                                         value={formData.motherContact}
                                         onChange={handleChange}
                                         placeholder="+252 ..."
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* Educational Background */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm p-8">
-                            <div className="flex items-center gap-3 mb-8">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                            <div className="flex items-center gap-2 mb-4">
                                 <FileText className="h-5 w-5 text-[#1D68E3] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Educational Background</h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div>
                                     <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">High School Name</label>
                                     <input
@@ -411,7 +410,7 @@ const AdminAddStudent = () => {
                                         value={formData.highSchoolName}
                                         onChange={handleChange}
                                         placeholder="Jabir Binu Hayan"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -422,7 +421,7 @@ const AdminAddStudent = () => {
                                         value={formData.graduationYear}
                                         onChange={handleChange}
                                         placeholder="2022"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -497,20 +496,20 @@ const AdminAddStudent = () => {
                         </div>
 
                         {/* Academic Information */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm p-8">
-                            <div className="flex items-center gap-3 mb-8">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                            <div className="flex items-center gap-2 mb-4">
                                 <GraduationCap className="h-5 w-5 text-[#1D68E3] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Academic Information</h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div className="relative">
                                     <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Faculty (Kulliyadda)</label>
                                     <select
                                         name="faculty"
                                         value={formData.faculty}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
                                     >
                                         <option value="">Select faculty</option>
                                         {facultySelectOptions.map((name) => (
@@ -527,7 +526,7 @@ const AdminAddStudent = () => {
                                         name="campus"
                                         value={formData.campus}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
                                     >
                                         <option value="">Select Campus</option>
                                         <option>Campus 1</option>
@@ -538,14 +537,14 @@ const AdminAddStudent = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div className="relative">
                                     <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Study Mode</label>
                                     <select
                                         name="studyMode"
                                         value={formData.studyMode}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
                                     >
                                         <option>Full-time</option>
                                         <option>Part-time</option>
@@ -559,7 +558,7 @@ const AdminAddStudent = () => {
                                         name="entryDate"
                                         value={formData.entryDate}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -571,7 +570,7 @@ const AdminAddStudent = () => {
                                     value={formData.classId}
                                     onChange={handleChange}
                                     disabled={loadingClasses}
-                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[15px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white font-medium disabled:bg-slate-50 dark:disabled:bg-slate-800/50"
+                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1D68E3] outline-none transition-all text-slate-800 dark:text-white font-medium disabled:bg-slate-50 dark:disabled:bg-slate-800/50"
                                 >
                                     {loadingClasses ? (
                                         <option>Loading classes...</option>
@@ -589,25 +588,25 @@ const AdminAddStudent = () => {
                     </div>
 
                     {/* Right Column: Photo & ID Cards */}
-                    <div className="space-y-8">
+                    <div className="space-y-4">
 
                         {/* Profile Photo */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm p-8">
-                            <h2 className="text-[16px] font-bold mb-6 text-[#0F172A] dark:text-white">Profile Photo</h2>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                            <h2 className="text-[12px] font-black uppercase tracking-widest mb-4 text-[#0F172A] dark:text-white">Profile Photo</h2>
 
                             <div className="flex flex-col items-center">
-                                <div className="w-32 h-32 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-700 shadow-inner relative overflow-hidden group">
+                                <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-700 shadow-inner relative overflow-hidden group">
                                     {photoMode === 'local' ? (
                                         localPhotoPreview ? (
                                             <img src={localPhotoPreview} alt="Local Preview" className="w-full h-full object-cover" />
                                         ) : (
-                                            <User className="h-12 w-12 text-slate-200 dark:text-slate-600" />
+                                            <User className="h-10 w-10 text-slate-200 dark:text-slate-600" />
                                         )
                                     ) : (
                                         photoUrl ? (
                                             <img src={photoUrl} alt="URL Preview" className="w-full h-full object-cover" />
                                         ) : (
-                                            <User className="h-12 w-12 text-slate-200 dark:text-slate-600" />
+                                            <User className="h-10 w-10 text-slate-200 dark:text-slate-600" />
                                         )
                                     )}
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 dark:group-hover:bg-black/40 transition-all"></div>
@@ -670,18 +669,17 @@ const AdminAddStudent = () => {
                         </div>
 
                         {/* Student ID */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm p-8">
-                            <h2 className="text-[16px] font-bold mb-6 text-[#0F172A] dark:text-white">Student Enrollment</h2>
-                            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl p-6 text-center space-y-2">
-                                <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">Upon successful registration, the ID and Passcode will be generated.</p>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                            <h2 className="text-[12px] font-black uppercase tracking-widest mb-4 text-[#0F172A] dark:text-white">Student Enrollment</h2>
+                            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-lg p-4 text-center space-y-1.5">
+                                <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Upon successful registration, the ID and Passcode will be generated.</p>
                                 <p className="text-[11px] font-bold text-[#1D68E3] dark:text-blue-400 uppercase tracking-wider">Automated Enrollment</p>
                             </div>
                         </div>
 
                     </div>
                 </form>
-            </div >
-        </div >
+        </div>
     );
 };
 

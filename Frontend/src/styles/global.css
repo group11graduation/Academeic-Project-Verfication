@@ -3,12 +3,19 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
-  /**
-   * Global “zoom out”: Tailwind spacing/typography use rem, so lowering the root
-   * em size shrinks text, padding, gaps, and radii proportionally across the app.
-   */
+  :root {
+    --sv-primary: #2a3fa4;
+    --sv-primary-hover: #223688;
+    --sv-action: #1d68e3;
+    --sv-shell: #1e56e3;
+    --sv-page-bg: #f8faff;
+    --sv-card: #ffffff;
+    --sv-text: #0f172a;
+    --sv-muted: #51628f;
+  }
+
   html {
-    font-size: 60%; /* ~9.6px when browser default is 16px — page scale matches compact shell */
+    font-size: 100%;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
@@ -29,9 +36,11 @@
   }
 
   body {
-    @apply bg-[#0B1120] text-slate-100 antialiased transition-colors duration-300;
+    @apply antialiased transition-colors duration-300;
+    background-color: var(--sv-page-bg);
+    color: var(--sv-text);
     font-size: 1rem;
-    line-height: 1.45;
+    line-height: 1.5;
     margin: 0;
     width: 100%;
     max-width: 100%;
@@ -63,9 +72,20 @@
     @apply box-border w-full max-w-full min-w-0;
   }
 
-  /* Shared table look inspired by modern inventory/data grid UIs */
+  /** Compact inner pages — admin, teacher, student authenticated shells */
+  .app-page,
+  .admin-page {
+    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[13px] leading-snug;
+  }
+
+  .app-shell-page.app-page,
+  .app-shell-page .app-page-root {
+    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[13px] leading-snug;
+  }
+
+  /* Shared table look — compact data grids */
   .app-table-shell {
-    @apply rounded-[24px] border border-slate-200/80 bg-white shadow-sm overflow-hidden;
+    @apply rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden;
   }
 
   .app-table-wrap {
@@ -81,7 +101,7 @@
   }
 
   .app-table-th {
-    @apply px-6 py-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500;
+    @apply px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500;
   }
 
   .app-table-body {
@@ -93,10 +113,10 @@
   }
 
   .app-table-td {
-    @apply px-6 py-4 text-[13px] font-medium text-slate-700;
+    @apply px-3 py-2 text-[12px] font-medium text-slate-700;
   }
 
   .app-table-empty {
-    @apply py-14 text-center text-[13px] font-semibold text-slate-400;
+    @apply py-8 text-center text-[12px] font-semibold text-slate-400;
   }
 }

@@ -63,9 +63,31 @@ function buildImplicitRequiredTerms(requirementText) {
 }
 
 export function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
-  const requiredKeywords = toList(assignment?.requiredKeywords);
-  const allowedTechnologies = toList(assignment?.allowedTechnologies);
-  const requirementText = String(assignment?.requirementText || '').trim();
+  if (assignment?.isCollaborative) {
+    const frontendCheck = evaluateRequirementBlock(assignment?.frontendTechRequirements, proposalLike, 'Frontend');
+    const backendCheck = evaluateRequirementBlock(assignment?.backendTechRequirements, proposalLike, 'Backend');
+    const passed = frontendCheck.passed && backendCheck.passed;
+    return {
+      hasAnyRule: frontendCheck.hasAnyRule || backendCheck.hasAnyRule,
+      passed,
+      missingKeywords: [...frontendCheck.missingKeywords, ...backendCheck.missingKeywords],
+      missingAllowedTech: [...frontendCheck.missingAllowedTech, ...backendCheck.missingAllowedTech],
+      missingImplicitTerms: [...frontendCheck.missingImplicitTerms, ...backendCheck.missingImplicitTerms],
+      disallowedMentionedTech: [...frontendCheck.disallowedMentionedTech, ...backendCheck.disallowedMentionedTech],
+      matchedAllowedTech: [...frontendCheck.matchedAllowedTech, ...backendCheck.matchedAllowedTech],
+      summary: passed
+        ? 'Proposal satisfies collaborative frontend and backend requirement pre-check.'
+        : `Requirement pre-check failed. ${[frontendCheck.summary, backendCheck.summary].filter((s) => !s.includes('satisfies')).join(' | ')}`,
+    };
+  }
+
+  return evaluateRequirementBlock(assignment, proposalLike);
+}
+
+function evaluateRequirementBlock(block, proposalLike, label = '') {
+  const requiredKeywords = toList(block?.requiredKeywords);
+  const allowedTechnologies = toList(block?.allowedTechnologies);
+  const requirementText = String(block?.requirementText || block?.description || '').trim();
   const implicitRequiredTerms = buildImplicitRequiredTerms(requirementText);
   const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
 
@@ -122,8 +144,8 @@ export function evaluateProposalAgainstAssignmentRequirements(assignment, propos
     disallowedMentionedTech,
     matchedAllowedTech,
     summary: passed
-      ? 'Proposal satisfies teacher requirement pre-check.'
-      : `Requirement pre-check failed. ${reasons.join(' | ')}`,
+      ? `${label ? `${label}: ` : ''}Proposal satisfies teacher requirement pre-check.`.trim()
+      : `${label ? `${label} — ` : ''}Requirement pre-check failed. ${reasons.join(' | ')}`.trim(),
   };
 }
 

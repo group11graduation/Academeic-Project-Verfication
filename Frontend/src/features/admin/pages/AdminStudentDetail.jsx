@@ -248,52 +248,52 @@ const AdminStudentDetail = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-800 flex flex-col items-center justify-center transition-colors duration-300">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin mb-4" />
-                <p className="text-slate-500 dark:text-slate-400 font-medium transition-colors">Loading student profile...</p>
+            <div className="min-h-[40vh] flex flex-col items-center justify-center">
+                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin mb-2" />
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading student profile...</p>
             </div>
         );
     }
 
     if (error || !student) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-800 flex flex-col items-center justify-center transition-colors duration-300">
-                <p className="text-red-500 font-bold mb-4">{error}</p>
-                <button onClick={() => navigate(backPath)} className="text-[#1D68E3] font-medium underline">Go Back</button>
+            <div className="min-h-[40vh] flex flex-col items-center justify-center">
+                <p className="text-red-500 font-bold mb-3 text-[13px]">{error}</p>
+                <button onClick={() => navigate(backPath)} className="text-[#1D68E3] font-medium underline text-[12px]">Go Back</button>
             </div>
         );
     }
 
     return (
-        <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors duration-300">
-            <div className="mb-8">
+        <div className="font-sans text-[13px] transition-colors">
+            <div className="mb-4">
 
                 {/* Profile Header Card */}
-                <div className="bg-white dark:bg-slate-800 rounded-[32px] p-6 md:p-8 border border-slate-100 dark:border-slate-700 shadow-sm mb-6 md:mb-8 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8 transition-colors">
-                    <div className="flex items-center gap-8 w-full md:w-auto">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm mb-4 flex flex-col md:flex-row items-center justify-between gap-4 transition-colors">
+                    <div className="flex items-center gap-4 w-full md:w-auto">
                         <div className="relative shrink-0">
                             <img
                                 src={isEditing ? (editForm.photo || 'https://via.placeholder.com/150') : (student.photo || 'https://via.placeholder.com/150')}
                                 alt={student.name}
-                                className="h-32 w-32 rounded-full border-[6px] border-[#F8FAFB] dark:border-slate-900 shadow-xl object-cover transition-colors"
+                                className="h-20 w-20 rounded-full border-4 border-[#F8FAFB] dark:border-slate-900 shadow-md object-cover transition-colors"
                             />
                             {isEditing && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                    <Upload className="h-8 w-8 text-white" />
+                                    <Upload className="h-5 w-5 text-white" />
                                 </div>
                             )}
                             <div className="absolute bottom-1 right-1 w-6 h-6 bg-[#10B981] border-4 border-white dark:border-slate-800 rounded-full"></div>
                         </div>
                         <div className="w-full">
                             {isEditing ? (
-                                <div className="space-y-4">
+                                <div className="space-y-3">
                                     <input
                                         type="text"
                                         name="name"
                                         value={editForm.name}
                                         onChange={handleEditChange}
                                         placeholder="Student Name"
-                                        className="text-[32px] font-black tracking-tight leading-tight w-full border-b-2 border-blue-500 focus:outline-none bg-slate-50 dark:bg-slate-900 px-2 rounded-t-md text-slate-900 dark:text-white transition-colors"
+                                        className="text-lg font-black tracking-tight leading-tight w-full border-b-2 border-blue-500 focus:outline-none bg-slate-50 dark:bg-slate-900 px-2 rounded-t-md text-slate-900 dark:text-white transition-colors"
                                     />
                                     <div className="flex flex-col gap-2">
                                         <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors">Profile Picture Control</label>
@@ -327,10 +327,10 @@ const AdminStudentDetail = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <h1 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight mb-2 leading-tight text-slate-900 dark:text-white transition-colors">{student.name}</h1>
+                                <h1 className="text-base md:text-lg font-black tracking-tight mb-1 leading-tight text-slate-900 dark:text-white transition-colors">{student.name}</h1>
                             )}
 
-                            <div className="flex flex-wrap items-center gap-3 text-[14px] font-bold mt-2">
+                            <div className="flex flex-wrap items-center gap-2 text-[12px] font-bold mt-1">
                                 <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-3 py-1 rounded-lg uppercase tracking-wider transition-colors">{student.studentId}</span>
                                 <span className="flex items-center gap-1.5 text-[#10B981]">
                                     <span className="w-2 h-2 bg-[#10B981] rounded-full"></span>
@@ -362,64 +362,64 @@ const AdminStudentDetail = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 flex-wrap">
                         {isEditing ? (
                             <>
                                 <button
                                     onClick={toggleEdit}
-                                    className="flex items-center gap-2 px-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 rounded-xl font-bold text-[14px] hover:bg-slate-50 dark:hover:bg-slate-750 transition-all"
+                                    className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 transition-all"
                                 >
-                                    <X className="h-4 w-4" /> Cancel
+                                    <X className="h-3.5 w-3.5" /> Cancel
                                 </button>
                                 <button
                                     onClick={handleSave}
                                     disabled={isSaving}
-                                    className="flex items-center gap-2 px-6 py-3 bg-[#10B981] text-white rounded-xl font-bold text-[14px] shadow-lg shadow-green-500/20 hover:bg-green-600 transition-all disabled:opacity-70"
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-[#10B981] text-white rounded-lg font-bold text-[12px] shadow-md shadow-green-500/20 hover:bg-green-600 transition-all disabled:opacity-70"
                                 >
-                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                                     Save Changes
                                 </button>
                             </>
                         ) : (
                             <button
                                 onClick={toggleEdit}
-                                className="flex items-center gap-2 px-6 py-3 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-[14px] hover:bg-slate-50 dark:hover:bg-slate-750 transition-all transition-colors shadow-sm"
+                                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 transition-all shadow-sm"
                             >
-                                <Edit3 className="h-4 w-4" /> Edit Profile
+                                <Edit3 className="h-3.5 w-3.5" /> Edit Profile
                             </button>
                         )}
                         <button
                             onClick={handleDelete}
                             disabled={isDeleting}
-                            className="flex items-center gap-2 px-6 py-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-500 border border-red-100 dark:border-red-900/30 rounded-xl font-bold text-[14px] hover:bg-red-100 dark:hover:bg-red-900/50 transition-all disabled:opacity-70"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-500 border border-red-100 dark:border-red-900/30 rounded-lg font-bold text-[12px] hover:bg-red-100 dark:hover:bg-red-900/50 transition-all disabled:opacity-70"
                         >
-                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Delete
+                            {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
                         </button>
                     </div>
                 </div>
 
                 {/* Main Content Info Grid */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                     {/* Left & Center Column: Detailed Cards */}
-                    <div className="xl:col-span-2 space-y-8">
+                    <div className="xl:col-span-2 space-y-4">
                         {/* Personal Information */}
-                        <div className="bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-8 py-5 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <User className="h-5 w-5 text-[#1D68E3]" />
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between transition-colors">
+                                <div className="flex items-center gap-2">
+                                    <User className="h-4 w-4 text-[#1D68E3]" />
                                     <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Personal Information</h2>
                                 </div>
-                                <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-500/10 text-[#1D68E3] rounded-xl font-bold text-[13px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all">
-                                    <Mail className="h-4 w-4" /> Message
+                                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#1D68E3] rounded-lg font-bold text-[12px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all">
+                                    <Mail className="h-3.5 w-3.5" /> Message
                                 </button>
                             </div>
-                            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
                                 <div>
                                     <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Email Address (Login)</p>
                                     {isEditing ? (
                                         <input type="email" name="email" value={editForm.email} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.email || student.userId?.email || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.email || student.userId?.email || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -427,7 +427,7 @@ const AdminStudentDetail = () => {
                                     {isEditing ? (
                                         <input type="date" name="dob" value={editForm.dob} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.dob ? new Date(student.personalInfo.dob).toLocaleDateString() : 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.dob ? new Date(student.personalInfo.dob).toLocaleDateString() : 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -439,7 +439,7 @@ const AdminStudentDetail = () => {
                                             <option>Unknown</option>
                                         </select>
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.gender || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.gender || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -447,25 +447,25 @@ const AdminStudentDetail = () => {
                                     {isEditing ? (
                                         <input type="text" name="phone" value={editForm.phone} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.phone || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.phone || 'N/A'}</p>
                                     )}
                                 </div>
                             </div>
                         </div>
 
                         {/* Educational Background */}
-                        <div className="bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-8 py-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3 transition-colors">
-                                <GraduationCap className="h-5 w-5 text-[#1D68E3]" />
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
+                                <GraduationCap className="h-4 w-4 text-[#1D68E3]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Educational Background</h2>
                             </div>
-                            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
                                 <div>
                                     <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">High School</p>
                                     {isEditing ? (
                                         <input type="text" name="highSchoolName" value={editForm.highSchoolName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.educationalBackground?.highSchoolName || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.educationalBackground?.highSchoolName || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -473,12 +473,12 @@ const AdminStudentDetail = () => {
                                     {isEditing ? (
                                         <input type="text" name="graduationYear" value={editForm.graduationYear} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.educationalBackground?.graduationYear || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.educationalBackground?.graduationYear || 'N/A'}</p>
                                     )}
                                 </div>
 
                                 {/* Certificate Viewer / Editor */}
-                                <div className="mt-8 border-t border-slate-50 dark:border-slate-700 pt-8 transition-colors">
+                                <div className="mt-4 border-t border-slate-50 dark:border-slate-700 pt-4 md:col-span-2 lg:col-span-3 transition-colors">
                                     <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 transition-colors">High School Certificate</p>
 
                                     {isEditing ? (
@@ -576,18 +576,18 @@ const AdminStudentDetail = () => {
                         </div>
 
                         {/* Parent Information */}
-                        <div className="bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-8 py-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3 transition-colors">
-                                <Users className="h-5 w-5 text-[#1D68E3]" />
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
+                                <Users className="h-4 w-4 text-[#1D68E3]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Parent Information</h2>
                             </div>
-                            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
                                 <div>
                                     <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Father's Name</p>
                                     {isEditing ? (
                                         <input type="text" name="fatherName" value={editForm.fatherName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.fatherName || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.fatherName || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -595,7 +595,7 @@ const AdminStudentDetail = () => {
                                     {isEditing ? (
                                         <input type="text" name="fatherContact" placeholder="+252..." value={editForm.fatherContact} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.fatherContact || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.fatherContact || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -603,7 +603,7 @@ const AdminStudentDetail = () => {
                                     {isEditing ? (
                                         <input type="text" name="motherName" value={editForm.motherName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.motherName || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.motherName || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -611,7 +611,7 @@ const AdminStudentDetail = () => {
                                     {isEditing ? (
                                         <input type="text" name="motherContact" placeholder="+252..." value={editForm.motherContact} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.motherContact || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.motherContact || 'N/A'}</p>
                                     )}
                                 </div>
                             </div>
@@ -619,14 +619,14 @@ const AdminStudentDetail = () => {
                     </div>
 
                     {/* Right Column: Academic & Status */}
-                    <div className="space-y-8">
+                    <div className="space-y-4">
                         {/* Academic Summary */}
-                        <div className="bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-8 py-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3 transition-colors">
-                                <BookOpen className="h-5 w-5 text-[#1D68E3]" />
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
+                                <BookOpen className="h-4 w-4 text-[#1D68E3]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Academic</h2>
                             </div>
-                            <div className="p-8 space-y-6">
+                            <div className="p-4 space-y-4">
                                 <div>
                                     <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Faculty</p>
                                     {isEditing ? (
@@ -645,7 +645,7 @@ const AdminStudentDetail = () => {
                                             ))}
                                         </select>
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.faculty || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.faculty || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -658,7 +658,7 @@ const AdminStudentDetail = () => {
                                             <option>Campus 3</option>
                                         </select>
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.campus || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.campus || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -669,7 +669,7 @@ const AdminStudentDetail = () => {
                                             <option>Part-time</option>
                                         </select>
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.studyMode || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.studyMode || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
@@ -677,27 +677,27 @@ const AdminStudentDetail = () => {
                                     {isEditing ? (
                                         <input type="date" name="entryDate" value={editForm.entryDate} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
                                     ) : (
-                                        <p className="text-[15px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.entryDate ? new Date(student.academicInfo.entryDate).toLocaleDateString() : 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.entryDate ? new Date(student.academicInfo.entryDate).toLocaleDateString() : 'N/A'}</p>
                                     )}
                                 </div>
                             </div>
                         </div>
 
                         {/* Security & Access */}
-                        <div className="bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-8 py-5 border-b border-slate-50 dark:border-slate-700 flex items-center gap-3 transition-colors">
-                                <ShieldCheck className="h-5 w-5 text-[#1D68E3]" />
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
+                                <ShieldCheck className="h-4 w-4 text-[#1D68E3]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Security</h2>
                             </div>
-                            <div className="p-8 space-y-4">
-                                <button className="w-full flex items-center justify-between p-4 border border-slate-100 dark:border-slate-700 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group transition-colors">
+                            <div className="p-4 space-y-3">
+                                <button className="w-full flex items-center justify-between p-3 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group transition-colors">
                                     <div className="flex items-center gap-3">
                                         <Lock className="h-4 w-4 text-slate-400 group-hover:text-[#1D68E3] transition-colors" />
                                         <span className="text-[13px] font-bold text-slate-600 dark:text-slate-300 transition-colors">Reset Password</span>
                                     </div>
                                     <ChevronRight className="h-4 w-4 text-slate-300" />
                                 </button>
-                                <button className="w-full flex items-center justify-between p-4 border border-slate-100 dark:border-slate-700 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all group transition-colors">
+                                <button className="w-full flex items-center justify-between p-3 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all group transition-colors">
                                     <div className="flex items-center gap-3">
                                         <ShieldCheck className="h-4 w-4 text-slate-400 group-hover:text-red-500 transition-colors" />
                                         <span className="text-[13px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">Deactivate Account</span>
@@ -713,15 +713,15 @@ const AdminStudentDetail = () => {
             {/* Certificate Modal */}
             {isCertModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-3xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200">
                         {/* Modal Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
-                            <div className="flex items-center gap-4">
-                                <div className="bg-blue-100 dark:bg-blue-500/10 p-2.5 rounded-xl">
-                                    <FileText className="h-5 w-5 text-[#1D68E3]" />
+                        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg">
+                                    <FileText className="h-4 w-4 text-[#1D68E3]" />
                                 </div>
                                 <div>
-                                    <h3 className="font-black text-slate-800 dark:text-white text-lg tracking-tight">High School Certificate</h3>
+                                    <h3 className="font-black text-slate-800 dark:text-white text-base tracking-tight">High School Certificate</h3>
                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{student.name}'s Document</p>
                                 </div>
                             </div>
@@ -734,8 +734,8 @@ const AdminStudentDetail = () => {
                         </div>
 
                         {/* Modal Body (Preview) */}
-                        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 dark:bg-slate-950/20">
-                            <div className="w-full flex justify-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-inner overflow-hidden min-h-[400px]">
+                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950/20">
+                            <div className="w-full flex justify-center bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-inner overflow-hidden min-h-[300px]">
                                 {student.educationalBackground?.certificateUrl?.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif)$/) || student.educationalBackground?.certificateUrl?.startsWith('data:image') ? (
                                     <img 
                                         src={student.educationalBackground.certificateUrl} 
@@ -753,19 +753,19 @@ const AdminStudentDetail = () => {
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="px-8 py-5 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-white dark:bg-slate-900">
+                        <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 bg-white dark:bg-slate-900">
                             <button 
                                 onClick={() => setIsCertModalOpen(false)}
-                                className="px-6 py-2.5 text-[13px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                                className="px-4 py-2 text-[12px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
                             >
                                 Close Preview
                             </button>
                             <a 
                                 href={student.educationalBackground?.certificateUrl} 
                                 download="High_School_Certificate"
-                                className="flex items-center gap-2 bg-[#1D68E3] text-white px-7 py-2.5 rounded-xl font-black text-[13px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/10 active:scale-[0.98]"
+                                className="flex items-center gap-1.5 bg-[#1D68E3] text-white px-4 py-2 rounded-lg font-black text-[12px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 active:scale-[0.98]"
                             >
-                                <Download className="h-4 w-4" /> Download Certificate
+                                <Download className="h-3.5 w-3.5" /> Download Certificate
                             </a>
                         </div>
                     </div>

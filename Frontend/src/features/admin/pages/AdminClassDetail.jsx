@@ -19,6 +19,7 @@ function normalizeClassCode(code) {
 const AdminClassDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [activeTab, setActiveTab] = useState('students');
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -125,6 +126,10 @@ const AdminClassDetail = () => {
 
     const handleAssignTeacher = async () => {
         if (!selectedTeacherId) return;
+        if (!selectedTeacherSubjectIds.length) {
+            alert('Select at least one subject for this teacher.');
+            return;
+        }
         try {
             setAssigningTeacher(true);
             const res = await adminClassService.assignTeacher(id, {
@@ -254,8 +259,33 @@ const AdminClassDetail = () => {
         : teachers.filter(t => (t.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (t.teacherId || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
     const assignedTeacherIds = new Set((teachers || []).map((t) => String(t.userId || t._id || '')));
-    const teacherCandidates = (allTeachers || []).filter(
-        (t) => !assignedTeacherIds.has(String(t.userId || t._id || ''))
+    const teacherByUserId = useMemo(() => {
+        const map = new Map();
+        (teachers || []).forEach((t) => {
+            const key = String(t.userId || t._id || '');
+            if (key) map.set(key, t);
+        });
+        return map;
+    }, [teachers]);
+
+    const handleTeacherSelect = (teacherUserId) => {
+        setSelectedTeacherId(teacherUserId);
+        if (!teacherUserId) {
+            setSelectedTeacherSubjectIds([]);
+            return;
+        }
+        const assigned = teacherByUserId.get(String(teacherUserId));
+        if (assigned?.subjects?.length) {
+            setSelectedTeacherSubjectIds(assigned.subjects.map((s) => String(s._id)));
+        } else if (assigned?.subjectIds?.length) {
+            setSelectedTeacherSubjectIds(assigned.subjectIds.map((id) => String(id)));
+        } else {
+            setSelectedTeacherSubjectIds([]);
+        }
+    };
+
+    const selectedTeacherAlreadyAssigned = Boolean(
+        selectedTeacherId && assignedTeacherIds.has(String(selectedTeacherId))
     );
     // Students already in this class: match roster by profile _id and user id (covers API / list quirks).
     const enrolledProfileIds = new Set(
@@ -386,18 +416,18 @@ const AdminClassDetail = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-800 flex flex-col items-center justify-center transition-colors duration-300">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin mb-4" />
-                <p className="text-slate-500 dark:text-slate-400 font-medium transition-colors">Loading class details...</p>
+            <div className="admin-page min-h-[40vh] flex flex-col items-center justify-center">
+                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin mb-2" />
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading class details...</p>
             </div>
         );
     }
 
     if (!classInfo) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-800 flex flex-col items-center justify-center transition-colors duration-300">
-                <p className="text-slate-500 dark:text-slate-400 font-medium transition-colors">Class not found.</p>
-                <button onClick={() => navigate('/admin/classes')} className="mt-4 text-blue-500 font-bold hover:underline">
+            <div className="admin-page min-h-[40vh] flex flex-col items-center justify-center">
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Class not found.</p>
+                <button onClick={() => navigate('/admin/classes')} className="mt-3 text-blue-500 text-[12px] font-bold hover:underline">
                     Back to Directory
                 </button>
             </div>
@@ -405,83 +435,79 @@ const AdminClassDetail = () => {
     }
 
     return (
-        <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors duration-300">
-            {/* Top Navigation Bar */}
-            <div className="flex items-center justify-between mb-8">
+        <div className="admin-page font-sans text-[13px] transition-colors duration-300">
+            <div className="flex items-center justify-between mb-3 gap-2">
                 <button
                     onClick={() => navigate('/admin/classes')}
-                    className="flex items-center gap-3 px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 font-bold text-[14px] hover:bg-slate-50 dark:hover:bg-slate-750 hover:text-[#1D68E3] transition-all shadow-sm group"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 hover:text-[#1D68E3] transition-all group"
                 >
-                    <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+                    <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
                     Back to Classes
                 </button>
 
-                <div className="relative w-[320px]">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <div className="relative w-full max-w-[220px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                     <input
                         type="text"
                         placeholder="Global search..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 pl-11 pr-4 text-[14px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 dark:text-white transition-colors shadow-sm"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 dark:text-white transition-colors"
                     />
                 </div>
             </div>
 
-            {/* Header Content */}
-            <div className="mb-10">
-                <h1 className="text-[36px] font-black text-[#0F172A] dark:text-white tracking-tight mb-2 transition-colors">{classInfo.code}</h1>
-                <p className="text-[16px] text-slate-500 dark:text-slate-400 font-medium transition-colors">{classInfo.description}</p>
+            <div className="mb-4">
+                <h1 className="text-lg font-black text-[#0F172A] dark:text-white tracking-tight leading-none">{classInfo.code}</h1>
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{classInfo.description}</p>
             </div>
 
-            {/* Tabs Selector */}
-            <div className="flex items-center gap-10 border-b border-slate-200 dark:border-slate-700 mb-10 transition-colors">
+            <div className="flex items-center gap-6 border-b border-slate-200 dark:border-slate-700 mb-4 transition-colors">
                 <button
                     onClick={() => { setActiveTab('students'); setSearchQuery(''); }}
-                    className={`pb-4 text-[15px] font-bold transition-all relative ${activeTab === 'students' ? 'text-[#1D68E3]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'students' ? 'text-[#1D68E3]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
                 >
                     Students
-                    {activeTab === 'students' && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#1D68E3] rounded-full"></div>}
+                    {activeTab === 'students' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#1D68E3] rounded-full" />}
                 </button>
                 <button
                     onClick={() => { setActiveTab('teachers'); setSearchQuery(''); }}
-                    className={`pb-4 text-[15px] font-bold transition-all relative ${activeTab === 'teachers' ? 'text-[#1D68E3]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'teachers' ? 'text-[#1D68E3]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
                 >
                     Teachers
-                    {activeTab === 'teachers' && <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#1D68E3] rounded-full"></div>}
+                    {activeTab === 'teachers' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#1D68E3] rounded-full" />}
                 </button>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
                 {[
                     { label: 'Total Students', value: students.length },
                     { label: 'Faculty', value: classInfo.faculty },
                     { label: 'Department', value: classInfo.department || '-' },
                     { label: 'Total Teachers', value: teachers.length },
                 ].map((stat, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-800 p-7 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm transition-colors">
-                        <p className="text-[14px] font-bold text-slate-400 dark:text-slate-500 mb-3 transition-colors">{stat.label}</p>
-                        <h3 className="text-[32px] font-black text-[#0F172A] dark:text-white tracking-tight leading-none transition-colors">{stat.value}</h3>
+                    <div key={i} className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm transition-colors">
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1 transition-colors">{stat.label}</p>
+                        <h3 className="text-base font-black text-[#0F172A] dark:text-white tracking-tight leading-tight truncate transition-colors">{stat.value}</h3>
                     </div>
                 ))}
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-[24px] border border-slate-100 dark:border-slate-700 shadow-sm p-6 mb-10">
-                <h3 className="text-[18px] font-black text-[#0F172A] dark:text-white mb-4">Class Information & Subjects</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 mb-4">
+                <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Information & Subjects</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
                     <input
                         value={classForm.name}
                         onChange={(e) => setClassForm((p) => ({ ...p, name: e.target.value }))}
                         placeholder="Class name"
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-[14px] outline-none"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
                     />
                     <select
                         value={classForm.faculty}
                         onChange={(e) =>
                             setClassForm((p) => ({ ...p, faculty: e.target.value, department: '', subjectIds: [] }))
                         }
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-[14px] outline-none"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
                     >
                         <option value="">Select faculty</option>
                         {(academicStructure.faculties || []).map((f) => (
@@ -491,7 +517,7 @@ const AdminClassDetail = () => {
                     <select
                         value={classForm.department}
                         onChange={(e) => setClassForm((p) => ({ ...p, department: e.target.value, subjectIds: [] }))}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-[14px] outline-none"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
                         disabled={!classForm.faculty}
                     >
                         <option value="">Select department</option>
@@ -502,7 +528,7 @@ const AdminClassDetail = () => {
                     <select
                         value={classForm.category}
                         onChange={(e) => setClassForm((p) => ({ ...p, category: e.target.value }))}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-[14px] outline-none"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
                     >
                         <option value="ACADEMIC">Academic</option>
                         <option value="LAB BASED">Lab Based</option>
@@ -513,7 +539,7 @@ const AdminClassDetail = () => {
                     <select
                         value={classForm.semester}
                         onChange={(e) => setClassForm((p) => ({ ...p, semester: e.target.value }))}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-[14px] outline-none"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
                     >
                         <option value="">Select semester</option>
                         {allSemesters.map((s) => (
@@ -528,11 +554,11 @@ const AdminClassDetail = () => {
                     onChange={(e) => setClassForm((p) => ({ ...p, description: e.target.value }))}
                     placeholder="Class notes / description"
                     rows={2}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-[14px] outline-none mb-4"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none mb-3"
                 />
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 max-h-48 overflow-y-auto mb-4">
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-2 max-h-36 overflow-y-auto mb-3">
                     {availableSubjects.map((s) => (
-                        <label key={s._id} className="flex items-center gap-2 text-[13px] py-1">
+                        <label key={s._id} className="flex items-center gap-2 text-[11px] py-0.5">
                             <input
                                 type="checkbox"
                                 checked={classForm.subjectIds.includes(String(s._id))}
@@ -542,104 +568,124 @@ const AdminClassDetail = () => {
                         </label>
                     ))}
                     {availableSubjects.length === 0 && (
-                        <p className="text-[13px] text-slate-500">No subjects available for selected faculty/department.</p>
+                        <p className="text-[11px] text-slate-500">No subjects available for selected faculty/department.</p>
                     )}
                 </div>
                 <button
                     onClick={handleSaveClassInfo}
                     disabled={savingClassInfo}
-                    className="px-4 py-2.5 bg-[#1D68E3] text-white rounded-xl text-[14px] font-bold hover:bg-blue-600 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-[#1D68E3] text-white rounded-lg text-[12px] font-bold hover:bg-blue-600 disabled:opacity-50"
                 >
                     {savingClassInfo ? 'Saving...' : 'Save Class Updates'}
                 </button>
             </div>
 
-            {/* Main Content Area */}
-            <div className="bg-white dark:bg-slate-800 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden pb-8 transition-colors">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden pb-4 transition-colors">
 
-                <div className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <h3 className="text-[20px] font-black text-[#0F172A] dark:text-white transition-colors">
+                <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <h3 className="text-sm font-black text-[#0F172A] dark:text-white transition-colors">
                         {activeTab === 'students' ? 'Enrolled Students' : 'Class Teachers'}
                     </h3>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-2">
                         {activeTab === 'teachers' && (
                             <>
                                 <select
                                     value={selectedTeacherId}
-                                    onChange={(e) => setSelectedTeacherId(e.target.value)}
-                                    className="bg-[#F8FAFB] dark:bg-slate-900 rounded-xl py-3 px-4 text-[14px] text-slate-900 dark:text-white w-[260px] border border-slate-200 dark:border-slate-700 outline-none"
+                                    onChange={(e) => handleTeacherSelect(e.target.value)}
+                                    className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg py-2 px-3 text-[12px] text-slate-900 dark:text-white w-[200px] border border-slate-200 dark:border-slate-700 outline-none"
                                 >
-                                    <option value="">Assign teacher...</option>
-                                    {teacherCandidates.map((t) => (
-                                        <option key={t.userId || t._id} value={t.userId || t._id}>
-                                            {t.name} ({t.teacherId || t.employeeId || 'No ID'})
-                                        </option>
-                                    ))}
+                                    <option value="">Select teacher...</option>
+                                    {(allTeachers || []).map((t) => {
+                                        const uid = String(t.userId || t._id || '');
+                                        const inClass = assignedTeacherIds.has(uid);
+                                        return (
+                                            <option key={uid} value={uid}>
+                                                {t.name} ({t.teacherId || t.employeeId || 'No ID'})
+                                                {inClass ? ' — in class' : ''}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
-                                {teacherCandidates.length === 0 && (
-                                    <p className="text-[12px] text-slate-500">No unassigned teachers available.</p>
+                                {(allTeachers || []).length === 0 && (
+                                    <p className="text-[12px] text-slate-500">No teachers in the system yet.</p>
                                 )}
-                                <div className="bg-[#F8FAFB] dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 max-h-36 overflow-y-auto min-w-[260px] text-slate-900 dark:text-white">
+                                <div className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1.5 max-h-28 overflow-y-auto min-w-[200px] text-slate-900 dark:text-white">
                                     {(classInfo?.subjects || []).length === 0 ? (
-                                        <p className="text-[12px] text-slate-500">No class subjects yet.</p>
+                                        <p className="text-[12px] text-slate-500">
+                                            Add subjects under Class Information above, save, then assign teachers here.
+                                        </p>
                                     ) : (
-                                        (classInfo?.subjects || []).map((s) => (
-                                            <label key={s._id} className="flex items-center gap-2 text-[12px] py-1">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedTeacherSubjectIds.includes(String(s._id))}
-                                                    onChange={() => handleToggleTeacherSubject(s._id)}
-                                                />
-                                                <span>{s.name} ({s.code})</span>
-                                            </label>
-                                        ))
+                                        <>
+                                            <p className="text-[11px] font-semibold text-slate-500 mb-1">
+                                                Select one or more subjects (checkboxes)
+                                            </p>
+                                            {(classInfo?.subjects || []).map((s) => (
+                                                <label key={s._id} className="flex items-center gap-2 text-[12px] py-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedTeacherSubjectIds.includes(String(s._id))}
+                                                        onChange={() => handleToggleTeacherSubject(s._id)}
+                                                    />
+                                                    <span>{s.name} ({s.code})</span>
+                                                </label>
+                                            ))}
+                                        </>
                                     )}
                                 </div>
                                 <button
                                     onClick={handleAssignTeacher}
-                                    disabled={!selectedTeacherId || assigningTeacher}
-                                    className="flex items-center gap-2 px-4 py-3 bg-[#1D68E3] text-white rounded-xl font-bold text-[14px] hover:bg-blue-600 transition-all shadow-md disabled:opacity-50"
+                                    disabled={
+                                        !selectedTeacherId ||
+                                        !selectedTeacherSubjectIds.length ||
+                                        assigningTeacher ||
+                                        !(classInfo?.subjects || []).length
+                                    }
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1D68E3] text-white rounded-lg font-bold text-[11px] hover:bg-blue-600 transition-all disabled:opacity-50"
                                 >
-                                    {assigningTeacher ? 'Assigning...' : 'Assign Teacher + Subjects'}
+                                    {assigningTeacher
+                                        ? 'Saving...'
+                                        : selectedTeacherAlreadyAssigned
+                                          ? 'Update teacher subjects'
+                                          : 'Assign teacher + subjects'}
                                 </button>
                             </>
                         )}
                         <button
                             onClick={handleGenerateAccounts}
                             disabled={generating}
-                            className="flex items-center gap-2 px-5 py-3 bg-[#1D68E3] text-white rounded-xl font-bold text-[14px] hover:bg-blue-600 transition-all shadow-md disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1D68E3] text-white rounded-lg font-bold text-[11px] hover:bg-blue-600 transition-all disabled:opacity-50"
                         >
-                            <UserPlus className="h-4 w-4" />
+                            <UserPlus className="h-3.5 w-3.5" />
                             {generating ? 'Generating...' : 'Generate Student Accounts'}
                         </button>
                         <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                             <input
                                 type="text"
                                 placeholder={`Filter ${activeTab}...`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="bg-[#F8FAFB] dark:bg-slate-900 border-none rounded-xl py-3 pl-11 pr-4 text-[14px] w-[280px] outline-none focus:ring-2 focus:ring-blue-500/10 dark:text-white transition-all transition-colors"
+                                className="bg-[#F8FAFB] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] w-[180px] outline-none focus:ring-2 focus:ring-blue-500/10 dark:text-white transition-all"
                             />
                         </div>
                     </div>
                 </div>
                 {activeTab === 'students' && (
                     <>
-                        <p className="px-8 pb-3 text-[11px] text-slate-500 leading-snug max-w-3xl">
+                        <p className="px-4 pb-2 text-[10px] text-slate-500 leading-snug max-w-3xl">
                             Students who are <strong>not in this class</strong> ({studentCandidates.length} available): anyone already in the
                             roster above or with this class on their profile is hidden. Others can be added, or moved here from another profile
                             class (confirm when moving).
                         </p>
-                        <div className="px-8 pb-6">
-                            <div className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-[#F8FAFB] dark:bg-slate-900/40 p-4 md:p-5">
-                                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="px-4 pb-4">
+                            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-[#F8FAFB] dark:bg-slate-900/40 p-3">
+                                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                     <div>
-                                        <h4 className="text-[13px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                             Add students to this class
                                         </h4>
-                                        <p className="mt-1 max-w-xl text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                                        <p className="mt-0.5 max-w-xl text-[10px] font-medium text-slate-600 dark:text-slate-400">
                                             The <strong>Current class</strong> column shows each student&apos;s profile class.{' '}
                                             <strong>Select all</strong> selects everyone in the list; <strong>Add selected</strong> assigns or moves them here.
                                         </p>
@@ -652,7 +698,7 @@ const AdminClassDetail = () => {
                                                 assigningStudent ||
                                                 !filteredStudentCandidates.some((s) => studentCanBeBulkAddedToThisClass(s))
                                             }
-                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                         >
                                             Select all
                                         </button>
@@ -660,7 +706,7 @@ const AdminClassDetail = () => {
                                             type="button"
                                             onClick={clearPickedStudents}
                                             disabled={pickedStudentProfileIds.size === 0 || assigningStudent}
-                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                         >
                                             Clear selection
                                         </button>
@@ -668,11 +714,11 @@ const AdminClassDetail = () => {
                                             type="button"
                                             onClick={handleAddSelectedStudents}
                                             disabled={pickedStudentProfileIds.size === 0 || assigningStudent}
-                                            className="flex items-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2 text-[12px] font-bold text-white shadow-md hover:bg-blue-600 disabled:opacity-50"
+                                            className="flex items-center gap-1.5 rounded-lg bg-[#1D68E3] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-600 disabled:opacity-50"
                                         >
                                             {assigningStudent ? (
                                                 <>
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                     Adding…
                                                 </>
                                             ) : (
@@ -681,19 +727,19 @@ const AdminClassDetail = () => {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="relative mt-3">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <div className="relative mt-2">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                                     <input
                                         type="text"
                                         value={candidateQuery}
                                         onChange={(e) => setCandidateQuery(e.target.value)}
                                         placeholder="Search by name, ID, email, or class code…"
-                                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-[13px] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                                        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                                     />
                                 </div>
-                                <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800">
+                                <div className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800">
                                     {filteredStudentCandidates.length === 0 ? (
-                                        <p className="p-4 text-[13px] font-medium text-slate-500 dark:text-slate-400">
+                                        <p className="p-3 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                                             {studentCandidates.length === 0
                                                 ? 'No students available to add: everyone is already on this class in their profile, or listed in the table above.'
                                                 : 'No students match your search.'}
@@ -713,22 +759,22 @@ const AdminClassDetail = () => {
                                                 return (
                                                     <li key={k}>
                                                         <label
-                                                            className={`flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/40 ${
+                                                            className={`flex items-center gap-2 px-2.5 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/40 ${
                                                                 canAdd ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
                                                             }`}
                                                         >
                                                             <input
                                                                 type="checkbox"
                                                                 disabled={!canAdd}
-                                                                className="h-4 w-4 shrink-0 rounded border-slate-300 text-[#1D68E3] focus:ring-[#1D68E3] disabled:cursor-not-allowed"
+                                                                className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[#1D68E3] focus:ring-[#1D68E3] disabled:cursor-not-allowed"
                                                                 checked={pickedStudentProfileIds.has(k)}
                                                                 onChange={() => togglePickStudent(k)}
                                                             />
                                                             <div className="min-w-0 flex-1">
-                                                                <div className="truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">
+                                                                <div className="truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">
                                                                     {s.name || 'Unknown'}
                                                                 </div>
-                                                                <div className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                                <div className="truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
                                                                     {s.studentId || 'no ID'} · {s.email || '—'}
                                                                 </div>
                                                             </div>
@@ -766,6 +812,7 @@ const AdminClassDetail = () => {
                             <tr className="app-table-headrow">
                                 <th className="app-table-th">Name</th>
                                 <th className="app-table-th">ID / Department</th>
+                                {activeTab === 'teachers' && <th className="app-table-th">Subjects</th>}
                                 {activeTab === 'students' && <th className="app-table-th">Class</th>}
                                 <th className="app-table-th">{activeTab === 'students' ? 'Username / Email' : 'Faculty Email'}</th>
                                 <th className="app-table-th">Status</th>
@@ -777,54 +824,73 @@ const AdminClassDetail = () => {
                             {filteredData.map((item) => (
                                 <tr key={item._id} className="app-table-row group">
                                     <td className="app-table-td">
-                                        <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2">
                                             <Link
                                                 to={`/admin/${activeTab}/${activeTab === 'students' ? item.studentId : item.teacherId}`}
                                                 state={{ from: location.pathname }}
-                                                className="hover:scale-110 transition-transform"
+                                                className="hover:scale-105 transition-transform"
                                             >
-                                                <img src={item.photo || 'https://via.placeholder.com/150'} alt="" className="w-11 h-11 rounded-full object-cover border-2 border-slate-100 dark:border-slate-700 shadow-sm transition-colors" />
+                                                <img src={item.photo || 'https://via.placeholder.com/150'} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-100 dark:border-slate-700 shadow-sm transition-colors" />
                                             </Link>
                                             <div>
                                                 <Link
                                                     to={`/admin/${activeTab}/${activeTab === 'students' ? item.studentId : item.teacherId}`}
                                                     state={{ from: location.pathname }}
-                                                    className="text-[15px] font-bold text-[#0F172A] dark:text-white hover:text-[#1D68E3] transition-colors line-clamp-1"
+                                                    className="text-[12px] font-bold text-[#0F172A] dark:text-white hover:text-[#1D68E3] transition-colors line-clamp-1"
                                                 >
                                                     {item.name || 'Unknown User'}
                                                 </Link>
-                                                <p className="text-[12px] font-medium text-slate-400 dark:text-slate-500 transition-colors line-clamp-1">{item.email}</p>
+                                                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors line-clamp-1">{item.email}</p>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="app-table-td">
-                                        <span className="text-[14px] font-bold text-slate-600 dark:text-slate-300 tracking-tight transition-colors">
+                                        <span className="text-[12px] font-bold text-slate-600 dark:text-slate-300 tracking-tight transition-colors">
                                             {activeTab === 'students' ? item.studentId : item.department}
                                         </span>
                                     </td>
+                                    {activeTab === 'teachers' && (
+                                        <td className="app-table-td">
+                                            <div className="flex flex-wrap gap-1.5 max-w-md">
+                                                {(item.subjects || []).length ? (
+                                                    item.subjects.map((sub) => (
+                                                        <span
+                                                            key={sub._id}
+                                                            className="inline-flex rounded-md bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-[#1D68E3]"
+                                                        >
+                                                            {sub.name}
+                                                            {sub.code ? ` (${sub.code})` : ''}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-[12px] text-slate-400">No subjects</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    )}
                                     {activeTab === 'students' && (
                                         <td className="app-table-td">
-                                            <span className="font-mono text-[13px] font-bold text-slate-700 dark:text-slate-200">
+                                            <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">
                                                 {currentClassCode || id || '—'}
                                             </span>
                                         </td>
                                     )}
                                     <td className="app-table-td">
-                                        <span className="text-[14px] font-medium text-slate-500 dark:text-slate-400 transition-colors">
+                                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 transition-colors">
                                             {activeTab === 'students'
                                                 ? (item.username ? `${item.username} / ${item.email}` : item.email)
                                                 : item.email}
                                         </span>
                                     </td>
                                     <td className="app-table-td">
-                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-black ${(item.accountStatus || 'active') === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500'} transition-colors`}>
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${(item.accountStatus || 'active') === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500'} transition-colors`}>
                                             <div className={`h-1.5 w-1.5 rounded-full ${(item.accountStatus || 'active') === 'active' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
                                             {(item.accountStatus || 'active').charAt(0).toUpperCase() + (item.accountStatus || 'active').slice(1)}
                                         </span>
                                     </td>
                                     {activeTab === 'students' && (
                                         <td className="app-table-td">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-black ${(item.hasAccount ?? Boolean(item.userId)) ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${(item.hasAccount ?? Boolean(item.userId)) ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                                                 {(item.hasAccount ?? Boolean(item.userId)) ? 'Has Account' : 'No Account'}
                                             </span>
                                             {generatedPasscodes[String(item._id)] && (
@@ -840,26 +906,35 @@ const AdminClassDetail = () => {
                                                 <button
                                                     onClick={() => handleGenerateStudentAccount(item._id, item.name || item.studentId)}
                                                     disabled={generatingStudentPasscodeFor === String(item._id)}
-                                                    className="px-3 py-2 text-[12px] font-bold rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                                                 >
                                                     {generatingStudentPasscodeFor === String(item._id) ? 'Generating...' : 'Generate/Reset'}
                                                 </button>
                                                 <button
                                                     onClick={() => handleRemoveStudent(item._id)}
                                                     disabled={removingStudentId === String(item._id)}
-                                                    className="px-3 py-2 text-[12px] font-bold rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-60"
                                                 >
                                                     {removingStudentId === String(item._id) ? 'Removing...' : 'Remove'}
                                                 </button>
                                             </div>
                                         ) : (
-                                            <button
-                                                onClick={() => handleRemoveTeacher(item.userId || item._id)}
-                                                disabled={removingTeacherId === String(item.userId || item._id)}
-                                                className="px-3 py-2 text-[12px] font-bold rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-60"
-                                            >
-                                                {removingTeacherId === String(item.userId || item._id) ? 'Removing...' : 'Remove'}
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTeacherSelect(String(item.userId || item._id))}
+                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    Edit subjects
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRemoveTeacher(item.userId || item._id)}
+                                                    disabled={removingTeacherId === String(item.userId || item._id)}
+                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                                                >
+                                                    {removingTeacherId === String(item.userId || item._id) ? 'Removing...' : 'Remove'}
+                                                </button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>

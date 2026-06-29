@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRoles } from '../middleware/auth.js';
 import * as teacher from '../controllers/teacherProposal.controller.js';
 import * as teacherPreview from '../controllers/teacherPreview.controller.js';
+import * as teacherCollaborative from '../controllers/teacherCollaborative.controller.js';
 import { uploadAssignmentRequirement } from '../middleware/assignmentRequirementUpload.js';
 
 const router = Router();
@@ -22,9 +23,25 @@ router.post('/classes/:classRef/class-groups/import', teacher.importClassTemplat
 router.post('/classes/:classRef/groups/generate', teacher.generateClassGroups);
 router.get('/classes/:id', teacher.getMyClassDetails);
 router.get('/catalog', teacher.getCatalog);
+router.get('/collaborations/teachers', teacherCollaborative.listCollaborationCandidates);
+router.get('/collaborations/accepted', teacherCollaborative.listAcceptedCollaborators);
+router.get('/collaborations', teacherCollaborative.listCollaborations);
+router.post('/collaborations/request', teacherCollaborative.sendCollaborationRequest);
+router.patch('/collaborations/:id/respond', teacherCollaborative.respondCollaborationRequest);
 router.get('/groups', teacher.listAllGroups);
 router.get('/groups/:id', teacher.getGroupDetails);
 router.get('/assignments', teacher.listAssignments);
+router.get('/assignments/collaborative/drafts', teacherCollaborative.listCollaborativeDrafts);
+router.post('/assignments/collaborative/drafts', teacherCollaborative.createCollaborativeDraftHandler);
+router.get('/assignments/collaborative/drafts/:id', teacherCollaborative.getCollaborativeDraft);
+router.patch('/assignments/collaborative/drafts/:id', teacherCollaborative.updateCollaborativeDraftHandler);
+router.post(
+  '/assignments/collaborative/drafts/:id/requirements-file',
+  uploadAssignmentRequirement.single('requirementsFile'),
+  teacherCollaborative.uploadCollaborativeDraftSectionFileHandler
+);
+router.post('/assignments/collaborative/drafts/:id/publish', teacherCollaborative.publishCollaborativeDraftHandler);
+router.post('/assignments/collaborative', teacherCollaborative.createCollaborativeAssignment);
 router.post('/assignments', uploadAssignmentRequirement.single('requirementsFile'), teacher.createAssignment);
 router.get('/assignments/:id', teacher.getAssignment);
 router.patch('/assignments/:id', teacher.updateAssignment);

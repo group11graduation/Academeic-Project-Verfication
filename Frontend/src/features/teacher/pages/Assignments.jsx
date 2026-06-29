@@ -1,11 +1,105 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ClipboardList, Plus, Trash2, ChevronRight, ChevronDown,
-    Calendar, Users, FileText, Loader2,
-    Clock, BookOpen
+    ClipboardList, Plus, Trash2, ChevronRight,
+    Calendar, FileText, Loader2, UserPlus,
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
+
+const formatDate = (d) =>
+    d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+const isPast = (d) => d && new Date(d) < new Date();
+
+function AssignmentCard({ assignment: a, onOpen, onDelete, showDelete }) {
+    const isFinal = String(a.assignmentType || 'normal').toLowerCase() === 'final';
+    const isMulti =
+        (a.classAssignmentMode || ((a.classes || []).length > 1 ? 'multiple' : 'single')) === 'multiple';
+    const pastDeadline = isFinal && isPast(a.proposalDeadline);
+
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpen();
+                }
+            }}
+            className="group relative flex flex-col rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:border-[#1D68E3]/40 hover:shadow-md cursor-pointer dark:border-slate-700 dark:bg-slate-900"
+        >
+            <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span
+                        className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                            isFinal
+                                ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300'
+                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                        }`}
+                    >
+                        {isFinal ? 'Final' : 'Normal'}
+                    </span>
+                    {a.isCollaborative && (
+                        <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                            Collab
+                        </span>
+                    )}
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                        {a.submissionMode === 'group' ? 'Group' : 'Single'}
+                    </span>
+                </div>
+                {showDelete && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(e);
+                        }}
+                        className="rounded p-1 text-slate-400 opacity-0 transition-all hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                        aria-label="Delete assignment"
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                )}
+            </div>
+
+            <h3 className="mb-2 line-clamp-2 text-[13px] font-black leading-snug text-slate-900 dark:text-slate-100">
+                {a.title}
+            </h3>
+
+            <div className="mb-2 flex flex-wrap gap-1">
+                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-[#1D68E3] dark:bg-blue-500/10">
+                    {a.subject?.code || '—'}
+                </span>
+                {a.semester?.name && (
+                    <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                        {a.semester.name}
+                    </span>
+                )}
+                {isMulti && (
+                    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                        Multi-class
+                    </span>
+                )}
+            </div>
+
+            <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-2 dark:border-slate-800">
+                {isFinal ? (
+                    <span
+                        className={`text-[10px] font-bold ${pastDeadline ? 'text-rose-500' : 'text-slate-500'}`}
+                    >
+                        Proposal {formatDate(a.proposalDeadline)}
+                    </span>
+                ) : (
+                    <span className="text-[10px] font-semibold text-slate-500">File upload</span>
+                )}
+                <ChevronRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#1D68E3]" />
+            </div>
+        </div>
+    );
+}
 
 const Assignments = () => {
     const navigate = useNavigate();
@@ -19,7 +113,7 @@ const Assignments = () => {
         try {
             const [aRes, cRes] = await Promise.all([
                 teacherService.getMyAssignments(),
-                teacherService.getMyClasses()
+                teacherService.getMyClasses(),
             ]);
             if (aRes.success) setAssignments(aRes.data || []);
             if (cRes.success) {
@@ -49,10 +143,6 @@ const Assignments = () => {
             alert(err.response?.data?.message || 'Delete not available.');
         }
     };
-
-    const formatDate = (d) =>
-        d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-    const isPast = (d) => d && new Date(d) < new Date();
 
     const assignmentsFilteredBySemester = useMemo(() => {
         if (!semesterFilter) return assignments;
@@ -85,262 +175,188 @@ const Assignments = () => {
         return map;
     }, [assignmentsFilteredBySemester, classes]);
 
-    const activeClassAssignments = activeClassId ? (groupedAssignmentsByClass.get(String(activeClassId)) || []) : [];
+    const activeClass = classes.find((c) => String(c._id) === String(activeClassId));
+    const activeClassAssignments = activeClassId
+        ? groupedAssignmentsByClass.get(String(activeClassId)) || []
+        : [];
     const activeClassFinalAssignments = activeClassAssignments.filter(
-        (a) => String(a.assignmentType || 'normal').toLowerCase() === 'final'
+        (a) => String(a.assignmentType || 'normal').toLowerCase() === 'final',
     );
     const activeClassNormalAssignments = activeClassAssignments.filter(
-        (a) => String(a.assignmentType || 'normal').toLowerCase() !== 'final'
+        (a) => String(a.assignmentType || 'normal').toLowerCase() !== 'final',
     );
 
-    if (loading)
+    if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0B1120]">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+            <div className="flex min-h-[40vh] flex-col items-center justify-center">
+                <Loader2 className="mb-2 h-7 w-7 animate-spin text-[#1D68E3]" />
+                <p className="text-[12px] font-medium text-slate-500">Loading assignments...</p>
             </div>
         );
+    }
 
     return (
-        <div className="p-4 md:p-10 max-w-[1400px] mx-auto min-h-screen">
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-12 gap-4">
+        <div className="font-sans text-[13px]">
+            <div className="mb-3 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-black text-slate-800 dark:text-slate-100 mb-1 tracking-tight">
+                    <h1 className="text-base font-extrabold leading-none text-slate-900 dark:text-white">
                         Assignments
                     </h1>
-                    <p className="text-slate-500 text-sm font-medium">
-                        Create assignments per term; students submit proposals, then projects after approval.
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                        Proposals first, then project uploads after approval.
                     </p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                <div className="flex flex-wrap items-center gap-2">
                     {semesterOptions.length > 0 && (
-                        <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
-                            <select
-                                value={semesterFilter}
-                                onChange={(e) => setSemesterFilter(e.target.value)}
-                                className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm font-bold text-slate-700 dark:text-slate-200 min-w-[180px]"
-                            >
-                                <option value="">All semesters</option>
-                                {semesterOptions.map(([id, label]) => (
-                                    <option key={id} value={id}>
-                                        {label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        <select
+                            value={semesterFilter}
+                            onChange={(e) => setSemesterFilter(e.target.value)}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                        >
+                            <option value="">All semesters</option>
+                            {semesterOptions.map(([id, label]) => (
+                                <option key={id} value={id}>
+                                    {label}
+                                </option>
+                            ))}
+                        </select>
                     )}
-                <button
-                    onClick={() => navigate('/teacher/assignments/new')}
-                    className="flex items-center justify-center gap-2 bg-[#2a3fa4] text-white font-bold text-sm px-5 py-3 rounded-2xl hover:bg-[#223688] transition-all shadow-lg"
-                >
-                    <Plus className="h-4 w-4" /> New Assignment
-                </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/teacher/assignments/collaborative/new')}
+                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700"
+                    >
+                        <UserPlus className="h-3.5 w-3.5" /> Collab
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/teacher/assignments/new')}
+                        className="inline-flex items-center gap-1 rounded-lg bg-[#2a3fa4] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#223688]"
+                    >
+                        <Plus className="h-3.5 w-3.5" /> New
+                    </button>
                 </div>
-            </header>
+            </div>
 
             {classes.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-[#0F172A] rounded-[32px] border border-dashed border-slate-200 dark:border-white/5">
-                    <div className="bg-blue-500/10 p-5 rounded-full mb-4">
-                        <ClipboardList className="h-10 w-10 text-blue-400" />
-                    </div>
-                    <h3 className="text-lg font-black text-slate-700 dark:text-slate-200 mb-1">No classes assigned yet</h3>
-                    <p className="text-slate-500 text-sm mb-6">Ask admin to assign classes and subjects first.</p>
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
+                    <ClipboardList className="mb-2 h-8 w-8 text-blue-400" />
+                    <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">No classes assigned yet</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">Ask admin to assign classes and subjects first.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    <div className="lg:col-span-1 rounded-[24px] border border-slate-200 bg-white p-4 h-fit">
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">My Classes</p>
-                        <div className="space-y-2">
+                <>
+                    <div className="mb-3">
+                        <p className="mb-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                            My classes
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
                             {classes.map((cls) => {
                                 const cid = String(cls._id || '');
-                                const classAssignments = groupedAssignmentsByClass.get(cid) || [];
-                                const hasMultipleMode = classAssignments.some((a) => (a.classAssignmentMode || 'single') === 'multiple');
+                                const count = (groupedAssignmentsByClass.get(cid) || []).length;
+                                const active = activeClassId === cid;
                                 return (
                                     <button
                                         key={cid}
                                         type="button"
                                         onClick={() => setActiveClassId(cid)}
-                                        className={`w-full text-left rounded-xl border px-4 py-3 transition-all ${
-                                            activeClassId === cid
-                                                ? 'border-[#1D68E3] bg-blue-50/60'
-                                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                        className={`rounded-lg border px-2.5 py-1.5 text-left transition-all ${
+                                            active
+                                                ? 'border-[#1D68E3] bg-blue-50 text-[#1D68E3] dark:bg-blue-500/10'
+                                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
                                         }`}
                                     >
-                                        <p className="text-sm font-black text-slate-800">{cls.code} - {cls.title}</p>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            {classAssignments.length} assignment{classAssignments.length === 1 ? '' : 's'} · {hasMultipleMode ? 'has multiple-class assignments' : 'single-class assignments'}
-                                        </p>
+                                        <span className="block text-[11px] font-black leading-none">{cls.code}</span>
+                                        <span className="mt-0.5 block max-w-[140px] truncate text-[9px] font-medium opacity-80">
+                                            {count} assignment{count === 1 ? '' : 's'}
+                                        </span>
                                     </button>
                                 );
                             })}
                         </div>
                     </div>
 
-                    <div className="lg:col-span-2">
-                        {activeClassAssignments.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-[#0F172A] rounded-[32px] border border-dashed border-slate-200 dark:border-white/5">
-                                <div className="bg-blue-500/10 p-5 rounded-full mb-4">
-                                    <ClipboardList className="h-10 w-10 text-blue-400" />
+                    {activeClass && (
+                        <p className="mb-3 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                            <span className="font-black text-slate-800 dark:text-slate-200">{activeClass.code}</span>
+                            {' — '}
+                            {activeClass.title}
+                        </p>
+                    )}
+
+                    {activeClassAssignments.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
+                            <FileText className="mb-2 h-7 w-7 text-slate-300" />
+                            <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">
+                                No assignments in this class
+                            </h3>
+                            <p className="mt-1 text-[11px] text-slate-500">Use New to create one for this class.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <section>
+                                <div className="mb-2 flex items-center justify-between">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                        Final assignments
+                                    </p>
+                                    <span className="text-[10px] font-bold text-slate-400">
+                                        {activeClassFinalAssignments.length}
+                                    </span>
                                 </div>
-                                <h3 className="text-lg font-black text-slate-700 dark:text-slate-200 mb-1">No assignments in this class</h3>
-                                <p className="text-slate-500 text-sm mb-6">Create assignment for this class from New Assignment.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                                <div>
-                                    <p className="mb-3 text-[11px] font-black uppercase tracking-widest text-slate-500">Final assignments</p>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        {activeClassFinalAssignments.length === 0 && (
-                                            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500">
-                                                No final assignments in this class.
-                                            </div>
-                                        )}
-                                        {activeClassFinalAssignments.map((a) => {
-                                            const classLabel =
-                                                (Array.isArray(a.classNames) && a.classNames.length > 0 && a.classNames.join(', ')) ||
-                                                (Array.isArray(a.assignedClasses) && a.assignedClasses.length > 0 && a.assignedClasses.join(', ')) ||
-                                                a.class?.code || a.class?.name || 'Class';
-                                            return (
-                                            <div
+                                {activeClassFinalAssignments.length === 0 ? (
+                                    <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-900/50">
+                                        No final assignments.
+                                    </p>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                        {activeClassFinalAssignments.map((a) => (
+                                            <AssignmentCard
                                                 key={a._id}
-                                                onClick={() => navigate(`/teacher/assignments/${a._id}/proposals`)}
-                                                className="group bg-white dark:bg-[#0F172A] border border-slate-100 dark:border-white/5 rounded-[24px] p-6 flex flex-col md:flex-row md:items-center gap-4 hover:border-blue-500/30 hover:shadow-xl transition-all cursor-pointer"
-                                            >
-                                                <div className="bg-blue-500/10 p-4 rounded-2xl self-start">
-                                                    <FileText className="h-6 w-6 text-blue-400" />
-                                                </div>
-
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="font-black text-slate-800 dark:text-slate-100 text-base truncate mb-1">
-                                                        {a.title}
-                                                    </h3>
-                                                    <div className="flex flex-wrap gap-3 text-xs font-bold text-slate-500">
-                                                        <span className="flex items-center gap-1">
-                                                            <BookOpen className="h-3.5 w-3.5" />
-                                                            {a.subject?.name || '—'} ({a.subject?.code})
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <Users className="h-3.5 w-3.5" />
-                                                            {classLabel}
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <Clock className="h-3.5 w-3.5" />
-                                                            {a.submissionMode === 'group' ? 'Group' : 'Single'}
-                                                        </span>
-                                                        <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-300">
-                                                            <Calendar className="h-3.5 w-3.5" />
-                                                            {a.semester?.name || 'Semester'}
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <ChevronDown className="h-3.5 w-3.5" />
-                                                            {(a.classAssignmentMode || ((a.classes || []).length > 1 ? 'multiple' : 'single')) === 'multiple'
-                                                                ? 'Multiple Classes'
-                                                                : 'Single Class'}
-                                                        </span>
-                                                        <span
-                                                            className={`flex items-center gap-1 ${isPast(a.proposalDeadline) ? 'text-rose-400' : 'text-slate-500'}`}
-                                                        >
-                                                            <Calendar className="h-3.5 w-3.5" />
-                                                            Proposal: {formatDate(a.proposalDeadline)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3">
-                                                    <button
-                                                        onClick={(e) => handleDelete(a._id, e)}
-                                                        className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                    <ChevronRight className="h-5 w-5 text-slate-300 dark:text-slate-600 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
-                                                </div>
-                                            </div>
-                                            );
-                                        })}
+                                                assignment={a}
+                                                onOpen={() => navigate(`/teacher/assignments/${a._id}/proposals`)}
+                                                onDelete={(e) => handleDelete(a._id, e)}
+                                                showDelete={a.collaborationRole !== 'co-teacher'}
+                                            />
+                                        ))}
                                     </div>
+                                )}
+                            </section>
+
+                            <section>
+                                <div className="mb-2 flex items-center justify-between">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                        Normal assignments
+                                    </p>
+                                    <span className="text-[10px] font-bold text-slate-400">
+                                        {activeClassNormalAssignments.length}
+                                    </span>
                                 </div>
-
-                                <div>
-                                    <p className="mb-3 text-[11px] font-black uppercase tracking-widest text-slate-500">Normal assignments</p>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        {activeClassNormalAssignments.length === 0 && (
-                                            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500">
-                                                No normal assignments in this class.
-                                            </div>
-                                        )}
-                                        {activeClassNormalAssignments.map((a) => {
-                                    const classLabel =
-                                        (Array.isArray(a.classNames) && a.classNames.length > 0 && a.classNames.join(', ')) ||
-                                        (Array.isArray(a.assignedClasses) && a.assignedClasses.length > 0 && a.assignedClasses.join(', ')) ||
-                                        a.class?.code || a.class?.name || 'Class';
-                                    return (
-                                    <div
-                                        key={a._id}
-                                        onClick={() => navigate(`/teacher/assignments/${a._id}/normal-students`)}
-                                        className="group bg-white dark:bg-[#0F172A] border border-slate-100 dark:border-white/5 rounded-[24px] p-6 flex flex-col md:flex-row md:items-center gap-4 hover:border-blue-500/30 hover:shadow-xl transition-all cursor-pointer"
-                                    >
-                                        <div className="bg-blue-500/10 p-4 rounded-2xl self-start">
-                                            <FileText className="h-6 w-6 text-blue-400" />
-                                        </div>
-
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-black text-slate-800 dark:text-slate-100 text-base truncate mb-1">
-                                                {a.title}
-                                            </h3>
-                                            <div className="flex flex-wrap gap-3 text-xs font-bold text-slate-500">
-                                                <span className="flex items-center gap-1">
-                                                    <BookOpen className="h-3.5 w-3.5" />
-                                                    {a.subject?.name || '—'} ({a.subject?.code})
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <Users className="h-3.5 w-3.5" />
-                                                    {classLabel}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <Clock className="h-3.5 w-3.5" />
-                                                    {a.submissionMode === 'group' ? 'Group' : 'Single'}
-                                                </span>
-                                                <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-300">
-                                                    <Calendar className="h-3.5 w-3.5" />
-                                                    {a.semester?.name || 'Semester'}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <ChevronDown className="h-3.5 w-3.5" />
-                                                    {(a.classAssignmentMode || ((a.classes || []).length > 1 ? 'multiple' : 'single')) === 'multiple'
-                                                        ? 'Multiple Classes'
-                                                        : 'Single Class'}
-                                                </span>
-                                                <span className="flex items-center gap-1 text-slate-500">
-                                                    <FileText className="h-3.5 w-3.5" />
-                                                    File upload — open student list
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={(e) => handleDelete(a._id, e)}
-                                                className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                            <ChevronRight className="h-5 w-5 text-slate-300 dark:text-slate-600 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
-                                        </div>
+                                {activeClassNormalAssignments.length === 0 ? (
+                                    <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-900/50">
+                                        No normal assignments.
+                                    </p>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                        {activeClassNormalAssignments.map((a) => (
+                                            <AssignmentCard
+                                                key={a._id}
+                                                assignment={a}
+                                                onOpen={() => navigate(`/teacher/assignments/${a._id}/normal-students`)}
+                                                onDelete={(e) => handleDelete(a._id, e)}
+                                                showDelete
+                                            />
+                                        ))}
                                     </div>
-                                    );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                                )}
+                            </section>
+                        </div>
+                    )}
+                </>
             )}
 
             {classes.length > 0 && assignments.length === 0 && (
-                <div className="mt-5 flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-bold text-slate-500">
-                    No assignments created yet. Click <span className="mx-1 text-[#1D68E3]">New Assignment</span> to start.
+                <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+                    No assignments yet — click <span className="font-black text-[#1D68E3]">New</span> to start.
                 </div>
             )}
         </div>

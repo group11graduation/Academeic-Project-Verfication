@@ -3,17 +3,25 @@ import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import Docker from 'dockerode';
-import AdmZip from 'adm-zip';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
 import * as previewCredentials from './previewCredentials.service.js';
 import * as previewMern from './previewMern.service.js';
+import {
+  executeZipExtractionBarrier,
+  executeTechAuditBarrier,
+  launchSandboxContainer,
+  handlePreviewContainerExit,
+  rmExtractDirSafe,
+  SubmissionPipelineError,
+  SUBMISSION_ERROR_CODES,
+} from './submissionErrorHandler.service.js';
 import { PreviewSession } from '../models/PreviewSession.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { Proposal } from '../models/Proposal.js';
 
-const MAX_FILES = Number(process.env.PREVIEW_MAX_EXTRACT_FILES || 500);
-const MAX_TOTAL_BYTES = Number(process.env.PREVIEW_MAX_EXTRACT_BYTES || 52_428_800);
 const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 600000);
+const PREVIEW_STATIC_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STATIC_STARTUP_TIMEOUT_MS || 90000);
+const PREVIEW_SPRING_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 900000);
 const PREVIEW_TTL_MS = Number(process.env.PREVIEW_TTL_MS || 1800000);
 const PREVIEW_TTL_MIN_MS = Number(process.env.PREVIEW_TTL_MIN_MS || 300000);
 const PREVIEW_TTL_TOUCH_MS = Number(process.env.PREVIEW_TTL_TOUCH_MS || 1800000);
@@ -140,37 +148,6 @@ export async function restoreRunningPreviewTtls() {
   }
 }
 
-function safeExtractZip(zipAbs, destDir) {
-  const zip = new AdmZip(zipAbs);
-  const entries = zip.getEntries();
-  let totalBytes = 0;
-  let fileCount = 0;
-  const destResolved = path.resolve(destDir);
-
-  for (const entry of entries) {
-    if (entry.isDirectory) continue;
-    fileCount += 1;
-    if (fileCount > MAX_FILES) {
-      throw new Error(`Archive exceeds file limit (${MAX_FILES})`);
-    }
-    const raw = entry.entryName.replace(/\\/g, '/');
-    if (raw.startsWith('/') || raw.includes('..')) {
-      throw new Error('Unsafe path in archive');
-    }
-    const target = path.resolve(destDir, raw);
-    if (!target.startsWith(destResolved)) {
-      throw new Error('Path traversal blocked in archive');
-    }
-    const data = entry.getData();
-    totalBytes += data.length;
-    if (totalBytes > MAX_TOTAL_BYTES) {
-      throw new Error('Extracted size exceeds configured limit');
-    }
-    fsSync.mkdirSync(path.dirname(target), { recursive: true });
-    fsSync.writeFileSync(target, data);
-  }
-}
-
 async function cleanupSessionResources(session, docker, finalStatus, logMessage) {
   const sid = session._id.toString();
   clearPreviewTtl(sid);
@@ -214,12 +191,18 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
   readinessJobs.add(jobKey);
 
   try {
+    const startupTimeout =
+      deployResult.stack === 'static-html' || deployResult.stack === 'static-html-js'
+        ? PREVIEW_STATIC_STARTUP_TIMEOUT_MS
+        : deployResult.stack === 'java-spring-react'
+          ? PREVIEW_SPRING_STARTUP_TIMEOUT_MS
+          : PREVIEW_STARTUP_TIMEOUT_MS;
     const wait = await dockerOrchestrator.waitForPreviewReady({
       previewUrl: deployResult.previewUrl,
       apiPreviewUrl: deployResult.previewApiUrl || '',
       containerName: deployResult.containerName,
       stack: deployResult.stack,
-      timeoutMs: PREVIEW_STARTUP_TIMEOUT_MS,
+      timeoutMs: startupTimeout,
     });
 
     const session = await PreviewSession.findById(sessionId);
@@ -228,11 +211,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (wait.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
-      const warmupNote =
-        wait.reason === 'tcp_warmup' || wait.reason === 'tcp_slow'
-          ? ' Port is open; npm may still be installing — refresh the page if you see a blank screen.'
-          : '';
-      appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}.${warmupNote}`);
+      appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}.`);
       await schedulePreviewTtl(session);
       const until = session.expiresAt ? new Date(session.expiresAt).toLocaleTimeString() : '';
       appendLog(
@@ -244,27 +223,13 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
       return;
     }
 
-    const { host, port } = dockerOrchestrator.parseHostPortFromPreviewUrl(deployResult.previewUrl);
-    const checkHost = host === 'localhost' ? '127.0.0.1' : host;
-    const portStillOpen = await dockerOrchestrator.isTcpPortOpen(checkHost, port);
-    const containerUp = deployResult.containerName
-      ? await dockerOrchestrator.isPreviewContainerRunning(deployResult.containerName)
-      : false;
-
-    if (wait.reason !== 'container_exited' && portStillOpen && containerUp) {
-      session.status = 'running';
-      appendLog(
-        session,
-        'info',
-        `Preview port ${port} is open (still warming up). Open the link below; refresh after 1–2 min if blank.`
-      );
-      await schedulePreviewTtl(session);
-      appendLog(
-        session,
-        'info',
-        `Preview stays active until ${session.expiresAt ? new Date(session.expiresAt).toLocaleTimeString() : 'later'} while you review.`
-      );
-      await session.save();
+    if (wait.reason === 'container_exited') {
+      await handlePreviewContainerExit({
+        sessionId,
+        containerName: deployResult.containerName,
+        extractDir,
+        reason: 'Preview container stopped unexpectedly. Check runtime traceback below.',
+      });
       return;
     }
 
@@ -361,8 +326,12 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   // Always stop prior sessions (including stuck "starting") so a new stack choice takes effect.
   await stopActiveSessionsForProposal(proposal._id, docker, { includeStarting: true });
 
-  // Hint is only used when the ZIP has no clear file signals — files always win over assignment title.
-  const stackHint = dockerOrchestrator.inferStackHintFromAssignment(assignment);
+  // Student ZIP hint first, then assignment title — file signals still win when auto-detecting.
+  const submissionHint = submission.projectStackHint || null;
+  const stackHint =
+    submissionHint && ['static-html', 'static-html-js'].includes(submissionHint)
+      ? submissionHint
+      : dockerOrchestrator.inferStackHintFromAssignment(assignment);
   const memory = Number(process.env.PREVIEW_MEMORY_BYTES || 268435456);
   const nanoCpus = Number(process.env.PREVIEW_NANO_CPUS || 500000000);
   const ttl = PREVIEW_TTL_MS;
@@ -375,15 +344,6 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   }
 
   const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scholar-preview-'));
-  const stackLabel =
-    stackOverride && ['node-js', 'php-apache', 'jupyter'].includes(stackOverride)
-      ? stackOverride === 'node-js'
-        ? 'React / Node.js'
-        : stackOverride === 'php-apache'
-          ? 'PHP / Apache'
-          : 'Jupyter notebook'
-      : 'Auto-detect from ZIP';
-
   const session = await PreviewSession.create({
     teacher: teacherId,
     proposal: proposal._id,
@@ -397,20 +357,38 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     extractDirPath: extractDir,
     logs: [
       { level: 'info', message: 'Session created; extracting archive.' },
-      {
-        level: 'info',
-        message:
-          stackOverride != null
-            ? `Container type selected by teacher: ${stackLabel} (file auto-detect skipped).`
-            : `Container type: ${stackLabel}.`,
-      },
+      { level: 'info', message: 'Project type will be detected automatically from ZIP files after extract.' },
     ],
     startedAt: new Date(),
   });
 
   try {
-    safeExtractZip(zipAbs, extractDir);
-    appendLog(session, 'info', 'Archive extracted safely; starting container.');
+    const extractMeta = await executeZipExtractionBarrier({
+      zipAbs,
+      destDir: extractDir,
+      submissionId: submission._id,
+      session,
+    });
+    if (extractMeta.skipped > 0) {
+      appendLog(
+        session,
+        'info',
+        `Skipped ${extractMeta.skipped} unneeded path(s) in ZIP (e.g. node_modules, .git, __MACOSX).`
+      );
+    }
+    appendLog(session, 'info', `Extracted ${extractMeta.fileCount} file(s); running technical audit.`);
+
+    const auditStackHint =
+      submission.projectStackHint ||
+      (stackHint && ['static-html', 'static-html-js'].includes(stackHint) ? stackHint : '');
+    await executeTechAuditBarrier({
+      extractDir,
+      submissionId: submission._id,
+      session,
+      stackHint: auditStackHint,
+      assignment,
+    });
+    appendLog(session, 'info', 'Technical audit passed; detecting project type.');
 
     const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
     const login = previewCredentials.resolvePreviewLoginCredentials({
@@ -430,7 +408,17 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
 
     await session.save();
   } catch (e) {
-    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+    if (e instanceof SubmissionPipelineError) {
+      if (e.code !== SUBMISSION_ERROR_CODES.TECH_AUDIT_REJECTED) {
+        session.status = 'failed';
+        session.errorMessage = e.publicError || e.message;
+        session.endedAt = new Date();
+        appendLog(session, 'error', session.errorMessage);
+        await session.save();
+      }
+      throw e;
+    }
+    await rmExtractDirSafe(extractDir);
     session.status = 'failed';
     session.errorMessage = e.message || 'Extract failed';
     session.endedAt = new Date();
@@ -439,6 +427,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     throw e;
   }
   let deployResult;
+  const containerName = dockerOrchestrator.containerNameFor(session._id.toString());
   try {
     const credentialEnv = previewCredentials.buildPreviewCredentialEnvVars({
       email: session.previewLoginEmail,
@@ -453,16 +442,26 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     );
     await session.save();
 
-    deployResult = await dockerOrchestrator.deployProjectPreview(session._id.toString(), extractDir, {
-      allowedRoot: extractDir,
-      imageKey: submission._id.toString(),
-      stackHint,
-      stack: stackOverride || null,
-      forceRebuild: false,
-      previewCredentialEnv: credentialEnv,
+    deployResult = await launchSandboxContainer({
+      sessionId: session._id,
+      submissionId: submission._id,
+      extractDir,
+      containerName,
+      deployFn: () =>
+        dockerOrchestrator.deployProjectPreview(session._id.toString(), extractDir, {
+          allowedRoot: extractDir,
+          imageKey: submission._id.toString(),
+          stackHint,
+          stack: stackOverride || null,
+          forceRebuild: false,
+          previewCredentialEnv: credentialEnv,
+        }),
     });
   } catch (e) {
-    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+    if (e instanceof SubmissionPipelineError && e.code === SUBMISSION_ERROR_CODES.RUNTIME_ERROR) {
+      throw e;
+    }
+    await rmExtractDirSafe(extractDir);
     session.status = 'failed';
     session.errorMessage = e.message || 'Docker deploy failed';
     session.endedAt = new Date();
@@ -486,7 +485,12 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     session.previewLoginHint =
       `${baseHint}PHP preview uses the mapped port (e.g. :${deployResult.hostPort}), not localhost/BBMS. Open ${session.previewLoginUrl}. Default BBMS admin is often username admin / Admin@123 if no project credentials were found.`;
   }
-  if (deployResult.flutterPair && deployResult.apiHostPort) {
+  if (deployResult.stack === 'static-html' || deployResult.stack === 'static-html-js') {
+    const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
+    session.previewLoginHint =
+      `${baseHint}Static web preview — open the URL in Chrome to view the student site (no server login unless their page includes one).`;
+    appendLog(session, 'info', `Static site preview on port ${deployResult.hostPort}`);
+  } else if (deployResult.flutterPair && deployResult.apiHostPort) {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
     session.previewLoginHint =
       `${baseHint}Flutter web preview: app UI on port ${deployResult.hostPort}, Node API on port ${deployResult.apiHostPort}. First start may take several minutes while Flutter builds for web.`;
@@ -494,6 +498,15 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       session,
       'info',
       `Flutter+Node preview: web UI :${deployResult.hostPort}, API :${deployResult.apiHostPort}`
+    );
+  } else if (deployResult.springPair && deployResult.apiHostPort) {
+    const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
+    session.previewLoginHint =
+      `${baseHint}React + Spring Boot preview: UI on port ${deployResult.hostPort}, Java API on port ${deployResult.apiHostPort}. First start may take 5–15 minutes (Maven + npm).`;
+    appendLog(
+      session,
+      'info',
+      `Spring+React preview: UI :${deployResult.hostPort}, Spring API :${deployResult.apiHostPort} (${deployResult.springPair.springSubdir} + ${deployResult.springPair.frontendSubdir})`
     );
   } else if (deployResult.mernPair && deployResult.apiHostPort) {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
@@ -507,36 +520,35 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   }
   session.previewImage = deployResult.imageTag;
   session.previewStack = deployResult.stack;
+  session.previewStackLabel = deployResult.stackDisplayName || dockerOrchestrator.previewStackDisplayName(deployResult.stack);
+  const stackName = session.previewStackLabel;
   const stackDisplay =
-    deployResult.stack === 'node-js'
-      ? 'React / Node.js (node-js)'
-      : deployResult.stack === 'php-apache'
-        ? 'PHP / Apache (php-apache)'
-        : deployResult.stack === 'jupyter'
-          ? 'Jupyter (jupyter)'
-          : deployResult.stack;
+    deployResult.mernPair?.detectionNote || deployResult.springPair?.detectionNote
+      ? `${stackName} — ${deployResult.mernPair?.detectionNote || deployResult.springPair?.detectionNote}`
+      : `${stackName} (${deployResult.stack})`;
 
-  if (stackOverride != null) {
-    appendLog(session, 'info', `Running with teacher-selected stack: ${stackDisplay}.`);
-  } else {
+  appendLog(
+    session,
+    'info',
+    `Detected project type: ${stackDisplay} — ${deployResult.detectionReason || 'from ZIP files'}`
+  );
+  appendLog(
+    session,
+    'info',
+    `${deployResult.imageReused ? 'Using cached' : 'Prepared'} Docker template for ${stackName}; ZIP mounted (no full rebuild).`
+  );
+  appendLog(
+    session,
+    'info',
+    `Container started (app folder: ${deployResult.appSubdir || '.'}); preview URL host:${deployResult.hostPort}`
+  );
+  if (deployResult.stack !== 'static-html' && deployResult.stack !== 'static-html-js') {
     appendLog(
       session,
       'info',
-      `Auto-detected stack: ${stackDisplay} — ${deployResult.detectionReason || 'from project files'}`
+      `Use login ${session.previewLoginEmail} / (password shown in teacher panel) at ${session.previewLoginUrl || session.previewUrl}`
     );
   }
-
-  appendLog(
-    session,
-    'info',
-    `${deployResult.imageReused ? 'Reused' : 'Built'} ${stackDisplay} image (app dir: ${deployResult.appSubdir || '.'}); host:${deployResult.hostPort} -> container:${deployResult.internalPort}`
-  );
-  appendLog(session, 'info', `Container started; warming up app at ${session.previewUrl}`);
-  appendLog(
-    session,
-    'info',
-    `Use login ${session.previewLoginEmail} / (password shown in teacher panel) at ${session.previewLoginUrl || session.previewUrl}`
-  );
   await session.save();
 
   // Return immediately — readiness continues in background (React/Vite installs can take several minutes)
@@ -561,7 +573,7 @@ export async function stopPreviewForTeacher(teacherId, sessionId) {
     err.status = 403;
     throw err;
   }
-  if (!['starting', 'running'].includes(session.status)) {
+  if (!['starting', 'running', 'runtime_error'].includes(session.status)) {
     return session;
   }
   await cleanupSessionResources(session, getDocker(), 'stopped', 'Stopped by teacher.');
@@ -621,6 +633,26 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
         dockerOrchestrator.containerNameFor(sessionId.toString())
       );
       session.containerRunning = running;
+
+      if (session.portReachable && session.previewUrl) {
+        const needsApi = apiPort > 0;
+        const apiOk = !needsApi || session.apiPortReachable === true;
+        if (apiOk) {
+          const probe = await dockerOrchestrator.checkPreviewAppHttpReady({
+            previewUrl: session.previewUrl,
+            apiPreviewUrl: session.previewApiUrl || '',
+            stack: session.previewStack || 'node-js',
+          });
+          session.previewAppReady = probe.ready;
+          session.previewAppReadyReason = probe.reason;
+        } else {
+          session.previewAppReady = false;
+          session.previewAppReadyReason = 'api_port_closed';
+        }
+      } else {
+        session.previewAppReady = false;
+        session.previewAppReadyReason = 'port_closed';
+      }
     }
   }
 

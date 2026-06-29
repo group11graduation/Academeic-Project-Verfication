@@ -45,43 +45,43 @@ const AdminDashboard = () => {
 
     if (loading) {
         return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+            <div className="min-h-[40vh] flex items-center justify-center">
+                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto p-4 md:p-10 space-y-8">
-            <section className="rounded-[28px] border border-slate-200 bg-white p-6 md:p-8">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#1D68E3] mb-2">Admin Control Center</p>
-                <h1 className="text-3xl md:text-4xl font-black text-[#0F172A] tracking-tight mb-2">Institution Dashboard</h1>
-                <p className="text-slate-500 font-medium max-w-3xl">
+        <div className="space-y-3">
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#1D68E3] mb-1">Admin Control Center</p>
+                <h1 className="text-base font-black text-[#0F172A] tracking-tight mb-1">Institution Dashboard</h1>
+                <p className="text-[11px] text-slate-500 font-medium max-w-3xl">
                     Monitor academic setup, people, and project activity from one place.
                 </p>
             </section>
 
-            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            <section className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                 {statCards.map((card) => {
                     const Icon = card.icon;
                     return (
-                        <div key={card.title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${card.tone}`}>
-                                    <Icon className="h-5 w-5" />
+                        <div key={card.title} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${card.tone}`}>
+                                    <Icon className="h-3.5 w-3.5" />
                                 </div>
-                                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">{card.title}</span>
+                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">{card.title}</span>
                             </div>
-                            <p className="text-4xl font-black text-[#0F172A] leading-none">{card.value}</p>
+                            <p className="text-lg font-black text-[#0F172A] leading-none">{card.value}</p>
                         </div>
                     );
                 })}
             </section>
 
-            <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <div className="xl:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 md:p-8">
-                    <h2 className="text-xl font-black text-[#0F172A] mb-5">Priority Setup Actions</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+                <div className="xl:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                    <h2 className="text-sm font-black text-[#0F172A] mb-3">Priority Setup Actions</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <QuickLink to="/admin/setup-workflow" title="Setup Workflow" desc="Follow the exact setup order." icon={Workflow} />
                         <QuickLink to="/admin/semesters" title="Semesters" desc="Create academic terms first." icon={CalendarRange} />
                         <QuickLink to="/admin/subjects" title="Subjects" desc="Manage all course subjects." icon={BookMarked} />
@@ -89,9 +89,9 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                <div className="rounded-3xl border border-slate-200 bg-white p-6 md:p-8">
-                    <h2 className="text-xl font-black text-[#0F172A] mb-5">Role Workflow</h2>
-                    <div className="space-y-4 text-sm">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <h2 className="text-sm font-black text-[#0F172A] mb-3">Role Workflow</h2>
+                    <div className="space-y-2 text-[11px]">
                         <WorkflowItem title="Admin" text="Setup terms, subjects, classes, teacher assignments, then student enrollment." />
                         <WorkflowItem title="Teacher" text="Create assignments, define requirements, review and decide proposals." />
                         <WorkflowItem title="Student" text="Submit matching proposal, revise if needed, then submit final project." />
@@ -103,22 +103,22 @@ const AdminDashboard = () => {
 };
 
 const QuickLink = ({ to, title, desc, icon: Icon }) => (
-    <Link to={to} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:border-blue-300 hover:bg-blue-50/50 transition-all">
-        <div className="flex items-center justify-between mb-2">
-            <div className="h-9 w-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
-                <Icon className="h-4 w-4 text-[#1D68E3]" />
+    <Link to={to} className="rounded-lg border border-slate-200 bg-slate-50 p-3 hover:border-blue-300 hover:bg-blue-50/50 transition-all">
+        <div className="flex items-center justify-between mb-1.5">
+            <div className="h-7 w-7 rounded-md bg-white border border-slate-200 flex items-center justify-center">
+                <Icon className="h-3.5 w-3.5 text-[#1D68E3]" />
             </div>
-            <ArrowRight className="h-4 w-4 text-slate-400" />
+            <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
         </div>
-        <p className="text-sm font-black text-[#0F172A]">{title}</p>
-        <p className="text-xs font-semibold text-slate-500 mt-1">{desc}</p>
+        <p className="text-[12px] font-black text-[#0F172A]">{title}</p>
+        <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{desc}</p>
     </Link>
 );
 
 const WorkflowItem = ({ title, text }) => (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p className="text-[11px] font-black uppercase tracking-wider text-[#1D68E3] mb-1">{title}</p>
-        <p className="font-semibold text-slate-600">{text}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+        <p className="text-[9px] font-black uppercase tracking-wider text-[#1D68E3] mb-0.5">{title}</p>
+        <p className="font-semibold text-slate-600 leading-snug">{text}</p>
     </div>
 );
 

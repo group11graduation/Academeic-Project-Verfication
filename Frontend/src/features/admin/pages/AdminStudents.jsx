@@ -302,28 +302,22 @@ const AdminStudents = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] dark:bg-slate-900 flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin mb-4" />
-                <p className="text-slate-500 dark:text-slate-400 font-medium">Loading students...</p>
+            <div className="min-h-[40vh] flex flex-col items-center justify-center">
+                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin mb-2" />
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading students...</p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFB] p-4 md:p-10 font-sans">
-            <div className="max-w-[1600px] mx-auto">
-            <div className="mb-6 md:mb-8">
-                <h1 className="text-[18px] md:text-[20px] font-extrabold text-slate-800 tracking-tight">Manage Students</h1>
-                <p className="text-[12px] text-slate-500 font-medium">Student directory and passcodes</p>
-            </div>
-
-            <div className="flex flex-col lg:flex-row items-center gap-3 border-b border-slate-100 px-5 py-4">
+        <div className="font-sans text-[13px] transition-colors">
+            <div className="flex flex-col lg:flex-row items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
                 <div className="relative w-full lg:w-[280px] shrink-0">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <input
                         type="text"
                         placeholder="Search by name, ID or class..."
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-[13px] focus:ring-2 focus:ring-blue-500/15 focus:border-blue-400 outline-none font-medium text-slate-700"
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 outline-none font-medium text-slate-700 dark:text-slate-200"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -334,7 +328,7 @@ const AdminStudents = () => {
                         <select
                             value={classFilter}
                             onChange={(e) => setClassFilter(e.target.value)}
-                            className="w-full appearance-none bg-white border border-slate-200 rounded-xl py-2.5 pl-3 pr-8 text-[12px] font-semibold text-slate-700"
+                            className="w-full appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-3 pr-8 text-[12px] font-semibold text-slate-700 dark:text-slate-200"
                         >
                             <option value="">Classes</option>
                             {uniqueClasses.map((cls) => <option key={cls} value={cls}>{cls}</option>)}
@@ -345,7 +339,7 @@ const AdminStudents = () => {
                         <select
                             value={facultyFilter}
                             onChange={(e) => setFacultyFilter(e.target.value)}
-                            className="w-full appearance-none bg-white border border-slate-200 rounded-xl py-2.5 pl-3 pr-8 text-[12px] font-semibold text-slate-700"
+                            className="w-full appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-3 pr-8 text-[12px] font-semibold text-slate-700 dark:text-slate-200"
                         >
                             <option value="">Faculties</option>
                             {facultyFilterOptions.map((fac) => (
@@ -363,48 +357,52 @@ const AdminStudents = () => {
                         type="button"
                         onClick={submitExport}
                         disabled={exporting}
-                        className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl font-bold text-[12px] disabled:opacity-60"
+                        className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60"
                     >
-                        {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                         {exporting ? 'Exporting...' : 'Export CSV'}
                     </button>
                     <button
                         type="button"
                         onClick={() => setMode('add')}
-                        className="flex items-center gap-1.5 bg-[#1D68E3] text-white px-3.5 py-2.5 rounded-xl font-bold text-[12px]"
+                        className="flex items-center gap-1.5 bg-[#1D68E3] text-white px-3 py-1.5 rounded-lg font-bold text-[12px]"
                     >
-                        <Plus className="h-4 w-4 stroke-[3px]" /> Add Student
+                        <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Add Student
                     </button>
                     <button
                         type="button"
                         onClick={() => setMode('import')}
-                        className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl font-bold text-[12px]"
+                        className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px]"
                     >
-                        <Upload className="h-4 w-4" /> Import Students
+                        <Upload className="h-3.5 w-3.5" /> Import Students
                     </button>
+                    <div className="text-right hidden sm:block">
+                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Students</h1>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Directory</p>
+                    </div>
                 </div>
             </div>
 
             {mode === 'add' && (
-                <section className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm mb-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Add New Student</h2>
-                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-800">
-                            <ArrowLeft className="h-4 w-4" /> Back to list
+                <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm mb-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Add New Student</h2>
+                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
+                            <ArrowLeft className="h-3.5 w-3.5" /> Back to list
                         </button>
                     </div>
-                    <form onSubmit={submitAdd} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <form onSubmit={submitAdd} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
                             <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Full Name</label>
-                            <input value={addForm.name} onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900" />
+                            <input value={addForm.name} onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
                         </div>
                         <div>
                             <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Email</label>
-                            <input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900" />
+                            <input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
                         </div>
                         <div>
                             <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class</label>
-                            <select value={addForm.classId} onChange={(e) => setAddForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900">
+                            <select value={addForm.classId} onChange={(e) => setAddForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100">
                                 {(classes || []).map((c) => (
                                     <option key={c._id} value={c.code}>{c.code} {c.name ? `- ${c.name}` : ''}</option>
                                 ))}
@@ -415,7 +413,7 @@ const AdminStudents = () => {
                             <select
                                 value={addForm.faculty}
                                 onChange={(e) => setAddForm((p) => ({ ...p, faculty: e.target.value }))}
-                                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+                                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
                             >
                                 <option value="">Select faculty</option>
                                 {(() => {
@@ -436,8 +434,8 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="md:col-span-2 flex justify-end">
-                            <button disabled={adding} className="inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-6 py-3 text-sm font-black text-white disabled:opacity-60">
-                                {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                            <button disabled={adding} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D68E3] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                                {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                                 {adding ? 'Saving...' : 'Save Student'}
                             </button>
                         </div>
@@ -446,25 +444,25 @@ const AdminStudents = () => {
             )}
 
             {mode === 'edit' && (
-                <section className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm mb-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Update Student</h2>
-                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-800">
-                            <ArrowLeft className="h-4 w-4" /> Back to list
+                <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm mb-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Update Student</h2>
+                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
+                            <ArrowLeft className="h-3.5 w-3.5" /> Back to list
                         </button>
                     </div>
-                    <form onSubmit={submitEdit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <form onSubmit={submitEdit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
                             <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Full Name</label>
-                            <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900" />
+                            <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
                         </div>
                         <div>
                             <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Email</label>
-                            <input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900" />
+                            <input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
                         </div>
                         <div>
                             <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class</label>
-                            <select value={editForm.classId} onChange={(e) => setEditForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900">
+                            <select value={editForm.classId} onChange={(e) => setEditForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100">
                                 {(classes || []).map((c) => (
                                     <option key={c._id} value={c.code}>{c.code} {c.name ? `- ${c.name}` : ''}</option>
                                 ))}
@@ -475,7 +473,7 @@ const AdminStudents = () => {
                             <select
                                 value={editForm.faculty}
                                 onChange={(e) => setEditForm((p) => ({ ...p, faculty: e.target.value }))}
-                                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900"
+                                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
                             >
                                 <option value="">Select faculty</option>
                                 {(() => {
@@ -497,8 +495,8 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="md:col-span-2 flex justify-end">
-                            <button disabled={editing} className="inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-6 py-3 text-sm font-black text-white disabled:opacity-60">
-                                {editing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                            <button disabled={editing} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D68E3] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                                {editing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                                 {editing ? 'Updating...' : 'Update Student'}
                             </button>
                         </div>
@@ -507,26 +505,26 @@ const AdminStudents = () => {
             )}
 
             {mode === 'import' && (
-                <section className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm mb-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Import Students</h2>
-                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-800">
-                            <ArrowLeft className="h-4 w-4" /> Back to list
+                <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm mb-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Import Students</h2>
+                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
+                            <ArrowLeft className="h-3.5 w-3.5" /> Back to list
                         </button>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         <input
                             type="file"
                             accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             onChange={onCsvFile}
-                            className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:px-4 file:py-2 file:font-bold file:bg-blue-50 file:text-blue-700"
+                            className="block w-full text-[12px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:font-bold file:bg-blue-50 file:text-blue-700"
                         />
                         <textarea
                             value={csvText}
                             onChange={(e) => setCsvText(e.target.value)}
-                            rows={10}
+                            rows={8}
                             placeholder={`name,email,studentId,classCode,faculty\nDemo Student,demo@student.com,ST-2026-001,CA223_A,Computer Science\n\nOr upload .csv / .xlsx — Excel is parsed automatically.`}
-                            className="w-full rounded-xl border border-slate-200 p-4 font-mono text-sm text-slate-900"
+                            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 p-3 font-mono text-[12px] text-slate-900 dark:text-slate-100"
                         />
                         {importError && (
                             <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-semibold text-red-700">
@@ -540,8 +538,8 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="flex justify-end">
-                            <button onClick={submitImport} disabled={importing || !csvText.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-6 py-3 text-sm font-black text-white disabled:opacity-60">
-                                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                            <button onClick={submitImport} disabled={importing || !csvText.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D68E3] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                                {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                 {importing ? 'Importing...' : 'Run Import'}
                             </button>
                         </div>
@@ -549,51 +547,50 @@ const AdminStudents = () => {
                 </section>
             )}
 
-            <div className="flex items-center gap-4 px-5 pt-3">
-                <p className="text-[12px] font-semibold text-slate-500">
+            <div className="flex items-center gap-3 pt-2 mb-2">
+                <p className="text-[11px] font-semibold text-slate-500">
                     Showing <span className="text-slate-700 font-black">{filteredStudents.length}</span> of {students.length} students
                 </p>
             </div>
 
-            <div className="px-5 pb-5 pt-3">
-            <div className="rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[980px] text-left">
                     <thead>
-                        <tr className="border-b border-slate-100 bg-white">
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Photo</th>
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Student Name</th>
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Student ID</th>
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Class</th>
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Faculty</th>
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Passcode</th>
-                            <th className="px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Actions</th>
+                        <tr className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Photo</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Student Name</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Student ID</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Class</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Faculty</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Passcode</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100/90">
                         {filteredStudents.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="text-center py-12 text-[13px] text-slate-400 font-medium">No students match the selected filters.</td>
+                                <td colSpan={8} className="text-center py-8 text-[12px] text-slate-400 font-medium">No students match the selected filters.</td>
                             </tr>
                         ) : (
                             filteredStudents.map((student, index) => (
                                 <tr key={student.studentId || index} className="group hover:bg-blue-50/30 transition-colors">
-                                    <td className="px-5 py-3.5 text-[12px] font-bold text-slate-400">{index + 1}</td>
-                                    <td className="px-5 py-3.5">
+                                    <td className="px-3 py-2 text-[12px] font-bold text-slate-400">{index + 1}</td>
+                                    <td className="px-3 py-2">
                                         <div className="flex justify-center">
                                             <Link to={`/admin/students/${student.studentId || ''}`} state={{ from: location.pathname }}>
-                                                <img src={student.photo || 'https://via.placeholder.com/150'} alt={student.name || 'Student'} className="h-10 w-10 rounded-full object-cover border border-white shadow-sm" />
+                                                <img src={student.photo || 'https://via.placeholder.com/150'} alt={student.name || 'Student'} className="h-8 w-8 rounded-full object-cover border border-white shadow-sm" />
                                             </Link>
                                         </div>
                                     </td>
-                                    <td className="px-5 py-3.5">
-                                        <Link to={`/admin/students/${student.studentId || ''}`} state={{ from: location.pathname }} className="text-[13px] font-bold text-slate-800 hover:text-[#1D68E3]">
+                                    <td className="px-3 py-2">
+                                        <Link to={`/admin/students/${student.studentId || ''}`} state={{ from: location.pathname }} className="text-[12px] font-bold text-slate-800 hover:text-[#1D68E3]">
                                             {student.name || 'Unknown Student'}
                                         </Link>
                                     </td>
-                                    <td className="px-5 py-3.5"><span className="text-[12px] font-bold text-slate-500 tracking-wide">{student.studentId || 'N/A'}</span></td>
-                                    <td className="px-5 py-3.5">
+                                    <td className="px-3 py-2"><span className="text-[12px] font-bold text-slate-500 tracking-wide">{student.studentId || 'N/A'}</span></td>
+                                    <td className="px-3 py-2">
                                         {student.classId || student.classCode ? (
                                             <Link
                                                 to={`/admin/classes/${encodeURIComponent(student.classId || student.classCode)}`}
@@ -605,8 +602,8 @@ const AdminStudents = () => {
                                             <span className="text-[12px] font-semibold text-slate-400">No class</span>
                                         )}
                                     </td>
-                                    <td className="px-5 py-3.5"><span className="text-[12px] font-semibold text-slate-600">{student.academicInfo?.faculty || 'N/A'}</span></td>
-                                    <td className="px-5 py-3.5">
+                                    <td className="px-3 py-2"><span className="text-[12px] font-semibold text-slate-600">{student.academicInfo?.faculty || 'N/A'}</span></td>
+                                    <td className="px-3 py-2">
                                         <div className="flex flex-col items-center gap-1.5">
                                             {student.passcode ? (
                                                 <button
@@ -615,7 +612,7 @@ const AdminStudents = () => {
                                                     className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50 transition-colors"
                                                     title={revealedPasscodes[student.studentId] ? 'Hide passcode' : 'Show passcode'}
                                                 >
-                                                    <span className="text-[14px] font-black text-slate-700 dark:text-slate-300 font-mono tracking-wider">
+                                                    <span className="text-[12px] font-black text-slate-700 dark:text-slate-300 font-mono tracking-wider">
                                                         {revealedPasscodes[student.studentId] ? student.passcode : '••••••'}
                                                     </span>
                                                     {revealedPasscodes[student.studentId] ? (
@@ -631,7 +628,7 @@ const AdminStudents = () => {
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-5 py-3.5">
+                                    <td className="px-3 py-2">
                                         <div className="flex items-center justify-center gap-2">
                                             <button
                                                 type="button"
@@ -657,8 +654,6 @@ const AdminStudents = () => {
                     </tbody>
                 </table>
                 </div>
-            </div>
-            </div>
             </div>
         </div>
     );
