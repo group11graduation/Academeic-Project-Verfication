@@ -287,7 +287,25 @@ async function resolveClassForTeacher(teacherId, classRef) {
 function classCodeQueryVariants(cls) {
   const rawCode = String(cls?.code || '').trim();
   const codeUpper = rawCode.toUpperCase();
-  return [...new Set([codeUpper, rawCode, rawCode.toUpperCase()].filter(Boolean))];
+  return [...new Set([codeUpper, rawCode].filter(Boolean))];
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Match StudentProfile.classCode to a class even when casing/spacing differs slightly. */
+function buildClassCodeProfileFilter(cls) {
+  const rawCode = String(cls?.code || '').trim();
+  const codeUpper = rawCode.toUpperCase();
+  if (!codeUpper) return null;
+  const variants = classCodeQueryVariants(cls);
+  return {
+    $or: [
+      { classCode: { $in: variants } },
+      { classCode: { $regex: new RegExp(`^\\s*${escapeRegExp(codeUpper)}\\s*$`, 'i') } },
+    ],
+  };
 }
 
 /**
@@ -295,8 +313,10 @@ function classCodeQueryVariants(cls) {
  * profiles whose classCode matches this class, plus users with an active Enrollment on this class.
  */
 async function collectRosterUserIdsForClassTemplate(cls) {
-  const variants = classCodeQueryVariants(cls);
-  const profileRows = await StudentProfile.find({ classCode: { $in: variants } }).select('user').lean();
+  const profileFilter = buildClassCodeProfileFilter(cls);
+  const profileRows = profileFilter
+    ? await StudentProfile.find(profileFilter).select('user').lean()
+    : [];
   const enrollmentRows = await Enrollment.find({ class: cls._id, status: 'active' }).select('student').lean();
 
   const idStrs = new Set();
@@ -318,6 +338,12 @@ async function collectRosterUserIdsForClassTemplate(cls) {
   };
 }
 
+export async function countClassRosterStudents(cls) {
+  if (!cls?._id) return 0;
+  const { uniqueStudentCount } = await collectRosterUserIdsForClassTemplate(cls);
+  return uniqueStudentCount;
+}
+
 export async function listClassStudentsForTeacher(teacherId, classRef) {
   const cls = await resolveClassForTeacher(teacherId, classRef);
   if (!cls) {
@@ -325,14 +351,18 @@ export async function listClassStudentsForTeacher(teacherId, classRef) {
     err.status = 404;
     throw err;
   }
-  const codeVariants = classCodeQueryVariants(cls);
-  const profiles = await StudentProfile.find({ classCode: { $in: codeVariants } })
-    .populate('user', 'name email photo')
-    .lean();
 
-  const templateGroups = await Group.find({ assignment: null, hostClass: cls._id })
-    .select('name leader members')
-    .lean();
+  const { userIds } = await collectRosterUserIdsForClassTemplate(cls);
+  if (!userIds.length) return [];
+
+  const [users, profiles, templateGroups] = await Promise.all([
+    User.find({ _id: { $in: userIds } }).select('name email photo').lean(),
+    StudentProfile.find({ user: { $in: userIds } }).select('user studentId classCode').lean(),
+    Group.find({ assignment: null, hostClass: cls._id }).select('name leader members').lean(),
+  ]);
+
+  const profileByUser = new Map(profiles.map((p) => [String(p.user), p]));
+  const userById = new Map(users.map((u) => [String(u._id), u]));
   const userToTemplateGroup = new Map();
   for (const g of templateGroups) {
     const memberIds = [
@@ -344,46 +374,23 @@ export async function listClassStudentsForTeacher(teacherId, classRef) {
     }
   }
 
-  const seenUser = new Set();
-  const rows = profiles.map((p) => {
-    const userId = String(p.user?._id || p.user || '');
-    if (userId) seenUser.add(userId);
+  return userIds.map((uid) => {
+    const uidStr = String(uid);
+    const u = userById.get(uidStr);
+    const p = profileByUser.get(uidStr);
+    const studentId = String(p?.studentId || '').trim();
     return {
-      id: p.studentId || userId,
-      name: p.user?.name || 'Student',
-      email: p.user?.email || '',
-      photo: p.user?.photo || '',
-      userId,
-      group: userToTemplateGroup.get(userId) || 'UNASSIGNED',
+      id: studentId || uidStr,
+      studentId,
+      name: u?.name || 'Student',
+      email: u?.email || '',
+      photo: u?.photo || '',
+      userId: uidStr,
+      group: userToTemplateGroup.get(uidStr) || 'UNASSIGNED',
       attendance: 0,
       avatarColor: 'bg-blue-500/10',
     };
   });
-
-  const enrollments = await Enrollment.find({ class: cls._id, status: 'active' }).select('student').lean();
-  const enrolledIds = [...new Set(enrollments.map((e) => String(e.student || '')).filter(Boolean))].filter(
-    (uid) => !seenUser.has(uid),
-  );
-
-  if (enrolledIds.length) {
-    const users = await User.find({ _id: { $in: enrolledIds } }).select('name email photo').lean();
-    const byId = new Map(users.map((u) => [String(u._id), u]));
-    for (const uid of enrolledIds) {
-      const u = byId.get(uid);
-      rows.push({
-        id: uid,
-        name: u?.name || 'Student',
-        email: u?.email || '',
-        photo: u?.photo || '',
-        userId: uid,
-        group: userToTemplateGroup.get(uid) || 'UNASSIGNED',
-        attendance: 0,
-        avatarColor: 'bg-blue-500/10',
-      });
-    }
-  }
-
-  return rows;
 }
 
 export async function getClassStudentDetailForTeacher(teacherId, classRef, studentUserId) {

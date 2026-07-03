@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
 import { Assignment } from '../models/Assignment.js';
 import { Group } from '../models/Group.js';
-import { syncAssignmentGroupsFromClassTemplates } from './teacherClassGroups.service.js';
 import { Class } from '../models/Class.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Semester } from '../models/Semester.js';
 import { Proposal } from '../models/Proposal.js';
+import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import { countClassRosterStudents, syncAssignmentGroupsFromClassTemplates } from './teacherClassGroups.service.js';
 import {
   distinctAssignmentIdsForTeacher,
   findAssignmentVisibleToTeacher,
@@ -128,7 +129,7 @@ export async function listClassesForTeacher(teacherId) {
 
   const rows = await Promise.all(
     classes.map(async (c) => {
-      const students = await StudentProfile.countDocuments({ classCode: c.code });
+      const students = await countClassRosterStudents(c);
       return {
         _id: c._id,
         code: c.code,
@@ -157,7 +158,7 @@ export async function getClassDetailsForTeacher(teacherId, classCodeOrId) {
     .lean();
   if (!cls) return null;
 
-  const studentCount = await StudentProfile.countDocuments({ classCode: cls.code });
+  const studentCount = await countClassRosterStudents(cls);
   const assignmentIds = await Assignment.find({
     teacher: tid,
     isActive: true,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ChevronDown, ArrowLeft, Loader2, ChevronRight, Users } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Search, ChevronDown, ArrowLeft, Loader2, Users, Mail } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
 import { usePageSearch } from '../../../context/shellSearchContext';
@@ -8,10 +8,12 @@ import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const StudentList = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
     const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search students…');
     const [sortBy, setSortBy] = useState('Name (A-Z)');
     const [students, setStudents] = useState([]);
     const [classTitle, setClassTitle] = useState('');
+    const [loadError, setLoadError] = useState('');
     const [loading, setLoading] = useState(true);
     const uploadBase = getApiOrigin();
 
@@ -19,16 +21,28 @@ const StudentList = () => {
         let cancelled = false;
         const fetchStudents = async () => {
             setLoading(true);
+            setLoadError('');
             try {
                 const [studentsRes, classRes] = await Promise.all([
                     teacherService.getClassStudents(id),
                     teacherService.getClassDetails(id),
                 ]);
                 if (cancelled) return;
-                if (studentsRes.success) setStudents(studentsRes.data);
-                if (classRes.success) setClassTitle(classRes.data?.title || classRes.data?.code || id);
+                if (studentsRes.success) {
+                    setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : []);
+                } else {
+                    setStudents([]);
+                    setLoadError(studentsRes.message || 'Could not load students for this class.');
+                }
+                if (classRes.success) {
+                    setClassTitle(classRes.data?.title || classRes.data?.code || id);
+                }
             } catch (error) {
                 console.error('Failed to fetch students:', error);
+                if (!cancelled) {
+                    setStudents([]);
+                    setLoadError(error.response?.data?.message || 'Failed to load students for this class.');
+                }
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -42,10 +56,20 @@ const StudentList = () => {
     const filteredAndSortedStudents = useMemo(() => {
         let list = searchQuery.trim()
             ? students.filter((student) =>
-                  matchesSearchQuery(searchQuery, student.name, student.id, student.email, student.studentId)
+                  matchesSearchQuery(
+                      searchQuery,
+                      student.name,
+                      student.studentId,
+                      student.id,
+                      student.email,
+                      student.userId
+                  )
               )
             : students;
         return [...list].sort((a, b) => {
+            if (sortBy === 'ID (A-Z)') {
+                return String(a.studentId || a.id || '').localeCompare(String(b.studentId || b.id || ''));
+            }
             if (sortBy === 'Name (A-Z)') return (a.name || '').localeCompare(b.name || '');
             if (sortBy === 'Attendance (Low-High)') return (a.attendance ?? 0) - (b.attendance ?? 0);
             if (sortBy === 'Attendance (High-Low)') return (b.attendance ?? 0) - (a.attendance ?? 0);
@@ -100,6 +124,12 @@ const StudentList = () => {
                 </div>
             </div>
 
+            {loadError ? (
+                <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+                    {loadError}
+                </div>
+            ) : null}
+
             <div className="bg-white dark:bg-[#0F172A] p-4 md:p-6 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-2xl mb-6 md:mb-8 flex flex-col lg:flex-row items-stretch lg:items-center gap-4 md:gap-6">
                 <div className="relative flex-1">
                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-600" />
@@ -120,6 +150,7 @@ const StudentList = () => {
                         onChange={(e) => setSortBy(e.target.value)}
                     >
                         <option value="Name (A-Z)">Name (A-Z)</option>
+                        <option value="ID (A-Z)">Student ID (A-Z)</option>
                         <option value="Attendance (High-Low)">Attendance (High-Low)</option>
                         <option value="Attendance (Low-High)">Attendance (Low-High)</option>
                     </select>
@@ -128,69 +159,88 @@ const StudentList = () => {
             </div>
 
             {filteredAndSortedStudents.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredAndSortedStudents.map((student) => {
-                        const userId = student.userId;
-                        if (!userId) return null;
-                        const photoUrl =
-                            student.photo && student.photo !== 'default-student.jpg'
-                                ? student.photo.startsWith('http')
-                                    ? student.photo
-                                    : `${uploadBase}/uploads/${student.photo}`
-                                : null;
-                        return (
-                            <Link
-                                key={userId}
-                                to={`/teacher/classes/${id}/students/${userId}`}
-                                className="group rounded-[28px] border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] p-6 md:p-8 shadow-lg hover:border-[#1D68E3]/40 hover:shadow-xl transition-all active:scale-[0.99]"
-                            >
-                                <div className="flex items-start gap-4 mb-5">
-                                    <div
-                                        className={`h-14 w-14 rounded-2xl ${student.avatarColor || 'bg-blue-500/10'} flex items-center justify-center overflow-hidden border-2 border-slate-100 dark:border-white/5 shrink-0`}
-                                    >
-                                        {photoUrl ? (
-                                            <img
-                                                src={photoUrl}
-                                                alt=""
-                                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                                            />
-                                        ) : (
-                                            <span className="text-sm font-black text-slate-500">
-                                                {(student.name || '?')
-                                                    .split(' ')
-                                                    .map((n) => n[0])
-                                                    .join('')
-                                                    .slice(0, 2)}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-lg font-black text-slate-800 dark:text-slate-100 truncate group-hover:text-[#1D68E3] transition-colors">
-                                            {student.name}
-                                        </p>
-                                        <p className="text-xs font-mono text-slate-500 mt-0.5">{student.id}</p>
-                                    </div>
-                                    <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-[#1D68E3] shrink-0 transition-colors" />
-                                </div>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 truncate mb-4">{student.email}</p>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="bg-blue-500/10 text-[#1D68E3] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
-                                        {student.group || 'UNASSIGNED'}
-                                    </span>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-[#1D68E3]">
-                                        View profile
-                                    </span>
-                                </div>
-                            </Link>
-                        );
-                    })}
+                <div className="rounded-[28px] border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] shadow-lg overflow-hidden">
+                    <div className="app-table-shell border-0 rounded-none shadow-none">
+                        <div className="app-table-wrap custom-scrollbar overflow-x-auto">
+                            <table className="app-table w-full min-w-[640px]">
+                                <thead>
+                                    <tr className="app-table-headrow bg-slate-50/80 dark:bg-[#0B1120]">
+                                        <th className="app-table-th w-12 text-center">#</th>
+                                        <th className="app-table-th">Student name</th>
+                                        <th className="app-table-th text-center">Student ID</th>
+                                        <th className="app-table-th hidden md:table-cell">Email</th>
+                                        <th className="app-table-th text-center hidden sm:table-cell">Team</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="app-table-body">
+                                    {filteredAndSortedStudents.map((student, index) => {
+                                        const userId = student.userId;
+                                        const displayId = student.studentId || student.id || '—';
+                                        const photoUrl =
+                                            student.photo && student.photo !== 'default-student.jpg'
+                                                ? student.photo.startsWith('http')
+                                                    ? student.photo
+                                                    : `${uploadBase}/uploads/${student.photo}`
+                                                : null;
+                                        return (
+                                            <tr
+                                                key={userId || `${displayId}-${index}`}
+                                                className={`app-table-row ${userId ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.02]' : ''}`}
+                                                onClick={() => {
+                                                    if (userId) navigate(`/teacher/classes/${id}/students/${userId}`);
+                                                }}
+                                            >
+                                                <td className="app-table-td text-center text-slate-400 font-bold text-sm">
+                                                    {index + 1}
+                                                </td>
+                                                <td className="app-table-td">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-[#0B1120] flex items-center justify-center overflow-hidden border border-slate-100 dark:border-white/5 shrink-0">
+                                                            {photoUrl ? (
+                                                                <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-xs font-black text-slate-500">
+                                                                    {(student.name || '?')
+                                                                        .split(' ')
+                                                                        .map((n) => n[0])
+                                                                        .join('')
+                                                                        .slice(0, 2)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                                                            {student.name || 'Student'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="app-table-td text-center font-mono text-sm font-bold text-[#1D68E3]">
+                                                    {displayId}
+                                                </td>
+                                                <td className="app-table-td hidden md:table-cell">
+                                                    <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+                                                        <Mail className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                                                        {student.email || '—'}
+                                                    </span>
+                                                </td>
+                                                <td className="app-table-td text-center hidden sm:table-cell">
+                                                    <span className="bg-blue-500/10 text-[#1D68E3] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                                                        {student.group || 'UNASSIGNED'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div className="rounded-[28px] border border-dashed border-slate-200 dark:border-white/10 p-16 text-center">
                     <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-500 font-bold">
                         {students.length === 0
-                            ? 'No students enrolled in this class yet.'
+                            ? 'No students enrolled in this class yet. Ask an admin to assign students to this class.'
                             : 'No students match your search.'}
                     </p>
                 </div>
