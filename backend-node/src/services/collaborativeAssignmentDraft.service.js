@@ -8,17 +8,22 @@ import {
 } from './collaborativeAssignment.service.js';
 import { parseObjectIdList } from './assignmentTeacher.service.js';
 
-function participantIds(draft) {
-  return new Set([
-    String(draft.initiatedBy),
-    String(draft.coTeacherId),
-    String(draft.frontendTeacherId),
-    String(draft.backendTeacherId),
-  ]);
+function idOf(value) {
+  if (!value) return '';
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
+}
+
+function teacherCanAccessDraft(draft, teacherId) {
+  const tid = idOf(teacherId);
+  if (!tid) return false;
+  return [draft.initiatedBy, draft.coTeacherId, draft.frontendTeacherId, draft.backendTeacherId].some(
+    (field) => idOf(field) === tid
+  );
 }
 
 function assertDraftParticipant(draft, teacherId) {
-  if (!participantIds(draft).has(String(teacherId))) {
+  if (!teacherCanAccessDraft(draft, teacherId)) {
     const err = new Error('You do not have access to this collaborative draft');
     err.status = 403;
     throw err;
@@ -41,7 +46,8 @@ function formatDraftRow(row) {
 }
 
 export async function listCollaborativeDraftsForTeacher(teacherId) {
-  const tid = new mongoose.Types.ObjectId(teacherId);
+  if (!teacherId || !mongoose.Types.ObjectId.isValid(String(teacherId))) return [];
+  const tid = new mongoose.Types.ObjectId(String(teacherId));
   const rows = await CollaborativeAssignmentDraft.find({
     status: 'draft',
     $or: [{ initiatedBy: tid }, { coTeacherId: tid }, { frontendTeacherId: tid }, { backendTeacherId: tid }],
@@ -155,7 +161,7 @@ export async function updateCollaborativeDraft(teacherId, draftId, payload = {})
   if (projectDeadline !== undefined) draft.projectDeadline = projectDeadline ? new Date(projectDeadline) : null;
 
   if (frontendTechRequirements !== undefined) {
-    if (String(draft.frontendTeacherId) !== String(teacherId)) {
+    if (idOf(draft.frontendTeacherId) !== idOf(teacherId)) {
       const err = new Error('Only the frontend teacher can update frontend requirements');
       err.status = 403;
       throw err;
@@ -168,7 +174,7 @@ export async function updateCollaborativeDraft(teacherId, draftId, payload = {})
   }
 
   if (backendTechRequirements !== undefined) {
-    if (String(draft.backendTeacherId) !== String(teacherId)) {
+    if (idOf(draft.backendTeacherId) !== idOf(teacherId)) {
       const err = new Error('Only the backend teacher can update backend requirements');
       err.status = 403;
       throw err;
@@ -206,7 +212,7 @@ export async function uploadCollaborativeDraftSectionFile(teacherId, draftId, se
   assertDraftParticipant(draft, teacherId);
 
   const ownerField = sectionKey === 'frontend' ? 'frontendTeacherId' : 'backendTeacherId';
-  if (String(draft[ownerField]) !== String(teacherId)) {
+  if (idOf(draft[ownerField]) !== idOf(teacherId)) {
     const err = new Error(`Only the ${sectionKey} teacher can upload this requirements file`);
     err.status = 403;
     throw err;
@@ -259,6 +265,8 @@ export async function publishCollaborativeDraft(teacherId, draftId) {
 
   const assignment = await createCollaborativeAssignment(draft.initiatedBy, {
     coTeacherId: draft.coTeacherId,
+    frontendTeacherId: draft.frontendTeacherId,
+    backendTeacherId: draft.backendTeacherId,
     classId: classIds[0],
     classIds,
     subjectId: draft.subject,

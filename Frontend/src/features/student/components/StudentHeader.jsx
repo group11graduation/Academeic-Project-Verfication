@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     Rocket,
     BookOpen,
@@ -17,6 +17,7 @@ import {
     Users,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
+import { useShellSearch } from '../../../context/shellSearchContext';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 
 function buildNavItems(user) {
@@ -54,13 +55,17 @@ function buildNavItems(user) {
     ];
 }
 
-const StudentHeader = () => {
+const StudentHeader = ({ forcePublic = false }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
+    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
+        useShellSearch();
 
-    const navItems = useMemo(() => buildNavItems(user), [user]);
+    const showPublicShell = forcePublic || location.pathname === '/';
+    const navItems = useMemo(() => buildNavItems(showPublicShell ? null : user), [showPublicShell, user]);
 
     const handleLogout = () => {
         setProfileOpen(false);
@@ -118,13 +123,16 @@ const StudentHeader = () => {
                         ))}
                     </nav>
 
-                    {user ? (
+                    {user && !showPublicShell ? (
                         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                             <div className="hidden md:flex items-center rounded-full border border-slate-200 bg-slate-50/80 pl-3 pr-2 py-1.5 w-[160px] lg:w-[180px]">
                                 <Search className="h-4 w-4 text-slate-400 shrink-0" />
                                 <input
                                     type="search"
-                                    placeholder="Search..."
+                                    value={shellSearchQuery}
+                                    onChange={(e) => setShellSearchQuery(e.target.value)}
+                                    placeholder={shellSearchPlaceholder}
+                                    aria-label={shellSearchPlaceholder}
                                     className="ml-2 w-full bg-transparent text-xs font-medium text-slate-700 placeholder:text-slate-400 outline-none border-0 !text-slate-700"
                                 />
                             </div>
@@ -206,6 +214,14 @@ const StudentHeader = () => {
                         </div>
                     ) : (
                         <div className="flex items-center gap-2 shrink-0">
+                            {user && showPublicShell ? (
+                                <Link
+                                    to={user.role === 'student' ? '/student' : user.role === 'teacher' ? '/teacher' : '/admin'}
+                                    className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[#2a3fa4] hover:underline"
+                                >
+                                    My workspace
+                                </Link>
+                            ) : null}
                             <Link to="/login" className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-slate-700 hover:text-[#2a3fa4]">
                                 Sign in
                             </Link>
@@ -215,7 +231,7 @@ const StudentHeader = () => {
                                 className="inline-flex px-4 py-2 rounded-lg text-sm font-bold text-white"
                                 style={{ backgroundColor: BRAND.primary }}
                             >
-                                Access platform
+                                {user && showPublicShell ? 'Switch account' : 'Access platform'}
                             </button>
                             <button
                                 type="button"

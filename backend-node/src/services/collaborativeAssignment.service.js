@@ -37,7 +37,7 @@ function parseTechBlock(raw = {}) {
 
 export function isTechSectionComplete(block) {
   const parsed = parseTechBlock(block);
-  return Boolean(parsed.requirementFile) || Boolean(parsed.requirementText) || parsed.allowedTechnologies.length > 0;
+  return Boolean(parsed.requirementFile);
 }
 
 function blockSummaryText(block, label) {
@@ -80,6 +80,8 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
     projectDeadline,
     frontendTechRequirements,
     backendTechRequirements,
+    frontendTeacherId,
+    backendTeacherId,
   } = payload;
 
   if (!coTeacherId) {
@@ -103,12 +105,12 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
   const frontendBlock = parseTechBlock(frontendTechRequirements);
   const backendBlock = parseTechBlock(backendTechRequirements);
   if (!isTechSectionComplete(frontendBlock)) {
-    const err = new Error('Frontend tech requirements are required (file, text, or allowed technologies)');
+    const err = new Error('Frontend teacher must upload a requirements file');
     err.status = 400;
     throw err;
   }
   if (!isTechSectionComplete(backendBlock)) {
-    const err = new Error('Backend tech requirements are required (file, text, or allowed technologies)');
+    const err = new Error('Backend teacher must upload a requirements file');
     err.status = 400;
     throw err;
   }
@@ -180,9 +182,14 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
 
   const mergedRequirements = mergeRequirementLists(frontendBlock, backendBlock);
 
+  const feTeacherId = frontendTeacherId || primaryTeacherId;
+  const beTeacherId = backendTeacherId || coTeacherId;
+
   const doc = new Assignment({
     teacher: primaryTeacherId,
     coTeacherId,
+    frontendTeacherId: feTeacherId,
+    backendTeacherId: beTeacherId,
     isCollaborative: true,
     frontendTechRequirements: frontendBlock,
     backendTechRequirements: backendBlock,

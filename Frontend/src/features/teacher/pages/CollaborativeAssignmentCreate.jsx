@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, Loader2, Lock, Save, Send, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Loader2, Lock, Save, Send, Users } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import teacherService from '../../../services/teacherService';
 import TeacherCollaborationPanel from '../components/TeacherCollaborationPanel';
@@ -69,6 +69,7 @@ const CollaborativeAssignmentCreate = () => {
     const [publishing, setPublishing] = useState(false);
     const [startingDraft, setStartingDraft] = useState(false);
     const [uploadingSection, setUploadingSection] = useState('');
+    const [notice, setNotice] = useState(null);
 
     const [coTeacherId, setCoTeacherId] = useState('');
     const [myRole, setMyRole] = useState('frontend');
@@ -88,6 +89,10 @@ const CollaborativeAssignmentCreate = () => {
     const backendFileRef = useRef(null);
 
     const draftId = searchParams.get('draft');
+
+    const showNotice = useCallback((title, message) => {
+        setNotice({ title, message });
+    }, []);
 
     const applyDraftToForm = useCallback((row, catalogRows = []) => {
         setDraft(row);
@@ -127,38 +132,66 @@ const CollaborativeAssignmentCreate = () => {
 
     const reloadDrafts = useCallback(async () => {
         const res = await teacherService.listCollaborativeDrafts();
-        if (res.success) setDrafts(res.data || []);
+        const rows = res.success ? res.data || [] : [];
+        setDrafts(rows);
+        return rows;
     }, []);
 
-    const loadDraft = useCallback(
-        async (id, catalogRows = catalog) => {
+    const loadDraft = useCallback(async (id, catalogRows = []) => {
+        if (!id) return false;
+        try {
             const res = await teacherService.getCollaborativeDraft(id);
-            if (res.success) applyDraftToForm(res.data, catalogRows);
-        },
-        [applyDraftToForm, catalog]
-    );
+            if (res.success) {
+                applyDraftToForm(res.data, catalogRows);
+                return true;
+            }
+        } catch (err) {
+            const status = err.response?.status;
+            if (status === 403 || status === 404) {
+                setSearchParams({}, { replace: true });
+                setDraft(null);
+                showNotice(
+                    'Draft unavailable',
+                    err.response?.data?.message || 'This collaborative draft is no longer available to your account.'
+                );
+            } else {
+                console.error(err);
+            }
+        }
+        return false;
+    }, [applyDraftToForm, setSearchParams, showNotice]);
 
     useEffect(() => {
+        let cancelled = false;
+
         (async () => {
             try {
                 const catalogRes = await teacherService.getCatalog();
                 const rows = catalogRes.success ? catalogRes.data || [] : [];
+                if (cancelled) return;
                 setCatalog(rows);
                 if (rows.length && rows[0].subjects?.length) setSubjectId(rows[0].subjects[0]._id);
                 await Promise.all([reloadCollaborators(), reloadDrafts()]);
+                if (cancelled) return;
                 if (draftId) await loadDraft(draftId, rows);
             } catch (err) {
                 console.error(err);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         })();
+
+        return () => {
+            cancelled = true;
+        };
     }, [draftId, loadDraft, reloadCollaborators, reloadDrafts]);
 
     const selectedCatalogRow = catalog[catalogIndex] || null;
+    const defaultSubjectId = selectedCatalogRow?.subjects?.[0]?._id || '';
+    const activeSubjectId = subjectId || defaultSubjectId;
 
     const compatibleClassOptions = useMemo(() => {
-        if (!selectedCatalogRow || !subjectId) return [];
+        if (!selectedCatalogRow || !activeSubjectId) return [];
         return catalog.filter((row) => {
             const sameSemester =
                 String(row?.semester?._id || row?.semester || '') ===
@@ -166,22 +199,21 @@ const CollaborativeAssignmentCreate = () => {
             const sameAcademicYear =
                 String(row?.academicYear?._id || row?.academicYear || '') ===
                 String(selectedCatalogRow?.academicYear?._id || selectedCatalogRow?.academicYear || '');
-            const hasSubject = (row?.subjects || []).some((s) => String(s._id) === String(subjectId));
+            const hasSubject = (row?.subjects || []).some((s) => String(s._id) === String(activeSubjectId));
             return sameSemester && sameAcademicYear && hasSubject;
         });
-    }, [catalog, selectedCatalogRow, subjectId]);
+    }, [activeSubjectId, catalog, selectedCatalogRow]);
 
     useEffect(() => {
         const row = catalog[catalogIndex];
-        if (!draft && row?.subjects?.length) {
+        if (row?.subjects?.length) {
             setSubjectId((prev) => (row.subjects.some((s) => s._id === prev) ? prev : row.subjects[0]._id));
-        } else if (!draft) {
+        } else {
             setSubjectId('');
         }
-    }, [catalogIndex, catalog, draft]);
+    }, [catalogIndex, catalog]);
 
     useEffect(() => {
-        if (draft) return;
         setSelectedClassIds((prev) => {
             const validIds = compatibleClassOptions.map((row) => String(row.class?._id || ''));
             const kept = prev.filter((id) => validIds.includes(String(id)));
@@ -189,7 +221,7 @@ const CollaborativeAssignmentCreate = () => {
             const defaultId = selectedCatalogRow?.class?._id ? [String(selectedCatalogRow.class._id)] : [];
             return defaultId.filter((id) => validIds.includes(id));
         });
-    }, [compatibleClassOptions, selectedCatalogRow, draft]);
+    }, [compatibleClassOptions, selectedCatalogRow]);
 
     const myDraftRole = useMemo(() => {
         if (!draft || !currentUserId) return null;
@@ -202,7 +234,16 @@ const CollaborativeAssignmentCreate = () => {
     const backendTeacher = draft?.backendTeacherId;
     const frontendDone = isSectionComplete(frontend);
     const backendDone = isSectionComplete(backend);
-    const readyToPublish = Boolean(draft?.readyToPublish) || (Boolean(title.trim()) && frontendDone && backendDone && selectedClassIds.length > 0 && subjectId);
+    const defaultClassId = selectedCatalogRow?.class?._id ? String(selectedCatalogRow.class._id) : '';
+    const activeClassIds = selectedClassIds.length > 0 ? selectedClassIds : defaultClassId ? [defaultClassId] : [];
+    const readyToPublish = Boolean(title.trim()) && frontendDone && backendDone && activeClassIds.length > 0 && activeSubjectId;
+    const missingPublishItems = [
+        !title.trim() ? 'title' : '',
+        !activeSubjectId ? 'subject' : '',
+        activeClassIds.length === 0 ? 'at least one class' : '',
+        !frontendDone ? 'frontend requirements' : '',
+        !backendDone ? 'backend requirements' : '',
+    ].filter(Boolean);
 
     const handleToggleClass = (classId) => {
         setSelectedClassIds((prev) =>
@@ -211,7 +252,10 @@ const CollaborativeAssignmentCreate = () => {
     };
 
     const handleStartDraft = async () => {
-        if (!coTeacherId) return alert('Select a co-teacher with an accepted collaboration.');
+        if (!coTeacherId) {
+            showNotice('Select a co-teacher', 'Choose an accepted collaboration partner before starting the draft.');
+            return;
+        }
         try {
             setStartingDraft(true);
             const res = await teacherService.createCollaborativeDraft({ coTeacherId, myRole });
@@ -221,7 +265,7 @@ const CollaborativeAssignmentCreate = () => {
                 await reloadDrafts();
             }
         } catch (err) {
-            alert(err.response?.data?.message || 'Could not start collaborative draft.');
+            showNotice('Draft not started', err.response?.data?.message || 'Could not start collaborative draft.');
         } finally {
             setStartingDraft(false);
         }
@@ -229,21 +273,22 @@ const CollaborativeAssignmentCreate = () => {
 
     const buildSavePayload = () => {
         const row = selectedCatalogRow;
-        if (!row || !subjectId) return null;
-        if (selectedClassIds.length === 0) return null;
 
         const payload = {
-            classId: row.class._id,
-            classIds: selectedClassIds,
-            subjectId,
-            semesterId: row.semester?._id || row.semester || '',
-            academicYearId: row.academicYear?._id || row.academicYear || '',
             title: title.trim(),
             description: description.trim(),
             submissionMode,
             proposalDeadline: proposalDeadline || null,
             projectDeadline: projectDeadline || null,
         };
+
+        if (row && activeSubjectId && activeClassIds.length > 0) {
+            payload.classId = row.class._id;
+            payload.classIds = activeClassIds;
+            payload.subjectId = activeSubjectId;
+            payload.semesterId = row.semester?._id || row.semester || '';
+            payload.academicYearId = row.academicYear?._id || row.academicYear || '';
+        }
 
         if (myDraftRole === 'frontend') {
             payload.frontendTechRequirements = buildTechPayload(frontend);
@@ -257,18 +302,27 @@ const CollaborativeAssignmentCreate = () => {
     const handleSaveProgress = async () => {
         if (!draft?._id) return false;
         const payload = buildSavePayload();
-        if (!payload) {
-            alert('Select class context, subject, and at least one class.');
-            return false;
-        }
 
         try {
             setSaving(true);
             const res = await teacherService.updateCollaborativeDraft(draft._id, payload);
-            if (res.success) applyDraftToForm(res.data, catalog);
+            if (res.success) {
+                if (payload.classId) {
+                    applyDraftToForm(res.data, catalog);
+                } else {
+                    setDraft(res.data);
+                    setTitle(res.data.title || title);
+                    setDescription(res.data.description || description);
+                    setSubmissionMode(res.data.submissionMode || submissionMode);
+                    setProposalDeadline(toDateTimeLocal(res.data.proposalDeadline) || proposalDeadline);
+                    setProjectDeadline(toDateTimeLocal(res.data.projectDeadline) || projectDeadline);
+                    setFrontend(blockToForm(res.data.frontendTechRequirements));
+                    setBackend(blockToForm(res.data.backendTechRequirements));
+                }
+            }
             return res.success;
         } catch (err) {
-            alert(err.response?.data?.message || 'Could not save progress.');
+            showNotice('Progress not saved', err.response?.data?.message || 'Could not save progress.');
             return false;
         } finally {
             setSaving(false);
@@ -280,9 +334,13 @@ const CollaborativeAssignmentCreate = () => {
         try {
             setUploadingSection(section);
             const res = await teacherService.uploadCollaborativeDraftSectionFile(draft._id, section, file);
-            if (res.success) applyDraftToForm(res.data, catalog);
+            if (res.success) {
+                setDraft(res.data);
+                setFrontend(blockToForm(res.data.frontendTechRequirements));
+                setBackend(blockToForm(res.data.backendTechRequirements));
+            }
         } catch (err) {
-            alert(err.response?.data?.message || 'Could not upload requirements file.');
+            showNotice('File not uploaded', err.response?.data?.message || 'Could not upload requirements file.');
         } finally {
             setUploadingSection('');
         }
@@ -290,17 +348,15 @@ const CollaborativeAssignmentCreate = () => {
 
     const handlePublish = async () => {
         if (!draft?._id) return;
-        if (!readyToPublish) {
-            return alert('Both teachers must complete their requirement sections, and a title and classes are required.');
-        }
         try {
             setPublishing(true);
             const saved = await handleSaveProgress();
             if (!saved) return;
+            await loadDraft(draft._id, catalog);
             const res = await teacherService.publishCollaborativeDraft(draft._id);
             if (res.success) navigate('/teacher/assignments');
         } catch (err) {
-            alert(err.response?.data?.message || 'Could not publish collaborative assignment.');
+            showNotice('Publish failed', err.response?.data?.message || 'Could not publish collaborative assignment.');
         } finally {
             setPublishing(false);
         }
@@ -320,12 +376,12 @@ const CollaborativeAssignmentCreate = () => {
                 </span>
             </div>
             <p className="text-[10px] text-slate-500">
-                {editable ? 'Your section — add a requirements file or description below.' : `Filled by ${teacherLabel(ownerTeacher)}.`}
+                {editable ? 'Your section — upload your requirements file below.' : `Filled by ${teacherLabel(ownerTeacher)}.`}
                 {!editable && <Lock className="inline h-3 w-3 ml-1 -mt-0.5" />}
             </p>
 
             <div>
-                <label className={Z_LABEL}>Requirements file (optional)</label>
+                <label className={Z_LABEL}>Requirements file *</label>
                 {value.originalFileName ? (
                     <p className="text-[11px] font-semibold text-slate-700 mb-1">{value.originalFileName}</p>
                 ) : null}
@@ -364,7 +420,7 @@ const CollaborativeAssignmentCreate = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                    <label className={Z_LABEL}>Required keywords</label>
+                    <label className={Z_LABEL}>Required keywords (optional)</label>
                     <input
                         type="text"
                         value={value.requiredKeywordsText}
@@ -375,7 +431,7 @@ const CollaborativeAssignmentCreate = () => {
                     />
                 </div>
                 <div>
-                    <label className={Z_LABEL}>Allowed technologies</label>
+                    <label className={Z_LABEL}>Allowed technologies (optional)</label>
                     <input
                         type="text"
                         value={value.allowedTechnologiesText}
@@ -416,41 +472,7 @@ const CollaborativeAssignmentCreate = () => {
                     </div>
                 </div>
 
-                <TeacherCollaborationPanel onAcceptedChange={reloadCollaborators} />
-
-                {drafts.length > 0 && (
-                    <div className="mt-4 rounded-lg border border-slate-200 p-3 space-y-2 dark:border-white/10">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">In progress with a co-teacher</p>
-                        {drafts.map((row) => {
-                            const partner =
-                                String(row.initiatedBy?._id || row.initiatedBy) === currentUserId
-                                    ? row.coTeacherId
-                                    : row.initiatedBy;
-                            return (
-                                <button
-                                    key={row._id}
-                                    type="button"
-                                    onClick={() => {
-                                        setSearchParams({ draft: row._id });
-                                        loadDraft(row._id, catalog);
-                                    }}
-                                    className={`w-full text-left rounded-lg border px-3 py-2 text-[11px] hover:bg-slate-50 dark:hover:bg-slate-900/40 ${
-                                        draftId === String(row._id) ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200'
-                                    }`}
-                                >
-                                    <span className="font-bold text-slate-800 dark:text-slate-100">
-                                        {row.title?.trim() || 'Untitled draft'}
-                                    </span>
-                                    <span className="text-slate-500"> · with {teacherLabel(partner)}</span>
-                                    <span className="block text-[10px] text-slate-500 mt-0.5">
-                                        Frontend {row.frontendSectionComplete ? 'done' : 'pending'} · Backend{' '}
-                                        {row.backendSectionComplete ? 'done' : 'pending'}
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
+                <TeacherCollaborationPanel onAcceptedChange={reloadDrafts} />
 
                 {catalog.length === 0 ? (
                     <p className="text-slate-500 text-sm mt-4">No class/subject assignments found. Ask admin to assign classes first.</p>
@@ -458,7 +480,41 @@ const CollaborativeAssignmentCreate = () => {
                     <div className="mt-4 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 p-3 text-[11px] text-slate-600 dark:text-slate-400">
                         Once a colleague <strong>accepts</strong> your request above, you can start a collaborative assignment draft.
                     </div>
-                ) : !draft ? (
+                ) : (
+                    <>
+                        {drafts.length > 0 && !draft && (
+                            <div className="mt-4 rounded-lg border border-slate-200 p-3 space-y-2 dark:border-white/10">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Continue a draft</p>
+                                {drafts.map((row) => {
+                                    const partner =
+                                        String(row.initiatedBy?._id || row.initiatedBy) === currentUserId
+                                            ? row.coTeacherId
+                                            : row.initiatedBy;
+                                    return (
+                                        <button
+                                            key={row._id}
+                                            type="button"
+                                            onClick={() => {
+                                                setSearchParams({ draft: row._id });
+                                                loadDraft(row._id, catalog);
+                                            }}
+                                            className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 text-[11px] hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-900/40"
+                                        >
+                                            <span className="font-bold text-slate-800 dark:text-slate-100">
+                                                {row.title?.trim() || 'Untitled draft'}
+                                            </span>
+                                            <span className="text-slate-500"> · with {teacherLabel(partner)}</span>
+                                            <span className="block text-[10px] text-slate-500 mt-0.5">
+                                                Frontend {row.frontendSectionComplete ? 'done' : 'pending'} · Backend{' '}
+                                                {row.backendSectionComplete ? 'done' : 'pending'}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {!draft ? (
                     <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/10 space-y-3">
                         <div>
                             <label className={Z_LABEL}>Co-teacher *</label>
@@ -513,7 +569,7 @@ const CollaborativeAssignmentCreate = () => {
                             Start collaborative draft
                         </button>
                     </div>
-                ) : (
+                        ) : (
                     <div className="space-y-3 mt-4 pt-4 border-t border-slate-200 dark:border-white/10">
                         <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 text-[11px] text-slate-700 dark:border-indigo-900/40 dark:bg-indigo-950/20 dark:text-slate-300">
                             <p className="font-bold text-slate-900 dark:text-slate-100 mb-1">Partnership</p>
@@ -546,7 +602,7 @@ const CollaborativeAssignmentCreate = () => {
 
                         <div>
                             <label className={Z_LABEL}>Subject *</label>
-                            <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} required className={Z_INPUT}>
+                            <select value={activeSubjectId} onChange={(e) => setSubjectId(e.target.value)} required className={Z_INPUT}>
                                 {(catalog[catalogIndex]?.subjects || []).map((s) => (
                                     <option key={s._id} value={s._id}>
                                         {s.code} - {s.name}
@@ -564,7 +620,7 @@ const CollaborativeAssignmentCreate = () => {
                                         <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-slate-700 dark:text-slate-200">
                                             <input
                                                 type="checkbox"
-                                                checked={selectedClassIds.includes(classId)}
+                                                checked={activeClassIds.includes(classId)}
                                                 onChange={() => handleToggleClass(classId)}
                                             />
                                             <span>
@@ -642,8 +698,10 @@ const CollaborativeAssignmentCreate = () => {
                             <button
                                 type="button"
                                 onClick={handlePublish}
-                                disabled={publishing || !readyToPublish}
-                                className={`${Z_BTN_INDIGO} bg-[#2a3fa4] hover:bg-[#223688] disabled:opacity-50`}
+                                disabled={publishing}
+                                className={`${Z_BTN_INDIGO} bg-[#2a3fa4] hover:bg-[#223688] disabled:opacity-50 ${
+                                    !readyToPublish ? 'opacity-80' : ''
+                                }`}
                             >
                                 {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                                 Publish assignment
@@ -651,12 +709,43 @@ const CollaborativeAssignmentCreate = () => {
                         </div>
                         {!readyToPublish && (
                             <p className="text-[10px] text-slate-500">
-                                Publish unlocks when both frontend and backend sections are complete, with a title and at least one class selected.
+                                Missing before publish: {missingPublishItems.join(', ') || 'waiting for saved draft refresh'}.
+                                {drafts.length > 1 ? ' Reopen this page to continue the most recently updated collaborative draft.' : ''}
                             </p>
                         )}
                     </div>
+                        )}
+                    </>
                 )}
             </div>
+
+            {notice && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="collab-notice-title"
+                >
+                    <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-[#0B1120]">
+                        <div className="flex items-start gap-3">
+                            <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">
+                                <AlertCircle className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h2 id="collab-notice-title" className="text-sm font-black text-slate-900 dark:text-slate-100">
+                                    {notice.title}
+                                </h2>
+                                <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">{notice.message}</p>
+                            </div>
+                        </div>
+                        <div className="mt-5 flex justify-end">
+                            <button type="button" onClick={() => setNotice(null)} className={`${Z_BTN_INDIGO} w-auto px-5`}>
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -10,9 +10,14 @@ import {
   distinctAssignmentIdsForTeacher,
   findAssignmentVisibleToTeacher,
   resolveCollaborationRole,
+  resolveCollaborativeReviewRole,
   teacherAssignmentVisibilityFilter,
   teacherCanManageAssignment,
 } from './teacherAssignmentAccess.service.js';
+import {
+  assertAssignmentRequirementsConfigured,
+  validateAssignmentRequirementsConfig,
+} from './assignmentRequirements.service.js';
 
 function normalizeAssignmentClasses(assignment, viewerTeacherId = null) {
   const rawClasses = Array.isArray(assignment?.classes) && assignment.classes.length
@@ -31,7 +36,17 @@ function normalizeAssignmentClasses(assignment, viewerTeacherId = null) {
     assignmentType: assignment?.assignmentType || 'normal',
     isCollaborative: Boolean(assignment?.isCollaborative),
     collaborationRole: viewerTeacherId ? resolveCollaborationRole(viewerTeacherId, assignment) : null,
+    collaborationReviewRole: viewerTeacherId ? resolveCollaborativeReviewRole(viewerTeacherId, assignment) : null,
     primaryTeacherId: assignment?.teacher?._id || assignment?.teacher || null,
+    frontendTeacherId: assignment?.frontendTeacherId?._id || assignment?.frontendTeacherId || null,
+    backendTeacherId: assignment?.backendTeacherId?._id || assignment?.backendTeacherId || null,
+    requirementsComplete: validateAssignmentRequirementsConfig({
+      assignmentType: assignment?.assignmentType,
+      requirementText: assignment?.requirementText,
+      allowedTechnologies: assignment?.allowedTechnologies,
+      assignmentFile: assignment?.assignmentFile,
+      isCollaborative: assignment?.isCollaborative,
+    }).ok,
   };
 }
 
@@ -216,6 +231,8 @@ export async function getAssignmentForTeacher(teacherId, assignmentId) {
     .populate('academicYear')
     .populate('teacher', 'name email')
     .populate('coTeacherId', 'name email')
+    .populate('frontendTeacherId', 'name email')
+    .populate('backendTeacherId', 'name email')
     .lean();
   return a ? normalizeAssignmentClasses(a, teacherId) : null;
 }
@@ -342,6 +359,19 @@ export async function createAssignment(teacherId, payload) {
     return fallback;
   };
 
+  const assignmentTypeResolved =
+    String(assignmentType || 'normal').trim().toLowerCase() === 'final' ? 'final' : 'normal';
+  const requirementTextResolved = String(payload.requirementText || '').trim();
+  const allowedTechnologiesResolved = parseList(payload.allowedTechnologies || payload.allowedTechnologiesText);
+  const assignmentFileResolved = payload._requirementsFilePath || '';
+
+  assertAssignmentRequirementsConfigured({
+    assignmentType: assignmentTypeResolved,
+    requirementText: requirementTextResolved,
+    allowedTechnologies: allowedTechnologiesResolved,
+    assignmentFile: assignmentFileResolved,
+  });
+
   const doc = new Assignment({
     teacher: teacherId,
     class: primaryClassDoc._id,
@@ -351,12 +381,12 @@ export async function createAssignment(teacherId, payload) {
     academicYear: academicYearResolved,
     title: title?.trim(),
     description: description?.trim() || '',
-    requirementText: String(payload.requirementText || '').trim(),
+    requirementText: requirementTextResolved,
     requiredKeywords: parseList(payload.requiredKeywords || payload.requiredKeywordsText),
-    allowedTechnologies: parseList(payload.allowedTechnologies || payload.allowedTechnologiesText),
-    assignmentFile: payload._requirementsFilePath || '',
+    allowedTechnologies: allowedTechnologiesResolved,
+    assignmentFile: assignmentFileResolved,
     originalFileName: payload._requirementsOriginalName || '',
-    assignmentType: String(assignmentType || 'normal').trim().toLowerCase() === 'final' ? 'final' : 'normal',
+    assignmentType: assignmentTypeResolved,
     classAssignmentMode: normalizedClassAssignmentMode,
     submissionMode: submissionMode || 'single',
     groupModeType: groupModeType || 'teacher_manual',
@@ -423,11 +453,6 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
       err.status = 403;
       throw err;
     }
-    if (!teacherCanUseSubject(classDoc, ta, assignment.subject)) {
-      const err = new Error(`This subject is not linked to class ${classDoc.code || classDoc.name || ''}`.trim());
-      err.status = 403;
-      throw err;
-    }
   }
 
   assertClassSemesterAlignment(classDocs);
@@ -446,6 +471,18 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
     return fallback;
   };
 
+  const nextSubjectId = payload.subjectId ? String(payload.subjectId) : String(assignment.subject);
+  for (const classDoc of classDocs) {
+    const ta = classDoc.teacherAssignments?.find((x) => tid.equals(x.teacher));
+    if (!ta) continue;
+    if (!teacherCanUseSubject(classDoc, ta, nextSubjectId)) {
+      const err = new Error(`Subject is not linked to class ${classDoc.code || classDoc.name || ''}`.trim());
+      err.status = 403;
+      throw err;
+    }
+  }
+  assignment.subject = nextSubjectId;
+
   assignment.class = classDocs[0]._id;
   assignment.classes = classDocs.map((c) => c._id);
   if (typeof payload.title === 'string') assignment.title = payload.title.trim();
@@ -459,7 +496,11 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
   }
   if (typeof payload.submissionMode === 'string') assignment.submissionMode = payload.submissionMode;
   if (typeof payload.assignmentType === 'string') {
-    assignment.assignmentType = payload.assignmentType.trim().toLowerCase() === 'final' ? 'final' : 'normal';
+    const nextType = payload.assignmentType.trim().toLowerCase() === 'final' ? 'final' : 'normal';
+    assignment.assignmentType = nextType;
+    if (nextType === 'normal' && !('submissionMode' in payload)) {
+      assignment.submissionMode = 'single';
+    }
   }
   assignment.classAssignmentMode = normalizedClassAssignmentMode;
   if (typeof payload.groupModeType === 'string') assignment.groupModeType = payload.groupModeType;
@@ -470,6 +511,14 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
   if ('projectPhaseOpen' in payload) assignment.projectPhaseOpen = parseBool(payload.projectPhaseOpen, assignment.projectPhaseOpen);
   if ('proposalDeadline' in payload) assignment.proposalDeadline = payload.proposalDeadline ? new Date(payload.proposalDeadline) : null;
   if ('projectDeadline' in payload) assignment.projectDeadline = payload.projectDeadline ? new Date(payload.projectDeadline) : null;
+
+  assertAssignmentRequirementsConfigured({
+    assignmentType: assignment.assignmentType,
+    requirementText: assignment.requirementText,
+    allowedTechnologies: assignment.allowedTechnologies,
+    assignmentFile: assignment.assignmentFile,
+    isCollaborative: assignment.isCollaborative,
+  });
 
   await assignment.save();
   if (assignment.submissionMode === 'group' && prevSubmissionMode !== 'group') {

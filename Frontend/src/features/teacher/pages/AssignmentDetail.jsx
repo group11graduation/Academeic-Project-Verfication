@@ -2,10 +2,11 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ArrowLeft, Download, Calendar, Users,
-    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, ChevronRight
+    CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, ChevronRight, Pencil
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
+import { assignmentRequirementsComplete } from '../../../shared/utils/assignmentRequirements';
 
 const proposalStatusLabel = (s) => {
     const map = {
@@ -37,67 +38,23 @@ const AssignmentDetail = () => {
     const [uploadingRequirement, setUploadingRequirement] = useState(false);
     const [proposals, setProposals] = useState([]);
     const [loadingProposals, setLoadingProposals] = useState(true);
-    const [catalog, setCatalog] = useState([]);
-    const [savingAssignment, setSavingAssignment] = useState(false);
-    const [editForm, setEditForm] = useState({
-        title: '',
-        description: '',
-        assignmentType: 'normal',
-        classAssignmentMode: 'single',
-        requirementText: '',
-        requiredKeywordsText: '',
-        allowedTechnologiesText: '',
-        proposalDeadline: '',
-        projectDeadline: '',
-        selectedClassIds: []
-    });
     const [normalBundle, setNormalBundle] = useState(null);
     const [loadingNormal, setLoadingNormal] = useState(false);
 
     useEffect(() => {
         const fetch = async () => {
             try {
-                const [res, pRes, cRes] = await Promise.all([
+                const [res, pRes] = await Promise.all([
                     teacherService.getAssignmentById(id),
                     teacherService.getProposalsForAssignment(id),
-                    teacherService.getCatalog()
                 ]);
                 if (res.success) {
                     setData(res.data);
-                    const isFinal = String(res.data?.assignmentType || 'normal') === 'final';
-                    const hasFile = Boolean(res.data?.assignmentFile);
-                    setEditForm({
-                        title: res.data?.title || '',
-                        description: res.data?.description || '',
-                        assignmentType: res.data?.assignmentType || 'normal',
-                        classAssignmentMode: res.data?.classAssignmentMode || ((res.data?.classes || []).length > 1 ? 'multiple' : 'single'),
-                        requirementText: isFinal && hasFile ? '' : (res.data?.requirementText || ''),
-                        requiredKeywordsText:
-                            isFinal && hasFile
-                                ? ''
-                                : Array.isArray(res.data?.requiredKeywords)
-                                  ? res.data.requiredKeywords.join(', ')
-                                  : '',
-                        allowedTechnologiesText:
-                            isFinal && hasFile
-                                ? ''
-                                : Array.isArray(res.data?.allowedTechnologies)
-                                  ? res.data.allowedTechnologies.join(', ')
-                                  : '',
-                        proposalDeadline: res.data?.proposalDeadline ? new Date(res.data.proposalDeadline).toISOString().slice(0, 16) : '',
-                        projectDeadline: res.data?.projectDeadline ? new Date(res.data.projectDeadline).toISOString().slice(0, 16) : '',
-                        selectedClassIds: Array.isArray(res.data?.classes) && res.data.classes.length
-                            ? res.data.classes.map((c) => String(c._id || c))
-                            : res.data?.class?._id
-                                ? [String(res.data.class._id)]
-                                : []
-                    });
                 }
                 if (pRes.success) {
                     const rows = pRes.data || [];
                     setProposals(rows);
                 }
-                if (cRes.success) setCatalog(cRes.data || []);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -181,18 +138,6 @@ const AssignmentDetail = () => {
             ? pending
             : students;
 
-    const compatibleClassOptions = useMemo(() => {
-        if (!data?.subject?._id) return [];
-        const semesterId = String(data?.semester?._id || data?.semester || '');
-        const academicYearId = String(data?.academicYear?._id || data?.academicYear || '');
-        return (catalog || []).filter((row) => {
-            const hasSubject = (row?.subjects || []).some((s) => String(s._id) === String(data.subject._id));
-            const sameSemester = String(row?.semester?._id || row?.semester || '') === semesterId;
-            const sameAcademicYear = String(row?.academicYear?._id || row?.academicYear || '') === academicYearId;
-            return hasSubject && sameSemester && sameAcademicYear;
-        });
-    }, [catalog, data]);
-
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0B1120]">
             <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
@@ -205,77 +150,18 @@ const AssignmentDetail = () => {
         </div>
     );
 
-    const hideTypedFinalRequirements =
-        String(data.assignmentType || 'normal') === 'final' && Boolean(data.assignmentFile);
+    const requirementsComplete = assignmentRequirementsComplete(data);
 
     const handleUploadRequirementFile = async (file) => {
         if (!file) return;
         try {
             setUploadingRequirement(true);
             const res = await teacherService.uploadAssignmentRequirements(id, file);
-            if (res.success) {
-                setData(res.data);
-                if (String(res.data?.assignmentType || 'normal') === 'final') {
-                    setEditForm((prev) => ({
-                        ...prev,
-                        requirementText: '',
-                        requiredKeywordsText: '',
-                        allowedTechnologiesText: '',
-                    }));
-                }
-            }
+            if (res.success) setData(res.data);
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to upload requirements file.');
         } finally {
             setUploadingRequirement(false);
-        }
-    };
-
-    const handleToggleClass = (classId) => {
-        if (editForm.classAssignmentMode === 'single') {
-            setEditForm((prev) => ({ ...prev, selectedClassIds: [String(classId)] }));
-            return;
-        }
-        setEditForm((prev) => ({
-            ...prev,
-            selectedClassIds: prev.selectedClassIds.includes(String(classId))
-                ? prev.selectedClassIds.filter((id) => id !== String(classId))
-                : [...prev.selectedClassIds, String(classId)]
-        }));
-    };
-
-    const handleSaveAssignment = async () => {
-        if (!editForm.title.trim()) return alert('Title is required.');
-        if (editForm.selectedClassIds.length === 0) return alert('Select at least one class.');
-        try {
-            setSavingAssignment(true);
-            const finalWithFile =
-                String(editForm.assignmentType || 'normal') === 'final' && Boolean(data.assignmentFile);
-            const res = await teacherService.updateAssignment(id, {
-                title: editForm.title.trim(),
-                description: editForm.description.trim(),
-                assignmentType: editForm.assignmentType,
-                classAssignmentMode: editForm.classAssignmentMode,
-                ...(finalWithFile
-                    ? {
-                          requirementText: '',
-                          requiredKeywordsText: '',
-                          allowedTechnologiesText: '',
-                      }
-                    : {
-                          requirementText: editForm.requirementText.trim(),
-                          requiredKeywordsText: editForm.requiredKeywordsText.trim(),
-                          allowedTechnologiesText: editForm.allowedTechnologiesText.trim(),
-                      }),
-                proposalDeadline: editForm.proposalDeadline || null,
-                projectDeadline: editForm.projectDeadline || null,
-                classIds: editForm.selectedClassIds
-            });
-            if (res.success) setData(res.data);
-        } catch (err) {
-            alert(err.response?.data?.message || 'Failed to update assignment.');
-        } finally {
-            setSavingAssignment(false);
         }
     };
 
@@ -289,6 +175,20 @@ const AssignmentDetail = () => {
                 <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
                 Back to Assignments
             </button>
+
+            {!requirementsComplete && (
+                <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                    Students cannot submit until requirements are complete.{' '}
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
+                        className="font-black text-amber-950 underline hover:no-underline dark:text-amber-100"
+                    >
+                        Edit assignment
+                    </button>{' '}
+                    to add requirement text and technologies, or upload a requirements file.
+                </div>
+            )}
 
             {/* Header Card */}
             <div className="bg-white dark:bg-[#0F172A] rounded-[28px] border border-slate-100 dark:border-white/5 p-6 md:p-8 mb-6 shadow-xl">
@@ -306,6 +206,14 @@ const AssignmentDetail = () => {
                             {data.subject?.name} · {classLabel}
                         </p>
                         <div className="flex flex-wrap gap-4 mb-4">
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
+                                className="inline-flex items-center gap-2 text-sm font-black text-[#1D68E3] hover:underline"
+                            >
+                                <Pencil className="h-4 w-4" />
+                                Edit assignment
+                            </button>
                             <Link
                                 to={`/teacher/assignments/${id}/proposals`}
                                 className="inline-flex items-center gap-2 text-sm font-black text-[#1D68E3] hover:underline"
@@ -365,141 +273,6 @@ const AssignmentDetail = () => {
                     ) : (
                         <span className="text-xs font-bold text-slate-400">No requirements file uploaded yet.</span>
                     )}
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-slate-200 dark:border-white/10 p-4 md:p-5">
-                    <div className="flex items-center justify-between gap-3 mb-4">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Edit assignment details</h2>
-                        <button
-                            type="button"
-                            onClick={handleSaveAssignment}
-                            disabled={savingAssignment}
-                            className="px-4 py-2 rounded-xl bg-[#1D68E3] text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60"
-                        >
-                            {savingAssignment ? 'Saving...' : 'Save assignment'}
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Title</label>
-                            <input
-                                type="text"
-                                value={editForm.title}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            />
-                        </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Description</label>
-                            <textarea
-                                rows={3}
-                                value={editForm.description}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Assignment type</label>
-                            <select
-                                value={editForm.assignmentType}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, assignmentType: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            >
-                                <option value="normal">Normal assignment</option>
-                                <option value="final">Final assignment</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class assignment mode</label>
-                            <select
-                                value={editForm.classAssignmentMode}
-                                onChange={(e) => {
-                                    const next = e.target.value;
-                                    setEditForm((prev) => ({
-                                        ...prev,
-                                        classAssignmentMode: next,
-                                        selectedClassIds: next === 'single' ? prev.selectedClassIds.slice(0, 1) : prev.selectedClassIds
-                                    }));
-                                }}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            >
-                                <option value="single">Single class</option>
-                                <option value="multiple">Multiple classes</option>
-                            </select>
-                        </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Classes for this project</label>
-                            <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-4 space-y-2 bg-white dark:bg-[#0B1120]">
-                                {compatibleClassOptions.map((row) => {
-                                    const classId = String(row.class?._id || '');
-                                    return (
-                                        <label key={classId} className="flex items-center gap-3 text-sm font-bold text-slate-700 dark:text-slate-200">
-                                            <input
-                                                type="checkbox"
-                                                checked={editForm.selectedClassIds.includes(classId)}
-                                                onChange={() => handleToggleClass(classId)}
-                                            />
-                                            <span>{row.class?.code || row.class?.name} - {row.class?.name || 'Class'}</span>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                        {hideTypedFinalRequirements && (
-                            <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-400">
-                                Requirements are provided as the uploaded file. Typed requirements, keywords, and allowed technologies are not used while a file is attached.
-                            </div>
-                        )}
-                        {!hideTypedFinalRequirements && (
-                            <>
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Teacher requirements</label>
-                                    <textarea
-                                        rows={3}
-                                        value={editForm.requirementText}
-                                        onChange={(e) => setEditForm((prev) => ({ ...prev, requirementText: e.target.value }))}
-                                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Required keywords</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.requiredKeywordsText}
-                                        onChange={(e) => setEditForm((prev) => ({ ...prev, requiredKeywordsText: e.target.value }))}
-                                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Allowed technologies</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.allowedTechnologiesText}
-                                        onChange={(e) => setEditForm((prev) => ({ ...prev, allowedTechnologiesText: e.target.value }))}
-                                        className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                                    />
-                                </div>
-                            </>
-                        )}
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Proposal deadline</label>
-                            <input
-                                type="datetime-local"
-                                value={editForm.proposalDeadline}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, proposalDeadline: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Project deadline</label>
-                            <input
-                                type="datetime-local"
-                                value={editForm.projectDeadline}
-                                onChange={(e) => setEditForm((prev) => ({ ...prev, projectDeadline: e.target.value }))}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-4 py-3 text-sm font-bold"
-                            />
-                        </div>
-                    </div>
                 </div>
 
                 {isNormalAssignment && normalBundle?.plagiarismExplained && (

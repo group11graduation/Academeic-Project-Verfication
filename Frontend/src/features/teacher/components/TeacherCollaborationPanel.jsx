@@ -38,7 +38,6 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
                     prev && rows.some((t) => String(t._id) === String(prev)) ? prev : String(rows[0]?._id || '')
                 );
             }
-            onAcceptedChange?.();
         } catch (err) {
             console.error(err);
             setError(err.response?.data?.message || 'Could not load collaborations.');
@@ -64,6 +63,7 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
             if (res.success) {
                 setRequestNotes('');
                 await reload();
+                onAcceptedChange?.();
             }
         } catch (err) {
             setError(err.response?.data?.message || 'Could not send request.');
@@ -78,6 +78,7 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
         try {
             await teacherService.respondToCollaboration(collaborationId, action);
             await reload();
+            onAcceptedChange?.();
         } catch (err) {
             setError(err.response?.data?.message || 'Action failed.');
         } finally {

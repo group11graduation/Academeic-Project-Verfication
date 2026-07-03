@@ -23,11 +23,13 @@ import {
     normalizeStudentImportRow,
     parseCsvToRecords,
 } from '../../../lib/spreadsheetImport';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const AdminStudents = () => {
     const location = useLocation();
     const [mode, setMode] = useState('list'); // list | add | import | edit
-    const [searchQuery, setSearchQuery] = useState('');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search students…');
     const [classFilter, setClassFilter] = useState('');
     const [facultyFilter, setFacultyFilter] = useState('');
     const [students, setStudents] = useState([]);
@@ -132,10 +134,13 @@ const AdminStudents = () => {
     }, [facultyStructureNames, uniqueFaculties]);
 
     const filteredStudents = students.filter((student) => {
-        const matchesSearch =
-            (student.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (student.studentId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (student.classId || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = matchesSearchQuery(
+            searchQuery,
+            student.name,
+            student.studentId,
+            student.classId,
+            student.email
+        );
 
         const matchesClass = classFilter ? student.classId === classFilter : true;
         const matchesFaculty = facultyFilter ? student.academicInfo?.faculty === facultyFilter : true;

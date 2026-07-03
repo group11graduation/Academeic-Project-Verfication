@@ -4,6 +4,8 @@ import path from 'path';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { PreviewSession } from '../models/PreviewSession.js';
 import { safeExtractProjectZip, shouldSkipZipEntry } from './previewZipExtract.service.js';
+import { runPreviewStructureAudit } from './previewStructureAudit.service.js';
+import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
 import { logger } from '../config/logger.js';
 
@@ -166,6 +168,16 @@ export async function runTechAuditOnManifest({
   const failures = [];
   const stack = stackHint || 'node-js';
 
+  const fileCount = manifest.filter((e) => e.type === 'file').length;
+  if (fileCount === 0) {
+    failures.push({
+      rule: 'empty_archive',
+      message:
+        'The ZIP is empty or has no usable project files after extraction. Ask the student to re-zip their source code (not node_modules, .git, or an empty folder).',
+    });
+    return { passed: false, failures };
+  }
+
   if (manifestHasDir(manifest, 'node_modules')) {
     failures.push({
       rule: 'forbidden_node_modules',
@@ -179,7 +191,8 @@ export async function runTechAuditOnManifest({
     if (!hasIndex) {
       failures.push({
         rule: 'missing_index_html',
-        message: 'Static web projects must include an index.html entry file.',
+        message:
+          'Missing index.html — static sites need a main HTML page at the project root or in a subfolder. Without it the preview has nothing to display.',
         path: 'index.html',
       });
     }
@@ -238,6 +251,69 @@ export async function runTechAuditOnManifest({
   }
 
   return { passed: failures.length === 0, failures };
+}
+
+function teacherPreviewRejectionSummary(failures) {
+  if (!failures?.length) {
+    return 'The student project cannot be previewed. Required files are missing.';
+  }
+  if (failures.length === 1) {
+    return `Preview blocked: ${failures[0].message}`;
+  }
+  return `Preview blocked: the student project is missing ${failures.length} required items (see list below).`;
+}
+
+async function rejectPreviewValidation({
+  failures,
+  submissionId = null,
+  session = null,
+  extractDir = null,
+  deleteExtract = true,
+  pipelineStatus = SUBMISSION_PIPELINE_STATUSES.TECH_AUDIT_REJECTED,
+  logPrefix = 'Validation',
+}) {
+  if (deleteExtract && extractDir) {
+    await rmExtractDirSafe(extractDir);
+  }
+
+  if (submissionId) {
+    await flagSubmissionPipelineStatus(submissionId, pipelineStatus, {
+      pipelineError: teacherPreviewRejectionSummary(failures),
+      pipelineFailures: failures,
+    });
+  }
+
+  const publicError = teacherPreviewRejectionSummary(failures);
+
+  if (session) {
+    session.status = 'failed';
+    session.errorMessage = publicError;
+    session.endedAt = new Date();
+    session.logs.push({
+      level: 'error',
+      message: `${logPrefix} failed (${failures.length} issue(s)).`,
+      at: new Date(),
+    });
+    for (const f of failures.slice(0, 16)) {
+      session.logs.push({
+        level: 'error',
+        message: `[${f.rule}] ${f.message}${f.path ? ` (${f.path})` : ''}`,
+        at: new Date(),
+      });
+    }
+    session.validationFailures = failures;
+    await session.save();
+  }
+
+  throw new SubmissionPipelineError(publicError, {
+    code: SUBMISSION_ERROR_CODES.TECH_AUDIT_REJECTED,
+    status: 422,
+    failures,
+    submissionId,
+    sessionId: session?._id?.toString() || null,
+    extractDir,
+    publicError,
+  });
 }
 
 /**
@@ -334,42 +410,40 @@ export async function executeTechAuditBarrier({
     return { manifest, failures: [] };
   }
 
-  await rmExtractDirSafe(extractDir);
-
-  if (submissionId) {
-    await flagSubmissionPipelineStatus(submissionId, SUBMISSION_PIPELINE_STATUSES.TECH_AUDIT_REJECTED, {
-      pipelineError: 'Technical audit rejected the submitted archive.',
-      pipelineFailures: audit.failures,
-    });
-  }
-
-  if (session) {
-    session.status = 'failed';
-    session.errorMessage = 'Technical audit rejected the student archive.';
-    session.endedAt = new Date();
-    session.logs.push({
-      level: 'error',
-      message: `Tech audit failed (${audit.failures.length} issue(s)).`,
-      at: new Date(),
-    });
-    for (const f of audit.failures.slice(0, 12)) {
-      session.logs.push({
-        level: 'error',
-        message: `[${f.rule}] ${f.message}${f.path ? ` (${f.path})` : ''}`,
-        at: new Date(),
-      });
-    }
-    session.validationFailures = audit.failures;
-    await session.save();
-  }
-
-  throw new SubmissionPipelineError('Technical audit rejected the submitted archive.', {
-    code: SUBMISSION_ERROR_CODES.TECH_AUDIT_REJECTED,
-    status: 422,
+  await rejectPreviewValidation({
     failures: audit.failures,
     submissionId,
+    session,
     extractDir,
-    publicError: 'Technical audit failed. See validationFailures for details.',
+    deleteExtract: true,
+    logPrefix: 'Tech audit',
+  });
+}
+
+/**
+ * PROJECT STRUCTURE BLOCKER — after security audit, verify stack-specific required files exist.
+ */
+export async function executePreviewStructureBarrier({
+  extractDir,
+  submissionId = null,
+  session = null,
+  stackHint = '',
+  stackOverride = null,
+  keepExtract = false,
+} = {}) {
+  const audit = await runPreviewStructureAudit(extractDir, { stackHint, stackOverride });
+
+  if (audit.passed) {
+    return audit;
+  }
+
+  await rejectPreviewValidation({
+    failures: audit.failures,
+    submissionId,
+    session,
+    extractDir,
+    deleteExtract: !keepExtract,
+    logPrefix: 'Project structure check',
   });
 }
 
@@ -401,7 +475,7 @@ export async function recordPreviewRuntimeError({
   if (containerName) {
     await forceKillPreviewContainer(containerName);
   }
-  if (extractDir) {
+  if (extractDir && !previewWorkspaceCache.isPersistentWorkspaceDir(extractDir)) {
     await rmExtractDirSafe(extractDir);
   }
 
@@ -504,8 +578,9 @@ export function formatStudentExtractionResponse(err) {
 export function formatTechAuditResponse(err) {
   return {
     success: false,
-    error: err?.publicError || err?.message || 'Technical audit rejected the archive.',
+    error: err?.publicError || err?.message || 'The student project cannot be previewed.',
     code: SUBMISSION_ERROR_CODES.TECH_AUDIT_REJECTED,
     validationFailures: err?.failures || [],
+    sessionId: err?.sessionId || null,
   };
 }

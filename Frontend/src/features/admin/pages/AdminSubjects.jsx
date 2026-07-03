@@ -6,9 +6,11 @@ import adminSubjectService from '../../../services/adminSubjectService';
 import adminClassService from '../../../services/adminClassService';
 import adminTeacherService from '../../../services/adminTeacherService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const AdminSubjects = () => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search subjects…');
     const [subjects, setSubjects] = useState([]);
     const [classes, setClasses] = useState([]);
     const [teachers, setTeachers] = useState([]);
@@ -122,9 +124,8 @@ const AdminSubjects = () => {
         }
     };
 
-    const filteredSubjects = subjects.filter(sub =>
-        (sub.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (sub.code || '').toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredSubjects = subjects.filter((sub) =>
+        matchesSearchQuery(searchQuery, sub.name, sub.code, sub.teacher?.name)
     );
     const classMap = new Map((classes || []).map((c) => [String(c.code), c]));
     const facultyOptions = (academicStructure.faculties || []).map((f) => f.name);

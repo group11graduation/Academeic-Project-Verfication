@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Outlet, useLocation, Link, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Rocket, ChevronDown } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Rocket, ChevronDown, Search } from 'lucide-react';
 import StudentSidebar from '../components/StudentSidebar';
 import { useAuth } from '../../../context/authContext';
+import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
 import { BRAND } from '../../../shared/ui/brandTheme';
 
 const pageTitles = [
@@ -27,12 +28,20 @@ const mobileNav = [
     { label: 'Profile', to: '/student/profile', icon: UserRound },
 ];
 
+const StudentLayout = () => (
+    <ShellSearchProvider>
+        <StudentLayoutInner />
+    </ShellSearchProvider>
+);
+
 /** Authenticated student shell — edge-attached sidebar + curved top-right corner. */
-const StudentLayout = () => {
+const StudentLayoutInner = () => {
     const { pathname } = useLocation();
     const { logout } = useAuth();
     const navigate = useNavigate();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
+        useShellSearch();
     const title = resolveTitle(pathname);
     const today = new Date().toLocaleDateString('en-US', {
         month: 'short',
@@ -101,13 +110,26 @@ const StudentLayout = () => {
 
                     <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-5 pt-4 sm:pt-5 pb-1">
                         <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">{title}</h1>
-                        <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600 shadow-sm"
-                        >
-                            {today}
-                            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                            <div className="relative hidden sm:block w-[180px] lg:w-[220px]">
+                                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="search"
+                                    value={shellSearchQuery}
+                                    onChange={(e) => setShellSearchQuery(e.target.value)}
+                                    placeholder={shellSearchPlaceholder}
+                                    aria-label={shellSearchPlaceholder}
+                                    className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-2.5 text-[11px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600 shadow-sm"
+                            >
+                                {today}
+                                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                            </button>
+                        </div>
                     </header>
 
                     <main className="app-page flex-1 overflow-y-auto px-4 sm:px-5 lg:px-6 pb-6 pt-3">

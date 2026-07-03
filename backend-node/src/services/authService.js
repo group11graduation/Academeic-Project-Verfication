@@ -18,16 +18,6 @@ function signToken(user) {
   );
 }
 
-export function toPublicUser(user) {
-  const u = user.toObject ? user.toObject() : { ...user };
-  delete u.passwordHash;
-  const roles = typeof user.getRoleList === 'function' ? user.getRoleList() : [user.role];
-  return {
-    ...u,
-    roles,
-  };
-}
-
 export async function loginWithIdentifier(identifier, passcode) {
   const id = (identifier || '').trim();
   if (!id || !passcode) {
@@ -78,7 +68,41 @@ export async function loginWithIdentifier(identifier, passcode) {
   await user.save();
 
   const token = signToken(user);
-  return { token, user: toPublicUser(user) };
+  return { token, user: await enrichUserWithProfile(user) };
+}
+
+export function toPublicUser(user) {
+  const u = user.toObject ? user.toObject() : { ...user };
+  delete u.passwordHash;
+  const roles = typeof user.getRoleList === 'function' ? user.getRoleList() : [user.role];
+  return {
+    ...u,
+    roles,
+  };
+}
+
+async function enrichUserWithProfile(user) {
+  const publicUser = toPublicUser(user);
+  const roles = publicUser.roles || [publicUser.role];
+
+  if (roles.includes('teacher')) {
+    const profile = await TeacherProfile.findOne({ user: user._id }).lean();
+    if (profile) {
+      publicUser.department = profile.department || '';
+      publicUser.employeeId = profile.employeeId || '';
+    }
+  }
+
+  if (roles.includes('student')) {
+    const profile = await StudentProfile.findOne({ user: user._id }).lean();
+    if (profile) {
+      publicUser.department = profile.faculty || profile.program || '';
+      publicUser.studentId = profile.studentId || '';
+      publicUser.classCode = profile.classCode || '';
+    }
+  }
+
+  return publicUser;
 }
 
 export async function getMe(userId) {
@@ -88,5 +112,5 @@ export async function getMe(userId) {
     err.status = 404;
     throw err;
   }
-  return toPublicUser(user);
+  return enrichUserWithProfile(user);
 }

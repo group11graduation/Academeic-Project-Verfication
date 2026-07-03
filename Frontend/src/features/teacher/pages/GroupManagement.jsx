@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Search,
     RotateCw,
@@ -16,9 +16,12 @@ import {
 } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const GroupManagement = () => {
     const { id: classCode } = useParams();
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search groups…');
     const [groups, setGroups] = useState([]);
     const [groupAssignments, setGroupAssignments] = useState([]);
     const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
@@ -155,6 +158,19 @@ const GroupManagement = () => {
         }
     };
 
+    const filteredGroups = useMemo(() => {
+        return groups.filter((group) =>
+            matchesSearchQuery(
+                searchQuery,
+                group.title,
+                group.status,
+                group.type,
+                group.assignmentNumber,
+                ...(group.members || []).flatMap((m) => [m.name, m.studentId])
+            )
+        );
+    }, [groups, searchQuery]);
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0B1120]">
@@ -192,7 +208,9 @@ const GroupManagement = () => {
                     <div className="relative group flex-1 md:flex-none">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-600 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" />
                         <input
-                            type="text"
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search groups..."
                             className="w-full md:w-[320px] bg-slate-50 dark:bg-[#0F172A] border border-slate-100 dark:border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-slate-700 dark:text-slate-100 placeholder:text-slate-300 dark:placeholder:text-slate-700 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/30 transition-all shadow-sm"
                         />
@@ -343,7 +361,7 @@ const GroupManagement = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {groups.map((group) => (
+                {filteredGroups.map((group) => (
                     <div key={group._id} className="bg-white dark:bg-[#0F172A] rounded-[32px] border border-slate-100 dark:border-white/5 shadow-2xl overflow-hidden flex flex-col group/card hover:border-blue-500/30 transition-all duration-300">
                         <div className="p-8 pb-6">
                             <div className="flex justify-between items-center mb-6">
@@ -415,13 +433,19 @@ const GroupManagement = () => {
                     </div>
                 ))}
 
-                {groups.length === 0 && (
+                {filteredGroups.length === 0 && (
                     <div className="col-span-full py-24 bg-white dark:bg-[#0F172A] rounded-[40px] border-4 border-dashed border-slate-100 dark:border-white/5 flex flex-col items-center justify-center text-center transition-colors">
                         <div className="p-6 bg-slate-50 dark:bg-[#0B1120] rounded-[32px] mb-6 shadow-xl border border-slate-100 dark:border-white/5">
                             <Plus className="h-12 w-12 text-slate-300 dark:text-slate-600" />
                         </div>
-                        <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 transition-colors">No Projects Generated</h3>
-                        <p className="text-slate-500 dark:text-slate-400 font-bold max-w-[300px] transition-colors">Configure and regenerate project assignments to start managing student work.</p>
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 transition-colors">
+                            {groups.length === 0 ? 'No Projects Generated' : 'No groups match your search'}
+                        </h3>
+                        <p className="text-slate-500 dark:text-slate-400 font-bold max-w-[300px] transition-colors">
+                            {groups.length === 0
+                                ? 'Configure and regenerate project assignments to start managing student work.'
+                                : 'Try a different name, member, or status.'}
+                        </p>
                     </div>
                 )}
             </div>

@@ -2,16 +2,18 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ClipboardList, Plus, Trash2, ChevronRight,
-    Calendar, FileText, Loader2, UserPlus,
+    Calendar, FileText, Loader2, UserPlus, Settings2,
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
+import { useShellSearchFilter } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const formatDate = (d) =>
     d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
 const isPast = (d) => d && new Date(d) < new Date();
 
-function AssignmentCard({ assignment: a, onOpen, onDelete, showDelete }) {
+function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete }) {
     const isFinal = String(a.assignmentType || 'normal').toLowerCase() === 'final';
     const isMulti =
         (a.classAssignmentMode || ((a.classes || []).length > 1 ? 'multiple' : 'single')) === 'multiple';
@@ -50,6 +52,21 @@ function AssignmentCard({ assignment: a, onOpen, onDelete, showDelete }) {
                         {a.submissionMode === 'group' ? 'Group' : 'Single'}
                     </span>
                 </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                {onEdit && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(e);
+                        }}
+                        className="rounded p-1 text-slate-400 opacity-0 transition-all hover:bg-blue-50 hover:text-[#1D68E3] group-hover:opacity-100"
+                        aria-label="Edit assignment settings"
+                        title="Edit assignment"
+                    >
+                        <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                )}
                 {showDelete && (
                     <button
                         type="button"
@@ -63,6 +80,7 @@ function AssignmentCard({ assignment: a, onOpen, onDelete, showDelete }) {
                         <Trash2 className="h-3.5 w-3.5" />
                     </button>
                 )}
+                </div>
             </div>
 
             <h3 className="mb-2 line-clamp-2 text-[13px] font-black leading-snug text-slate-900 dark:text-slate-100">
@@ -108,6 +126,7 @@ const Assignments = () => {
     const [loading, setLoading] = useState(true);
     const [activeClassId, setActiveClassId] = useState('');
     const [semesterFilter, setSemesterFilter] = useState('');
+    const searchQuery = useShellSearchFilter('Search assignments by title or subject…');
 
     const fetchData = async () => {
         try {
@@ -176,9 +195,14 @@ const Assignments = () => {
     }, [assignmentsFilteredBySemester, classes]);
 
     const activeClass = classes.find((c) => String(c._id) === String(activeClassId));
-    const activeClassAssignments = activeClassId
+    const rawActiveClassAssignments = activeClassId
         ? groupedAssignmentsByClass.get(String(activeClassId)) || []
         : [];
+    const activeClassAssignments = useMemo(() => {
+        return rawActiveClassAssignments.filter((a) =>
+            matchesSearchQuery(searchQuery, a.title, a.subject?.code, a.subject?.name, a.semester?.name)
+        );
+    }, [rawActiveClassAssignments, searchQuery]);
     const activeClassFinalAssignments = activeClassAssignments.filter(
         (a) => String(a.assignmentType || 'normal').toLowerCase() === 'final',
     );
@@ -288,9 +312,15 @@ const Assignments = () => {
                         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
                             <FileText className="mb-2 h-7 w-7 text-slate-300" />
                             <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">
-                                No assignments in this class
+                                {rawActiveClassAssignments.length > 0 && searchQuery.trim()
+                                    ? 'No assignments match your search'
+                                    : 'No assignments in this class'}
                             </h3>
-                            <p className="mt-1 text-[11px] text-slate-500">Use New to create one for this class.</p>
+                            <p className="mt-1 text-[11px] text-slate-500">
+                                {rawActiveClassAssignments.length > 0 && searchQuery.trim()
+                                    ? 'Try a different title or subject code.'
+                                    : 'Use New to create one for this class.'}
+                            </p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -314,6 +344,7 @@ const Assignments = () => {
                                                 key={a._id}
                                                 assignment={a}
                                                 onOpen={() => navigate(`/teacher/assignments/${a._id}/proposals`)}
+                                                onEdit={() => navigate(`/teacher/assignments/${a._id}/edit`)}
                                                 onDelete={(e) => handleDelete(a._id, e)}
                                                 showDelete={a.collaborationRole !== 'co-teacher'}
                                             />
@@ -342,6 +373,7 @@ const Assignments = () => {
                                                 key={a._id}
                                                 assignment={a}
                                                 onOpen={() => navigate(`/teacher/assignments/${a._id}/normal-students`)}
+                                                onEdit={() => navigate(`/teacher/assignments/${a._id}/edit`)}
                                                 onDelete={(e) => handleDelete(a._id, e)}
                                                 showDelete
                                             />

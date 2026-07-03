@@ -337,7 +337,12 @@ const teacherService = {
     getPreviewSession: async (sessionId) => {
         const response = await api.get(`${base}/preview-sessions/${sessionId}`);
         return response.data;
-    }
+    },
+
+    getActiveProposalPreview: async (proposalId) => {
+        const response = await api.get(`${base}/proposals/${proposalId}/preview/session`);
+        return response.data;
+    },
 };
 
 export default teacherService;

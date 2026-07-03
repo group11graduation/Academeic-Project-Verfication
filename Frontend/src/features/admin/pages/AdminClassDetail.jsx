@@ -11,6 +11,8 @@ import adminStudentService from '../../../services/adminStudentService';
 import adminSubjectService from '../../../services/adminSubjectService';
 import adminSemesterService from '../../../services/adminSemesterService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 function normalizeClassCode(code) {
     return String(code ?? '').trim().toUpperCase();
@@ -21,7 +23,7 @@ const AdminClassDetail = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [activeTab, setActiveTab] = useState('students');
-    const [searchQuery, setSearchQuery] = useState('');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search roster…');
 
     const [classInfo, setClassInfo] = useState(null);
     const [students, setStudents] = useState([]);
@@ -255,8 +257,8 @@ const AdminClassDetail = () => {
     };
 
     const filteredData = activeTab === 'students'
-        ? students.filter(s => (s.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (s.studentId || '').toLowerCase().includes(searchQuery.toLowerCase()))
-        : teachers.filter(t => (t.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (t.teacherId || '').toLowerCase().includes(searchQuery.toLowerCase()));
+        ? students.filter((s) => matchesSearchQuery(searchQuery, s.name, s.studentId, s.email))
+        : teachers.filter((t) => matchesSearchQuery(searchQuery, t.name, t.teacherId, t.email));
 
     const assignedTeacherIds = new Set((teachers || []).map((t) => String(t.userId || t._id || '')));
     const teacherByUserId = useMemo(() => {

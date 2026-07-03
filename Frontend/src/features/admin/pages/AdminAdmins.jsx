@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Shield, Loader2, Pencil, Trash2 } from 'lucide-react';
 import adminUserService from '../../../services/adminUserService';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const AdminAdmins = () => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search admins…');
     const [admins, setAdmins] = useState([]);
     const [loading, setLoading] = useState(true);
     const [editingId, setEditingId] = useState('');
@@ -27,9 +29,8 @@ const AdminAdmins = () => {
         fetchAdmins();
     }, []);
 
-    const filteredAdmins = admins.filter(admin =>
-        admin.systemId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        admin.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredAdmins = admins.filter((admin) =>
+        matchesSearchQuery(searchQuery, admin.systemId, admin.email, admin.username)
     );
 
     const startEdit = (admin) => {

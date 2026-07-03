@@ -3,10 +3,12 @@ import { Search, ChevronDown, ArrowLeft, Loader2, ChevronRight, Users } from 'lu
 import { Link, useParams } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const StudentList = () => {
     const { id } = useParams();
-    const [searchQuery, setSearchQuery] = useState('');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search students…');
     const [sortBy, setSortBy] = useState('Name (A-Z)');
     const [students, setStudents] = useState([]);
     const [classTitle, setClassTitle] = useState('');
@@ -38,16 +40,11 @@ const StudentList = () => {
     }, [id]);
 
     const filteredAndSortedStudents = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase();
-        let list = students;
-        if (q) {
-            list = list.filter(
-                (student) =>
-                    (student.name || '').toLowerCase().includes(q) ||
-                    String(student.id || '').toLowerCase().includes(q) ||
-                    (student.email || '').toLowerCase().includes(q),
-            );
-        }
+        let list = searchQuery.trim()
+            ? students.filter((student) =>
+                  matchesSearchQuery(searchQuery, student.name, student.id, student.email, student.studentId)
+              )
+            : students;
         return [...list].sort((a, b) => {
             if (sortBy === 'Name (A-Z)') return (a.name || '').localeCompare(b.name || '');
             if (sortBy === 'Attendance (Low-High)') return (a.attendance ?? 0) - (b.attendance ?? 0);

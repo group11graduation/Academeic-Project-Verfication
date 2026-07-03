@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Heart, Loader2, ShieldCheck, TrendingUp, ImageIcon } from 'lucide-react';
-import StudentHeader from '../components/StudentHeader';
+import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
 import { BRAND } from '../../../shared/ui/brandTheme';
+import { useShellSearchFilter } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const getLikes = () => {
     try {
@@ -46,6 +48,7 @@ const StudentGallery = () => {
     const [categories, setCategories] = useState(['ALL CATEGORIES']);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const searchQuery = useShellSearchFilter('Search verified projects…');
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -94,14 +97,23 @@ const StudentGallery = () => {
     };
 
     const sortedProjects = useMemo(() => {
-        const list = [...projects];
+        const list = projects.filter((proj) =>
+            matchesSearchQuery(
+                searchQuery,
+                proj.title,
+                proj.description,
+                proj.category,
+                proj.studentName,
+                proj.classCode
+            )
+        );
         if (!sortBest) return list;
         return list.sort((a, b) => getProjectLikes(b) - getProjectLikes(a));
-    }, [projects, sortBest, likesData]);
+    }, [projects, sortBest, likesData, searchQuery]);
 
     return (
+        <StudentPublicShell>
         <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900 overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
-            <StudentHeader />
 
             <main className="pt-32 pb-12 px-6 max-w-[1536px] mx-auto">
                 <div className="mb-16">
@@ -245,6 +257,7 @@ const StudentGallery = () => {
 
             <PublicSiteFooter />
         </div>
+        </StudentPublicShell>
     );
 };
 

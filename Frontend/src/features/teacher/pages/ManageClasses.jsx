@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import ClassCard from '../components/ClassCard';
+import { useShellSearchFilter } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const ManageClasses = () => {
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
+    const searchQuery = useShellSearchFilter('Search classes by code or title…');
 
     useEffect(() => {
         const fetchClasses = async () => {
@@ -22,6 +25,11 @@ const ManageClasses = () => {
         };
         fetchClasses();
     }, []);
+
+    const filteredClasses = useMemo(
+        () => classes.filter((cls) => matchesSearchQuery(searchQuery, cls.code, cls.title, cls.section)),
+        [classes, searchQuery]
+    );
 
     if (loading) {
         return (
@@ -50,8 +58,8 @@ const ManageClasses = () => {
 
             {/* Active Classes Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-                {classes.length > 0 ? (
-                    classes.map((cls, index) => (
+                {filteredClasses.length > 0 ? (
+                    filteredClasses.map((cls, index) => (
                         <ClassCard
                             key={index}
                             code={cls.code}
@@ -62,6 +70,10 @@ const ManageClasses = () => {
                             status="ok"
                         />
                     ))
+                ) : classes.length > 0 ? (
+                    <div className="col-span-full text-center py-8 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl transition-colors">
+                        <p className="text-[12px] text-slate-500 dark:text-slate-400 font-bold">No classes match your search.</p>
+                    </div>
                 ) : (
                     <div className="col-span-full text-center py-8 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl transition-colors">
                         <p className="text-[12px] text-slate-500 dark:text-slate-400 font-bold">You have no active classes assigned.</p>

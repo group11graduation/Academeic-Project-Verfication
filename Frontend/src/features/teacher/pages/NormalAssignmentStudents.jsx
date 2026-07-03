@@ -14,6 +14,8 @@ import {
 import teacherService from '../../../services/teacherService';
 
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const NormalAssignmentStudents = () => {
     const { id: assignmentId } = useParams();
@@ -22,7 +24,7 @@ const NormalAssignmentStudents = () => {
     const [assignmentTitle, setAssignmentTitle] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [query, setQuery] = useState('');
+    const { query, setQuery } = usePageSearch('Search students…');
 
     useEffect(() => {
         let cancelled = false;
@@ -52,12 +54,10 @@ const NormalAssignmentStudents = () => {
     const students = bundle?.students || [];
 
     const filteredStudents = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        if (!q) return students;
-        return students.filter((s) => {
-            const hay = `${s.name || ''} ${s.email || ''} ${s.studentId || ''} ${s.classCode || ''}`.toLowerCase();
-            return hay.includes(q);
-        });
+        if (!query.trim()) return students;
+        return students.filter((s) =>
+            matchesSearchQuery(query, s.name, s.email, s.studentId, s.classCode)
+        );
     }, [students, query]);
 
     if (loading) {

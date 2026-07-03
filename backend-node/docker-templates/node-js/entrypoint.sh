@@ -1,4 +1,5 @@
 #!/bin/sh
+set +e
 PORT="${PORT:-3000}"
 ROOT="/app"
 
@@ -9,16 +10,40 @@ export BIND_ADDRESS=0.0.0.0
 export WDS_SOCKET_HOST=0.0.0.0
 export DANGEROUSLY_DISABLE_HOST_CHECK=true
 export BROWSER=none
-export CI=true
+# CI=false so create-react-app warnings don't crash the build.
+export CI=false
+export DISABLE_ESLINT_PLUGIN=true
+export GENERATE_SOURCEMAP=false
 
 LISTEN="tcp://0.0.0.0:${PORT}"
 HOLDER_PID=""
 API_PORT="${API_PORT:-5000}"
 
+start_serve_background() {
+  dir="$1"
+  listen="$2"
+  if command -v serve >/dev/null 2>&1; then
+    serve -s "$dir" --listen "$listen" >/tmp/preview-holder.log 2>&1 &
+  else
+    npx --yes serve@14.2.4 -s "$dir" --listen "$listen" >/tmp/preview-holder.log 2>&1 &
+  fi
+  HOLDER_PID=$!
+}
+
+run_serve() {
+  dir="$1"
+  listen="$2"
+  cd "$dir" || exit 1
+  if command -v serve >/dev/null 2>&1; then
+    exec serve -s . --listen "$listen"
+  else
+    exec npx --yes serve@14.2.4 -s . --listen "$listen"
+  fi
+}
+
 hold_port_with_fallback() {
   echo "[preview] holding :${PORT} with placeholder page (install may take several minutes)"
-  npx --yes serve@14.2.4 -s /preview-fallback --listen "${LISTEN}" >/tmp/preview-holder.log 2>&1 &
-  HOLDER_PID=$!
+  start_serve_background /preview-fallback "${LISTEN}"
   sleep 2
 }
 
@@ -67,14 +92,13 @@ serve_dir() {
   dir="$1"
   release_port_holder
   echo "[preview] serve static: $dir on ${LISTEN}"
-  cd "$dir" || exit 1
-  exec npx --yes serve@14.2.4 -s . --listen "${LISTEN}"
+  run_serve "$dir" "${LISTEN}"
 }
 
 serve_fallback_forever() {
   release_port_holder
   echo "[preview] serving built-in fallback page on ${LISTEN}"
-  exec npx --yes serve@14.2.4 -s /preview-fallback --listen "${LISTEN}"
+  run_serve /preview-fallback "${LISTEN}"
 }
 
 write_preview_env_files() {
@@ -108,6 +132,9 @@ write_mern_backend_env() {
   fi
   jwt="${JWT_SECRET:-preview-sandbox-jwt-secret-change-me}"
   cors="${CORS_ORIGIN:-}"
+  if [ -z "$cors" ] && [ -n "$PREVIEW_UI_HOST_PORT" ]; then
+    cors="http://localhost:${PREVIEW_UI_HOST_PORT}"
+  fi
   {
     echo "# ScholarVerify preview runtime"
     echo "PORT=$API_PORT"
@@ -140,7 +167,11 @@ start_mern_backend() {
   echo "[preview] MERN backend in $(pwd)"
   write_mern_backend_env
 
-  if [ ! -d node_modules ]; then
+  if [ -d node_modules ]; then
+    if [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
+      echo "[preview] cached workspace: reusing backend node_modules"
+    fi
+  else
     echo "[preview] backend npm install…"
     npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
   fi
@@ -333,20 +364,60 @@ run_flutter_web_preview() {
   return 1
 }
 
+patch_built_bundle_urls() {
+  [ -n "$PREVIEW_API_HOST_PORT" ] || return 0
+  echo "[preview] patching API URLs → localhost:${PREVIEW_API_HOST_PORT}"
+  for dir in build dist build/web; do
+    root="$(pwd)/$dir"
+    [ -d "$root" ] || continue
+    find "$root" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.map' \) 2>/dev/null | while read -r f; do
+      sed -i "s|http://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+      sed -i "s|https://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+    done
+  done
+}
+
+patch_source_api_urls() {
+  [ -n "$PREVIEW_API_HOST_PORT" ] || return 0
+  find . -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.env' -o -name '*.env.local' \) \
+    ! -path './node_modules/*' ! -path './dist/*' ! -path './build/*' 2>/dev/null | while read -r f; do
+      sed -i "s|http://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+    done
+}
+
 run_frontend_preview() {
   if [ -n "$PREVIEW_API_HOST_PORT" ]; then
     export VITE_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
     export REACT_APP_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
     export VITE_API_BASE_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
+    {
+      echo "VITE_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+      echo "REACT_APP_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+      echo "VITE_API_BASE_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+      echo "GENERATE_SOURCEMAP=false"
+    } > .env.local 2>/dev/null || true
+  fi
+
+  patch_source_api_urls
+
+  if [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
+    echo "[preview] cached workspace — reusing node_modules / dist / build when available"
   fi
 
   if [ -d dist ] && [ -f dist/index.html ]; then
+    echo "[preview] reusing cached frontend dist/"
+    patch_built_bundle_urls
     serve_dir "$(pwd)/dist"
   fi
   if [ -d build ] && [ -f build/index.html ]; then
+    echo "[preview] reusing cached frontend build/"
+    patch_built_bundle_urls
     serve_dir "$(pwd)/build"
   fi
   if [ -d build/web ] && [ -f build/web/index.html ]; then
+    patch_built_bundle_urls
     serve_dir "$(pwd)/build/web"
   fi
   if [ ! -f package.json ]; then
@@ -358,6 +429,8 @@ run_frontend_preview() {
   if [ ! -d node_modules ]; then
     echo "[preview] npm install (may take several minutes)…"
     npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+  else
+    echo "[preview] reusing cached node_modules/"
   fi
   if grep -q '"seed"' package.json 2>/dev/null; then
     echo "[preview] npm run seed…"
@@ -366,17 +439,26 @@ run_frontend_preview() {
   if [ -f vite.config.js ] || [ -f vite.config.ts ] || grep -q '"vite"' package.json 2>/dev/null; then
     echo "[preview] Vite build + static serve (API=${VITE_API_URL:-n/a})"
     if npm run build 2>&1; then
+      patch_built_bundle_urls
       if [ -d dist ] && [ -f dist/index.html ]; then
         serve_dir "$(pwd)/dist"
       fi
     fi
   fi
   if grep -q 'react-scripts' package.json 2>/dev/null; then
+    echo "[preview] Create-React-App: npm run build (production bundle, faster 2nd start)…"
+    if npm run build 2>&1; then
+      patch_built_bundle_urls
+      if [ -d build ] && [ -f build/index.html ]; then
+        serve_dir "$(pwd)/build"
+      fi
+    fi
+    echo "[preview] CRA build failed — falling back to react-scripts start"
     release_port_holder
-    export PORT="$PORT"
     exec npm run start
   fi
   if npm run build 2>/dev/null; then
+    patch_built_bundle_urls
     if [ -d dist ] && [ -f dist/index.html ]; then
       serve_dir "$(pwd)/dist"
     fi
@@ -438,7 +520,7 @@ fi
 
 if [ "$PREVIEW_MERN_MODE" = "1" ] && [ -n "$BACKEND_SUBDIR" ] && [ -n "$FRONTEND_SUBDIR" ]; then
   echo "[preview] MERN mode frontend=$FRONTEND_SUBDIR backend=$BACKEND_SUBDIR host API port=$PREVIEW_API_HOST_PORT"
-  start_mern_backend "$BACKEND_SUBDIR" || echo "[preview] backend start failed — login will not work until API is up"
+  start_mern_backend "$BACKEND_SUBDIR" || echo "[preview] ERROR: backend start failed — login will not work until API is up"
   cd "$ROOT/$FRONTEND_SUBDIR" || serve_fallback_forever
   echo "[preview] MERN frontend in $(pwd)"
   {

@@ -19,9 +19,11 @@ import {
   patchPhpForPreview,
   discoverPhpLoginPath,
   previewMysqlHostName,
+  resolvePreviewDatabaseName,
 } from './previewPhp.service.js';
 import { resolveFlutterNodePair, patchFlutterApiPort } from './previewFlutter.service.js';
 import { resolveSpringReactPair, patchSpringForPreview, springReactDisplayLabel } from './previewSpring.service.js';
+import { ensurePreviewDependencyCacheDirs } from './previewWorkspaceCache.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, '../..');
@@ -39,6 +41,7 @@ const SPRING_BUILD_TIMEOUT_MS = Number(
 const PREVIEW_JAVA_BASE_IMAGE = process.env.PREVIEW_JAVA_BASE_IMAGE || 'eclipse-temurin:17-jdk-jammy';
 const PREVIEW_JAVA_PULL_TIMEOUT_MS = Number(process.env.PREVIEW_JAVA_PULL_TIMEOUT_MS || 600_000);
 const PREVIEW_NODE_BASE_IMAGE = process.env.PREVIEW_NODE_BASE_IMAGE || 'scholarverify-preview-node:latest';
+const PREVIEW_PHP_BASE_IMAGE = process.env.PREVIEW_PHP_BASE_IMAGE || 'scholarverify-preview-php:latest';
 const PREVIEW_NODE_FLUTTER_BASE_IMAGE =
   process.env.PREVIEW_NODE_FLUTTER_BASE_IMAGE || 'scholarverify-preview-node-flutter:latest';
 const PREVIEW_SPRING_REACT_BASE_IMAGE =
@@ -1086,6 +1089,7 @@ async function runPreviewContainer({
   memoryLimit = process.env.PREVIEW_SANDBOX_MEMORY || '256m',
   cpuLimit = process.env.PREVIEW_SANDBOX_CPUS || '0.5',
   initTimeoutMs = Number(process.env.PREVIEW_CONTAINER_INIT_TIMEOUT_MS || 30_000),
+  workspaceCached = false,
 }) {
   const portMapping = `${hostPort}:${internalPort}`;
   const args = [
@@ -1110,6 +1114,21 @@ async function runPreviewContainer({
     args.push('-v', `${dockerVolumePath(projectMount)}:${mountPath}`);
   }
 
+  const useDepCaches =
+    stack === 'java-spring-react' ||
+    stack === 'node-js' ||
+    Boolean(mernPair) ||
+    Boolean(flutterPair);
+  if (useDepCaches && process.env.PREVIEW_DEPENDENCY_CACHE !== 'false') {
+    const caches = await ensurePreviewDependencyCacheDirs();
+    args.push('-v', `${dockerVolumePath(caches.maven)}:/root/.m2`);
+    args.push('-v', `${dockerVolumePath(caches.npm)}:/root/.npm`);
+  }
+
+  if (workspaceCached) {
+    args.push('-e', 'PREVIEW_WORKSPACE_CACHED=1');
+  }
+
   if (dockerNetwork) {
     args.push('--network', dockerNetwork);
   }
@@ -1117,6 +1136,7 @@ async function runPreviewContainer({
   if (apiHostPort && springPair) {
     args.push('-p', `${apiHostPort}:8080`);
     args.push('-e', 'API_PORT=8080');
+    args.push('-e', `PORT=${internalPort}`);
     args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
     args.push('-e', `VITE_API_URL=http://localhost:${apiHostPort}`);
     args.push('-e', `REACT_APP_API_URL=http://localhost:${apiHostPort}`);
@@ -1127,6 +1147,8 @@ async function runPreviewContainer({
     args.push('-p', `${apiHostPort}:5000`);
     args.push('-e', 'API_PORT=5000');
     args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
+    args.push('-e', `PREVIEW_UI_HOST_PORT=${hostPort}`);
+    args.push('-e', `CORS_ORIGIN=http://localhost:${hostPort}`);
     args.push('-e', `VITE_API_URL=http://localhost:${apiHostPort}`);
     args.push('-e', `REACT_APP_API_URL=http://localhost:${apiHostPort}`);
     if (mernPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${mernPair.backendSubdir}`);
@@ -1147,13 +1169,15 @@ async function runPreviewContainer({
     }
   } else if (stack === 'php-apache') {
     args.push('-e', `APP_SUBDIR=${appSubdir}`);
+    args.push('-e', 'PREVIEW_SANDBOX=1');
     const previewBaseUrl = `${getPublicPreviewBase()}:${hostPort}/`;
     args.push('-e', `PREVIEW_BASE_URL=${previewBaseUrl}`);
-    if (previewCredentialEnv?.DB_HOST) {
-      args.push('-e', `DB_HOST=${previewCredentialEnv.DB_HOST}`);
+    const dbHost = previewCredentialEnv?.DB_HOST;
+    if (dbHost) {
+      args.push('-e', `DB_HOST=${dbHost}`);
       args.push('-e', `DB_NAME=${previewCredentialEnv.DB_NAME || PREVIEW_MYSQL_DATABASE}`);
-      args.push('-e', `DB_USER=${previewCredentialEnv.DB_USER || PREVIEW_MYSQL_USER}`);
-      args.push('-e', `DB_PASS=${previewCredentialEnv.DB_PASS || PREVIEW_MYSQL_PASSWORD}`);
+      args.push('-e', `DB_USER=${previewCredentialEnv.DB_USER || 'root'}`);
+      args.push('-e', `DB_PASS=${previewCredentialEnv.DB_PASS || PREVIEW_MYSQL_ROOT_PASSWORD}`);
     }
   } else if (stack === 'jupyter') {
     args.push('-e', `JUPYTER_PORT=${internalPort}`);
@@ -1217,24 +1241,32 @@ export async function ensurePreviewNodeBaseImages() {
   return { node, flutter: false };
 }
 
+export function previewWarmBaseImagesEnabled() {
+  if (process.env.PREVIEW_WARM_BASE_IMAGES === 'false') return false;
+  if (process.env.PREVIEW_WARM_NODE_BASE_IMAGE === 'false') return false;
+  return true;
+}
+
 /** Warm all reusable preview base images once at API startup. */
 export async function warmPreviewBaseImages() {
   if (process.env.DOCKER_PREVIEW_ENABLED === 'false') return {};
   if (!(await dockerAvailable())) return {};
-  const results = {};
-  results.node = await ensurePreviewNodeBaseImage(null)
-    .then((r) => r.reused ? 'ready' : 'built')
-    .catch(() => 'failed');
-  results.php = await ensurePreviewPhpBaseImage()
-    .then((r) => (r.reused ? 'ready' : 'built'))
-    .catch(() => 'failed');
-  results.jupyter = await ensurePreviewJupyterBaseImage()
-    .then((r) => (r.reused ? 'ready' : 'built'))
-    .catch(() => 'failed');
-  results.springReact = await ensurePreviewSpringReactBaseImage()
-    .then((r) => (r.reused ? 'ready' : 'built'))
-    .catch(() => 'failed');
-  return results;
+  const forceRebuild = process.env.PREVIEW_FORCE_REBUILD_BASE === 'true';
+  const warmOpts = { forceRebuild };
+  const toStatus = (promise) =>
+    promise
+      .then((r) => (r.reused ? 'ready' : 'built'))
+      .catch(() => 'failed');
+
+  const [node, flutter, php, jupyter, springReact] = await Promise.all([
+    toStatus(ensurePreviewNodeBaseImage(null, warmOpts)),
+    toStatus(ensurePreviewNodeBaseImage({ warm: true }, warmOpts)),
+    toStatus(ensurePreviewPhpBaseImage(warmOpts)),
+    toStatus(ensurePreviewJupyterBaseImage(warmOpts)),
+    toStatus(ensurePreviewSpringReactBaseImage(warmOpts)),
+  ]);
+
+  return { node, flutter, php, jupyter, springReact };
 }
 
 export async function ensurePreviewMongoImage() {
@@ -1245,6 +1277,20 @@ export async function ensurePreviewMongoImage() {
     /* not local — pull below */
   }
   await spawnProcess('docker', ['pull', PREVIEW_MONGO_IMAGE], { timeoutMs: PREVIEW_MONGO_PULL_TIMEOUT_MS });
+  return { pulled: true };
+}
+
+/** Pull MariaDB image once so PHP previews skip the download wait. */
+export async function ensurePreviewMysqlImage() {
+  try {
+    await spawnProcess('docker', ['image', 'inspect', PREVIEW_MYSQL_IMAGE], { timeoutMs: 20_000 });
+    return { pulled: false };
+  } catch {
+    /* not local — pull below */
+  }
+  await spawnProcess('docker', ['pull', PREVIEW_MYSQL_IMAGE], {
+    timeoutMs: PREVIEW_MONGO_PULL_TIMEOUT_MS,
+  });
   return { pulled: true };
 }
 
@@ -1364,6 +1410,24 @@ async function startPreviewMysqlSidecar(projectId) {
   throw err;
 }
 
+async function ensurePreviewMysqlDatabase(mysqlName, dbName) {
+  const safeDb = String(dbName || '').replace(/[^a-zA-Z0-9_]/g, '');
+  if (!mysqlName || !safeDb) return;
+  await spawnProcess(
+    'docker',
+    [
+      'exec',
+      mysqlName,
+      'mariadb',
+      '-uroot',
+      `-p${PREVIEW_MYSQL_ROOT_PASSWORD}`,
+      '-e',
+      `CREATE DATABASE IF NOT EXISTS ${safeDb};`,
+    ],
+    { timeoutMs: 30_000 }
+  );
+}
+
 async function stopPreviewMysqlSidecar(projectId) {
   await removeContainerIfExists(previewMysqlHostName(projectId));
 }
@@ -1435,6 +1499,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     imageKey = projectId,
     forceRebuild = false,
     previewCredentialEnv = null,
+    workspaceCached = false,
   } = options;
   const { projectPath: resolvedInput, tempDir } = await resolveSubmissionPath(projectPath, { allowedRoot });
   const buildContext = await resolveProjectRoot(resolvedInput);
@@ -1490,28 +1555,19 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   let previewDockerNetwork = null;
   let mergedCredentialEnv = previewCredentialEnv ? { ...previewCredentialEnv } : {};
   let phpLoginPath = '/auth/login.php';
+  let phpPatchMeta = null;
+  let springPatchMeta = null;
+  const previewBaseUrl =
+    stack === 'php-apache' ? `${getPublicPreviewBase()}:${hostPort}/` : null;
 
-  if (stack === 'php-apache') {
-    const previewBaseUrl = `${getPublicPreviewBase()}:${hostPort}/`;
-    if (process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
-      const sidecar = await startPreviewMysqlSidecar(projectId);
-      previewDockerNetwork = sidecar.networkName;
-      mergedCredentialEnv = {
-        ...mergedCredentialEnv,
-        DB_HOST: sidecar.mysqlName,
-        DB_NAME: PREVIEW_MYSQL_DATABASE,
-        DB_USER: PREVIEW_MYSQL_USER,
-        DB_PASS: PREVIEW_MYSQL_PASSWORD,
-      };
-    }
-    const patched = await patchPhpForPreview(buildContext, appSubdir, {
-      baseUrl: previewBaseUrl,
-      dbHost: mergedCredentialEnv.DB_HOST || 'host.docker.internal',
-      dbName: mergedCredentialEnv.DB_NAME || PREVIEW_MYSQL_DATABASE,
-      dbUser: mergedCredentialEnv.DB_USER || 'root',
-      dbPass: mergedCredentialEnv.DB_PASS || '',
-    });
-    phpLoginPath = patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));
+  const baseMetaPromise = ensurePreviewBaseImage(stack, {
+    flutterPair,
+    forceRebuild: forceRebuild && process.env.PREVIEW_FORCE_REBUILD_BASE === 'true',
+  });
+
+  let sidecarPromise = null;
+  if (stack === 'php-apache' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
+    sidecarPromise = startPreviewMysqlSidecar(projectId);
   }
 
   const splitStackPair = flutterPair || mernPair || springPair;
@@ -1522,49 +1578,116 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     }
 
     if (springPair) {
-      await patchSpringForPreview(buildContext, springPair.springSubdir, {
-        apiHostPort,
-        uiHostPort: hostPort,
-      });
-      await patchFrontendApiPort(buildContext, springPair.frontendSubdir, apiHostPort);
-    } else {
-      if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
-        const sidecar = await startPreviewMongoSidecar(projectId);
-        previewDockerNetwork = sidecar.networkName;
-        const mongoUri = buildPreviewMongoUri(projectId, { sidecarHost: sidecar.mongoName });
+      const springRoot = path.join(buildContext, springPair.springSubdir);
+      const frontendRoot = path.join(buildContext, springPair.frontendSubdir);
+      if (!fsSync.existsSync(path.join(springRoot, 'pom.xml')) && !fsSync.existsSync(path.join(springRoot, 'build.gradle'))) {
+        const err = new Error(
+          `Spring folder not found at "${springPair.springSubdir}". Re-extract or fix ZIP layout.`
+        );
+        err.status = 400;
+        throw err;
+      }
+      if (!fsSync.existsSync(path.join(frontendRoot, 'package.json')) && !fsSync.existsSync(path.join(frontendRoot, 'index.html'))) {
+        const err = new Error(
+          `React frontend not found at "${springPair.frontendSubdir}". Re-extract or fix ZIP layout.`
+        );
+        err.status = 400;
+        throw err;
+      }
+      const [springPatch] = await Promise.all([
+        patchSpringForPreview(buildContext, springPair.springSubdir, {
+          apiHostPort,
+          uiHostPort: hostPort,
+        }),
+        patchFrontendApiPort(buildContext, springPair.frontendSubdir, apiHostPort),
+      ]);
+      springPatchMeta = springPatch;
+      if (springPatch?.seedCredentials?.username) {
         mergedCredentialEnv = {
           ...mergedCredentialEnv,
-          MONGO_URI: mongoUri,
-          MONGODB_URI: mongoUri,
-          DATABASE_URL: mongoUri,
-          PREVIEW_SANDBOX: '1',
+          PREVIEW_SEED_USERNAME: springPatch.seedCredentials.username,
+          PREVIEW_SEED_PASSWORD: springPatch.seedCredentials.password,
+          ADMIN_USERNAME: springPatch.seedCredentials.username,
+          LOGIN_USERNAME: springPatch.seedCredentials.username,
+          ADMIN_PASSWORD: springPatch.seedCredentials.password,
         };
       }
-
-      if (flutterPair) {
-        await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort);
-      } else if (mernPair) {
-        await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
-      }
-      const mongoUri =
-        mergedCredentialEnv.MONGO_URI ||
-        mergedCredentialEnv.MONGODB_URI ||
-        buildPreviewMongoUri(projectId);
-      await patchBackendForPreview(buildContext, splitStackPair.backendSubdir, {
-        mongoUri,
-        hostPort,
-        jwtSecret: mergedCredentialEnv.JWT_SECRET,
-      });
+    } else if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
+      sidecarPromise = startPreviewMongoSidecar(projectId);
     }
+  }
+
+  if (sidecarPromise) {
+    const sidecar = await sidecarPromise;
+    previewDockerNetwork = sidecar.networkName;
+    if (stack === 'php-apache') {
+      const previewDbName = await resolvePreviewDatabaseName(
+        path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
+      );
+      mergedCredentialEnv = {
+        ...mergedCredentialEnv,
+        DB_HOST: sidecar.mysqlName,
+        DB_NAME: previewDbName,
+        DB_USER: 'root',
+        DB_PASS: PREVIEW_MYSQL_ROOT_PASSWORD,
+      };
+      await ensurePreviewMysqlDatabase(sidecar.mysqlName, previewDbName);
+    } else {
+      const mongoUri = buildPreviewMongoUri(projectId, { sidecarHost: sidecar.mongoName });
+      mergedCredentialEnv = {
+        ...mergedCredentialEnv,
+        MONGO_URI: mongoUri,
+        MONGODB_URI: mongoUri,
+        DATABASE_URL: mongoUri,
+        PREVIEW_SANDBOX: '1',
+      };
+    }
+  }
+
+  if (stack === 'php-apache') {
+    const patched = await patchPhpForPreview(buildContext, appSubdir, {
+      baseUrl: previewBaseUrl,
+      dbHost: mergedCredentialEnv.DB_HOST || 'host.docker.internal',
+      dbName: mergedCredentialEnv.DB_NAME || PREVIEW_MYSQL_DATABASE,
+      dbUser: mergedCredentialEnv.DB_USER || 'root',
+      dbPass: mergedCredentialEnv.DB_PASS || PREVIEW_MYSQL_ROOT_PASSWORD,
+    });
+    if (patched.dbName) {
+      mergedCredentialEnv.DB_NAME = patched.dbName;
+      if (mergedCredentialEnv.DB_HOST) {
+        await ensurePreviewMysqlDatabase(mergedCredentialEnv.DB_HOST, patched.dbName);
+      }
+    }
+    phpLoginPath = patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));
+    phpPatchMeta = {
+      dbName: patched.dbName,
+      bootstrapScripts: patched.bootstrapScripts || [],
+      adminCredentials: patched.adminCredentials || {},
+      patchedFiles: patched.files || 0,
+    };
+  }
+
+  if (splitStackPair && !springPair) {
+    if (flutterPair) {
+      await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort);
+    } else if (mernPair) {
+      await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
+    }
+    const mongoUri =
+      mergedCredentialEnv.MONGO_URI ||
+      mergedCredentialEnv.MONGODB_URI ||
+      buildPreviewMongoUri(projectId);
+    await patchBackendForPreview(buildContext, splitStackPair.backendSubdir, {
+      mongoUri,
+      hostPort,
+      jwtSecret: mergedCredentialEnv.JWT_SECRET,
+    });
   }
 
   let imageReused = false;
   let projectMount = null;
   try {
-    const baseMeta = await ensurePreviewBaseImage(stack, {
-      flutterPair,
-      forceRebuild: forceRebuild && process.env.PREVIEW_FORCE_REBUILD_BASE === 'true',
-    });
+    const baseMeta = await baseMetaPromise;
     imageTag = baseMeta.imageTag;
     imageReused = Boolean(baseMeta.reused);
     projectMount = buildContext;
@@ -1592,8 +1715,9 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       dockerNetwork: previewDockerNetwork,
       projectMount,
       memoryLimit: springPair
-        ? process.env.PREVIEW_SPRING_SANDBOX_MEMORY || '768m'
+        ? process.env.PREVIEW_SPRING_SANDBOX_MEMORY || '1536m'
         : process.env.PREVIEW_SANDBOX_MEMORY || '256m',
+      workspaceCached,
     });
   } catch (e) {
     releaseHostPort(hostPort);
@@ -1637,6 +1761,8 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       .join(', '),
     detectionSignals: detection.signals,
     phpLoginPath,
+    phpPatchMeta,
+    springPatchMeta,
   };
 }
 
@@ -1680,6 +1806,14 @@ export function isTcpPortOpen(host, port) {
   });
 }
 
+/** TCP or HTTP GET — Windows Docker port maps sometimes fail raw TCP from the API host. */
+export async function isPreviewPortReachable(previewUrl, host, port) {
+  if (await isTcpPortOpen(host, port)) return true;
+  if (!previewUrl) return false;
+  const hit = await fetchPreviewHttp(previewUrl);
+  return hit.ok;
+}
+
 export async function isPreviewContainerRunning(containerName) {
   try {
     const { stdout } = await runCommand(
@@ -1702,22 +1836,54 @@ export function isPreviewPlaceholderBody(body = '') {
   );
 }
 
-async function fetchPreviewHttp(url) {
+function normalizeProbeUrl(url) {
+  if (!url) return url;
   try {
-    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
-    if (res && res.status >= 200 && res.status < 500) {
-      return { ok: true, status: res.status, body: await res.text().catch(() => '') };
+    const parsed = new URL(url);
+    if (parsed.hostname === 'localhost') {
+      parsed.hostname = '127.0.0.1';
     }
+    return parsed.toString();
   } catch {
-    /* try manual redirect */
+    return String(url).replace(/^http:\/\/localhost(?=[:/])/i, 'http://127.0.0.1');
   }
+}
+
+async function fetchPreviewHttp(url) {
+  const candidates = [normalizeProbeUrl(url)];
   try {
-    const res = await fetch(url, { method: 'GET', redirect: 'manual' });
-    if (res && res.status >= 200 && res.status < 400) {
-      return { ok: true, status: res.status, body: '', redirect: true };
-    }
+    const parsed = new URL(url);
+    const alt = `http://127.0.0.1:${parsed.port || '80'}${parsed.pathname || '/'}${parsed.search || ''}`;
+    if (!candidates.includes(alt)) candidates.push(alt);
   } catch {
     /* ignore */
+  }
+
+  for (const target of candidates) {
+    try {
+      const res = await fetch(target, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res && res.status >= 200 && res.status < 500) {
+        return { ok: true, status: res.status, body: await res.text().catch(() => ''), url: target };
+      }
+    } catch {
+      /* try manual redirect */
+    }
+    try {
+      const res = await fetch(target, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res && res.status >= 200 && res.status < 400) {
+        return { ok: true, status: res.status, body: '', redirect: true, url: target };
+      }
+    } catch {
+      /* next candidate */
+    }
   }
   return { ok: false, status: 0, body: '' };
 }
@@ -1733,25 +1899,27 @@ export async function checkPreviewAppHttpReady({
 } = {}) {
   if (!previewUrl) return { ready: false, reason: 'no_url' };
 
-  const urlsToTry = [previewUrl];
+  const base = normalizeProbeUrl(previewUrl).replace(/\/$/, '');
+  const urlsToTry = [normalizeProbeUrl(previewUrl), `${base}/`];
   if (stack === 'php-apache') {
-    urlsToTry.push(`${previewUrl.replace(/\/$/, '')}/index.php`);
+    urlsToTry.push(`${base}/index.php`);
   }
-  if (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js') {
-    urlsToTry.push(`${previewUrl.replace(/\/$/, '')}/index.html`);
+  if (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js' || stack === 'java-spring-react') {
+    urlsToTry.push(`${base}/index.html`);
   }
 
   let uiReady = false;
+  const seenUrls = new Set();
   for (const url of urlsToTry) {
+    if (seenUrls.has(url)) continue;
+    seenUrls.add(url);
     const hit = await fetchPreviewHttp(url);
     if (!hit.ok) continue;
-    if (hit.redirect) {
-      uiReady = true;
-      break;
-    }
-    if (hit.body.length > 0 && !isPreviewPlaceholderBody(hit.body)) {
-      uiReady = true;
-      break;
+    if (hit.redirect || (hit.status >= 200 && hit.status < 400)) {
+      if (hit.body.length === 0 || hit.redirect || !isPreviewPlaceholderBody(hit.body)) {
+        uiReady = true;
+        break;
+      }
     }
   }
 
@@ -1759,26 +1927,52 @@ export async function checkPreviewAppHttpReady({
     return { ready: false, reason: 'placeholder_or_empty' };
   }
 
-  if (apiPreviewUrl) {
-    const apiTarget = parseHostPortFromPreviewUrl(apiPreviewUrl);
-    const apiCheckHost = apiTarget.host === 'localhost' ? '127.0.0.1' : apiTarget.host;
-    const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
-    if (!apiOpen) {
-      return { ready: false, reason: 'api_port_closed' };
-    }
-    const healthUrl = `${apiPreviewUrl.replace(/\/$/, '')}/api/health`;
-    const healthHit = await fetchPreviewHttp(healthUrl);
-    if (healthHit.ok && healthHit.status < 500) {
-      return { ready: true, reason: 'http_mern' };
-    }
-    const apiHit = await fetchPreviewHttp(apiPreviewUrl);
-    if (apiHit.ok && apiHit.status < 500) {
-      return { ready: true, reason: 'api_http' };
-    }
-    return { ready: false, reason: 'api_not_http' };
+  if (!apiPreviewUrl) {
+    return { ready: true, reason: 'http' };
   }
 
-  return { ready: true, reason: 'http' };
+  const apiTarget = parseHostPortFromPreviewUrl(apiPreviewUrl);
+  const apiCheckHost = apiTarget.host === 'localhost' ? '127.0.0.1' : apiTarget.host;
+  const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
+
+  // MERN / Node full-stack: UI ready is enough to unlock preview; API readiness tracked separately.
+  if (stack === 'node-js') {
+    return {
+      ready: true,
+      reason: apiOpen ? 'http_mern' : 'http_ui_api_pending',
+      apiReady: apiOpen,
+    };
+  }
+
+  if (!apiOpen) {
+    if (stack === 'java-spring-react' && uiReady) {
+      return { ready: true, reason: 'http_ui_spring_api_pending', apiReady: false };
+    }
+    return { ready: false, reason: 'api_port_closed' };
+  }
+
+  const healthPaths =
+    stack === 'java-spring-react'
+      ? ['/actuator/health', '/api/health', '/health', '']
+      : ['/api/health', ''];
+  for (const suffix of healthPaths) {
+    const healthUrl = suffix
+      ? `${apiPreviewUrl.replace(/\/$/, '')}${suffix}`
+      : apiPreviewUrl.replace(/\/$/, '');
+    // eslint-disable-next-line no-await-in-loop
+    const healthHit = await fetchPreviewHttp(healthUrl);
+    if (healthHit.ok && healthHit.status < 500) {
+      return { ready: true, reason: stack === 'java-spring-react' ? 'http_spring' : 'http_mern', apiReady: true };
+    }
+  }
+  const apiHit = await fetchPreviewHttp(apiPreviewUrl);
+  if (apiHit.ok && apiHit.status < 500) {
+    return { ready: true, reason: 'api_http', apiReady: true };
+  }
+  if (stack === 'java-spring-react' && uiReady) {
+    return { ready: true, reason: 'http_ui_spring_api_pending', apiReady: false };
+  }
+  return { ready: false, reason: 'api_not_http' };
 }
 
 /**
@@ -1792,7 +1986,7 @@ export async function waitForPreviewReady({
   timeoutMs = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 300_000),
 } = {}) {
   const nodeTimeout = Number(process.env.PREVIEW_NODE_STARTUP_TIMEOUT_MS || 600_000);
-  const springTimeout = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 900_000);
+  const springTimeout = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 1_800_000);
   const effectiveTimeout =
     stack === 'java-spring-react'
       ? Math.max(timeoutMs, springTimeout)
@@ -1805,18 +1999,31 @@ export async function waitForPreviewReady({
   const started = Date.now();
   let sawPortOpen = false;
   let sawApiPortOpen = false;
+  let lastLogTail = '';
 
   while (Date.now() - started < effectiveTimeout) {
     if (containerName) {
       // eslint-disable-next-line no-await-in-loop
       const running = await isPreviewContainerRunning(containerName);
       if (!running) {
-        return { ready: false, reason: 'container_exited' };
+        return { ready: false, reason: 'container_exited', logs: lastLogTail };
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      lastLogTail = await getContainerLogs(containerName, 120);
+      const logError = parsePreviewContainerErrors(lastLogTail);
+      if (logError) {
+        return { ready: false, reason: 'container_error', logError, logs: lastLogTail };
+      }
+
+      const logReady = detectPreviewReadyFromLogs(lastLogTail, stack);
+      if (logReady?.ready) {
+        return { ready: true, reason: logReady.reason, logs: lastLogTail };
       }
     }
 
     // eslint-disable-next-line no-await-in-loop
-    const portOpen = await isTcpPortOpen(checkHost, port);
+    let portOpen = await isPreviewPortReachable(previewUrl, checkHost, port);
     if (portOpen) sawPortOpen = true;
 
     if (apiTarget) {
@@ -1826,9 +2033,16 @@ export async function waitForPreviewReady({
       if (apiOpen) sawApiPortOpen = true;
     }
 
-    const uiReady = portOpen && (!apiTarget || sawApiPortOpen);
+    const uiProbeAllowed =
+      portOpen &&
+      (stack === 'node-js' ||
+        stack === 'static-html' ||
+        stack === 'static-html-js' ||
+        stack === 'java-spring-react' ||
+        !apiTarget ||
+        sawApiPortOpen);
 
-    if (uiReady) {
+    if (uiProbeAllowed) {
       const probe = await checkPreviewAppHttpReady({
         previewUrl,
         apiPreviewUrl,
@@ -1838,7 +2052,13 @@ export async function waitForPreviewReady({
         return { ready: true, reason: probe.reason };
       }
 
-      if (sawPortOpen && stack !== 'node-js' && stack !== 'static-html' && stack !== 'static-html-js') {
+      if (
+        sawPortOpen &&
+        stack !== 'node-js' &&
+        stack !== 'static-html' &&
+        stack !== 'static-html-js' &&
+        stack !== 'java-spring-react'
+      ) {
         return { ready: true, reason: 'tcp' };
       }
     }
@@ -1848,10 +2068,139 @@ export async function waitForPreviewReady({
   }
 
   if (apiTarget && !sawApiPortOpen && sawPortOpen) {
-    return { ready: false, reason: 'api_port_timeout' };
+    return { ready: false, reason: 'api_port_timeout', sawPortOpen, sawApiPortOpen };
   }
 
-  return { ready: false, reason: sawPortOpen ? 'http_timeout' : 'port_timeout' };
+  return { ready: false, reason: sawPortOpen ? 'http_timeout' : 'port_timeout', sawPortOpen, sawApiPortOpen, logs: lastLogTail };
+}
+
+/**
+ * Detect UI readiness from docker logs (serve access log, static server started).
+ * Used when host HTTP probes fail on Windows Docker but the container is clearly serving.
+ */
+export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
+  if (!logText?.trim()) return null;
+
+  if (/\[preview\]\s*serve static:/i.test(logText) && /Returned\s+200/i.test(logText)) {
+    return { ready: true, reason: 'log_serve_static' };
+  }
+
+  const lines = logText.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!/GET\s+\/\s*(HTTP|$)/i.test(line) && !/\bGET\s+\/\s*$/.test(line.trim())) continue;
+    for (let j = i; j < Math.min(i + 4, lines.length); j += 1) {
+      if (/Returned\s+200/i.test(lines[j])) {
+        return { ready: true, reason: 'log_http_200' };
+      }
+    }
+  }
+
+  if (
+    (stack === 'node-js' || stack.startsWith('static')) &&
+    /Accepted/i.test(logText) &&
+    /Returned\s+200/i.test(logText)
+  ) {
+    return { ready: true, reason: 'log_serve_200' };
+  }
+
+  return null;
+}
+
+/**
+ * Build teacher-facing failure details from wait result + container logs (fast, specific).
+ */
+export function diagnosePreviewFailure({ wait, session = {}, logs = '' } = {}) {
+  const logError = parsePreviewContainerErrors(logs);
+  if (logError) {
+    return {
+      failed: true,
+      message: `Preview failed: ${logError}`,
+      failures: [{ rule: 'container_runtime', message: logError }],
+    };
+  }
+
+  if (detectPreviewReadyFromLogs(logs, session.previewStack || 'node-js')) {
+    return { failed: false, ready: true, reason: 'log_serve_200' };
+  }
+
+  if (wait?.reason === 'container_exited') {
+    return {
+      failed: true,
+      message:
+        'Preview container stopped unexpectedly. Common causes: npm/Maven build error, missing index.html, or wrong project folder.',
+      failures: [
+        {
+          rule: 'container_exited',
+          message: 'Docker container exited before the app finished starting. See container log below.',
+        },
+      ],
+    };
+  }
+
+  if (wait?.reason === 'api_port_timeout') {
+    const msg = describePreviewWaitFailure(wait, session);
+    return {
+      failed: true,
+      message: msg,
+      failures: [
+        {
+          rule: 'api_not_ready',
+          message: `Student backend API on port ${session.previewApiHostPort || '?'} did not start. Check MongoDB sidecar and backend entry file (server.js).`,
+        },
+      ],
+    };
+  }
+
+  if (/npm ERR!/i.test(logs)) {
+    return {
+      failed: true,
+      message: 'Preview failed: npm install or build error inside Docker. See log below.',
+      failures: [{ rule: 'npm_error', message: 'npm install/build failed in the student project.' }],
+    };
+  }
+
+  if (/index\.html not found/i.test(logs)) {
+    return {
+      failed: true,
+      message: 'Preview failed: student project is missing index.html (required for the UI).',
+      failures: [{ rule: 'missing_index_html', message: 'Missing index.html in the frontend or static build output.' }],
+    };
+  }
+
+  if (/ERROR:.*backend/i.test(logs) || /student API did not open port/i.test(logs)) {
+    return {
+      failed: true,
+      message: 'Preview failed: student backend (Express/API) did not start. See backend log in container output below.',
+      failures: [{ rule: 'backend_start_failed', message: 'Backend API failed to start — check server.js, package.json scripts, and MongoDB.' }],
+    };
+  }
+
+  return {
+    failed: true,
+    message: describePreviewWaitFailure(wait, session),
+    failures: [],
+  };
+}
+
+/** Teacher-facing message when waitForPreviewReady times out or fails. */
+export function describePreviewWaitFailure(wait, session = {}) {
+  const uiPort = session.hostPort || '?';
+  const apiPort = session.previewApiHostPort || '?';
+
+  if (wait?.reason === 'api_port_timeout') {
+    return `Frontend may be up on port ${uiPort}, but the student API on port ${apiPort} did not start in time. Check MongoDB sidecar, backend npm logs, and that server.js/index.js exists.`;
+  }
+  if (wait?.reason === 'http_timeout') {
+    if (wait.sawPortOpen && session.previewApiHostPort) {
+      return `Port ${uiPort} responded but the app did not pass readiness (missing index.html or still building). See container log below.`;
+    }
+    return `Preview UI on port ${uiPort} did not return a valid page in time. The student frontend may be missing index.html or the build failed.`;
+  }
+  if (wait?.reason === 'port_timeout') {
+    return `Preview port ${uiPort} never opened on the host. Docker may still be building — if the log shows HTTP 200, click Start preview again.`;
+  }
+  return `Preview did not become ready in time (port ${uiPort}). See container log below.`;
 }
 
 /** @deprecated Use waitForPreviewReady */
@@ -1867,4 +2216,49 @@ export async function getContainerLogs(containerName, tail = 80) {
   } catch {
     return '';
   }
+}
+
+const PREVIEW_LOG_ERROR_PATTERNS = [
+  /\[preview\]\s*ERROR:\s*(.+)/i,
+  /index\.html not found/i,
+  /no backend start script found/i,
+  /Flutter web build failed/i,
+  /Maven build failed/i,
+  /npm ERR!/i,
+  /Cannot find module ['"][^'"]+['"]/i,
+  /ENOENT.*package\.json/i,
+  /error TS\d+:/i,
+  /Module not found:/i,
+  /backend start failed/i,
+  /student API did not listen/i,
+  /MongooseServerSelectionError/i,
+  /ECONNREFUSED.*27017/i,
+  /MongoNetworkError/i,
+  /EADDRINUSE/i,
+];
+
+/**
+ * Extract teacher-facing error lines from docker preview container logs.
+ */
+export function parsePreviewContainerErrors(logText) {
+  if (!logText?.trim()) return null;
+  const hits = [];
+  const seen = new Set();
+  for (const rawLine of logText.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    for (const pattern of PREVIEW_LOG_ERROR_PATTERNS) {
+      const match = line.match(pattern);
+      if (!match) continue;
+      const msg = (match[1] || line).replace(/^\[preview\]\s*/i, '').trim();
+      const key = msg.slice(0, 120);
+      if (!seen.has(key)) {
+        seen.add(key);
+        hits.push(msg);
+      }
+      break;
+    }
+  }
+  if (!hits.length) return null;
+  return hits.slice(-3).join(' · ');
 }

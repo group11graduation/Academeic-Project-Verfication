@@ -10,6 +10,9 @@ import { User } from '../models/User.js';
 import { analyzeCodePayload } from './aiClient.service.js';
 import * as assignmentStudent from './assignmentStudent.service.js';
 import * as assignmentTeacher from './assignmentTeacher.service.js';
+import {
+  assertAssignmentAcceptsStudentSubmissions,
+} from './assignmentRequirements.service.js';
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.md', '.json', '.csv', '.ipynb', '.js', '.jsx', '.ts', '.tsx', '.java', '.py', '.c', '.cpp', '.cs', '.go', '.php', '.rb',
@@ -70,6 +73,8 @@ export async function submitNormalAssignmentFile(userId, assignmentId, file) {
     err.status = 400;
     throw err;
   }
+
+  assertAssignmentAcceptsStudentSubmissions(assignment);
 
   const ext = path.extname(file.originalname || file.filename || '').toLowerCase();
   const relDir = path.join('normal-assignment', String(assignmentId), String(userId));

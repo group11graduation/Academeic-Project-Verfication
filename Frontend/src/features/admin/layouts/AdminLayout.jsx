@@ -18,15 +18,24 @@ import {
     Workflow,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
+import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
 
 const ADMIN_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
 const SIDEBAR_W = 248;
 const RAIL_W = 72;
 
-const AdminLayout = () => {
+const AdminLayout = () => (
+    <ShellSearchProvider>
+        <AdminLayoutInner />
+    </ShellSearchProvider>
+);
+
+const AdminLayoutInner = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
+        useShellSearch();
     const location = useLocation();
 
     const peopleChildren = [
@@ -302,8 +311,11 @@ const AdminLayout = () => {
                             <div className="relative">
                                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                                 <input
-                                    type="text"
-                                    placeholder="Search"
+                                    type="search"
+                                    value={shellSearchQuery}
+                                    onChange={(e) => setShellSearchQuery(e.target.value)}
+                                    placeholder={shellSearchPlaceholder}
+                                    aria-label={shellSearchPlaceholder}
                                     className="w-full rounded-lg border border-[#cfdbfb] bg-white/90 py-1.5 pl-8 pr-2.5 text-[11px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:bg-white focus:ring-2 focus:ring-[#2a3fa4]/15"
                                 />
                             </div>

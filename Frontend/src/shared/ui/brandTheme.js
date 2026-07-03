@@ -19,3 +19,10 @@ export const BRAND = {
 
 export const BRAND_GRADIENT = 'linear-gradient(135deg, #2a3fa4 0%, #1D68E3 100%)';
 export const RAIL_GRADIENT = 'linear-gradient(180deg, #2a3fa4 0%, #223688 100%)';
+
+/** Short product descriptor shown in faculty/student console sidebars */
+export const PRODUCT_TAGLINE = 'Project verification & preview';
+
+/** Teacher dashboard sidebar card — functional label (not marketing brand) */
+export const FACULTY_SIDEBAR_TITLE = 'Project Verification';
+export const FACULTY_SIDEBAR_SUBTITLE = 'Review & preview student work';

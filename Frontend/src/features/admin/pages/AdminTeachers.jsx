@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, Plus, Eye, EyeOff, ShieldCheck, Loader2, GraduationCap, Pencil, Trash2 } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const AdminTeachers = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const [searchQuery, setSearchQuery] = useState('');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search teachers…');
     const [showPasscodes, setShowPasscodes] = useState({});
     const [teachers, setTeachers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -59,10 +61,8 @@ const AdminTeachers = () => {
         }
     };
 
-    const filteredTeachers = teachers.filter(teacher =>
-        (teacher.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (teacher.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (teacher.subjects && teacher.subjects.some(sub => (sub || '').toLowerCase().includes(searchQuery.toLowerCase())))
+    const filteredTeachers = teachers.filter((teacher) =>
+        matchesSearchQuery(searchQuery, teacher.name, teacher.id, teacher.department, teacher.email, teacher.subjects)
     );
 
     if (loading) {

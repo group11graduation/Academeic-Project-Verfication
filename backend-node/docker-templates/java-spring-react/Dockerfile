@@ -13,9 +13,11 @@ ENV HOST=0.0.0.0
 ENV API_PORT=8080
 ENV APP_SUBDIR=.
 
+RUN npm install -g serve@14.2.4
+
 COPY entrypoint.sh /preview-entrypoint.sh
 COPY preview-fallback /preview-fallback
-RUN chmod +x /preview-entrypoint.sh
+RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh
 
 EXPOSE 3000
 ENTRYPOINT ["/preview-entrypoint.sh"]

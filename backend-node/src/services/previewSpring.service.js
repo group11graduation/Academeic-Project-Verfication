@@ -214,11 +214,251 @@ export async function resolveSpringReactPair(buildContext) {
 /**
  * Patch Spring Boot config for preview (port 8080, permissive CORS, in-memory H2 when JDBC points to localhost).
  */
+const LOMBOK_PREVIEW_VERSION = '1.18.32';
+
+function dedupeConsecutiveXmlTags(xml, tag) {
+  const re = new RegExp(`(<${tag}>[^<]*<\\/${tag}>)(\\s*<${tag}>[^<]*<\\/${tag}>)+`, 'g');
+  return xml.replace(re, '$1');
+}
+
+function patchMavenPomXmlForPreview(content) {
+  let next = dedupeConsecutiveXmlTags(String(content || ''), 'version');
+  let changed = next !== content;
+
+  if (/lombok/i.test(next) && !/<lombok\.version>\s*[\d.]+/i.test(next)) {
+    if (/<properties>[\s\S]*?<\/properties>/i.test(next)) {
+      next = next.replace(/<properties>/i, `<properties>\n    <lombok.version>${LOMBOK_PREVIEW_VERSION}</lombok.version>`);
+    } else {
+      next = next.replace(
+        /<project(\s[^>]*)?>/i,
+        `<project$1>\n  <properties>\n    <lombok.version>${LOMBOK_PREVIEW_VERSION}</lombok.version>\n  </properties>`
+      );
+    }
+    changed = true;
+  }
+
+  const apFixed = next.replace(
+    /(<annotationProcessorPaths>[\s\S]*?<path>[\s\S]*?<groupId>\s*org\.projectlombok\s*<\/groupId>\s*<artifactId>\s*lombok\s*<\/artifactId>)(\s*)(?:<version>[\s\S]*?<\/version>\s*)?(\s*<\/path>)/i,
+    (match, head, _ws, tail) => {
+      if (/<version>\s*(\$\{lombok\.version\}|[\d.]+)\s*<\/version>/i.test(match)) return match;
+      changed = true;
+      return `${head}\n                            <version>\${lombok.version}</version>${tail}`;
+    }
+  );
+  next = apFixed;
+
+  if (!/spring-boot-starter-data-jpa|com\.h2database/i.test(next) && /spring-boot-starter/i.test(next)) {
+    next = next.replace(
+      /<\/dependencies>/i,
+      `    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>`
+    );
+    changed = true;
+  }
+
+  if (/<java\.version>\s*\d+\s*<\/java\.version>/i.test(next)) {
+    next = next.replace(/<java\.version>\s*(\d+)\s*<\/java\.version>/i, (match, ver) => {
+      if (Number(ver) > 17) {
+        changed = true;
+        return '<java.version>17</java.version>';
+      }
+      return match;
+    });
+  }
+  if (/<maven\.compiler\.release>\s*\d+\s*<\/maven\.compiler\.release>/i.test(next)) {
+    next = next.replace(
+      /<maven\.compiler\.release>\s*\d+\s*<\/maven\.compiler\.release>/i,
+      '<maven.compiler.release>17</maven.compiler.release>'
+    );
+    changed = true;
+  }
+  if (/<source>\s*(\d+)\s*<\/source>/i.test(next)) {
+    next = next.replace(/<source>\s*\d+\s*<\/source>/gi, '<source>17</source>');
+    changed = true;
+  }
+  if (/<target>\s*(\d+)\s*<\/target>/i.test(next)) {
+    next = next.replace(/<target>\s*\d+\s*<\/target>/gi, '<target>17</target>');
+    changed = true;
+  }
+  if (/--enable-preview/.test(next)) {
+    next = next.replace(/\s*<compilerArgs>\s*--enable-preview\s*<\/compilerArgs>\s*/gi, '\n');
+    changed = true;
+  }
+
+  const deduped = dedupeConsecutiveXmlTags(next, 'version');
+  if (deduped !== next) {
+    next = deduped;
+    changed = true;
+  }
+
+  return { content: next, changed };
+}
+
+async function patchSpringSecurityCors(root) {
+  const srcRoot = path.join(root, 'src', 'main', 'java');
+  if (!(await pathExists(srcRoot))) return 0;
+  const javaFiles = await walkJavaFiles(srcRoot, 400);
+  let files = 0;
+  for (const file of javaFiles) {
+    let content = await fs.readFile(file, 'utf8');
+    if (!content.includes('setAllowedOrigins') && !content.includes('setAllowedOriginPatterns')) continue;
+    let changed = false;
+    if (/setAllowedOrigins\s*\(\s*List\.of\s*\([^)]*\)\s*\)/.test(content)) {
+      content = content.replace(
+        /setAllowedOrigins\s*\(\s*List\.of\s*\([^)]*\)\s*\)/g,
+        'setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"))'
+      );
+      changed = true;
+    }
+    if (/setAllowedOrigins\s*\(\s*Arrays\.asList\s*\([^)]*\)\s*\)/.test(content)) {
+      content = content.replace(
+        /setAllowedOrigins\s*\(\s*Arrays\.asList\s*\([^)]*\)\s*\)/g,
+        'setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"))'
+      );
+      changed = true;
+    }
+    if (changed) {
+      await fs.writeFile(file, content, 'utf8');
+      files += 1;
+    }
+  }
+  return files;
+}
+
+function previewSeedCredentials() {
+  return {
+    username: process.env.PREVIEW_DEFAULT_ADMIN_USERNAME || 'previewadmin',
+    password: process.env.PREVIEW_DEFAULT_ADMIN_PASSWORD || 'Preview123!',
+  };
+}
+
+function parseJavaPackage(content) {
+  const match = String(content || '').match(/^package\s+([\w.]+);/m);
+  return match?.[1] || '';
+}
+
+function parseJavaImport(content, simpleName) {
+  const re = new RegExp(`^import\\s+([\\w.]+\\.${simpleName});\\s*$`, 'm');
+  const match = String(content || '').match(re);
+  return match?.[1] || '';
+}
+
+async function detectSpringUserSeedHooks(root) {
+  const srcRoot = path.join(root, 'src', 'main', 'java');
+  if (!(await pathExists(srcRoot))) return null;
+
+  const javaFiles = await walkJavaFiles(srcRoot, 500);
+  let userService = null;
+  let userEntityFqn = '';
+  let configPackage = '';
+
+  for (const file of javaFiles) {
+    const base = path.basename(file);
+    let content = '';
+    try {
+      content = await fs.readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    const pkg = parseJavaPackage(content);
+    if (!pkg) continue;
+
+    if (base === 'UserService.java' && /class\s+UserService\b/.test(content)) {
+      userService = { pkg, content, simple: 'UserService' };
+      userEntityFqn = parseJavaImport(content, 'User');
+    } else if (base === 'User.java' && /class\s+User\b/.test(content) && !userEntityFqn) {
+      userEntityFqn = `${pkg}.User`;
+    } else if (
+      !configPackage &&
+      /@Configuration/.test(content) &&
+      /(Security|Cors|Config)/i.test(base)
+    ) {
+      configPackage = pkg;
+    }
+  }
+
+  if (!userService || !userEntityFqn) return null;
+  if (!/existsByUsername\s*\(/.test(userService.content) || !/saveUser\s*\(/.test(userService.content)) {
+    return null;
+  }
+
+  return {
+    configPackage: configPackage || userService.pkg.replace(/\.[^.]+$/, '.Configuration'),
+    userServiceFqn: `${userService.pkg}.UserService`,
+    userServiceSimple: userService.simple,
+    userEntityFqn,
+    userEntitySimple: 'User',
+  };
+}
+
+async function writeSpringPreviewSeed(root, seed = previewSeedCredentials()) {
+  const hooks = await detectSpringUserSeedHooks(root);
+  if (!hooks) return null;
+
+  const java = `package ${hooks.configPackage};
+
+import ${hooks.userEntityFqn};
+import ${hooks.userServiceFqn};
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+@Profile("preview")
+public class ScholarVerifyPreviewSeed {
+
+    @Bean
+    CommandLineRunner scholarVerifyPreviewAdminSeed(${hooks.userServiceSimple} userService, PasswordEncoder passwordEncoder) {
+        return args -> {
+            String username = System.getenv().getOrDefault("PREVIEW_SEED_USERNAME", "${seed.username}");
+            String password = System.getenv().getOrDefault("PREVIEW_SEED_PASSWORD", "${seed.password}");
+            if (userService.existsByUsername(username)) {
+                return;
+            }
+            ${hooks.userEntitySimple} user = new ${hooks.userEntitySimple}();
+            user.setUsername(username);
+            user.setPassword(passwordEncoder.encode(password));
+            user.setRole("ROLE_ADMIN");
+            userService.saveUser(user);
+        };
+    }
+}
+`;
+
+  const seedPath = path.join(
+    root,
+    'src',
+    'main',
+    'java',
+    ...hooks.configPackage.split('.'),
+    'ScholarVerifyPreviewSeed.java'
+  );
+  await fs.mkdir(path.dirname(seedPath), { recursive: true });
+  await fs.writeFile(seedPath, java, 'utf8');
+  return { ...seed, seedFile: 'ScholarVerifyPreviewSeed.java' };
+}
+
 export async function patchSpringForPreview(extractDir, springSubdir, { apiHostPort, uiHostPort } = {}) {
   const root = path.join(extractDir, springSubdir);
   if (!(await pathExists(root))) return { files: 0 };
 
   let files = 0;
+  const pomPath = path.join(root, 'pom.xml');
+  if (await pathExists(pomPath)) {
+    const pomRaw = await fs.readFile(pomPath, 'utf8');
+    const pomPatch = patchMavenPomXmlForPreview(pomRaw);
+    if (pomPatch.changed) {
+      await fs.writeFile(pomPath, pomPatch.content, 'utf8');
+      files += 1;
+    }
+  }
+
   const overlay = [
     '# ScholarVerify preview overlay',
     'server.port=8080',
@@ -230,12 +470,14 @@ export async function patchSpringForPreview(extractDir, springSubdir, { apiHostP
     overlay.push(`app.cors.allowed-origins=http://localhost:${uiHostPort}`);
   }
   overlay.push(
-    'spring.datasource.url=jdbc:h2:mem:scholarverify_preview;DB_CLOSE_DELAY=-1;MODE=MySQL',
+    'spring.datasource.url=jdbc:h2:mem:scholarverify_preview;DB_CLOSE_DELAY=-1;MODE=PostgreSQL',
     'spring.datasource.driver-class-name=org.h2.Driver',
     'spring.datasource.username=sa',
     'spring.datasource.password=',
     'spring.jpa.hibernate.ddl-auto=update',
-    'spring.h2.console.enabled=false'
+    'spring.jpa.database-platform=org.hibernate.dialect.H2Dialect',
+    'spring.h2.console.enabled=false',
+    'spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration,org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration,org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration'
   );
   overlay.push('');
 
@@ -244,15 +486,38 @@ export async function patchSpringForPreview(extractDir, springSubdir, { apiHostP
   await fs.writeFile(propsPath, overlay.join('\n'), 'utf8');
   files += 1;
 
+  files += await patchSpringSecurityCors(root);
+
   const appProps = path.join(root, 'src', 'main', 'resources', 'application.properties');
   if (await pathExists(appProps)) {
     let content = await fs.readFile(appProps, 'utf8');
-    if (!content.includes('spring.profiles.active')) {
+    let propsChanged = false;
+    if (!/spring\.profiles\.active/.test(content)) {
       content += '\nspring.profiles.active=preview\n';
+      propsChanged = true;
+    }
+    if (/server\.port\s*=\s*\d+/.test(content)) {
+      content = content.replace(/server\.port\s*=\s*\d+/g, 'server.port=8080');
+      propsChanged = true;
+    }
+    if (propsChanged) {
       await fs.writeFile(appProps, content, 'utf8');
       files += 1;
     }
   }
 
-  return { files, apiPort: 8080 };
+  const seedCredentials = await writeSpringPreviewSeed(root);
+  if (seedCredentials) files += 1;
+
+  return {
+    files,
+    apiPort: 8080,
+    seedCredentials: seedCredentials
+      ? {
+          username: seedCredentials.username,
+          password: seedCredentials.password,
+          hint: 'Preview admin auto-seeded in Spring H2 database on first start.',
+        }
+      : null,
+  };
 }

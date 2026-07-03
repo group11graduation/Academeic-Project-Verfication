@@ -23,6 +23,10 @@ const assignmentSchema = new mongoose.Schema(
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     /** Co-teacher partner when isCollaborative is true */
     coTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    /** Collaborative assignment: teacher who owns frontend requirements review */
+    frontendTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    /** Collaborative assignment: teacher who owns backend requirements review */
+    backendTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     isCollaborative: { type: Boolean, default: false },
     frontendTechRequirements: { type: techRequirementBlockSchema, default: () => ({}) },
     backendTechRequirements: { type: techRequirementBlockSchema, default: () => ({}) },

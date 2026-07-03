@@ -14,6 +14,8 @@ import {
     Activity,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
+import { FACULTY_SIDEBAR_SUBTITLE, FACULTY_SIDEBAR_TITLE } from '../ui/brandTheme';
+import { ShellSearchProvider, useShellSearch } from '../../context/shellSearchContext';
 
 const TEACHER_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
@@ -21,10 +23,18 @@ const SIDEBAR_W = 248;
 const RAIL_W = 72;
 
 /** Teacher shell aligned with current admin two-part sidebar layout. */
-const DashboardLayout = ({ children }) => {
+const DashboardLayout = ({ children }) => (
+    <ShellSearchProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </ShellSearchProvider>
+);
+
+const DashboardLayoutInner = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
+        useShellSearch();
 
     const classesItems = [{ name: 'My Classes', path: '/teacher/classes', icon: Users }];
     const workflowItems = [
@@ -94,6 +104,8 @@ const DashboardLayout = ({ children }) => {
         navigate('/');
     };
 
+    const teacherDepartment = (user?.department || '').trim();
+
     const linkRow =
         'flex min-h-[40px] items-center gap-2 text-[11px] transition-[background,color,box-shadow] duration-200 ease-out';
     const linkIdle = `${linkRow} mx-0.5 rounded-lg px-2 py-1.5 font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900`;
@@ -107,11 +119,16 @@ const DashboardLayout = ({ children }) => {
     return (
         <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-[#f8fafc] font-sans antialiased">
             <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm lg:hidden">
-                <button type="button" onClick={() => navigate('/teacher')} className="flex min-w-0 items-center gap-2 text-left">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e56e3] text-white shadow-sm">
-                        <Shield className="h-5 w-5" strokeWidth={2} />
+                <button type="button" onClick={() => navigate('/teacher')} className="flex min-w-0 flex-col gap-0.5 text-left">
+                    <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e56e3] text-white shadow-sm">
+                            <Shield className="h-5 w-5" strokeWidth={2} />
+                        </div>
+                        <div className="min-w-0">
+                            <span className="block truncate text-[13px] font-extrabold tracking-tight text-slate-900">{FACULTY_SIDEBAR_TITLE}</span>
+                            <span className="block truncate text-[9px] font-semibold text-slate-500">{FACULTY_SIDEBAR_SUBTITLE}</span>
+                        </div>
                     </div>
-                    <span className="truncate text-[15px] font-extrabold tracking-tight text-slate-900">ScholarVerify</span>
                 </button>
                 <NavLink
                     to="/teacher"
@@ -206,9 +223,21 @@ const DashboardLayout = ({ children }) => {
                                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#1e56e3]/10 text-[#1e56e3]">
                                     <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.2} />
                                 </div>
-                                <div className="min-w-0">
-                                    <div className="text-[11px] font-extrabold leading-tight tracking-[0.03em] text-slate-900">ScholarVerify</div>
-                                    <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-slate-500">Faculty console</div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="truncate text-[10px] font-extrabold leading-tight tracking-tight text-slate-900">
+                                        {FACULTY_SIDEBAR_TITLE}
+                                    </div>
+                                    <div className="mt-0.5 truncate text-[8px] font-semibold leading-snug text-slate-500">
+                                        {FACULTY_SIDEBAR_SUBTITLE}
+                                    </div>
+                                    <div
+                                        className={`mt-1 truncate text-[8px] font-bold uppercase tracking-[0.1em] ${
+                                            teacherDepartment ? 'text-[#1e56e3]' : 'text-slate-400'
+                                        }`}
+                                        title={teacherDepartment || 'Department not set'}
+                                    >
+                                        {teacherDepartment || 'Department not set'}
+                                    </div>
                                 </div>
                             </button>
 
@@ -270,8 +299,11 @@ const DashboardLayout = ({ children }) => {
                             <div className="relative">
                                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                                 <input
-                                    type="text"
-                                    placeholder="Search"
+                                    type="search"
+                                    value={shellSearchQuery}
+                                    onChange={(e) => setShellSearchQuery(e.target.value)}
+                                    placeholder={shellSearchPlaceholder}
+                                    aria-label={shellSearchPlaceholder}
                                     className="w-full rounded-lg border border-[#cfdbfb] bg-white/90 py-1.5 pl-8 pr-2.5 text-[11px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:bg-white focus:ring-2 focus:ring-[#2a3fa4]/15"
                                 />
                             </div>
@@ -295,7 +327,7 @@ const DashboardLayout = ({ children }) => {
                                 <div className="hidden leading-tight sm:block">
                                     <div className="max-w-[100px] truncate text-[11px] font-bold text-slate-800">{user?.name || 'My account'}</div>
                                     <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500">
-                                        {(user?.department || 'Faculty').toUpperCase()}
+                                        {(teacherDepartment || 'Faculty').toUpperCase()}
                                     </div>
                                 </div>
                                 <ChevronDown className="hidden h-3.5 w-3.5 text-slate-400 sm:block" />

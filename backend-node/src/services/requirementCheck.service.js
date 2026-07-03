@@ -84,7 +84,7 @@ export function evaluateProposalAgainstAssignmentRequirements(assignment, propos
   return evaluateRequirementBlock(assignment, proposalLike);
 }
 
-function evaluateRequirementBlock(block, proposalLike, label = '') {
+export function evaluateRequirementBlock(block, proposalLike, label = '') {
   const requiredKeywords = toList(block?.requiredKeywords);
   const allowedTechnologies = toList(block?.allowedTechnologies);
   const requirementText = String(block?.requirementText || block?.description || '').trim();

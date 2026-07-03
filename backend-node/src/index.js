@@ -75,16 +75,30 @@ connectDb()
   .then(() => {
     app.listen(port, () => logger.info(`API listening on port ${port}`));
     if (process.env.DOCKER_PREVIEW_ENABLED !== 'false') {
+      import('./services/previewWorkspaceCache.service.js')
+        .then(({ ensurePreviewDependencyCacheDirs }) =>
+          ensurePreviewDependencyCacheDirs().catch(() => {})
+        )
+        .catch(() => {});
       import('./services/dockerOrchestrator.service.js')
-        .then(({ ensurePreviewMongoImage, warmPreviewBaseImages }) => {
+        .then(({ ensurePreviewMongoImage, ensurePreviewMysqlImage, warmPreviewBaseImages, previewWarmBaseImagesEnabled }) => {
           if (process.env.PREVIEW_WARM_MONGO_IMAGE !== 'false') {
             ensurePreviewMongoImage()
               .then((r) => logger.info(r.pulled ? 'Preview MongoDB image downloaded' : 'Preview MongoDB image ready'))
               .catch((err) => logger.warn(`Preview MongoDB warm-up: ${err.message}`));
           }
-          if (process.env.PREVIEW_WARM_NODE_BASE_IMAGE !== 'false') {
+          if (process.env.PREVIEW_WARM_MYSQL_IMAGE !== 'false') {
+            ensurePreviewMysqlImage()
+              .then((r) => logger.info(r.pulled ? 'Preview MariaDB image downloaded' : 'Preview MariaDB image ready'))
+              .catch((err) => logger.warn(`Preview MariaDB warm-up: ${err.message}`));
+          }
+          if (previewWarmBaseImagesEnabled()) {
             warmPreviewBaseImages()
-              .then((r) => logger.info(`Preview base images: node=${r.node}, php=${r.php}, jupyter=${r.jupyter}, spring=${r.springReact}`))
+              .then((r) =>
+                logger.info(
+                  `Preview base images: node=${r.node}, flutter=${r.flutter}, php=${r.php}, jupyter=${r.jupyter}, spring=${r.springReact}`
+                )
+              )
               .catch((err) => logger.warn(`Preview base warm-up: ${err.message}`));
           }
         })

@@ -97,6 +97,7 @@ const AppRoutes = () => {
                 <Route path="assignments" element={<Assignments />} />
                 <Route path="assignments/new" element={<AssignmentCreate />} />
                 <Route path="assignments/collaborative/new" element={<CollaborativeAssignmentCreate />} />
+                <Route path="assignments/:id/edit" element={<AssignmentCreate />} />
                 <Route path="assignments/:id/normal-students/:studentUserId" element={<NormalAssignmentStudentDetail />} />
                 <Route path="assignments/:id/normal-students" element={<NormalAssignmentStudents />} />
                 <Route path="assignments/:id/proposals/:proposalId" element={<TeacherProposalStudentDetail />} />

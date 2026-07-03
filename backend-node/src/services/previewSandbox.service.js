@@ -1,14 +1,16 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import os from 'os';
 import Docker from 'dockerode';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
 import * as previewCredentials from './previewCredentials.service.js';
+import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as previewMern from './previewMern.service.js';
+import { buildPhpPreviewLoginHint } from './previewPhp.service.js';
 import {
   executeZipExtractionBarrier,
   executeTechAuditBarrier,
+  executePreviewStructureBarrier,
   launchSandboxContainer,
   handlePreviewContainerExit,
   rmExtractDirSafe,
@@ -18,10 +20,13 @@ import {
 import { PreviewSession } from '../models/PreviewSession.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { Proposal } from '../models/Proposal.js';
+import { Assignment } from '../models/Assignment.js';
+import { isProposalFullyApprovedForProject } from './collaborativeProposalReview.service.js';
+import { teacherCanAccessAssignmentReview } from './teacherAssignmentAccess.service.js';
 
 const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 600000);
 const PREVIEW_STATIC_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STATIC_STARTUP_TIMEOUT_MS || 90000);
-const PREVIEW_SPRING_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 900000);
+const PREVIEW_SPRING_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 1800000);
 const PREVIEW_TTL_MS = Number(process.env.PREVIEW_TTL_MS || 1800000);
 const PREVIEW_TTL_MIN_MS = Number(process.env.PREVIEW_TTL_MIN_MS || 300000);
 const PREVIEW_TTL_TOUCH_MS = Number(process.env.PREVIEW_TTL_TOUCH_MS || 1800000);
@@ -123,6 +128,7 @@ async function touchPreviewTtl(session) {
 /** Re-arm timers after API restart for sessions still marked running in MongoDB. */
 export async function restoreRunningPreviewTtls() {
   if (!dockerEnabled()) return;
+  await reconcileOrphanedPreviewSessionsOnStartup();
   const running = await PreviewSession.find({ status: 'running' });
   for (const session of running) {
     const remaining = session.expiresAt
@@ -145,6 +151,107 @@ export async function restoreRunningPreviewTtls() {
       }, remaining);
       activeTimers.set(session._id.toString(), timer);
     }
+  }
+}
+
+function deployResultFromSession(session) {
+  return {
+    previewUrl: session.previewUrl,
+    previewApiUrl: session.previewApiUrl || '',
+    hostPort: Number(session.hostPort) || null,
+    apiHostPort: Number(session.previewApiHostPort) || null,
+    containerName: dockerOrchestrator.containerNameFor(session._id.toString()),
+    stack: session.previewStack || 'node-js',
+    springPair: null,
+    mernPair: null,
+    flutterPair: null,
+  };
+}
+
+/**
+ * Clear or resume preview sessions left in "starting"/"running" after an API restart
+ * or when the Docker container is no longer alive.
+ */
+const ORPHAN_STARTING_GRACE_MS = Number(process.env.PREVIEW_ORPHAN_GRACE_MS || 600_000);
+
+export async function reconcileStalePreviewSession(sessionId) {
+  const session = await PreviewSession.findById(sessionId);
+  if (!session) return null;
+  if (!['starting', 'running', 'runtime_error'].includes(session.status)) return session;
+
+  const containerName = dockerOrchestrator.containerNameFor(session._id.toString());
+  let containerRunning = false;
+  try {
+    containerRunning = await dockerOrchestrator.isPreviewContainerRunning(containerName);
+  } catch {
+    containerRunning = false;
+  }
+  // Double-check to avoid marking sessions dead on transient docker inspect races.
+  if (!containerRunning) {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    try {
+      containerRunning = await dockerOrchestrator.isPreviewContainerRunning(containerName);
+    } catch {
+      containerRunning = false;
+    }
+  }
+
+  const startedMs = session.startedAt ? new Date(session.startedAt).getTime() : 0;
+  const startingGrace =
+    session.status === 'starting' && startedMs > 0 && Date.now() - startedMs < ORPHAN_STARTING_GRACE_MS;
+
+  if (session.status === 'running' && !containerRunning) {
+    session.status = 'failed';
+    session.errorMessage =
+      'Preview container stopped (server may have restarted). Click Start preview again.';
+    session.endedAt = new Date();
+    appendLog(session, 'warn', session.errorMessage);
+    await session.save();
+    return session;
+  }
+
+  if (session.status === 'starting') {
+    if (!containerRunning) {
+      if (startingGrace || readinessJobs.has(session._id.toString())) {
+        return session;
+      }
+      const lastError = [...(session.logs || [])].reverse().find((l) => l.level === 'error');
+      session.status = 'failed';
+      session.errorMessage =
+        (lastError?.message && !lastError.message.startsWith('Container log'))
+          ? lastError.message
+          : session.errorMessage ||
+            'Preview did not finish starting (container stopped). Click Start preview again and check the log below.';
+      session.endedAt = new Date();
+      if (!lastError) {
+        appendLog(session, 'warn', 'Cleared stale starting session — no running container.');
+      }
+      await session.save();
+      return session;
+    }
+
+    if (session.previewUrl && !readinessJobs.has(session._id.toString())) {
+      appendLog(session, 'info', 'Resuming preview readiness check after server restart.');
+      await session.save();
+      const deployResult = deployResultFromSession(session);
+      setImmediate(() => {
+        finalizePreviewReadiness(session._id, deployResult, session.extractDirPath || '').catch((err) => {
+          console.error('preview readiness resume', err);
+        });
+      });
+    }
+  }
+
+  return session;
+}
+
+/** On API boot: fail dead sessions and resume in-flight ones that still have a live container. */
+export async function reconcileOrphanedPreviewSessionsOnStartup() {
+  if (!dockerEnabled()) return;
+  const sessions = await PreviewSession.find({ status: { $in: ['starting', 'running'] } });
+  for (const session of sessions) {
+    // eslint-disable-next-line no-await-in-loop
+    await reconcileStalePreviewSession(session._id);
   }
 }
 
@@ -171,13 +278,7 @@ async function cleanupSessionResources(session, docker, finalStatus, logMessage)
     }
   }
 
-  if (session.extractDirPath) {
-    try {
-      await fs.rm(session.extractDirPath, { recursive: true, force: true });
-    } catch {
-      /* ignore */
-    }
-  }
+  // Keep persistent workspace on disk for faster next start (cleared only when ZIP changes).
 
   session.status = finalStatus;
   session.endedAt = new Date();
@@ -212,6 +313,9 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
       appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}.`);
+      if (session.extractDirPath) {
+        await previewWorkspaceCache.markWorkspacePreviewReady(session.extractDirPath).catch(() => {});
+      }
       await schedulePreviewTtl(session);
       const until = session.expiresAt ? new Date(session.expiresAt).toLocaleTimeString() : '';
       appendLog(
@@ -233,7 +337,97 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
       return;
     }
 
-    const tailLogs = await dockerOrchestrator.getContainerLogs(deployResult.containerName, 100);
+    if (wait.reason === 'container_error') {
+      const tailLogs = wait.logs || (await dockerOrchestrator.getContainerLogs(deployResult.containerName, 150));
+      await dockerOrchestrator
+        .stopProjectPreview(sessionId.toString(), {
+          hostPort: deployResult.hostPort,
+          apiHostPort: deployResult.apiHostPort || null,
+          imageKey: session.submission?.toString?.() || sessionId.toString(),
+          stack: deployResult.stack,
+        })
+        .catch(() => {});
+
+      session.status = 'failed';
+      session.errorMessage = `Preview failed: ${wait.logError || 'Container reported an error.'}`;
+      session.validationFailures = [
+        {
+          rule: 'container_runtime',
+          message: wait.logError || 'The student app failed inside Docker. See container log below.',
+        },
+      ];
+      session.runtimeTraceback = tailLogs.slice(-8000);
+      session.endedAt = new Date();
+      appendLog(session, 'error', session.errorMessage);
+      if (tailLogs.trim()) {
+        appendLog(session, 'error', `Container log:\n${tailLogs.slice(-2500)}`);
+      }
+      await session.save();
+      return;
+    }
+
+    const stillRunning = await dockerOrchestrator.isPreviewContainerRunning(deployResult.containerName);
+    if (stillRunning && deployResult.stack === 'java-spring-react') {
+      session.status = 'running';
+      session.previewStack = deployResult.stack || session.previewStack;
+      appendLog(
+        session,
+        'info',
+        'Preview container is still building (npm install + React build + Maven can take 20–30 min on first start). Keep this page open — Open preview will unlock when the UI responds.'
+      );
+      await schedulePreviewTtl(session);
+      await session.save();
+      return;
+    }
+
+    const tailLogs =
+      wait.logs || (await dockerOrchestrator.getContainerLogs(deployResult.containerName, 150));
+    const logError = dockerOrchestrator.parsePreviewContainerErrors(tailLogs);
+
+    const lastProbe = await dockerOrchestrator.checkPreviewAppHttpReady({
+      previewUrl: deployResult.previewUrl,
+      apiPreviewUrl: deployResult.previewApiUrl || '',
+      stack: deployResult.stack,
+    });
+    const logReady = dockerOrchestrator.detectPreviewReadyFromLogs(tailLogs, deployResult.stack);
+
+    if (lastProbe.ready || logReady?.ready) {
+      session.status = 'running';
+      session.previewStack = deployResult.stack || session.previewStack;
+      const reason = lastProbe.reason || logReady?.reason || 'ready';
+      appendLog(session, 'info', `Preview ready (${reason}) at ${session.previewUrl}.`);
+      if (lastProbe.apiReady === false && deployResult.apiHostPort) {
+        appendLog(
+          session,
+          'warn',
+          `Student API on port ${deployResult.apiHostPort} is still starting — login may fail until the backend is up.`
+        );
+      }
+      if (session.extractDirPath) {
+        await previewWorkspaceCache.markWorkspacePreviewReady(session.extractDirPath).catch(() => {});
+      }
+      await schedulePreviewTtl(session);
+      await session.save();
+      return;
+    }
+
+    const diagnosis = dockerOrchestrator.diagnosePreviewFailure({
+      wait,
+      session,
+      logs: tailLogs,
+    });
+    if (!diagnosis.failed && diagnosis.ready) {
+      session.status = 'running';
+      session.previewStack = deployResult.stack || session.previewStack;
+      appendLog(session, 'info', `Preview ready (${diagnosis.reason || 'log'}) at ${session.previewUrl}.`);
+      if (session.extractDirPath) {
+        await previewWorkspaceCache.markWorkspacePreviewReady(session.extractDirPath).catch(() => {});
+      }
+      await schedulePreviewTtl(session);
+      await session.save();
+      return;
+    }
+
     await dockerOrchestrator
       .stopProjectPreview(sessionId.toString(), {
         hostPort: deployResult.hostPort,
@@ -242,15 +436,19 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
         stack: deployResult.stack,
       })
       .catch(() => {});
-    await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+    // Keep persistent workspace for faster retry on next Start preview.
 
     session.status = 'failed';
     session.errorMessage =
-      wait.reason === 'container_exited'
-        ? 'Preview container stopped unexpectedly. Check logs below (wrong app folder or npm error).'
-        : wait.reason === 'api_port_timeout'
-          ? `Student API did not start on port ${session.previewApiHostPort || '?'}. Ensure MongoDB is running (Docker Desktop), then Start preview again.`
-          : `Preview did not respond on port ${session.hostPort} in time. Click Start preview again after checking Docker is running.`;
+      diagnosis.message ||
+      (logError ? `Preview failed: ${logError}` : dockerOrchestrator.describePreviewWaitFailure(wait, session));
+    session.validationFailures =
+      diagnosis.failures?.length > 0
+        ? diagnosis.failures
+        : logError
+          ? [{ rule: 'container_runtime', message: logError }]
+          : [];
+    session.runtimeTraceback = tailLogs.slice(-8000);
     session.endedAt = new Date();
     appendLog(session, 'error', session.errorMessage);
     if (tailLogs.trim()) {
@@ -262,15 +460,33 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
   }
 }
 
-async function stopActiveSessionsForProposal(proposalId, docker, { includeStarting = true } = {}) {
-  const statuses = includeStarting ? ['starting', 'running'] : ['running'];
+async function stopActiveSessionsForProposalTeacher(proposalId, teacherId, docker, { includeStarting = true } = {}) {
+  const statuses = includeStarting
+    ? ['starting', 'running', 'runtime_error']
+    : ['running'];
   const list = await PreviewSession.find({
     proposal: proposalId,
+    teacher: teacherId,
     status: { $in: statuses },
   });
   for (const s of list) {
     await cleanupSessionResources(s, docker, 'stopped', 'Preview ended (superseded by a new session).');
   }
+}
+
+function isPopulatedAssignmentDoc(value) {
+  return Boolean(value && typeof value === 'object' && value.teacher != null);
+}
+
+async function loadAssignmentForPreviewAccess(session) {
+  if (isPopulatedAssignmentDoc(session.assignment)) {
+    return typeof session.assignment.toObject === 'function'
+      ? session.assignment.toObject()
+      : session.assignment;
+  }
+  const assignmentId = session.assignment?._id || session.assignment;
+  if (!assignmentId) return null;
+  return Assignment.findById(assignmentId).lean();
 }
 
 /**
@@ -304,13 +520,13 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   }
 
   const assignment = proposal.assignment;
-  if (!assignment || String(assignment.teacher) !== String(teacherId)) {
+  if (!teacherCanAccessAssignmentReview(teacherId, assignment)) {
     const err = new Error('Forbidden');
     err.status = 403;
     throw err;
   }
 
-  if (proposal.status !== 'teacher_approved') {
+  if (!isProposalFullyApprovedForProject(proposal, assignment)) {
     const err = new Error('Preview is only allowed for teacher-approved proposals.');
     err.status = 400;
     throw err;
@@ -323,8 +539,8 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     throw err;
   }
 
-  // Always stop prior sessions (including stuck "starting") so a new stack choice takes effect.
-  await stopActiveSessionsForProposal(proposal._id, docker, { includeStarting: true });
+  // Only stop this teacher's prior sessions so co-teachers can preview in parallel.
+  await stopActiveSessionsForProposalTeacher(proposal._id, teacherId, docker, { includeStarting: true });
 
   // Student ZIP hint first, then assignment title — file signals still win when auto-detecting.
   const submissionHint = submission.projectStackHint || null;
@@ -343,7 +559,11 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     throw err;
   }
 
-  const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scholar-preview-'));
+  const workspacePrep = await previewWorkspaceCache.prepareSubmissionWorkspace({
+    submissionId: submission._id,
+    zipAbs,
+  });
+  const extractDir = workspacePrep.workspaceDir;
   const session = await PreviewSession.create({
     teacher: teacherId,
     proposal: proposal._id,
@@ -351,44 +571,71 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     assignment: assignment._id,
     status: 'starting',
     previewStack: stackOverride || '',
+    previewWorkspaceCached: workspacePrep.cacheHit || workspacePrep.buildCached,
     memoryBytes: memory,
     nanoCpus,
     ttlMs: ttl,
     extractDirPath: extractDir,
     logs: [
-      { level: 'info', message: 'Session created; extracting archive.' },
-      { level: 'info', message: 'Project type will be detected automatically from ZIP files after extract.' },
+      { level: 'info', message: 'Session created; preparing project workspace.' },
+      workspacePrep.cacheHit
+        ? {
+            level: 'info',
+            message:
+              'Reusing cached project workspace (2nd+ start — npm/Maven/build artifacts kept; usually 1–3 min).',
+          }
+        : { level: 'info', message: 'Project type will be detected automatically from ZIP files after extract.' },
     ],
     startedAt: new Date(),
   });
 
   try {
-    const extractMeta = await executeZipExtractionBarrier({
-      zipAbs,
-      destDir: extractDir,
-      submissionId: submission._id,
-      session,
-    });
-    if (extractMeta.skipped > 0) {
-      appendLog(
+    if (!workspacePrep.cacheHit) {
+      const extractMeta = await executeZipExtractionBarrier({
+        zipAbs,
+        destDir: extractDir,
+        submissionId: submission._id,
         session,
-        'info',
-        `Skipped ${extractMeta.skipped} unneeded path(s) in ZIP (e.g. node_modules, .git, __MACOSX).`
-      );
-    }
-    appendLog(session, 'info', `Extracted ${extractMeta.fileCount} file(s); running technical audit.`);
+      });
+      if (extractMeta.skipped > 0) {
+        appendLog(
+          session,
+          'info',
+          `Skipped ${extractMeta.skipped} unneeded path(s) in ZIP (e.g. node_modules, .git, __MACOSX).`
+        );
+      }
+      appendLog(session, 'info', `Extracted ${extractMeta.fileCount} file(s); running technical audit.`);
 
-    const auditStackHint =
-      submission.projectStackHint ||
-      (stackHint && ['static-html', 'static-html-js'].includes(stackHint) ? stackHint : '');
-    await executeTechAuditBarrier({
+      const auditStackHint =
+        submission.projectStackHint ||
+        (stackHint && ['static-html', 'static-html-js'].includes(stackHint) ? stackHint : '');
+      await executeTechAuditBarrier({
+        extractDir,
+        submissionId: submission._id,
+        session,
+        stackHint: auditStackHint,
+        assignment,
+      });
+      await previewWorkspaceCache.markWorkspaceAuditPassed(extractDir, workspacePrep.fingerprint);
+      appendLog(session, 'info', 'Technical audit passed; detecting project type.');
+    } else {
+      appendLog(session, 'info', 'Skipped ZIP extract and audit (cached workspace matches submission archive).');
+    }
+
+    const structureAudit = await executePreviewStructureBarrier({
       extractDir,
       submissionId: submission._id,
       session,
-      stackHint: auditStackHint,
-      assignment,
+      stackHint: submission.projectStackHint || stackHint || '',
+      stackOverride: stackOverride || null,
+      keepExtract: previewWorkspaceCache.isPersistentWorkspaceDir(extractDir),
     });
-    appendLog(session, 'info', 'Technical audit passed; detecting project type.');
+    session.previewStack = structureAudit.stack || stackOverride || '';
+    const stackReason =
+      structureAudit.detection?.reasons?.length > 0
+        ? ` (${structureAudit.detection.reasons.slice(0, 2).join('; ')})`
+        : '';
+    appendLog(session, 'info', `Project structure OK — detected stack: ${structureAudit.stack}${stackReason}.`);
 
     const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
     const login = previewCredentials.resolvePreviewLoginCredentials({
@@ -396,14 +643,11 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       teacherPassword: adminPassword,
       discovered,
     });
-    session.previewLoginEmail = login.email;
-    session.previewLoginPassword = login.password;
-    session.previewLoginSource = login.source;
-    session.previewLoginHint = login.hint;
+    previewCredentials.applyResolvedLoginCredentials(session, login);
     appendLog(
       session,
       'info',
-      `Preview login for teacher: ${login.email} (source: ${login.source.replace(/_/g, ' ')}).`
+      `Preview login for teacher: ${login.identifierLabel}=${login.identifier} (source: ${login.source.replace(/_/g, ' ')}).`
     );
 
     await session.save();
@@ -418,7 +662,9 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       }
       throw e;
     }
-    await rmExtractDirSafe(extractDir);
+    if (!previewWorkspaceCache.isPersistentWorkspaceDir(extractDir)) {
+      await rmExtractDirSafe(extractDir);
+    }
     session.status = 'failed';
     session.errorMessage = e.message || 'Extract failed';
     session.endedAt = new Date();
@@ -432,13 +678,15 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     const credentialEnv = previewCredentials.buildPreviewCredentialEnvVars({
       email: session.previewLoginEmail,
       password: session.previewLoginPassword,
+      username:
+        session.previewLoginIdentifierType === 'username' ? session.previewLoginEmail : '',
       mongoUri: previewMern.buildPreviewMongoUri(session._id.toString()),
     });
 
     appendLog(
       session,
       'info',
-      'Starting Docker deploy (first full-stack preview may take up to 10 minutes while the MongoDB image downloads).'
+      'Starting Docker preview (pre-built template image + bind-mounted project; first start of a stack may build the base image once).'
     );
     await session.save();
 
@@ -455,13 +703,16 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
           stack: stackOverride || null,
           forceRebuild: false,
           previewCredentialEnv: credentialEnv,
+          workspaceCached: workspacePrep.cacheHit || workspacePrep.buildCached,
         }),
     });
   } catch (e) {
     if (e instanceof SubmissionPipelineError && e.code === SUBMISSION_ERROR_CODES.RUNTIME_ERROR) {
       throw e;
     }
-    await rmExtractDirSafe(extractDir);
+    if (!previewWorkspaceCache.isPersistentWorkspaceDir(extractDir)) {
+      await rmExtractDirSafe(extractDir);
+    }
     session.status = 'failed';
     session.errorMessage = e.message || 'Docker deploy failed';
     session.endedAt = new Date();
@@ -480,10 +731,37 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       ? deployResult.phpLoginPath || '/auth/login.php'
       : '/login';
   session.previewLoginUrl = previewCredentials.buildPreviewLoginUrl(deployResult.previewUrl, loginPath);
+
+  const phpMeta = deployResult.phpPatchMeta || {};
+  const springMeta = deployResult.springPatchMeta || {};
+  const resolvedLogin = await previewCredentials.buildPreviewLoginCredentials({
+    extractDir,
+    loginPath,
+    teacherEmail: adminEmail,
+    teacherPassword: adminPassword,
+    phpAdmin: phpMeta.adminCredentials || null,
+    springAdmin: springMeta.seedCredentials || null,
+  });
+  previewCredentials.applyResolvedLoginCredentials(session, resolvedLogin);
+
   if (deployResult.stack === 'php-apache') {
-    const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
-    session.previewLoginHint =
-      `${baseHint}PHP preview uses the mapped port (e.g. :${deployResult.hostPort}), not localhost/BBMS. Open ${session.previewLoginUrl}. Default BBMS admin is often username admin / Admin@123 if no project credentials were found.`;
+    session.previewLoginHint = buildPhpPreviewLoginHint({
+      previewLoginUrl: session.previewLoginUrl,
+      hostPort: deployResult.hostPort,
+      dbName: phpMeta.dbName,
+      adminCredentials: phpMeta.adminCredentials,
+      projectCredentials: {
+        username: session.previewLoginEmail,
+        password: session.previewLoginPassword,
+      },
+    });
+    if (phpMeta.bootstrapScripts?.length) {
+      appendLog(
+        session,
+        'info',
+        `PHP bootstrap: ${phpMeta.bootstrapScripts.join(', ')} (${phpMeta.patchedFiles || 0} config file(s) patched).`
+      );
+    }
   }
   if (deployResult.stack === 'static-html' || deployResult.stack === 'static-html-js') {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
@@ -503,6 +781,11 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
     session.previewLoginHint =
       `${baseHint}React + Spring Boot preview: UI on port ${deployResult.hostPort}, Java API on port ${deployResult.apiHostPort}. First start may take 5–15 minutes (Maven + npm).`;
+    if (springMeta.seedCredentials?.username) {
+      session.previewLoginHint += ` Sign in with ${session.previewLoginIdentifierLabel || 'Username'}=${springMeta.seedCredentials.username} (seeded in H2 on first API start).`;
+    } else {
+      session.previewLoginHint += ' Use the Register tab on the login page if no preview admin was seeded.';
+    }
     appendLog(
       session,
       'info',
@@ -520,6 +803,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   }
   session.previewImage = deployResult.imageTag;
   session.previewStack = deployResult.stack;
+  session.previewTemplateCached = Boolean(deployResult.imageReused);
   session.previewStackLabel = deployResult.stackDisplayName || dockerOrchestrator.previewStackDisplayName(deployResult.stack);
   const stackName = session.previewStackLabel;
   const stackDisplay =
@@ -543,11 +827,11 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     `Container started (app folder: ${deployResult.appSubdir || '.'}); preview URL host:${deployResult.hostPort}`
   );
   if (deployResult.stack !== 'static-html' && deployResult.stack !== 'static-html-js') {
-    appendLog(
-      session,
-      'info',
-      `Use login ${session.previewLoginEmail} / (password shown in teacher panel) at ${session.previewLoginUrl || session.previewUrl}`
-    );
+      appendLog(
+        session,
+        'info',
+        `Use login ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail} at ${session.previewLoginUrl || session.previewUrl}`
+      );
   }
   await session.save();
 
@@ -561,6 +845,15 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   return session;
 }
 
+async function assertTeacherCanAccessPreviewSession(teacherId, session) {
+  const assignment = await loadAssignmentForPreviewAccess(session);
+  if (!teacherCanAccessAssignmentReview(teacherId, assignment)) {
+    const err = new Error('Forbidden');
+    err.status = 403;
+    throw err;
+  }
+}
+
 export async function stopPreviewForTeacher(teacherId, sessionId) {
   const session = await PreviewSession.findById(sessionId);
   if (!session) {
@@ -568,8 +861,9 @@ export async function stopPreviewForTeacher(teacherId, sessionId) {
     err.status = 404;
     throw err;
   }
+  await assertTeacherCanAccessPreviewSession(teacherId, session);
   if (String(session.teacher) !== String(teacherId)) {
-    const err = new Error('Forbidden');
+    const err = new Error('Only the teacher who started this preview can stop it.');
     err.status = 403;
     throw err;
   }
@@ -587,13 +881,57 @@ export function toPublicSession(doc) {
   return o;
 }
 
+async function maybeFailPreviewFromContainerLogs(session) {
+  if (!session || session.status !== 'starting') return session;
+
+  const containerName = dockerOrchestrator.containerNameFor(session._id.toString());
+  const tail = await dockerOrchestrator.getContainerLogs(containerName, 150);
+  const logError = dockerOrchestrator.parsePreviewContainerErrors(tail);
+  if (!logError) return session;
+
+  const live = await PreviewSession.findById(session._id);
+  if (!live || live.status !== 'starting') {
+    return live ? (typeof live.toObject === 'function' ? live.toObject() : live) : session;
+  }
+
+  await dockerOrchestrator
+    .stopProjectPreview(session._id.toString(), {
+      hostPort: Number(live.hostPort) || null,
+      apiHostPort: Number(live.previewApiHostPort) || null,
+      imageKey: live.submission?.toString?.() || live._id.toString(),
+      stack: live.previewStack || 'node-js',
+    })
+    .catch(() => {});
+
+  live.status = 'failed';
+  live.errorMessage = `Preview failed: ${logError}`;
+  live.validationFailures = [{ rule: 'container_runtime', message: logError }];
+  live.runtimeTraceback = tail.slice(-8000);
+  live.endedAt = new Date();
+  live.logs.push({ level: 'error', message: live.errorMessage, at: new Date() });
+  if (tail.trim()) {
+    live.logs.push({
+      level: 'error',
+      message: `Container log:\n${tail.slice(-2500)}`,
+      at: new Date(),
+    });
+  }
+  await live.save();
+  const out = typeof live.toObject === 'function' ? live.toObject() : { ...live };
+  delete out.extractDirPath;
+  return out;
+}
+
 export async function getPreviewSessionForTeacher(teacherId, sessionId) {
+  await reconcileStalePreviewSession(sessionId);
+
   const session = await PreviewSession.findById(sessionId).lean();
   if (!session) {
     const err = new Error('Session not found');
     err.status = 404;
     throw err;
   }
+  await assertTeacherCanAccessPreviewSession(teacherId, session);
   if (String(session.teacher) !== String(teacherId)) {
     const err = new Error('Forbidden');
     err.status = 403;
@@ -613,18 +951,33 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
     try {
       const tail = await dockerOrchestrator.getContainerLogs(
         dockerOrchestrator.containerNameFor(sessionId.toString()),
-        40
+        80
       );
       if (tail?.trim()) {
         session.liveContainerLog = tail.slice(-2000);
+        const logReady = dockerOrchestrator.detectPreviewReadyFromLogs(tail, session.previewStack || 'node-js');
+        if (logReady?.ready) {
+          session.previewAppReady = true;
+          session.previewAppReadyReason = logReady.reason;
+        }
       }
     } catch {
       /* ignore */
     }
 
+    if (session.status === 'starting') {
+      const failed = await maybeFailPreviewFromContainerLogs(session);
+      if (failed?.status === 'failed') {
+        delete failed.extractDirPath;
+        return failed;
+      }
+    }
+
     const hostPort = Number(session.hostPort);
     if (hostPort > 0) {
-      session.portReachable = await dockerOrchestrator.isTcpPortOpen('127.0.0.1', hostPort);
+      session.portReachable = session.previewUrl
+        ? await dockerOrchestrator.isPreviewPortReachable(session.previewUrl, '127.0.0.1', hostPort)
+        : await dockerOrchestrator.isTcpPortOpen('127.0.0.1', hostPort);
       const apiPort = Number(session.previewApiHostPort);
       if (apiPort > 0) {
         session.apiPortReachable = await dockerOrchestrator.isTcpPortOpen('127.0.0.1', apiPort);
@@ -635,26 +988,76 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
       session.containerRunning = running;
 
       if (session.portReachable && session.previewUrl) {
+        const stack = session.previewStack || 'node-js';
         const needsApi = apiPort > 0;
         const apiOk = !needsApi || session.apiPortReachable === true;
-        if (apiOk) {
+        const springUiWithoutApi = stack === 'java-spring-react' && !apiOk;
+        if (apiOk || springUiWithoutApi) {
           const probe = await dockerOrchestrator.checkPreviewAppHttpReady({
             previewUrl: session.previewUrl,
             apiPreviewUrl: session.previewApiUrl || '',
-            stack: session.previewStack || 'node-js',
+            stack,
           });
           session.previewAppReady = probe.ready;
           session.previewAppReadyReason = probe.reason;
+          session.previewApiReady = probe.apiReady !== false;
         } else {
           session.previewAppReady = false;
           session.previewAppReadyReason = 'api_port_closed';
+          session.previewApiReady = false;
         }
       } else {
         session.previewAppReady = false;
         session.previewAppReadyReason = 'port_closed';
+        session.previewApiReady = false;
       }
     }
   }
 
   return session;
+}
+
+export async function getActivePreviewSessionForProposal(teacherId, proposalId) {
+  const proposal = await Proposal.findById(proposalId).populate('assignment');
+  if (!proposal) {
+    const err = new Error('Proposal not found');
+    err.status = 404;
+    throw err;
+  }
+  if (!teacherCanAccessAssignmentReview(teacherId, proposal.assignment)) {
+    const err = new Error('Forbidden');
+    err.status = 403;
+    throw err;
+  }
+
+  let session = await PreviewSession.findOne({
+    proposal: proposalId,
+    teacher: teacherId,
+    status: { $in: ['starting', 'running', 'runtime_error'] },
+  })
+    .sort({ createdAt: -1 })
+    .select('_id')
+    .lean();
+
+  if (!session?._id) {
+    session = await PreviewSession.findOne({
+      proposal: proposalId,
+      teacher: teacherId,
+      status: 'failed',
+      'validationFailures.0': { $exists: true },
+    })
+      .sort({ createdAt: -1 })
+      .select('_id')
+      .lean();
+    if (session?._id) {
+      return getPreviewSessionForTeacher(teacherId, session._id);
+    }
+    return null;
+  }
+
+  const reconciled = await reconcileStalePreviewSession(session._id);
+  if (!reconciled || !['starting', 'running', 'runtime_error'].includes(reconciled.status)) {
+    return null;
+  }
+  return getPreviewSessionForTeacher(teacherId, session._id);
 }

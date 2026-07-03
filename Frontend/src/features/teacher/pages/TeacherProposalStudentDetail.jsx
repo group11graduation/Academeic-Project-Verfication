@@ -20,6 +20,7 @@ import {
     Package,
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
+import { useAuth } from '../../../context/authContext';
 import { getApiOrigin } from '../../../lib/api';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
@@ -38,13 +39,24 @@ function previewStackLabel(stack, sess) {
     return PREVIEW_STACK_LABELS[stack] || stack || 'Detecting…';
 }
 
-/** Teacher can open the preview URL only when the student app responds (not the Docker placeholder page). */
+/** Teacher can open the preview URL when the student app responds (HTTP probe or container log). */
 function isPreviewOpenReady(sess) {
+    if (sess?.previewAppReady === true) {
+        return sess?.status === 'running' || sess?.status === 'starting';
+    }
     return sess?.status === 'running' && sess?.previewAppReady === true;
 }
 
 
-const statusLabel = (s) => {
+const statusLabel = (s, proposal) => {
+    const status = proposal?.displayStatus || s;
+    if (status === 'pending_teacher_approval' && proposal?.collaborativeApproval?.awaitingDualApproval) {
+        const fe = proposal.collaborativeApproval.frontendApproved;
+        const be = proposal.collaborativeApproval.backendApproved;
+        if (fe && !be) return 'Waiting for backend teacher approval';
+        if (be && !fe) return 'Waiting for frontend teacher approval';
+        return 'Pending dual teacher approval';
+    }
     const map = {
         draft: 'Draft',
         submitted: 'Submitted',
@@ -56,7 +68,7 @@ const statusLabel = (s) => {
         teacher_rejected: 'Rejected',
         requirements_rejected: 'Requirements rejected',
     };
-    return map[s] || s;
+    return map[status] || status;
 };
 
 const studentIdentityLabel = (proposal) => {
@@ -133,6 +145,8 @@ function DocumentPane({ title, subtitle, onCopy, text }) {
 const TeacherProposalStudentDetail = () => {
     const { id: assignmentId, proposalId } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const currentUserId = String(user?._id || user?.id || '');
     const [assignment, setAssignment] = useState(null);
     const [proposals, setProposals] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -153,10 +167,16 @@ const TeacherProposalStudentDetail = () => {
     }, [previewSessionByProposal]);
 
     useEffect(() => {
+        const sess = proposalId ? previewSessionByProposal[proposalId] : null;
+        if (sess?.previewLoginEmail) setPreviewAdminEmail(sess.previewLoginEmail);
+        if (sess?.previewLoginPassword) setPreviewAdminPassword(sess.previewLoginPassword);
+    }, [previewSessionByProposal, proposalId]);
+
+    useEffect(() => {
         const tick = async () => {
             const prev = previewMapRef.current;
             const active = Object.entries(prev).filter(([, s]) =>
-                ['running', 'starting'].includes(s?.status)
+                ['running', 'starting', 'runtime_error'].includes(s?.status)
             );
             for (const [pid, s] of active) {
                 try {
@@ -164,8 +184,15 @@ const TeacherProposalStudentDetail = () => {
                     if (r.success && r.data) {
                         setPreviewSessionByProposal((p) => ({ ...p, [pid]: r.data }));
                     }
-                } catch {
-                    /* ignore */
+                } catch (e) {
+                    const status = e.response?.status;
+                    if (status === 403 || status === 404) {
+                        setPreviewSessionByProposal((p) => {
+                            const next = { ...p };
+                            delete next[pid];
+                            return next;
+                        });
+                    }
                 }
             }
         };
@@ -173,6 +200,39 @@ const TeacherProposalStudentDetail = () => {
         const iv = setInterval(tick, 2000);
         return () => clearInterval(iv);
     }, []);
+
+    useEffect(() => {
+        if (!proposalId) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const r = await teacherService.getActiveProposalPreview(proposalId);
+                if (cancelled) return;
+                if (!r.success || !r.data) {
+                    setPreviewSessionByProposal((prev) => {
+                        if (!prev[proposalId]) return prev;
+                        const next = { ...prev };
+                        delete next[proposalId];
+                        return next;
+                    });
+                    return;
+                }
+                setPreviewSessionByProposal((prev) => ({ ...prev, [proposalId]: r.data }));
+            } catch {
+                if (!cancelled) {
+                    setPreviewSessionByProposal((prev) => {
+                        if (!prev[proposalId]) return prev;
+                        const next = { ...prev };
+                        delete next[proposalId];
+                        return next;
+                    });
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [proposalId]);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -197,6 +257,29 @@ const TeacherProposalStudentDetail = () => {
     }, [load]);
 
     const proposal = useMemo(() => proposals.find((p) => String(p._id) === String(proposalId)) || null, [proposals, proposalId]);
+
+    const isCollaborative = Boolean(assignment?.isCollaborative);
+    const myReviewRole = assignment?.collaborationReviewRole || null;
+    const collabApproval = proposal?.collaborativeApproval;
+    const displayStatus = proposal?.displayStatus || proposal?.status;
+    const awaitingDual = Boolean(collabApproval?.awaitingDualApproval);
+    const isFullyApproved = displayStatus === 'teacher_approved' && !awaitingDual;
+    const mySlotApproved =
+        myReviewRole === 'frontend'
+            ? Boolean(collabApproval?.frontendApproved)
+            : myReviewRole === 'backend'
+              ? Boolean(collabApproval?.backendApproved)
+              : false;
+    const approveLabel =
+        myReviewRole === 'frontend'
+            ? 'Approve (frontend teacher)'
+            : myReviewRole === 'backend'
+              ? 'Approve (backend teacher)'
+              : 'Approve';
+    const canDecide =
+        displayStatus === 'pending_teacher_approval' || proposal?.status === 'revision_required';
+    const canApproveCollab = !isCollaborative || (myReviewRole && !mySlotApproved);
+    const showCollabPanel = isCollaborative && (awaitingDual || displayStatus === 'pending_teacher_approval');
 
     useEffect(() => {
         if (!proposal) return;
@@ -233,6 +316,12 @@ const TeacherProposalStudentDetail = () => {
             if (res.success) {
                 setComment('');
                 await load();
+                if (
+                    action === 'approve' &&
+                    res.data?.collaborativeApproval?.awaitingDualApproval
+                ) {
+                    alert('Your approval was saved. Waiting for your co-teacher to approve before the student can proceed.');
+                }
             }
         } catch (e) {
             alert(e.response?.data?.message || 'Action failed');
@@ -259,10 +348,16 @@ const TeacherProposalStudentDetail = () => {
         } catch (e) {
             const data = e.response?.data;
             if (data?.validationFailures?.length) {
-                alert(
-                    `${data.error || 'Technical audit failed'}\n\n` +
-                        data.validationFailures.map((f) => `• ${f.message}${f.path ? ` (${f.path})` : ''}`).join('\n')
-                );
+                setPreviewSessionByProposal((prev) => ({
+                    ...prev,
+                    [proposal._id]: {
+                        ...(prev[proposal._id] || {}),
+                        _id: data.sessionId || prev[proposal._id]?._id,
+                        status: 'failed',
+                        errorMessage: data.error || 'The student project cannot be previewed.',
+                        validationFailures: data.validationFailures,
+                    },
+                }));
             } else {
                 alert(data?.error || data?.message || 'Could not start preview');
             }
@@ -433,7 +528,7 @@ const TeacherProposalStudentDetail = () => {
                             <h1 className="mt-4 text-lg font-bold text-slate-900">{student?.name || 'Student'}</h1>
                             <p className="mt-1 max-w-full break-all text-sm text-slate-500">{student?.email || '—'}</p>
                             <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[#1e56e3]">
-                                {statusLabel(proposal.status)}
+                                {statusLabel(proposal.status, proposal)}
                             </p>
                             <div className="mt-5 grid w-full grid-cols-2 gap-3 border-t border-slate-100 pt-5">
                                 <div className="rounded-lg bg-slate-50 py-2 text-center">
@@ -466,7 +561,7 @@ const TeacherProposalStudentDetail = () => {
                             <DetailRow label="Assignment" value={assignmentTitle} />
                             <DetailRow label="Subject" value={subjectLine} />
                             <DetailRow label="Class" value={classCodeForStudents || classLabelFromAssignment(assignment) || '—'} />
-                            <DetailRow label="Status" value={statusLabel(proposal.status)} />
+                            <DetailRow label="Status" value={statusLabel(proposal.status, proposal)} />
                             <DetailRow label="Submitted" value={submittedAt} />
                             {zipUrl ? (
                                 <DetailRow
@@ -561,7 +656,7 @@ const TeacherProposalStudentDetail = () => {
                                             <li className="relative">
                                                 <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
                                                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Workflow</p>
-                                                <p className="mt-1 font-bold text-slate-900">{statusLabel(proposal.status)}</p>
+                                                <p className="mt-1 font-bold text-slate-900">{statusLabel(proposal.status, proposal)}</p>
                                                 <p className="mt-1 text-sm text-slate-600">
                                                     Current proposal state in the assignment pipeline.
                                                 </p>
@@ -634,18 +729,63 @@ const TeacherProposalStudentDetail = () => {
                             </button>
                         </div>
 
-                        {(proposal.status === 'pending_teacher_approval' || proposal.status === 'revision_required') && (
+                        {showCollabPanel && (
+                            <div className={`${Z_CARD} border-indigo-100 bg-indigo-50/40 p-5`}>
+                                <h2 className="mb-2 text-sm font-bold text-slate-900">Collaborative approval</h2>
+                                <p className="mb-3 text-xs text-slate-600">
+                                    Both the frontend and backend teachers must approve before the student can submit their project.
+                                </p>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <div
+                                        className={`rounded-lg border px-3 py-2 text-[11px] ${
+                                            collabApproval?.frontendApproved
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                                : 'border-amber-200 bg-amber-50 text-amber-900'
+                                        }`}
+                                    >
+                                        <p className="font-black uppercase tracking-wider">Frontend teacher</p>
+                                        <p className="mt-1 font-semibold">
+                                            {collabApproval?.frontendApproved ? 'Approved' : 'Pending'}
+                                        </p>
+                                    </div>
+                                    <div
+                                        className={`rounded-lg border px-3 py-2 text-[11px] ${
+                                            collabApproval?.backendApproved
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                                : 'border-amber-200 bg-amber-50 text-amber-900'
+                                        }`}
+                                    >
+                                        <p className="font-black uppercase tracking-wider">Backend teacher</p>
+                                        <p className="mt-1 font-semibold">
+                                            {collabApproval?.backendApproved ? 'Approved' : 'Pending'}
+                                        </p>
+                                    </div>
+                                </div>
+                                {myReviewRole && mySlotApproved && displayStatus === 'pending_teacher_approval' && (
+                                    <p className="mt-3 text-xs font-semibold text-indigo-900">
+                                        You already approved as the {myReviewRole} teacher. Waiting for your co-teacher.
+                                    </p>
+                                )}
+                                {myReviewRole && !mySlotApproved && (
+                                    <p className="mt-3 text-xs text-slate-600">
+                                        You are reviewing as the <strong>{myReviewRole}</strong> teacher on this assignment.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {canDecide && (
                             <div className={`${Z_CARD} p-5`}>
                                 <h2 className="mb-3 text-sm font-bold text-slate-900">Decision</h2>
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         type="button"
-                                        disabled={!!actionId}
+                                        disabled={!!actionId || (isCollaborative && !canApproveCollab)}
                                         onClick={() => runReview('approve')}
                                         className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                                     >
                                         <CheckCircle2 className="h-4 w-4" />
-                                        Approve
+                                        {approveLabel}
                                     </button>
                                     <button
                                         type="button"
@@ -670,7 +810,7 @@ const TeacherProposalStudentDetail = () => {
                         )}
 
 
-                        {proposal.status === 'teacher_approved' && !proposal.hasProjectSubmission && (
+                        {isFullyApproved && !proposal.hasProjectSubmission && (
                             <div className={`${Z_CARD} border-amber-100 bg-amber-50/80 p-5`}>
                                 <p className="text-xs font-black uppercase tracking-widest text-amber-900">Project preview</p>
                                 <p className="mt-2 text-sm font-semibold text-amber-900/90">
@@ -679,7 +819,7 @@ const TeacherProposalStudentDetail = () => {
                             </div>
                         )}
 
-                        {proposal.status === 'teacher_approved' && proposal.hasProjectSubmission && zipUrl && (
+                        {isFullyApproved && proposal.hasProjectSubmission && zipUrl && (
                             <div className={`${Z_CARD} border-slate-200 bg-white p-5`}>
                                 <div className="mb-3 flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#1e56e3]">
@@ -727,7 +867,7 @@ const TeacherProposalStudentDetail = () => {
                             </div>
                         )}
 
-                        {proposal.status === 'teacher_approved' && proposal.hasProjectSubmission && (
+                        {isFullyApproved && proposal.hasProjectSubmission && (
                             <div className={`${Z_CARD} border-emerald-100 bg-emerald-50/60 p-5`}>
                                 <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-900">
                                     <Shield className="h-4 w-4" />
@@ -742,8 +882,14 @@ const TeacherProposalStudentDetail = () => {
                                     const sess = previewSessionByProposal[proposal._id];
                                     const previewRunning = sess?.status === 'running';
                                     const previewStarting = sess?.status === 'starting';
-                                    const displayEmail = sess?.previewLoginEmail || previewAdminEmail;
+                                    const displayIdentifier = sess?.previewLoginEmail || previewAdminEmail;
                                     const displayPassword = sess?.previewLoginPassword || previewAdminPassword;
+                                    const identifierLabel = sess?.previewLoginIdentifierLabel || 'Email';
+                                    const identifierType =
+                                        sess?.previewLoginIdentifierType === 'email' ? 'email' : 'text';
+                                    const loginSource = sess?.previewLoginSource || '';
+                                    const fromProject =
+                                        loginSource === 'project_files' || loginSource === 'project_php_setup';
                                     const loginUrl =
                                         sess?.previewLoginUrl ||
                                         (sess?.previewUrl ? `${String(sess.previewUrl).replace(/\/$/, '')}/login` : '');
@@ -759,30 +905,33 @@ const TeacherProposalStudentDetail = () => {
                                         <div className="mb-4 rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-sm">
                                             <p className="text-sm font-black text-slate-900">Login credentials for student app</p>
                                             <p className="mt-1 mb-4 text-xs font-semibold text-slate-600">
-                                                Use this email and password on the student login page after you open the preview.
+                                                {fromProject
+                                                    ? `Use this ${identifierLabel.toLowerCase()} and password from the student project on the login page after you open the preview.`
+                                                    : `Use this ${identifierLabel.toLowerCase()} and password on the student login page after you open the preview.`}
                                             </p>
                                             <div className="space-y-3">
                                                 <div>
                                                     <label
                                                         className="text-[10px] font-black uppercase tracking-widest text-slate-500"
-                                                        htmlFor="preview-admin-email"
+                                                        htmlFor="preview-admin-identifier"
                                                     >
-                                                        Email
+                                                        {identifierLabel}
                                                     </label>
                                                     <div className="mt-1 flex gap-2">
                                                         <input
-                                                            id="preview-admin-email"
-                                                            type="email"
-                                                            value={previewAdminEmail}
+                                                            id="preview-admin-identifier"
+                                                            type={identifierType}
+                                                            value={displayIdentifier}
                                                             onChange={(e) => setPreviewAdminEmail(e.target.value)}
                                                             disabled={!!previewBusyId}
+                                                            readOnly={fromProject && !!sess?.previewLoginEmail}
                                                             className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
                                                         />
                                                         <button
                                                             type="button"
-                                                            onClick={() => copyText('Email', displayEmail)}
+                                                            onClick={() => copyText(identifierLabel, displayIdentifier)}
                                                             className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                                                            title="Copy email"
+                                                            title={`Copy ${identifierLabel.toLowerCase()}`}
                                                         >
                                                             <Copy className="h-4 w-4" />
                                                         </button>
@@ -799,9 +948,10 @@ const TeacherProposalStudentDetail = () => {
                                                         <input
                                                             id="preview-admin-password"
                                                             type="text"
-                                                            value={previewAdminPassword}
+                                                            value={displayPassword}
                                                             onChange={(e) => setPreviewAdminPassword(e.target.value)}
                                                             disabled={!!previewBusyId}
+                                                            readOnly={fromProject && !!sess?.previewLoginPassword}
                                                             className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
                                                         />
                                                         <button
@@ -840,7 +990,10 @@ const TeacherProposalStudentDetail = () => {
                                                     <code className="bg-white px-1 rounded text-[11px]">{sess.previewApiUrl}</code>
                                                     {sess.apiPortReachable === false && (
                                                         <span className="ml-1 text-rose-700 font-bold">
-                                                            — API not responding yet; wait for Preview ready or check MongoDB is running.
+                                                            —{' '}
+                                                            {sess.previewStack === 'java-spring-react'
+                                                                ? 'Spring API still compiling (first start can take 5–15 min).'
+                                                                : 'API not responding yet; wait for Preview ready or check MongoDB is running.'}
                                                         </span>
                                                     )}
                                                 </p>
@@ -888,17 +1041,42 @@ const TeacherProposalStudentDetail = () => {
                                         <div className="space-y-3">
                                         {failed && sess.errorMessage && (
                                             <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800">
-                                                {sess.status === 'runtime_error' ? 'Runtime error: ' : ''}
-                                                {sess.errorMessage}
+                                                <p className="font-bold">
+                                                    {sess.validationFailures?.some((f) => f.rule === 'container_runtime')
+                                                        ? 'Preview failed in Docker'
+                                                        : sess.validationFailures?.length > 0
+                                                          ? 'Student project cannot be previewed'
+                                                          : sess.status === 'runtime_error'
+                                                            ? 'Runtime error'
+                                                            : 'Preview failed'}
+                                                </p>
+                                                <p className="mt-1 font-semibold">{sess.errorMessage}</p>
                                                 {sess.validationFailures?.length > 0 && (
-                                                    <ul className="mt-2 list-disc pl-4 text-xs font-semibold">
-                                                        {sess.validationFailures.map((f, i) => (
-                                                            <li key={`${f.rule}-${i}`}>
-                                                                {f.message}
-                                                                {f.path ? ` (${f.path})` : ''}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
+                                                    <div className="mt-2">
+                                                        <p className="text-xs font-bold uppercase tracking-wide text-rose-700">
+                                                            {sess.validationFailures.some((f) => f.rule === 'container_runtime')
+                                                                ? 'Error from container'
+                                                                : 'What the student is missing'}
+                                                        </p>
+                                                        <ul className="mt-1 list-disc pl-4 text-xs font-semibold">
+                                                            {sess.validationFailures.map((f, i) => (
+                                                                <li key={`${f.rule}-${i}`}>
+                                                                    {f.message}
+                                                                    {f.path ? ` (${f.path})` : ''}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {sess.runtimeTraceback && (
+                                                    <pre className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg border border-rose-200 bg-white/80 p-2 text-[10px] font-mono text-rose-900">
+                                                        {sess.runtimeTraceback.slice(-3000)}
+                                                    </pre>
+                                                )}
+                                                {!sess.validationFailures?.length && !sess.runtimeTraceback && failed && (
+                                                    <p className="mt-2 text-xs text-rose-700">
+                                                        Check the session log below for details.
+                                                    </p>
                                                 )}
                                             </div>
                                         )}
@@ -928,10 +1106,16 @@ const TeacherProposalStudentDetail = () => {
                                                             {sess.previewStack === 'static-html' || sess.previewStack === 'static-html-js'
                                                                 ? 'Starting static site…'
                                                                 : sess.previewStack === 'php-apache'
-                                                                ? 'Starting Apache…'
-                                                                : sess.previewStack === 'jupyter'
-                                                                  ? 'Starting Jupyter…'
-                                                                  : 'Installing dependencies & starting app (1–5 min)…'}
+                                                                  ? 'Starting Apache…'
+                                                                  : sess.previewStack === 'jupyter'
+                                                                    ? 'Starting Jupyter…'
+                                                                    : sess.previewWorkspaceCached
+                                                                      ? 'Restarting from cached build (usually 30s–2 min)…'
+                                                                      : sess.previewTemplateCached
+                                                                        ? 'Using cached Docker template — installing deps (1–5 min)…'
+                                                                        : sess.previewStack === 'java-spring-react'
+                                                                          ? 'First start: Maven + npm build (5–15 min)…'
+                                                                          : 'Installing dependencies & starting app (1–5 min)…'}
                                                         </span>
                                                     )}
                                                     {running && !previewOpenReady && sess.portReachable === false && (
@@ -951,7 +1135,11 @@ const TeacherProposalStudentDetail = () => {
                                                         sess.previewApiHostPort &&
                                                         sess.apiPortReachable === false && (
                                                             <span className="text-sm font-bold text-rose-700">
-                                                                Student API on :{sess.previewApiHostPort} not ready — wait or check MongoDB.
+                                                                {sess.previewStack === 'java-spring-react'
+                                                                    ? sess.previewWorkspaceCached
+                                                                      ? `Spring API on :${sess.previewApiHostPort} starting — cached build (usually faster).`
+                                                                      : `Spring API on :${sess.previewApiHostPort} still starting — Maven may take several minutes on first preview.`
+                                                                    : `Student API on :${sess.previewApiHostPort} not ready — wait or check MongoDB.`}
                                                             </span>
                                                         )}
                                                     {previewOpenReady ? (

@@ -6,6 +6,7 @@ import { Assignment } from '../models/Assignment.js';
 import { Proposal } from '../models/Proposal.js';
 import * as proposalWorkflow from './proposalWorkflow.service.js';
 import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
+import { isProposalFullyApprovedForProject } from './collaborativeProposalReview.service.js';
 import {
   executeZipExtractionBarrier,
   executeTechAuditBarrier,
@@ -86,8 +87,12 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
 
   assertProjectDeadlineOpen(assignment);
 
-  if (proposal.status !== 'teacher_approved') {
-    const err = new Error('Proposal must be teacher-approved before submitting project code.');
+  if (!isProposalFullyApprovedForProject(proposal, assignment)) {
+    const err = new Error(
+      assignment?.isCollaborative
+        ? 'Both frontend and backend teachers must approve the proposal before submitting project code.'
+        : 'Proposal must be teacher-approved before submitting project code.'
+    );
     err.status = 400;
     throw err;
   }
@@ -235,8 +240,13 @@ export async function submitProjectScreenshotOnly(userId, assignmentId, screensh
   }
 
   const proposal = access.proposal;
-  if (proposal.status !== 'teacher_approved') {
-    const err = new Error('Proposal must be teacher-approved before uploading a project screenshot.');
+  const assignment = await Assignment.findById(assignmentId).lean();
+  if (!isProposalFullyApprovedForProject(proposal, assignment)) {
+    const err = new Error(
+      assignment?.isCollaborative
+        ? 'Both teachers must approve the proposal before uploading a project screenshot.'
+        : 'Proposal must be teacher-approved before uploading a project screenshot.'
+    );
     err.status = 400;
     throw err;
   }

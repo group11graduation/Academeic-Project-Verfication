@@ -20,6 +20,8 @@ import {
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const ClassDetail = () => {
     const { id } = useParams();
@@ -27,7 +29,7 @@ const ClassDetail = () => {
     const [classData, setClassData] = useState(null);
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [studentSearch, setStudentSearch] = useState('');
+    const { query: studentSearch, setQuery: setStudentSearch } = usePageSearch('Search students…');
 
     useEffect(() => {
         let cancelled = false;
@@ -63,13 +65,9 @@ const ClassDetail = () => {
     }, [id]);
 
     const filteredStudents = useMemo(() => {
-        const q = studentSearch.trim().toLowerCase();
-        if (!q) return students;
-        return students.filter(
-            (s) =>
-                (s.name || '').toLowerCase().includes(q) ||
-                String(s.id || '').toLowerCase().includes(q) ||
-                (s.email || '').toLowerCase().includes(q)
+        if (!studentSearch.trim()) return students;
+        return students.filter((s) =>
+            matchesSearchQuery(studentSearch, s.name, s.id, s.email, s.studentId)
         );
     }, [students, studentSearch]);
 

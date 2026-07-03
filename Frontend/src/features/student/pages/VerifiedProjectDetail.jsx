@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ShieldCheck, ImageIcon } from 'lucide-react';
-import StudentHeader from '../components/StudentHeader';
+import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
 import { BRAND } from '../../../shared/ui/brandTheme';
@@ -30,8 +30,8 @@ const VerifiedProjectDetail = () => {
     const screenshotSrc = galleryService.resolveMediaUrl(project?.screenshotUrl);
 
     return (
+        <StudentPublicShell>
         <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900">
-            <StudentHeader />
 
             <main className="pt-28 pb-16 px-6 max-w-[1200px] mx-auto">
                 <Link
@@ -127,6 +127,7 @@ const VerifiedProjectDetail = () => {
 
             <PublicSiteFooter />
         </div>
+        </StudentPublicShell>
     );
 };
 

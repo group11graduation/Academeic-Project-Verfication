@@ -11,11 +11,19 @@ import { Enrollment } from '../models/Enrollment.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
 import { analyzeProposalPayload } from './aiClient.service.js';
-import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
+import { evaluateProposalAgainstAssignmentRequirements, evaluateRequirementBlock } from './requirementCheck.service.js';
+import { assertAssignmentAcceptsStudentSubmissions, assignmentAcceptsStudentSubmissions, STUDENT_SUBMISSION_BLOCKED_MESSAGE } from './assignmentRequirements.service.js';
 import { parseStructuredProposalText } from '../utils/proposalFileParser.js';
+import {
+  buildCollaborativeApprovalMeta,
+  getCollaborativeReviewState,
+  isProposalFullyApprovedForProject,
+  reconcileCollaborativeProposalStatus,
+} from './collaborativeProposalReview.service.js';
 import {
   distinctAssignmentIdsForTeacher,
   findAssignmentVisibleToTeacher,
+  resolveCollaborativeReviewRole,
 } from './teacherAssignmentAccess.service.js';
 
 const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_CANDIDATES || 40);
@@ -391,6 +399,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     err.status = 400;
     throw err;
   }
+  assertAssignmentAcceptsStudentSubmissions(assignment);
   if (assignment.proposalDeadline && new Date() > new Date(assignment.proposalDeadline)) {
     const err = new Error('Proposal deadline has passed');
     err.status = 400;
@@ -641,6 +650,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     proposal.status = 'pending_teacher_approval';
     proposal.requiredNewFeaturesCount = 0;
     proposal.previousFeaturesAtFlag = [];
+    proposal.collaborativeTeacherReviews = { frontend: {}, backend: {} };
   }
 
   let recommendation = null;
@@ -702,41 +712,187 @@ function applyTeacherEvalFields(proposal, body) {
   }
 }
 
+function emptyCollaborativeReviews() {
+  return { frontend: {}, backend: {} };
+}
+
+function ensureCollaborativeReviews(proposal) {
+  if (!proposal.collaborativeTeacherReviews) {
+    proposal.collaborativeTeacherReviews = emptyCollaborativeReviews();
+  }
+  if (!proposal.collaborativeTeacherReviews.frontend) proposal.collaborativeTeacherReviews.frontend = {};
+  if (!proposal.collaborativeTeacherReviews.backend) proposal.collaborativeTeacherReviews.backend = {};
+}
+
+function applyCollaborativeReviewSlot(proposal, role, teacherId, body, action) {
+  ensureCollaborativeReviews(proposal);
+  const slot = proposal.collaborativeTeacherReviews[role];
+  slot.teacherId = teacherId;
+  slot.action = action;
+  slot.reviewedAt = new Date();
+  if (body.comment !== undefined) slot.comment = body.comment == null ? '' : String(body.comment);
+  if (Object.prototype.hasOwnProperty.call(body || {}, 'teacherProposalScore')) {
+    const raw = body.teacherProposalScore;
+    if (raw === null || raw === '' || raw === undefined) {
+      slot.teacherProposalScore = null;
+    } else {
+      const n = Number(raw);
+      if (!Number.isNaN(n) && n >= 0 && n <= 100) slot.teacherProposalScore = n;
+    }
+  }
+  if (body.vsAi !== undefined && ['not_set', 'aligns', 'stricter', 'lenient'].includes(String(body.vsAi))) {
+    slot.teacherVsAi = body.vsAi;
+  }
+}
+
+function collaborativeApprovalComplete(proposal) {
+  ensureCollaborativeReviews(proposal);
+  return (
+    proposal.collaborativeTeacherReviews.frontend?.action === 'approve' &&
+    proposal.collaborativeTeacherReviews.backend?.action === 'approve'
+  );
+}
+
+function assertCollaborativeReviewer(teacherId, assignment) {
+  const role = resolveCollaborativeReviewRole(teacherId, assignment);
+  if (!role) {
+    const err = new Error('Forbidden');
+    err.status = 403;
+    throw err;
+  }
+  return role;
+}
+
+function assertSingleTeacherReviewer(teacherId, assignment) {
+  const isPrimary = String(assignment.teacher?._id || assignment.teacher) === String(teacherId);
+  const isCoTeacher =
+    assignment.isCollaborative &&
+    assignment.coTeacherId &&
+    String(assignment.coTeacherId?._id || assignment.coTeacherId) === String(teacherId);
+  if (!isPrimary && !isCoTeacher) {
+    const err = new Error('Forbidden');
+    err.status = 403;
+    throw err;
+  }
+}
+
 /** Teacher actions */
 export async function teacherReviewProposal(teacherId, proposalId, body) {
   const { action, comment, teacherProposalScore, vsAi } = body || {};
+  const evalBody = { comment, teacherProposalScore, vsAi };
   const proposal = await Proposal.findById(proposalId).populate('assignment');
   if (!proposal) {
     const err = new Error('Proposal not found');
     err.status = 404;
     throw err;
   }
-  if (!proposal.assignment.teacher.equals(teacherId)) {
-    const isCoTeacher =
-      proposal.assignment.isCollaborative &&
-      proposal.assignment.coTeacherId &&
-      String(proposal.assignment.coTeacherId) === String(teacherId);
-    if (!isCoTeacher) {
-      const err = new Error('Forbidden');
-      err.status = 403;
-      throw err;
-    }
+
+  const assignmentDoc = proposal.assignment;
+  await reconcileCollaborativeProposalStatus(proposal, assignmentDoc);
+
+  const isDualTeacherCollab = Boolean(assignmentDoc?.isCollaborative && assignmentDoc?.coTeacherId);
+  let collaborativeRole = null;
+
+  if (isDualTeacherCollab) {
+    collaborativeRole = assertCollaborativeReviewer(teacherId, assignmentDoc);
+  } else {
+    assertSingleTeacherReviewer(teacherId, assignmentDoc);
   }
 
   if (action === 'comment') {
-    applyTeacherEvalFields(proposal, { comment, teacherProposalScore, vsAi });
+    applyTeacherEvalFields(proposal, evalBody);
+    if (collaborativeRole) {
+      applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, null);
+    }
     await proposal.save();
-    return proposal;
+    return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
   }
 
   const reviewable = ['pending_teacher_approval'];
-  if (!reviewable.includes(proposal.status)) {
+  const collabReviewState = getCollaborativeReviewState(proposal, assignmentDoc);
+  const canReviewNow =
+    reviewable.includes(proposal.status) ||
+    collabReviewState.displayStatus === 'pending_teacher_approval' ||
+    proposal.status === 'revision_required';
+  if (!canReviewNow) {
     const err = new Error('Proposal is not awaiting teacher review in its current state');
     err.status = 400;
     throw err;
   }
 
-  applyTeacherEvalFields(proposal, { comment, teacherProposalScore, vsAi });
+  applyTeacherEvalFields(proposal, evalBody);
+
+  if (isDualTeacherCollab && collaborativeRole) {
+    if (action === 'reject') {
+      applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, 'reject');
+      proposal.status = 'teacher_rejected';
+      await proposal.save();
+      return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+    }
+    if (action === 'revision') {
+      applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, 'revision');
+      proposal.status = 'revision_required';
+      proposal.collaborativeTeacherReviews = emptyCollaborativeReviews();
+      await proposal.save();
+      return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+    }
+    if (action === 'approve') {
+      const block =
+        collaborativeRole === 'frontend'
+          ? assignmentDoc.frontendTechRequirements
+          : assignmentDoc.backendTechRequirements;
+      const blockLabel = collaborativeRole === 'frontend' ? 'Frontend' : 'Backend';
+      const requirementCheck = evaluateRequirementBlock(block, proposal, blockLabel);
+
+      proposal.requirementCheckPassed = requirementCheck.passed;
+      proposal.requirementCheckSummary = requirementCheck.summary;
+      proposal.requirementMissingKeywords = requirementCheck.missingKeywords;
+      proposal.requirementAllowedTechMatched = requirementCheck.matchedAllowedTech;
+
+      if (!requirementCheck.passed) {
+        applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, 'reject');
+        proposal.status = 'teacher_rejected';
+        const prev = proposal.teacherComment || '';
+        proposal.teacherComment = [prev, requirementCheck.summary].filter(Boolean).join(' | ');
+        await proposal.save();
+        return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+      }
+
+      applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, 'approve');
+
+      if (collaborativeApprovalComplete(proposal)) {
+        const fullCheck = evaluateProposalAgainstAssignmentRequirements(assignmentDoc, proposal);
+        proposal.requirementCheckPassed = fullCheck.passed;
+        proposal.requirementCheckSummary = fullCheck.summary;
+        proposal.requirementMissingKeywords = fullCheck.missingKeywords;
+        proposal.requirementAllowedTechMatched = fullCheck.matchedAllowedTech;
+
+        if (!fullCheck.passed) {
+          proposal.status = 'teacher_rejected';
+          const prev = proposal.teacherComment || '';
+          proposal.teacherComment = [prev, fullCheck.summary].filter(Boolean).join(' | ');
+          await proposal.save();
+          return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+        }
+
+        proposal.status = 'teacher_approved';
+        const assignment = await Assignment.findById(assignmentDoc._id);
+        if (assignment && assignment.projectPhaseOpen === false) {
+          assignment.projectPhaseOpen = true;
+          await assignment.save();
+        }
+      } else {
+        proposal.status = 'pending_teacher_approval';
+      }
+
+      await proposal.save();
+      return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+    }
+
+    const err = new Error('Invalid action');
+    err.status = 400;
+    throw err;
+  }
 
   if (action === 'approve') {
     const assignment = await Assignment.findById(proposal.assignment._id);
@@ -755,7 +911,6 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
     }
 
     proposal.status = 'teacher_approved';
-    // Auto-open project phase once a proposal is approved so student can proceed to Step 2.
     if (assignment && assignment.projectPhaseOpen === false) {
       assignment.projectPhaseOpen = true;
       await assignment.save();
@@ -774,6 +929,16 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
   return proposal;
 }
 
+function enrichProposalCollaborativeMeta(proposal, assignment) {
+  const plain = proposal.toObject ? proposal.toObject() : { ...proposal };
+  const meta = buildCollaborativeApprovalMeta(plain, assignment);
+  return { ...plain, ...meta };
+}
+
+function mapProposalCollaborativeMeta(p, assignment) {
+  return { ...p, ...buildCollaborativeApprovalMeta(p, assignment) };
+}
+
 export async function listProposalsForTeacher(teacherId, assignmentId) {
   let filter;
   if (assignmentId) {
@@ -789,16 +954,31 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     .populate('group')
     .populate({
       path: 'assignment',
-      select: 'title class subject semester academicYear',
+      select:
+        'title class subject semester academicYear isCollaborative teacher coTeacherId frontendTeacherId backendTeacherId frontendTechRequirements backendTechRequirements',
       populate: [
         { path: 'class', select: 'code name' },
         { path: 'subject', select: 'code name' },
         { path: 'semester', select: 'name' },
         { path: 'academicYear', select: 'label' },
+        { path: 'teacher', select: 'name email' },
+        { path: 'coTeacherId', select: 'name email' },
+        { path: 'frontendTeacherId', select: 'name email' },
+        { path: 'backendTeacherId', select: 'name email' },
       ],
     })
     .sort({ updatedAt: -1 })
     .lean();
+
+  for (const p of list) {
+    if (p.assignment?.isCollaborative && p.status === 'teacher_approved') {
+      const state = getCollaborativeReviewState(p, p.assignment);
+      if (!state.dualComplete) {
+        await Proposal.updateOne({ _id: p._id }, { status: 'pending_teacher_approval' });
+        p.status = 'pending_teacher_approval';
+      }
+    }
+  }
 
   const ids = list.map((p) => p._id);
   /** Latest project ZIP per proposal (for teacher download + preview UX) */
@@ -833,7 +1013,7 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
 
   return list.map((p) => {
     const latestProjectSubmission = latestZipByProposal.get(String(p._id)) || null;
-    return {
+    const row = {
     ...p,
     hasProjectSubmission: Boolean(latestProjectSubmission),
     latestProjectSubmission,
@@ -844,6 +1024,7 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
         }
       : p.submittedBy,
   };
+    return mapProposalCollaborativeMeta(row, p.assignment);
   });
 }
 
@@ -877,6 +1058,12 @@ export async function getProposalForStudent(userId, proposalId) {
 /** Whether student may start project submission */
 export async function canAccessProjectSubmission(userId, assignmentId) {
   const assignment = await Assignment.findById(assignmentId);
+  if (!assignment) {
+    return { allowed: false, reason: 'Assignment not found.' };
+  }
+  if (!assignmentAcceptsStudentSubmissions(assignment)) {
+    return { allowed: false, reason: STUDENT_SUBMISSION_BLOCKED_MESSAGE };
+  }
 
   let prop;
   if (assignment.submissionMode === 'single') {
@@ -899,10 +1086,12 @@ export async function canAccessProjectSubmission(userId, assignmentId) {
     prop = await Proposal.findOne({ assignment: assignmentId, group: group._id }).sort({ updatedAt: -1 });
   }
 
-  if (!prop || prop.status !== 'teacher_approved') {
+  if (!prop || !isProposalFullyApprovedForProject(prop, assignment)) {
     return {
       allowed: false,
-      reason: 'Your proposal must be teacher-approved before you can submit the project.',
+      reason: assignment?.isCollaborative
+        ? 'Both frontend and backend teachers must approve your proposal before you can submit the project.'
+        : 'Your proposal must be teacher-approved before you can submit the project.',
     };
   }
 

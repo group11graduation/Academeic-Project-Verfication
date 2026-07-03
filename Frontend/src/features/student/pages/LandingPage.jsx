@@ -13,7 +13,7 @@ import {
     Workflow,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import StudentHeader from '../components/StudentHeader';
+import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 
@@ -77,30 +77,28 @@ const systemModules = [
 
 const LandingPage = () => {
     const { user } = useAuth();
-    const role = user?.role || 'guest';
+    const role = 'guest';
 
     const workspacePath =
-        role === 'student' ? '/student' : role === 'teacher' ? '/teacher' : role === 'admin' ? '/admin' : '/login';
+        user?.role === 'student' ? '/student' : user?.role === 'teacher' ? '/teacher' : user?.role === 'admin' ? '/admin' : '/login';
 
     const visibleModules = systemModules.filter((m) => m.roles.includes(role));
 
     return (
+        <StudentPublicShell forcePublic>
         <div className="min-h-screen font-sans text-slate-900" style={{ backgroundColor: BRAND.pageBg }}>
-            <StudentHeader />
 
             <main>
                 {/* System hero */}
                 <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12 md:pt-14">
                     {user && (
-                        <div
-                            className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-blue-200/80 bg-white px-5 py-4 shadow-sm"
-                        >
+                        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-blue-200/80 bg-white px-5 py-4 shadow-sm">
                             <div>
                                 <p className="text-xs font-black uppercase tracking-widest text-[#2a3fa4] mb-1">
-                                    Signed in as {role}
+                                    Already signed in
                                 </p>
                                 <p className="text-sm font-bold text-slate-800">
-                                    Welcome back, {user.name || user.email}. Jump to your workspace or explore the platform below.
+                                    Continue as {user.name || user.email} from your workspace, or browse the public overview below.
                                 </p>
                             </div>
                             <Link
@@ -140,6 +138,23 @@ const LandingPage = () => {
                                         className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
                                     >
                                         Platform guide
+                                    </Link>
+                                </div>
+                            )}
+                            {user && (
+                                <div className="flex flex-wrap gap-3">
+                                    <Link
+                                        to={workspacePath}
+                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-black"
+                                        style={{ background: BRAND_GRADIENT }}
+                                    >
+                                        Open my workspace <ArrowRight className="h-4 w-4" />
+                                    </Link>
+                                    <Link
+                                        to="/gallery"
+                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Verified projects
                                     </Link>
                                 </div>
                             )}
@@ -283,6 +298,7 @@ const LandingPage = () => {
 
             <PublicSiteFooter />
         </div>
+        </StudentPublicShell>
     );
 };
 

@@ -57,6 +57,7 @@ router.post('/assignments/:assignmentId/groups', teacher.createGroup);
 router.patch('/proposals/:proposalId/review', teacher.reviewProposal);
 
 router.post('/proposals/:proposalId/preview/start', teacherPreview.startPreview);
+router.get('/proposals/:proposalId/preview/session', teacherPreview.getActivePreviewForProposal);
 router.post('/preview-sessions/:sessionId/stop', teacherPreview.stopPreview);
 router.get('/preview-sessions/:sessionId', teacherPreview.getPreviewSession);
 

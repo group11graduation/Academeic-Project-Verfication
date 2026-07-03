@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, Plus, Users, BookOpen, Beaker, GraduationCap, Code2, Calculator, Loader2 } from 'lucide-react';
 import adminClassService from '../../../services/adminClassService';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const AdminClasses = () => {
     const navigate = useNavigate();
-    const [searchQuery, setSearchQuery] = useState('');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search classes…');
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -40,12 +42,8 @@ const AdminClasses = () => {
         }
     };
 
-    const filteredClasses = classes.filter(
-        (item) =>
-            (item.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (item.faculty || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (item.department || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (item.category || '').toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredClasses = classes.filter((item) =>
+        matchesSearchQuery(searchQuery, item.code, item.faculty, item.department, item.category, item.title)
     );
 
     return (

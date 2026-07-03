@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Search,
     Users,
@@ -12,12 +12,14 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const ProjectsOverview = () => {
     const navigate = useNavigate();
     const [groupedData, setGroupedData] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const { query: searchTerm, setQuery: setSearchTerm } = usePageSearch('Search projects…');
     const [activeTab, setActiveTab] = useState('group'); // 'individual' or 'group'
     const [expandedClasses, setExpandedClasses] = useState({});
     const [myClasses, setMyClasses] = useState([]);
@@ -216,9 +218,11 @@ const ProjectsOverview = () => {
             // Default to 'group' if type is missing (older data)
             const projectType = p.type || 'group';
             const matchesTab = projectType === activeTab;
-            const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.members.some(m => m.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                p.members.some(m => m.studentId && m.studentId.toLowerCase().includes(searchTerm.toLowerCase()));
+            const matchesSearch = matchesSearchQuery(
+                searchTerm,
+                p.title,
+                ...(p.members || []).flatMap((m) => [m.name, m.studentId])
+            );
             return matchesTab && matchesSearch;
         })
     })).filter(cls => cls.projects.length > 0);

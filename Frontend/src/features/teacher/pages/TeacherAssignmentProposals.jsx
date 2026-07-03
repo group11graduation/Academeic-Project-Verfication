@@ -3,8 +3,18 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Loader2, Search, Users, ClipboardList, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
-const statusLabel = (s) => {
+const statusLabel = (s, proposal) => {
+    const status = proposal?.displayStatus || s;
+    if (status === 'pending_teacher_approval' && proposal?.collaborativeApproval?.awaitingDualApproval) {
+        const fe = proposal.collaborativeApproval.frontendApproved;
+        const be = proposal.collaborativeApproval.backendApproved;
+        if (fe && !be) return 'Frontend approved · backend pending';
+        if (be && !fe) return 'Backend approved · frontend pending';
+        return 'Dual teacher approval pending';
+    }
     const map = {
         draft: 'Draft',
         submitted: 'Submitted',
@@ -16,7 +26,7 @@ const statusLabel = (s) => {
         teacher_rejected: 'Rejected',
         requirements_rejected: 'Requirements rejected',
     };
-    return map[s] || s;
+    return map[status] || status;
 };
 
 const studentIdentityLabel = (proposal) => {
@@ -32,7 +42,7 @@ const TeacherAssignmentProposals = () => {
     const [proposals, setProposals] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [query, setQuery] = useState('');
+    const { query, setQuery } = usePageSearch('Search proposals…');
 
     useEffect(() => {
         let cancelled = false;
@@ -60,12 +70,16 @@ const TeacherAssignmentProposals = () => {
     }, [assignmentId]);
 
     const filteredProposals = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        if (!q) return proposals;
-        return proposals.filter((p) => {
-            const hay = `${studentIdentityLabel(p)} ${p.title || ''} ${p.status || ''} ${p.submittedBy?.email || ''}`.toLowerCase();
-            return hay.includes(q);
-        });
+        if (!query.trim()) return proposals;
+        return proposals.filter((p) =>
+            matchesSearchQuery(
+                query,
+                studentIdentityLabel(p),
+                p.title,
+                p.status,
+                p.submittedBy?.email
+            )
+        );
     }, [proposals, query]);
 
     const stats = useMemo(() => {
@@ -205,7 +219,7 @@ const TeacherAssignmentProposals = () => {
                                             <p className="mt-0.5 truncate text-xs font-semibold text-slate-600">{p.title || 'Untitled proposal'}</p>
                                         </div>
                                         <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
-                                            <span className="text-xs font-bold text-slate-700">{statusLabel(p.status)}</span>
+                                            <span className="text-xs font-bold text-slate-700">{statusLabel(p.status, p)}</span>
                                             {Number.isFinite(p.aiSameSemesterMaxScore) ? (
                                                 <span className="text-[10px] font-semibold text-slate-400">
                                                     Same-term AI: {Math.round(Number(p.aiSameSemesterMaxScore) * 100)}%

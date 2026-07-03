@@ -12,6 +12,22 @@ export const PROPOSAL_STATUSES = [
   'teacher_rejected',
 ];
 
+const collaborativeReviewSchema = new mongoose.Schema(
+  {
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    action: { type: String, enum: ['approve', 'reject', 'revision'], default: null },
+    comment: { type: String, default: '' },
+    teacherProposalScore: { type: Number, min: 0, max: 100, default: null },
+    teacherVsAi: {
+      type: String,
+      enum: ['not_set', 'aligns', 'stricter', 'lenient'],
+      default: 'not_set',
+    },
+    reviewedAt: { type: Date },
+  },
+  { _id: false }
+);
+
 const proposalSchema = new mongoose.Schema(
   {
     assignment: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
@@ -55,6 +71,11 @@ const proposalSchema = new mongoose.Schema(
       type: String,
       enum: ['not_set', 'aligns', 'stricter', 'lenient'],
       default: 'not_set',
+    },
+    /** Dual-teacher collaborative assignment reviews (frontend + backend teachers) */
+    collaborativeTeacherReviews: {
+      frontend: { type: collaborativeReviewSchema, default: () => ({}) },
+      backend: { type: collaborativeReviewSchema, default: () => ({}) },
     },
     submittedAt: { type: Date },
   },

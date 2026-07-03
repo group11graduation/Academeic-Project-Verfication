@@ -32,13 +32,21 @@ const previewSessionSchema = new mongoose.Schema(
     /** Demo admin login for teacher review inside student app */
     previewLoginEmail: { type: String, default: '' },
     previewLoginPassword: { type: String, default: '' },
+    /** email | username | id | student_id | employee_id | identifier */
+    previewLoginIdentifierType: { type: String, default: 'email' },
+    /** Human label shown in teacher UI, e.g. Email, Username, Student ID */
+    previewLoginIdentifierLabel: { type: String, default: 'Email' },
     previewLoginUrl: { type: String, default: '' },
     previewLoginSource: {
       type: String,
-      enum: ['', 'platform_default', 'teacher_provided', 'project_files'],
+      enum: ['', 'platform_default', 'teacher_provided', 'project_files', 'project_php_setup', 'project_spring_seed'],
       default: '',
     },
     previewLoginHint: { type: String, default: '' },
+    /** True when reusing a cached extract workspace (faster 2nd+ start) */
+    previewWorkspaceCached: { type: Boolean, default: false },
+    /** True when the pre-built Docker template image was reused (no image rebuild) */
+    previewTemplateCached: { type: Boolean, default: false },
     memoryBytes: { type: Number },
     nanoCpus: { type: Number },
     ttlMs: { type: Number },

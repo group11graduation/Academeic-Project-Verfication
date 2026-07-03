@@ -1,14 +1,19 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Loader2, Plus, Save } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { Z_BTN_BACK, Z_BTN_SUBMIT, Z_FORM_CARD, Z_INPUT, Z_LABEL, Z_TEXTAREA } from '../../../shared/ui/zendentaLayout';
+import { validateAssignmentRequirementsForm } from '../../../shared/utils/assignmentRequirements';
 
 const AssignmentCreate = () => {
     const navigate = useNavigate();
+    const { id: editId } = useParams();
+    const isEdit = Boolean(editId);
     const [catalog, setCatalog] = useState([]);
+    const [existingAssignment, setExistingAssignment] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [formPopulated, setFormPopulated] = useState(false);
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -25,13 +30,17 @@ const AssignmentCreate = () => {
     const [requiredKeywordsText, setRequiredKeywordsText] = useState('');
     const [allowedTechnologiesText, setAllowedTechnologiesText] = useState('');
     const [requirementsFile, setRequirementsFile] = useState(null);
+    const [formError, setFormError] = useState('');
     const requirementsFileInputRef = useRef(null);
+    const editInitialCatalogIndex = useRef(null);
 
     const isNormal = assignmentType === 'normal';
     const isFinal = assignmentType === 'final';
-    const hideFinalTypedRequirements = isFinal && Boolean(requirementsFile);
+    const hasExistingRequirementsFile = isEdit && Boolean(existingAssignment?.assignmentFile);
+    const hideFinalTypedRequirements = isFinal && (Boolean(requirementsFile) || hasExistingRequirementsFile);
 
     useEffect(() => {
+        if (isEdit && !formPopulated) return;
         if (assignmentType === 'normal') {
             setSubmissionMode('single');
             setClassAssignmentMode('single');
@@ -39,42 +48,119 @@ const AssignmentCreate = () => {
             setProjectDeadline('');
             setRequiredKeywordsText('');
             setAllowedTechnologiesText('');
-            setDescription('');
-            setRequirementsFile(null);
-            if (requirementsFileInputRef.current) requirementsFileInputRef.current.value = '';
+            if (!isEdit) {
+                setDescription('');
+                setRequirementsFile(null);
+                if (requirementsFileInputRef.current) requirementsFileInputRef.current.value = '';
+            }
         } else if (assignmentType === 'final' && requirementsFile) {
             setRequirementText('');
             setRequiredKeywordsText('');
             setAllowedTechnologiesText('');
         }
-    }, [assignmentType]);
+    }, [assignmentType, isEdit, formPopulated, requirementsFile]);
 
     useEffect(() => {
-        const loadCatalog = async () => {
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            setFormError('');
             try {
-                const res = await teacherService.getCatalog();
-                if (res.success) {
-                    const rows = res.data || [];
-                    setCatalog(rows);
-                    if (rows.length && rows[0].subjects?.length) setSubjectId(rows[0].subjects[0]._id);
+                const [cRes, aRes] = await Promise.all([
+                    teacherService.getCatalog(),
+                    isEdit && editId ? teacherService.getAssignmentById(editId) : Promise.resolve(null),
+                ]);
+                if (cancelled) return;
+
+                const rows = cRes.success ? cRes.data || [] : [];
+                setCatalog(rows);
+
+                if (isEdit) {
+                    if (!aRes?.success || !aRes?.data) {
+                        setFormError('Assignment not found.');
+                        return;
+                    }
+                    if (aRes.data.isCollaborative) {
+                        setFormError('Collaborative assignments are managed from the collaborative assignment workflow.');
+                        return;
+                    }
+
+                    const a = aRes.data;
+                    const type = String(a.assignmentType || 'normal');
+                    const hasFile = Boolean(a.assignmentFile);
+                    const semId = String(a.semester?._id || a.semester || '');
+                    const primaryClassId = String(a.class?._id || a.classes?.[0]?._id || '');
+
+                    const idx = rows.findIndex(
+                        (row) =>
+                            String(row.class?._id) === primaryClassId &&
+                            String(row.semester?._id || row.semester || '') === semId
+                    );
+                    if (idx >= 0) {
+                        setCatalogIndex(idx);
+                        editInitialCatalogIndex.current = idx;
+                    }
+
+                    setExistingAssignment(a);
+                    setSubjectId(String(a.subject?._id || ''));
+                    setTitle(a.title || '');
+                    setDescription(a.description || '');
+                    setAssignmentType(type);
+                    setClassAssignmentMode(a.classAssignmentMode || ((a.classes || []).length > 1 ? 'multiple' : 'single'));
+                    setSubmissionMode(a.submissionMode || 'single');
+                    setRequirementText(type === 'final' && hasFile ? '' : (a.requirementText || ''));
+                    setRequiredKeywordsText(
+                        type === 'final' && hasFile
+                            ? ''
+                            : Array.isArray(a.requiredKeywords)
+                              ? a.requiredKeywords.join(', ')
+                              : ''
+                    );
+                    setAllowedTechnologiesText(
+                        type === 'final' && hasFile
+                            ? ''
+                            : Array.isArray(a.allowedTechnologies)
+                              ? a.allowedTechnologies.join(', ')
+                              : ''
+                    );
+                    setProposalDeadline(a.proposalDeadline ? new Date(a.proposalDeadline).toISOString().slice(0, 16) : '');
+                    setProjectDeadline(a.projectDeadline ? new Date(a.projectDeadline).toISOString().slice(0, 16) : '');
+                    setNormalSubmissionDeadline(
+                        type === 'normal' && a.projectDeadline
+                            ? new Date(a.projectDeadline).toISOString().slice(0, 16)
+                            : ''
+                    );
+                    setSelectedClassIds(
+                        Array.isArray(a.classes) && a.classes.length
+                            ? a.classes.map((c) => String(c._id || c))
+                            : a.class?._id
+                              ? [String(a.class._id)]
+                              : []
+                    );
+                    setFormPopulated(true);
+                } else if (rows.length && rows[0].subjects?.length) {
+                    setSubjectId(rows[0].subjects[0]._id);
                 }
             } catch (err) {
-                console.error(err);
+                if (!cancelled) setFormError(err.response?.data?.message || 'Failed to load assignment form.');
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
+        })();
+        return () => {
+            cancelled = true;
         };
-        loadCatalog();
-    }, []);
+    }, [editId, isEdit]);
 
     useEffect(() => {
         const row = catalog[catalogIndex];
+        if (isEdit && editInitialCatalogIndex.current === catalogIndex) return;
         if (row?.subjects?.length) {
-            setSubjectId((prev) => row.subjects.some((s) => s._id === prev) ? prev : row.subjects[0]._id);
-        } else {
+            setSubjectId((prev) => (row.subjects.some((s) => s._id === prev) ? prev : row.subjects[0]._id));
+        } else if (!isEdit) {
             setSubjectId('');
         }
-    }, [catalogIndex, catalog]);
+    }, [catalogIndex, catalog, isEdit]);
 
     const selectedCatalogRow = catalog[catalogIndex] || null;
 
@@ -117,16 +203,60 @@ const AssignmentCreate = () => {
 
     const handleCreate = async (e) => {
         e.preventDefault();
+        setFormError('');
         const row = selectedCatalogRow;
-        if (!row || !subjectId) return alert('Select class context and subject.');
-        if (selectedClassIds.length === 0) return alert('Select at least one class.');
-        if (!title.trim()) return alert('Title is required.');
-        if (assignmentType === 'normal' && !requirementText.trim()) {
-            return alert('Instructions for students are required for a normal assignment.');
-        }
+        if (!row || !subjectId) return setFormError('Select class context and subject.');
+        if (selectedClassIds.length === 0) return setFormError('Select at least one class.');
+        if (!title.trim()) return setFormError('Title is required.');
+
+        const requirementsError = validateAssignmentRequirementsForm({
+            assignmentType,
+            requirementText,
+            allowedTechnologiesText,
+            requirementsFile,
+            hasExistingFile: hasExistingRequirementsFile,
+        });
+        if (requirementsError) return setFormError(requirementsError);
+
+        const typedRequirementsPayload =
+            isFinal && (requirementsFile || hasExistingRequirementsFile)
+                ? {}
+                : {
+                      requirementText: requirementText.trim(),
+                      requiredKeywordsText: isFinal ? requiredKeywordsText.trim() : '',
+                      allowedTechnologiesText: isFinal ? allowedTechnologiesText.trim() : '',
+                  };
 
         try {
             setSubmitting(true);
+
+            if (isEdit) {
+                const body = {
+                    subjectId,
+                    title: title.trim(),
+                    description: description.trim(),
+                    submissionMode: isNormal ? 'single' : submissionMode,
+                    assignmentType,
+                    classAssignmentMode: isNormal ? 'single' : classAssignmentMode,
+                    classIds: selectedClassIds,
+                    proposalPhaseOpen: isNormal ? false : true,
+                    projectPhaseOpen: isNormal ? true : false,
+                    proposalDeadline: isFinal && proposalDeadline ? proposalDeadline : null,
+                    projectDeadline: isNormal
+                        ? normalSubmissionDeadline || null
+                        : isFinal && projectDeadline
+                          ? projectDeadline
+                          : null,
+                    ...typedRequirementsPayload,
+                };
+                const res = await teacherService.updateAssignment(editId, body);
+                if (requirementsFile) {
+                    await teacherService.uploadAssignmentRequirements(editId, requirementsFile);
+                }
+                if (res.success) navigate(`/teacher/assignments/${editId}`);
+                return;
+            }
+
             const fd = new FormData();
             fd.append('classId', row.class._id);
             selectedClassIds.forEach((classId) => fd.append('classIds', classId));
@@ -163,7 +293,7 @@ const AssignmentCreate = () => {
             if (res.success) navigate('/teacher/assignments');
         } catch (err) {
             console.error(err);
-            alert(err.response?.data?.message || 'Failed to create assignment.');
+            setFormError(err.response?.data?.message || `Failed to ${isEdit ? 'update' : 'create'} assignment.`);
         } finally {
             setSubmitting(false);
         }
@@ -179,12 +309,18 @@ const AssignmentCreate = () => {
 
     return (
         <div className="max-w-3xl">
-            <button type="button" onClick={() => navigate('/teacher/assignments')} className={`mb-3 ${Z_BTN_BACK}`}>
-                <ArrowLeft className="h-3.5 w-3.5" /> Back to Assignments
+            <button
+                type="button"
+                onClick={() => navigate(isEdit ? `/teacher/assignments/${editId}` : '/teacher/assignments')}
+                className={`mb-3 ${Z_BTN_BACK}`}
+            >
+                <ArrowLeft className="h-3.5 w-3.5" /> {isEdit ? 'Back to assignment' : 'Back to Assignments'}
             </button>
 
             <div className={Z_FORM_CARD}>
-                <h1 className="text-base font-black text-slate-900 dark:text-slate-100">New Assignment</h1>
+                <h1 className="text-base font-black text-slate-900 dark:text-slate-100">
+                    {isEdit ? 'Edit Assignment' : 'New Assignment'}
+                </h1>
                 <p className="text-[11px] text-slate-500 mt-0.5 mb-4">
                     {isNormal
                         ? 'Normal assignments: each student uploads one file. Set an optional submission deadline; students still see it on their assignment list and detail page.'
@@ -195,6 +331,11 @@ const AssignmentCreate = () => {
                     <p className="text-slate-500 text-sm">No class/subject assignments found. Ask admin to assign classes and subjects.</p>
                 ) : (
                     <form onSubmit={handleCreate} className="space-y-3">
+                        {formError && (
+                            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] font-semibold text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
+                                {formError}
+                            </div>
+                        )}
                         <div>
                             <label className={Z_LABEL}>Base class & term</label>
                             <select
@@ -346,6 +487,11 @@ const AssignmentCreate = () => {
                                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                                         Optional PDF or document. You can also upload later from the assignment detail page.
                                     </p>
+                                    {hasExistingRequirementsFile && (
+                                        <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                            Current file: {existingAssignment?.originalFileName || 'requirements document'}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         ) : (
@@ -445,6 +591,11 @@ const AssignmentCreate = () => {
                                         <p className="text-xs text-slate-500">
                                             If you attach a file, typed requirements and keyword filters are hidden—students follow the document.
                                         </p>
+                                        {hasExistingRequirementsFile && (
+                                            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                                Current file: {existingAssignment?.originalFileName || 'requirements document'}
+                                            </p>
+                                        )}
                                         {requirementsFile && (
                                             <button
                                                 type="button"
@@ -461,15 +612,19 @@ const AssignmentCreate = () => {
                                     <>
                                         <div>
                                             <label className={Z_LABEL}>
-                                                Teacher requirements (proposal / project)
+                                                Teacher requirements (proposal / project) *
                                             </label>
                                             <textarea
                                                 value={requirementText}
                                                 onChange={(e) => setRequirementText(e.target.value)}
                                                 rows={4}
+                                                required={isFinal && !requirementsFile}
                                                 placeholder="Example: Must include authentication, dashboard, and API integration."
                                                 className={Z_INPUT}
                                             />
+                                            <p className="mt-1 text-[11px] text-slate-500">
+                                                Required together with allowed technologies, unless you upload a requirements file.
+                                            </p>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -485,18 +640,22 @@ const AssignmentCreate = () => {
                                                     className={Z_INPUT}
                                                 />
                                             </div>
-                                            <div>
-                                                <label className={Z_LABEL}>
-                                                    Allowed technologies (optional)
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={allowedTechnologiesText}
-                                                    onChange={(e) => setAllowedTechnologiesText(e.target.value)}
-                                                    placeholder="react, node, mongodb"
-                                                    className={Z_INPUT}
-                                                />
-                                            </div>
+                                        <div>
+                                            <label className={Z_LABEL}>
+                                                Allowed technologies *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={allowedTechnologiesText}
+                                                onChange={(e) => setAllowedTechnologiesText(e.target.value)}
+                                                required={isFinal && !requirementsFile}
+                                                placeholder="react, node, mongodb"
+                                                className={Z_INPUT}
+                                            />
+                                            <p className="mt-1 text-[11px] text-slate-500">
+                                                Required for final assignments unless you upload a requirements file.
+                                            </p>
+                                        </div>
                                         </div>
                                     </>
                                 )}
@@ -537,7 +696,19 @@ const AssignmentCreate = () => {
                         )}
 
                         <button type="submit" disabled={submitting} className={Z_BTN_SUBMIT}>
-                            {submitting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Creating...</> : <><Plus className="h-3.5 w-3.5" /> Create assignment</>}
+                            {submitting ? (
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> {isEdit ? 'Saving...' : 'Creating...'}
+                                </>
+                            ) : isEdit ? (
+                                <>
+                                    <Save className="h-3.5 w-3.5" /> Save changes
+                                </>
+                            ) : (
+                                <>
+                                    <Plus className="h-3.5 w-3.5" /> Create assignment
+                                </>
+                            )}
                         </button>
                     </form>
                 )}

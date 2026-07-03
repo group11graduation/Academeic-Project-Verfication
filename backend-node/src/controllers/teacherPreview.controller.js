@@ -24,3 +24,8 @@ export const getPreviewSession = asyncHandler(async (req, res) => {
   const session = await previewSandbox.getPreviewSessionForTeacher(req.userId, req.params.sessionId);
   return success(res, session);
 });
+
+export const getActivePreviewForProposal = asyncHandler(async (req, res) => {
+  const session = await previewSandbox.getActivePreviewSessionForProposal(req.userId, req.params.proposalId);
+  return success(res, session);
+});

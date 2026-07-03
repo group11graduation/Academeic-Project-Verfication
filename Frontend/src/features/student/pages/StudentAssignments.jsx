@@ -17,6 +17,8 @@ import {
     Search,
 } from 'lucide-react';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_INPUT, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { usePageSearch } from '../../../context/shellSearchContext';
+import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const StudentAssignments = () => {
     const [rows, setRows] = useState([]);
@@ -27,7 +29,7 @@ const StudentAssignments = () => {
     const [error, setError] = useState(null);
     const [selectedSubjectId, setSelectedSubjectId] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState(null);
-    const [query, setQuery] = useState('');
+    const { query, setQuery } = usePageSearch('Search assignments…');
 
     useEffect(() => {
         const fetchAssignments = async () => {
@@ -98,9 +100,8 @@ const StudentAssignments = () => {
     }, [rows, enrolledSubjects]);
 
     const subjectsFiltered = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        if (!q) return subjects;
-        return subjects.filter((s) => `${s.name} ${s.code} ${s.teacher}`.toLowerCase().includes(q));
+        if (!query.trim()) return subjects;
+        return subjects.filter((s) => matchesSearchQuery(query, s.name, s.code, s.teacher));
     }, [subjects, query]);
 
     const rowsForSubject = useMemo(() => {
@@ -114,12 +115,10 @@ const StudentAssignments = () => {
     const selectedSubject = subjects.find((s) => String(s._id) === String(selectedSubjectId));
 
     const displayedRowsFiltered = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        if (!q) return displayedRows;
+        if (!query.trim()) return displayedRows;
         return displayedRows.filter((r) => {
             const a = r.assignment || {};
-            const hay = `${a.title || ''} ${a.teacher?.name || ''}`.toLowerCase();
-            return hay.includes(q);
+            return matchesSearchQuery(query, a.title, a.teacher?.name, a.subject?.code);
         });
     }, [displayedRows, query]);
 

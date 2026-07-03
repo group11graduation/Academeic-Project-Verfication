@@ -33,11 +33,39 @@ const BACKEND_DIR_HINTS = [
 
 const SOURCE_EXT = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.env', '.env.example', '.env.local']);
 
-const API_URL_PATTERNS = [
+const API_URL_LITERALS = [
   'http://localhost:5000',
   'http://127.0.0.1:5000',
   'https://localhost:5000',
+  'http://localhost:8000',
+  'http://127.0.0.1:8000',
+  'https://localhost:8000',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'https://localhost:8080',
+  'http://localhost:8081',
+  'http://127.0.0.1:8081',
 ];
+
+/** Any localhost/127.0.0.1 dev API port baked into student source or bundles */
+const LOCALHOST_DEV_ORIGIN_RE = /https?:\/\/(localhost|127\.0\.0\.1):\d+/gi;
+
+function replaceDevApiOrigins(content, apiHostPort) {
+  const toUrl = `http://localhost:${apiHostPort}`;
+  let next = content;
+  let changed = false;
+  for (const from of API_URL_LITERALS) {
+    if (next.includes(from)) {
+      next = next.split(from).join(toUrl);
+      changed = true;
+    }
+  }
+  next = next.replace(LOCALHOST_DEV_ORIGIN_RE, () => {
+    changed = true;
+    return toUrl;
+  });
+  return { content: next, changed };
+}
 
 async function pathExists(p) {
   try {
@@ -311,7 +339,6 @@ export async function resolveMernPair(buildContext) {
 async function walkReplaceApiUrl(dir, apiHostPort, depth = 0) {
   if (depth > 8) return { files: 0 };
   let files = 0;
-  const toUrl = `http://localhost:${apiHostPort}`;
   const entries = await fs.readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === 'build') {
@@ -330,12 +357,9 @@ async function walkReplaceApiUrl(dir, apiHostPort, depth = 0) {
     let content = await fs.readFile(full, 'utf8').catch(() => null);
     if (content == null) continue;
     let changed = false;
-    for (const from of API_URL_PATTERNS) {
-      if (content.includes(from)) {
-        content = content.split(from).join(toUrl);
-        changed = true;
-      }
-    }
+    const replaced = replaceDevApiOrigins(content, apiHostPort);
+    content = replaced.content;
+    changed = replaced.changed;
     if (changed) {
       // eslint-disable-next-line no-await-in-loop
       await fs.writeFile(full, content, 'utf8');
@@ -460,6 +484,33 @@ async function walkRelaxCors(dir, depth = 0) {
   return files;
 }
 
+async function walkReplaceApiUrlInArtifacts(dir, apiHostPort, depth = 0) {
+  if (depth > 10) return { files: 0 };
+  let files = 0;
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // eslint-disable-next-line no-await-in-loop
+      const sub = await walkReplaceApiUrlInArtifacts(full, apiHostPort, depth + 1);
+      files += sub.files;
+      continue;
+    }
+    const ext = path.extname(entry.name).toLowerCase();
+    if (!['.js', '.css', '.html', '.map', '.json'].includes(ext)) continue;
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(full, 'utf8').catch(() => null);
+    if (content == null) continue;
+    const replaced = replaceDevApiOrigins(content, apiHostPort);
+    if (replaced.changed) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(full, replaced.content, 'utf8');
+      files += 1;
+    }
+  }
+  return { files };
+}
+
 export async function patchFrontendApiPort(extractDir, frontendSubdir, apiHostPort) {
   const frontendRoot = path.join(extractDir, frontendSubdir);
   if (!(await pathExists(frontendRoot))) return { files: 0 };
@@ -479,7 +530,19 @@ export async function patchFrontendApiPort(extractDir, frontendSubdir, apiHostPo
   }
 
   const replaced = await walkReplaceApiUrl(frontendRoot, apiHostPort);
-  return { files: replaced.files + (await pathExists(path.join(frontendRoot, 'package.json')) ? 1 : 0) };
+  let artifactFiles = 0;
+  for (const artifactDir of ['build', 'dist']) {
+    const abs = path.join(frontendRoot, artifactDir);
+    // eslint-disable-next-line no-await-in-loop
+    if (await pathExists(abs)) {
+      // eslint-disable-next-line no-await-in-loop
+      const patched = await walkReplaceApiUrlInArtifacts(abs, apiHostPort);
+      artifactFiles += patched.files;
+    }
+  }
+  return {
+    files: replaced.files + artifactFiles + (await pathExists(path.join(frontendRoot, 'package.json')) ? 1 : 0),
+  };
 }
 
 export function previewMongoHostName(projectId) {

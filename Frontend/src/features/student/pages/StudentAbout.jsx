@@ -6,7 +6,7 @@ import {
     Users, Medal, FileText, Linkedin, Twitter, Github
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import StudentHeader from '../components/StudentHeader';
+import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 
 const StudentAbout = () => {
@@ -36,9 +36,8 @@ const StudentAbout = () => {
     ];
 
     return (
+        <StudentPublicShell>
         <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900 overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
-            {/* Standardized Header */}
-            <StudentHeader />
 
             {/* Hero Section */}
             <section className="pt-24 pb-16 px-6">
@@ -230,6 +229,7 @@ const StudentAbout = () => {
 
             <PublicSiteFooter />
         </div>
+        </StudentPublicShell>
     );
 };
 

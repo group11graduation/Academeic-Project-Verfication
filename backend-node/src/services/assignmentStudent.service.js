@@ -5,6 +5,7 @@ import { resolveStoredProposalRecommendation } from './proposalWorkflow.service.
 import { Group } from '../models/Group.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { isProjectDeadlineOpen } from './projectCodeSubmission.service.js';
+import { isProposalFullyApprovedForProject } from './collaborativeProposalReview.service.js';
 import { NormalAssignmentSubmission } from '../models/NormalAssignmentSubmission.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
@@ -125,7 +126,7 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
         : null;
 
     const isLeader = groupInfo ? String(groupInfo.leader?._id || groupInfo.leader) === String(userId) : true;
-    const approved = proposal?.status === 'teacher_approved';
+    const approved = isProposalFullyApprovedForProject(proposal, assignment);
     const deadlineOpen = isProjectDeadlineOpen(assignment);
 
     let latestProjectSubmission = null;
