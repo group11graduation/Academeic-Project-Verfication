@@ -12,6 +12,7 @@ import {
     Printer,
 } from 'lucide-react';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { DEADLINE_DUE_STUDENT_MESSAGE } from '../../../shared/utils/assignmentDeadlines';
 
 function DetailRow({ label, value }) {
     return (
@@ -97,8 +98,15 @@ const StudentAssignmentDetail = () => {
     const proposalApprovedOrProjectUploaded = Boolean(
         row?.latestProjectSubmission || row?.proposal?.status === 'teacher_approved'
     );
+    const normalDeadlineClosed = isNormalAssignment && (row?.submissionDeadlinePassed || row?.normalSubmissionAllowed === false);
+    const proposalDeadlineClosed = !isNormalAssignment && row?.proposalDeadlinePassed;
+    const projectDeadlineClosed = !isNormalAssignment && row?.projectDeadlinePassed;
 
     const handleNormalUpload = async () => {
+        if (normalDeadlineClosed) {
+            setNormalUploadErr(DEADLINE_DUE_STUDENT_MESSAGE);
+            return;
+        }
         if (!normalFile) {
             setNormalUploadErr('Choose a file first.');
             return;
@@ -166,6 +174,27 @@ const StudentAssignmentDetail = () => {
                         ) : null}
                     </div>
                 </div>
+
+                {normalDeadlineClosed ? (
+                    <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+                        <p className="font-bold">Submission deadline due</p>
+                        <p className="mt-1">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
+                    </div>
+                ) : null}
+
+                {proposalDeadlineClosed ? (
+                    <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+                        <p className="font-bold">Proposal deadline due</p>
+                        <p className="mt-1">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
+                    </div>
+                ) : null}
+
+                {projectDeadlineClosed && proposalApprovedOrProjectUploaded ? (
+                    <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+                        <p className="font-bold">Project deadline due</p>
+                        <p className="mt-1">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
+                    </div>
+                ) : null}
 
                 <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <div className={`${Z_CARD} p-4`}>
@@ -366,11 +395,12 @@ const StudentAssignmentDetail = () => {
                                                 <input
                                                     type="file"
                                                     onChange={(e) => setNormalFile(e.target.files?.[0] || null)}
-                                                    className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                                                    disabled={normalDeadlineClosed}
+                                                    className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm disabled:opacity-60"
                                                 />
                                                 <button
                                                     type="button"
-                                                    disabled={uploadingNormal || !normalFile}
+                                                    disabled={uploadingNormal || !normalFile || normalDeadlineClosed}
                                                     onClick={handleNormalUpload}
                                                     className={`${Z_BTN_PRIMARY} mt-3`}
                                                 >
@@ -393,23 +423,39 @@ const StudentAssignmentDetail = () => {
                                             </div>
                                         ) : (
                                             <div className="grid gap-4 md:grid-cols-2">
-                                                <Link
-                                                    to={`/student/assignments/${assignment._id}/proposal`}
-                                                    className={`${Z_CARD} border-slate-200 p-4 transition hover:border-[#1e56e3]/35 hover:shadow-md`}
-                                                >
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-[#1e56e3]">Step 1</div>
-                                                    <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
-                                                    <p className="mt-1 text-[12px] text-slate-600">Describe your idea for AI and teacher review.</p>
-                                                </Link>
-                                                {proposalApprovedOrProjectUploaded ? (
+                                                {proposalDeadlineClosed ? (
+                                                    <div className={`${Z_CARD} border-rose-200 bg-rose-50/80 p-4 opacity-95`}>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-rose-700">Step 1 (closed)</div>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
+                                                        <p className="mt-1 text-[12px] text-rose-800">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
+                                                    </div>
+                                                ) : (
                                                     <Link
-                                                        to={`/student/project/${assignment._id}`}
-                                                        className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
+                                                        to={`/student/assignments/${assignment._id}/proposal`}
+                                                        className={`${Z_CARD} border-slate-200 p-4 transition hover:border-[#1e56e3]/35 hover:shadow-md`}
                                                     >
-                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 2</div>
-                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
-                                                        <p className="mt-1 text-[12px] text-slate-600">Upload your final project archive.</p>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-[#1e56e3]">Step 1</div>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
+                                                        <p className="mt-1 text-[12px] text-slate-600">Describe your idea for AI and teacher review.</p>
                                                     </Link>
+                                                )}
+                                                {proposalApprovedOrProjectUploaded ? (
+                                                    projectDeadlineClosed ? (
+                                                        <div className={`${Z_CARD} border-rose-200 bg-rose-50/80 p-4 opacity-95`}>
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-rose-700">Step 2 (closed)</div>
+                                                            <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
+                                                            <p className="mt-1 text-[12px] text-rose-800">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
+                                                        </div>
+                                                    ) : (
+                                                        <Link
+                                                            to={`/student/project/${assignment._id}`}
+                                                            className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
+                                                        >
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 2</div>
+                                                            <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
+                                                            <p className="mt-1 text-[12px] text-slate-600">Upload your final project archive.</p>
+                                                        </Link>
+                                                    )
                                                 ) : (
                                                     <div className={`${Z_CARD} border-dashed border-slate-200 bg-slate-50 p-4 opacity-90`}>
                                                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Step 2 (locked)</div>

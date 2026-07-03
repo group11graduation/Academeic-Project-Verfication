@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus, X, Send, Save, UploadCloud, ChevronRight } from 'lucide-react';
 import studentService from '../../../services/studentService';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK, Z_INPUT } from '../../../shared/ui/zendentaLayout';
+import { DEADLINE_DUE_STUDENT_MESSAGE } from '../../../shared/utils/assignmentDeadlines';
 
 const toList = (value) => {
     if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
@@ -371,15 +372,36 @@ const StudentProposalSubmit = () => {
                 <div className={Z_SHELL_INNER}>
                     <div className={`${Z_CARD} border-amber-200 bg-amber-50 px-4 py-3`}>
                         <p className="text-sm font-bold text-amber-900 mb-1.5">Proposal sent. Waiting for teacher approval.</p>
-                        <p className="text-sm font-semibold text-amber-800 mb-4">
-                            Proposal deadline has passed. You cannot update proposal now unless teacher requests revision.
-                        </p>
+                        <p className="text-sm font-semibold text-amber-800 mb-4">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
                         <button
                             type="button"
                             onClick={() => navigate('/student/assignments')}
                             className={Z_BTN_PRIMARY}
                         >
                             Back to assignments
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!beforeDeadline) {
+        return (
+            <div className={Z_SHELL}>
+                <div className={Z_SHELL_INNER}>
+                    <div className={`${Z_CARD} border-rose-200 bg-rose-50 px-4 py-3`}>
+                        <p className="text-sm font-bold text-rose-900 mb-1.5">Proposal deadline due</p>
+                        <p className="text-sm font-semibold text-rose-800 mb-1">
+                            {proposalDeadlineDate ? proposalDeadlineDate.toLocaleString() : 'Deadline passed'}
+                        </p>
+                        <p className="text-sm font-semibold text-rose-800 mb-4">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/student/assignments/${assignmentId}`)}
+                            className={Z_BTN_PRIMARY}
+                        >
+                            Back to assignment
                         </button>
                     </div>
                 </div>

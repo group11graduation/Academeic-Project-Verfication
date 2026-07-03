@@ -13,6 +13,10 @@ import * as assignmentTeacher from './assignmentTeacher.service.js';
 import {
   assertAssignmentAcceptsStudentSubmissions,
 } from './assignmentRequirements.service.js';
+import {
+  isDeadlinePassed,
+  NORMAL_DEADLINE_PASSED_MESSAGE,
+} from './assignmentDeadline.service.js';
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.md', '.json', '.csv', '.ipynb', '.js', '.jsx', '.ts', '.tsx', '.java', '.py', '.c', '.cpp', '.cs', '.go', '.php', '.rb',
@@ -75,6 +79,12 @@ export async function submitNormalAssignmentFile(userId, assignmentId, file) {
   }
 
   assertAssignmentAcceptsStudentSubmissions(assignment);
+
+  if (isDeadlinePassed(assignment.projectDeadline)) {
+    const err = new Error(NORMAL_DEADLINE_PASSED_MESSAGE);
+    err.status = 400;
+    throw err;
+  }
 
   const ext = path.extname(file.originalname || file.filename || '').toLowerCase();
   const relDir = path.join('normal-assignment', String(assignmentId), String(userId));

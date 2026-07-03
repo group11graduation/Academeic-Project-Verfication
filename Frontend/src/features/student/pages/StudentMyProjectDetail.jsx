@@ -12,6 +12,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { DEADLINE_DUE_STUDENT_MESSAGE } from '../../../shared/utils/assignmentDeadlines';
 import { useAuth } from '../../../context/authContext';
 import studentService from '../../../services/studentService';
 import { getApiOrigin } from '../../../lib/api';
@@ -177,7 +178,7 @@ const StudentMyProjectDetail = () => {
     const handleProjectZipUpload = async () => {
         if (!selectedZipFile || !assignmentId) return;
         if (row?.projectDeadlinePassed) {
-            setCodeZipMessage('Project deadline has passed. You cannot upload or update.');
+            setCodeZipMessage(DEADLINE_DUE_STUDENT_MESSAGE);
             return;
         }
         setCodeZipBusy(true);
@@ -216,7 +217,7 @@ const StudentMyProjectDetail = () => {
     const handleScreenshotUpload = async () => {
         if (!selectedScreenshotFile || !assignmentId) return;
         if (row?.projectDeadlinePassed) {
-            setCodeZipMessage('Project deadline has passed. You cannot upload or update.');
+            setCodeZipMessage(DEADLINE_DUE_STUDENT_MESSAGE);
             return;
         }
         setScreenshotBusy(true);
@@ -445,7 +446,7 @@ const StudentMyProjectDetail = () => {
                             </div>
                             {row?.projectDeadlinePassed ? (
                                 <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
-                                    Project deadline has passed.
+                                    {DEADLINE_DUE_STUDENT_MESSAGE}
                                 </p>
                             ) : (
                                 <>

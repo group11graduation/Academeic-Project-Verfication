@@ -15,6 +15,7 @@ import {
   SubmissionPipelineError,
   SUBMISSION_PIPELINE_STATUSES,
 } from './submissionErrorHandler.service.js';
+import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 
 export function isProjectDeadlineOpen(assignment) {
   if (!assignment?.projectDeadline) return true;
@@ -23,7 +24,7 @@ export function isProjectDeadlineOpen(assignment) {
 
 function assertProjectDeadlineOpen(assignment) {
   if (!isProjectDeadlineOpen(assignment)) {
-    const err = new Error('Project submission deadline has passed. You can no longer upload or update.');
+    const err = new Error(PROJECT_DEADLINE_PASSED_MESSAGE);
     err.status = 400;
     throw err;
   }

@@ -18,6 +18,10 @@ import {
   assertAssignmentRequirementsConfigured,
   validateAssignmentRequirementsConfig,
 } from './assignmentRequirements.service.js';
+import {
+  validateDeadlinesOnCreate,
+  validateDeadlinesOnUpdate,
+} from './assignmentDeadline.service.js';
 
 function normalizeAssignmentClasses(assignment, viewerTeacherId = null) {
   const rawClasses = Array.isArray(assignment?.classes) && assignment.classes.length
@@ -372,6 +376,12 @@ export async function createAssignment(teacherId, payload) {
     assignmentFile: assignmentFileResolved,
   });
 
+  validateDeadlinesOnCreate({
+    assignmentType: assignmentTypeResolved,
+    proposalDeadline,
+    projectDeadline,
+  });
+
   const doc = new Assignment({
     teacher: teacherId,
     class: primaryClassDoc._id,
@@ -509,6 +519,9 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
   }
   if ('proposalPhaseOpen' in payload) assignment.proposalPhaseOpen = parseBool(payload.proposalPhaseOpen, assignment.proposalPhaseOpen);
   if ('projectPhaseOpen' in payload) assignment.projectPhaseOpen = parseBool(payload.projectPhaseOpen, assignment.projectPhaseOpen);
+
+  validateDeadlinesOnUpdate(assignment, payload);
+
   if ('proposalDeadline' in payload) assignment.proposalDeadline = payload.proposalDeadline ? new Date(payload.proposalDeadline) : null;
   if ('projectDeadline' in payload) assignment.projectDeadline = payload.projectDeadline ? new Date(payload.projectDeadline) : null;
 

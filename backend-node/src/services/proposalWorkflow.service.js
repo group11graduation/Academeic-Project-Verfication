@@ -13,6 +13,7 @@ import { Class } from '../models/Class.js';
 import { analyzeProposalPayload } from './aiClient.service.js';
 import { evaluateProposalAgainstAssignmentRequirements, evaluateRequirementBlock } from './requirementCheck.service.js';
 import { assertAssignmentAcceptsStudentSubmissions, assignmentAcceptsStudentSubmissions, STUDENT_SUBMISSION_BLOCKED_MESSAGE } from './assignmentRequirements.service.js';
+import { PROPOSAL_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { parseStructuredProposalText } from '../utils/proposalFileParser.js';
 import {
   buildCollaborativeApprovalMeta,
@@ -401,7 +402,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   }
   assertAssignmentAcceptsStudentSubmissions(assignment);
   if (assignment.proposalDeadline && new Date() > new Date(assignment.proposalDeadline)) {
-    const err = new Error('Proposal deadline has passed');
+    const err = new Error(PROPOSAL_DEADLINE_PASSED_MESSAGE);
     err.status = 400;
     throw err;
   }

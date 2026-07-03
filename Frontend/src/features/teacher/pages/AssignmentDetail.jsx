@@ -7,6 +7,7 @@ import {
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
 import { assignmentRequirementsComplete } from '../../../shared/utils/assignmentRequirements';
+import { isDeadlinePassed } from '../../../shared/utils/assignmentDeadlines';
 
 const proposalStatusLabel = (s) => {
     const map = {
@@ -151,6 +152,8 @@ const AssignmentDetail = () => {
     );
 
     const requirementsComplete = assignmentRequirementsComplete(data);
+    const proposalDeadlinePassed = !isNormalAssignment && isDeadlinePassed(data.proposalDeadline);
+    const projectOrSubmissionDeadlinePassed = isDeadlinePassed(data.projectDeadline);
 
     const handleUploadRequirementFile = async (file) => {
         if (!file) return;
@@ -189,6 +192,35 @@ const AssignmentDetail = () => {
                     to add requirement text and technologies, or upload a requirements file.
                 </div>
             )}
+
+            {proposalDeadlinePassed ? (
+                <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
+                    Proposal deadline has passed — students cannot submit or update proposals.{' '}
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
+                        className="font-black text-rose-950 underline hover:no-underline dark:text-rose-100"
+                    >
+                        Edit assignment
+                    </button>{' '}
+                    to set a new future proposal deadline and extend the window.
+                </div>
+            ) : null}
+
+            {projectOrSubmissionDeadlinePassed ? (
+                <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
+                    {isNormalAssignment ? 'Submission deadline has passed' : 'Project deadline has passed'} — students
+                    cannot upload.{' '}
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
+                        className="font-black text-rose-950 underline hover:no-underline dark:text-rose-100"
+                    >
+                        Edit assignment
+                    </button>{' '}
+                    to add extra days or time.
+                </div>
+            ) : null}
 
             {/* Header Card */}
             <div className="bg-white dark:bg-[#0F172A] rounded-[28px] border border-slate-100 dark:border-white/5 p-6 md:p-8 mb-6 shadow-xl">

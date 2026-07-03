@@ -4,6 +4,11 @@ import { ArrowLeft, Loader2, Plus, Save } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { Z_BTN_BACK, Z_BTN_SUBMIT, Z_FORM_CARD, Z_INPUT, Z_LABEL, Z_TEXTAREA } from '../../../shared/ui/zendentaLayout';
 import { validateAssignmentRequirementsForm } from '../../../shared/utils/assignmentRequirements';
+import {
+    datetimeLocalMin,
+    isDeadlinePassed,
+    validateAssignmentDeadlinesForm,
+} from '../../../shared/utils/assignmentDeadlines';
 
 const AssignmentCreate = () => {
     const navigate = useNavigate();
@@ -33,6 +38,13 @@ const AssignmentCreate = () => {
     const [formError, setFormError] = useState('');
     const requirementsFileInputRef = useRef(null);
     const editInitialCatalogIndex = useRef(null);
+    const initialDeadlinesRef = useRef({
+        proposal: null,
+        project: null,
+        normal: null,
+    });
+
+    const deadlineMin = useMemo(() => datetimeLocalMin(), []);
 
     const isNormal = assignmentType === 'normal';
     const isFinal = assignmentType === 'final';
@@ -130,6 +142,11 @@ const AssignmentCreate = () => {
                             ? new Date(a.projectDeadline).toISOString().slice(0, 16)
                             : ''
                     );
+                    initialDeadlinesRef.current = {
+                        proposal: a.proposalDeadline || null,
+                        project: a.projectDeadline || null,
+                        normal: type === 'normal' ? a.projectDeadline || null : null,
+                    };
                     setSelectedClassIds(
                         Array.isArray(a.classes) && a.classes.length
                             ? a.classes.map((c) => String(c._id || c))
@@ -218,6 +235,18 @@ const AssignmentCreate = () => {
         });
         if (requirementsError) return setFormError(requirementsError);
 
+        const deadlineError = validateAssignmentDeadlinesForm({
+            assignmentType,
+            proposalDeadline,
+            projectDeadline,
+            normalSubmissionDeadline,
+            isEdit,
+            initialProposalDeadline: initialDeadlinesRef.current.proposal,
+            initialProjectDeadline: initialDeadlinesRef.current.project,
+            initialNormalDeadline: initialDeadlinesRef.current.normal,
+        });
+        if (deadlineError) return setFormError(deadlineError);
+
         const typedRequirementsPayload =
             isFinal && (requirementsFile || hasExistingRequirementsFile)
                 ? {}
@@ -299,6 +328,13 @@ const AssignmentCreate = () => {
         }
     };
 
+    const passedProposalDeadline = isEdit && isFinal && isDeadlinePassed(existingAssignment?.proposalDeadline);
+    const passedProjectOrNormalDeadline =
+        isEdit &&
+        isDeadlinePassed(
+            isNormal ? existingAssignment?.projectDeadline : existingAssignment?.projectDeadline
+        );
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-16">
@@ -336,6 +372,27 @@ const AssignmentCreate = () => {
                                 {formError}
                             </div>
                         )}
+
+                        {passedProposalDeadline ? (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                                <p className="font-bold">Proposal deadline has passed.</p>
+                                <p className="mt-1 font-semibold">
+                                    Students cannot submit proposals. Set a new future date below to extend the deadline.
+                                </p>
+                            </div>
+                        ) : null}
+
+                        {passedProjectOrNormalDeadline ? (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                                <p className="font-bold">
+                                    {isNormal ? 'Submission deadline has passed.' : 'Project deadline has passed.'}
+                                </p>
+                                <p className="mt-1 font-semibold">
+                                    Students cannot upload. Set a new future date below to extend the deadline.
+                                </p>
+                            </div>
+                        ) : null}
+
                         <div>
                             <label className={Z_LABEL}>Base class & term</label>
                             <select
@@ -467,10 +524,11 @@ const AssignmentCreate = () => {
                                         type="datetime-local"
                                         value={normalSubmissionDeadline}
                                         onChange={(e) => setNormalSubmissionDeadline(e.target.value)}
+                                        min={deadlineMin}
                                         className={`${Z_INPUT} max-w-md`}
                                     />
                                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                        Shown to students as the due date. Leave empty for no fixed deadline in the system.
+                                        Must be after the current date and time. Shown to students as the due date. Leave empty for no fixed deadline.
                                     </p>
                                 </div>
 
@@ -679,8 +737,10 @@ const AssignmentCreate = () => {
                                             type="datetime-local"
                                             value={proposalDeadline}
                                             onChange={(e) => setProposalDeadline(e.target.value)}
+                                            min={deadlineMin}
                                             className={Z_INPUT}
                                         />
+                                        <p className="mt-1 text-[11px] text-slate-500">Must be after the current date and time.</p>
                                     </div>
                                     <div>
                                         <label className={Z_LABEL}>Project deadline</label>
@@ -688,8 +748,10 @@ const AssignmentCreate = () => {
                                             type="datetime-local"
                                             value={projectDeadline}
                                             onChange={(e) => setProjectDeadline(e.target.value)}
+                                            min={deadlineMin}
                                             className={Z_INPUT}
                                         />
+                                        <p className="mt-1 text-[11px] text-slate-500">Must be on or after the proposal deadline.</p>
                                     </div>
                                 </div>
                             </>

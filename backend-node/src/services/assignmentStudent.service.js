@@ -6,6 +6,8 @@ import { Group } from '../models/Group.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { isProjectDeadlineOpen } from './projectCodeSubmission.service.js';
 import { isProposalFullyApprovedForProject } from './collaborativeProposalReview.service.js';
+import { isDeadlinePassed } from './assignmentDeadline.service.js';
+import { assignmentAcceptsStudentSubmissions } from './assignmentRequirements.service.js';
 import { NormalAssignmentSubmission } from '../models/NormalAssignmentSubmission.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
@@ -128,6 +130,10 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     const isLeader = groupInfo ? String(groupInfo.leader?._id || groupInfo.leader) === String(userId) : true;
     const approved = isProposalFullyApprovedForProject(proposal, assignment);
     const deadlineOpen = isProjectDeadlineOpen(assignment);
+    const isNormal = String(assignment.assignmentType || 'normal') === 'normal';
+    const proposalDeadlinePassed = isDeadlinePassed(assignment.proposalDeadline);
+    const submissionDeadlinePassed = isDeadlinePassed(assignment.projectDeadline);
+    const requirementsReady = assignmentAcceptsStudentSubmissions(assignment);
 
     let latestProjectSubmission = null;
     if (proposal?._id) {
@@ -171,9 +177,16 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
       projectSubmissionAllowed,
       projectDeadline: assignment.projectDeadline || null,
       projectDeadlinePassed: !deadlineOpen,
+      proposalDeadlinePassed,
+      proposalSubmissionAllowed:
+        !isNormal &&
+        assignment.proposalPhaseOpen &&
+        !proposalDeadlinePassed &&
+        requirementsReady,
       canUpdateProjectUntilDeadline: approved && deadlineOpen,
       latestProjectSubmission,
-      normalSubmissionAllowed: String(assignment.assignmentType || 'normal') === 'normal',
+      normalSubmissionAllowed: isNormal && !submissionDeadlinePassed && requirementsReady,
+      submissionDeadlinePassed,
       latestNormalSubmission,
     });
   }
