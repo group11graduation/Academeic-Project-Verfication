@@ -3,6 +3,11 @@ import api from '../lib/api';
 const base = '/student';
 
 const studentService = {
+    getProfile: async () => {
+        const response = await api.get(`${base}/profile`);
+        return response.data;
+    },
+
     getDashboard: async () => {
         try {
             const response = await api.get(`${base}/dashboard`);

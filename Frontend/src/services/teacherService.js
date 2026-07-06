@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api, { PREVIEW_TIMEOUT_MS } from '../lib/api';
 
 const base = '/teacher';
 
@@ -325,7 +325,9 @@ const teacherService = {
         const body = {};
         if (opts.adminEmail) body.adminEmail = opts.adminEmail;
         if (opts.adminPassword) body.adminPassword = opts.adminPassword;
-        const response = await api.post(`${base}/proposals/${proposalId}/preview/start`, body);
+        const response = await api.post(`${base}/proposals/${proposalId}/preview/start`, body, {
+            timeout: PREVIEW_TIMEOUT_MS,
+        });
         return response.data;
     },
 

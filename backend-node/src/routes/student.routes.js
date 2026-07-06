@@ -10,6 +10,7 @@ const router = Router();
 
 router.use(requireRoles('student'));
 
+router.get('/profile', student.profile);
 router.get('/dashboard', student.dashboard);
 router.get('/assignments', student.listAssignments);
 router.get('/assignments/:assignmentId', student.getAssignment);

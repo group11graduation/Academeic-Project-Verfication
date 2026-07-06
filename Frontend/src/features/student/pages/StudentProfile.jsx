@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../../context/authContext';
-import axios from 'axios';
+import studentService from '../../../services/studentService';
 import { 
     User, 
     Mail, 
@@ -24,7 +23,6 @@ import {
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY } from '../../../shared/ui/zendentaLayout';
 
 const StudentProfile = () => {
-    const { user, token } = useAuth();
     const [studentData, setStudentData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -33,30 +31,23 @@ const StudentProfile = () => {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/student/profile', {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                });
-                if (response.data.success) {
-                    setStudentData(response.data.data);
+                const response = await studentService.getProfile();
+                if (response.success) {
+                    setStudentData(response.data);
+                } else {
+                    setError(response.message || 'Failed to load profile data');
                 }
             } catch (err) {
                 console.error('Error fetching profile:', err);
-                setError('Failed to load profile data');
+                setError(err.userMessage || 'Failed to load profile data');
             } finally {
                 setLoading(false);
             }
         };
 
-        if (token) {
-            fetchProfile();
-        } else {
-            setLoading(false);
-            setError('Not authenticated');
-        }
+        fetchProfile();
         window.scrollTo(0, 0);
-    }, [token]);
+    }, []);
 
     if (loading) {
         return (
@@ -125,24 +116,35 @@ const StudentProfile = () => {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                                 <div className="bg-[#F8FAFB] p-3 rounded-xl border border-slate-100">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-1.5">SUBMITTED</span>
-                                    <span className="text-xl font-bold text-[#1D68E3]">03</span>
+                                    <span className="text-xl font-bold text-[#1D68E3]">
+                                        {String(studentData.projectStats?.submitted ?? 0).padStart(2, '0')}
+                                    </span>
                                 </div>
                                 <div className="bg-[#F8FAFB] p-3 rounded-xl border border-slate-100">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-1.5">PENDING</span>
-                                    <span className="text-xl font-bold text-orange-500">01</span>
+                                    <span className="text-xl font-bold text-orange-500">
+                                        {String(studentData.projectStats?.pending ?? 0).padStart(2, '0')}
+                                    </span>
                                 </div>
                                 <div className="bg-[#F8FAFB] p-3 rounded-xl border border-slate-100">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-1.5">TOTAL COURSES</span>
-                                    <span className="text-xl font-bold text-[#0F172A]">07</span>
+                                    <span className="text-xl font-bold text-[#0F172A]">
+                                        {String(studentData.projectStats?.totalCourses ?? 0).padStart(2, '0')}
+                                    </span>
                                 </div>
                             </div>
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-[12px] font-bold text-slate-500">Academic Progress</span>
-                                    <span className="text-[12px] font-bold text-[#1D68E3]">75% Complete</span>
+                                    <span className="text-[12px] font-bold text-[#1D68E3]">
+                                        {studentData.projectStats?.progressPercent ?? 0}% Complete
+                                    </span>
                                 </div>
                                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="w-[75%] h-full bg-[#1D68E3] rounded-full transition-all duration-1000"></div>
+                                    <div
+                                        className="h-full bg-[#1D68E3] rounded-full transition-all duration-1000"
+                                        style={{ width: `${studentData.projectStats?.progressPercent ?? 0}%` }}
+                                    />
                                 </div>
                             </div>
                         </div>

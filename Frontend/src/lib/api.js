@@ -9,6 +9,9 @@ export const API_TIMEOUT_MS = 12_000;
 /** Used automatically for FormData / file uploads. */
 export const UPLOAD_TIMEOUT_MS = 120_000;
 
+/** Preview start can extract ZIP, audit, and start Docker (several minutes). */
+export const PREVIEW_TIMEOUT_MS = 600_000;
+
 /** Axios instance: base URL includes `/api`; sends Bearer token from localStorage */
 export const api = axios.create({
   baseURL: `${base.replace(/\/$/, '')}/api`,

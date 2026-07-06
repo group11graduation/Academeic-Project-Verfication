@@ -406,12 +406,12 @@ run_frontend_preview() {
     echo "[preview] cached workspace — reusing node_modules / dist / build when available"
   fi
 
-  if [ -d dist ] && [ -f dist/index.html ]; then
+if [ -d dist ] && [ -f dist/index.html ]; then
     echo "[preview] reusing cached frontend dist/"
     patch_built_bundle_urls
     serve_dir "$(pwd)/dist"
-  fi
-  if [ -d build ] && [ -f build/index.html ]; then
+fi
+if [ -d build ] && [ -f build/index.html ]; then
     echo "[preview] reusing cached frontend build/"
     patch_built_bundle_urls
     serve_dir "$(pwd)/build"
@@ -420,15 +420,15 @@ run_frontend_preview() {
     patch_built_bundle_urls
     serve_dir "$(pwd)/build/web"
   fi
-  if [ ! -f package.json ]; then
+if [ ! -f package.json ]; then
     if [ -f index.html ]; then
       serve_dir "$(pwd)"
     fi
     return 1
   fi
-  if [ ! -d node_modules ]; then
+if [ ! -d node_modules ]; then
     echo "[preview] npm install (may take several minutes)…"
-    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+  npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
   else
     echo "[preview] reusing cached node_modules/"
   fi

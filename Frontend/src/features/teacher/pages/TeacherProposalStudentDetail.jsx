@@ -394,6 +394,22 @@ const TeacherProposalStudentDetail = () => {
             }
         } catch (e) {
             const data = e.response?.data;
+            const timedOut = e.code === 'ECONNABORTED' || /timeout/i.test(e.message || '');
+            if (timedOut) {
+                alert(
+                    'Preview is still starting in the background (this can take several minutes). ' +
+                        'Keep this page open — status will update automatically.'
+                );
+                try {
+                    const active = await teacherService.getActiveProposalPreview(proposal._id);
+                    if (active.success && active.data) {
+                        setPreviewSessionByProposal((prev) => ({ ...prev, [proposal._id]: active.data }));
+                    }
+                } catch {
+                    /* polling will pick up session */
+                }
+                return;
+            }
             if (data?.validationFailures?.length) {
                 setPreviewSessionByProposal((prev) => ({
                     ...prev,

@@ -4,6 +4,12 @@ import * as assignmentStudent from '../services/assignmentStudent.service.js';
 import * as proposalWorkflow from '../services/proposalWorkflow.service.js';
 import * as projectCodeSubmission from '../services/projectCodeSubmission.service.js';
 import * as normalAssignmentSubmission from '../services/normalAssignmentSubmission.service.js';
+import * as studentProfile from '../services/studentProfile.service.js';
+
+export const profile = asyncHandler(async (req, res) => {
+  const data = await studentProfile.getProfileForStudent(req.userId);
+  return success(res, data);
+});
 
 export const dashboard = asyncHandler(async (req, res) => {
   const assignments = await assignmentStudent.listAssignmentsWithProposalsForStudent(req.userId);
