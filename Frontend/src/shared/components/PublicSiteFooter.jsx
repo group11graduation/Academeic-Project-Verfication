@@ -1,20 +1,15 @@
 import { Link } from 'react-router-dom';
-import { Github, Linkedin, Rocket, Twitter } from 'lucide-react';
-import { BRAND } from '../ui/brandTheme';
+import { Github, Linkedin, Twitter } from 'lucide-react';
+import { PROJECT_LEGAL_NAME } from '../ui/brandTheme';
+import ProjectVerifyLogo from './ProjectVerifyLogo';
 
 const PublicSiteFooter = () => (
     <footer className="border-t border-slate-200 bg-white">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
             <div className="md:col-span-1">
-                <div className="flex items-center gap-2 mb-4">
-                    <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-white"
-                        style={{ backgroundColor: BRAND.primary }}
-                    >
-                        <Rocket className="h-5 w-5" />
-                    </div>
-                    <span className="text-xl font-black text-slate-900">ScholarVerify</span>
-                </div>
+                <Link to="/" className="inline-block mb-4">
+                    <ProjectVerifyLogo size="lg" />
+                </Link>
                 <p className="text-sm font-medium text-slate-500 leading-relaxed">
                     Academic project verification with AI similarity checks, teacher review, and secure previews.
                 </p>
@@ -47,7 +42,7 @@ const PublicSiteFooter = () => (
         </div>
         <div className="border-t border-slate-100 py-6 px-4 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-[1400px] mx-auto">
             <p className="text-xs font-semibold text-slate-400">
-                &copy; {new Date().getFullYear()} ScholarVerify Academic Systems. All rights reserved.
+                &copy; {new Date().getFullYear()} {PROJECT_LEGAL_NAME}. All rights reserved.
             </p>
             <div className="flex items-center gap-3 text-slate-400">
                 <Twitter className="h-4 w-4" />

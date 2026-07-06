@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../../../context/authContext';
 import { useShellSearch } from '../../../context/shellSearchContext';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
+import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 
 function buildNavItems(user) {
     if (!user) {
@@ -98,21 +99,8 @@ const StudentHeader = ({ forcePublic = false }) => {
 
             <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex h-16 items-center justify-between gap-4">
-                    <Link to="/" className="flex items-center gap-3 shrink-0 group">
-                        <div
-                            className="flex h-9 w-9 items-center justify-center rounded-lg text-white ring-2 ring-[#2a3fa4]/15 transition-transform group-hover:scale-105"
-                            style={{ backgroundColor: BRAND.primary }}
-                        >
-                            <Rocket className="h-[18px] w-[18px]" />
-                        </div>
-                        <div className="hidden sm:block leading-tight">
-                            <span className="block text-[15px] font-extrabold tracking-tight text-slate-900">
-                                ScholarVerify
-                            </span>
-                            <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                                Project verification
-                            </span>
-                        </div>
+                    <Link to="/" className="group shrink-0">
+                        <ProjectVerifyLogo hideTextOnMobile className="transition-transform hover:opacity-95" />
                     </Link>
 
                     <nav className="hidden lg:flex items-center gap-6 xl:gap-8 flex-1 justify-center max-w-3xl">

@@ -7,6 +7,11 @@ import { Group } from '../models/Group.js';
 import { Proposal, PROPOSAL_STATUSES } from '../models/Proposal.js';
 import { LegacyProject } from '../models/LegacyProject.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import {
+  applyProjectTeacherEvalFields,
+  applyCollaborativeProjectReviewSlot,
+  toProjectSubmissionClient,
+} from './projectSubmissionSummary.service.js';
 import { Enrollment } from '../models/Enrollment.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
@@ -697,15 +702,30 @@ export async function resubmitAfterRevision(userId, assignmentId, body) {
 }
 
 function applyTeacherEvalFields(proposal, body) {
-  const { comment, teacherProposalScore, vsAi } = body || {};
-  if (comment !== undefined) proposal.teacherComment = comment == null ? '' : String(comment);
+  const { comment, teacherProposalScore, teacherProposalScoreMax, vsAi } = body || {};
+  const trimmedComment = comment == null ? '' : String(comment).trim();
+  if (trimmedComment) proposal.teacherComment = trimmedComment;
   if (Object.prototype.hasOwnProperty.call(body || {}, 'teacherProposalScore')) {
     const raw = body.teacherProposalScore;
     if (raw === null || raw === '' || raw === undefined) {
       proposal.teacherProposalScore = null;
     } else {
+      const max =
+        Object.prototype.hasOwnProperty.call(body || {}, 'teacherProposalScoreMax') &&
+        Number(body.teacherProposalScoreMax) > 0
+          ? Number(body.teacherProposalScoreMax)
+          : proposal.teacherProposalScoreMax ?? 100;
       const n = Number(raw);
-      if (!Number.isNaN(n) && n >= 0 && n <= 100) proposal.teacherProposalScore = n;
+      if (!Number.isNaN(n) && n >= 0 && n <= max) proposal.teacherProposalScore = n;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(body || {}, 'teacherProposalScoreMax')) {
+    const rawMax = body.teacherProposalScoreMax;
+    if (rawMax === null || rawMax === '' || rawMax === undefined) {
+      proposal.teacherProposalScoreMax = 100;
+    } else {
+      const m = Number(rawMax);
+      if (!Number.isNaN(m) && m > 0) proposal.teacherProposalScoreMax = m;
     }
   }
   if (vsAi !== undefined && ['not_set', 'aligns', 'stricter', 'lenient'].includes(String(vsAi))) {
@@ -731,14 +751,31 @@ function applyCollaborativeReviewSlot(proposal, role, teacherId, body, action) {
   slot.teacherId = teacherId;
   slot.action = action;
   slot.reviewedAt = new Date();
-  if (body.comment !== undefined) slot.comment = body.comment == null ? '' : String(body.comment);
+  if (body.comment !== undefined) {
+    const trimmed = body.comment == null ? '' : String(body.comment).trim();
+    if (trimmed) slot.comment = trimmed;
+  }
   if (Object.prototype.hasOwnProperty.call(body || {}, 'teacherProposalScore')) {
     const raw = body.teacherProposalScore;
+    const max =
+      Object.prototype.hasOwnProperty.call(body || {}, 'teacherProposalScoreMax') &&
+      Number(body.teacherProposalScoreMax) > 0
+        ? Number(body.teacherProposalScoreMax)
+        : slot.teacherProposalScoreMax ?? 100;
     if (raw === null || raw === '' || raw === undefined) {
       slot.teacherProposalScore = null;
     } else {
       const n = Number(raw);
-      if (!Number.isNaN(n) && n >= 0 && n <= 100) slot.teacherProposalScore = n;
+      if (!Number.isNaN(n) && n >= 0 && n <= max) slot.teacherProposalScore = n;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(body || {}, 'teacherProposalScoreMax')) {
+    const rawMax = body.teacherProposalScoreMax;
+    if (rawMax === null || rawMax === '' || rawMax === undefined) {
+      slot.teacherProposalScoreMax = 100;
+    } else {
+      const m = Number(rawMax);
+      if (!Number.isNaN(m) && m > 0) slot.teacherProposalScoreMax = m;
     }
   }
   if (body.vsAi !== undefined && ['not_set', 'aligns', 'stricter', 'lenient'].includes(String(body.vsAi))) {
@@ -779,8 +816,8 @@ function assertSingleTeacherReviewer(teacherId, assignment) {
 
 /** Teacher actions */
 export async function teacherReviewProposal(teacherId, proposalId, body) {
-  const { action, comment, teacherProposalScore, vsAi } = body || {};
-  const evalBody = { comment, teacherProposalScore, vsAi };
+  const { action, comment, teacherProposalScore, teacherProposalScoreMax, vsAi } = body || {};
+  const evalBody = { comment, teacherProposalScore, teacherProposalScoreMax, vsAi };
   const proposal = await Proposal.findById(proposalId).populate('assignment');
   if (!proposal) {
     const err = new Error('Proposal not found');
@@ -801,12 +838,27 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
   }
 
   if (action === 'comment') {
-    applyTeacherEvalFields(proposal, evalBody);
-    if (collaborativeRole) {
-      applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, null);
+    const latestProject = await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 });
+    if (latestProject) {
+      if (collaborativeRole) {
+        applyCollaborativeProjectReviewSlot(latestProject, collaborativeRole, teacherId, evalBody);
+      } else {
+        applyProjectTeacherEvalFields(latestProject, evalBody);
+      }
+      await latestProject.save();
+    } else {
+      applyTeacherEvalFields(proposal, evalBody);
+      if (collaborativeRole) {
+        applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, null);
+      }
+      await proposal.save();
     }
-    await proposal.save();
-    return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+    const enriched = enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+    if (latestProject) {
+      enriched.latestProjectSubmission = toProjectSubmissionClient(latestProject);
+      enriched.hasProjectSubmission = true;
+    }
+    return enriched;
   }
 
   const reviewable = ['pending_teacher_approval'];
@@ -991,17 +1043,7 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
       { $group: { _id: '$proposal', doc: { $first: '$$ROOT' } } },
     ]);
     for (const row of rows) {
-      const d = row.doc;
-      const rel = String(d.storedRelativePath || '').replace(/^\/+/, '');
-      latestZipByProposal.set(String(row._id), {
-        _id: d._id,
-        originalFilename: d.originalFilename || '',
-        sizeBytes: d.sizeBytes ?? 0,
-        createdAt: d.createdAt,
-        updatedAt: d.updatedAt,
-        version: d.version ?? 1,
-        downloadPath: rel ? `/uploads/${rel}` : '',
-      });
+      latestZipByProposal.set(String(row._id), toProjectSubmissionClient(row.doc));
     }
   }
   const studentUserIds = list

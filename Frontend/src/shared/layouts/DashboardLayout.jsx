@@ -40,6 +40,7 @@ const DashboardLayoutInner = ({ children }) => {
     const workflowItems = [
         { name: 'Group Management', path: '/teacher/group-management', icon: CheckSquare },
         { name: 'Assignments', path: '/teacher/assignments', icon: ClipboardList },
+        { name: 'Student messages', path: '/teacher/messages', icon: Bell },
     ];
     const adminItems = user?.roles?.includes('admin')
         ? [{ name: 'Admin Panel', path: '/admin', icon: Shield }]

@@ -1,20 +1,22 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
-    Rocket,
     LayoutDashboard,
     BookOpen,
     FolderKanban,
     UserRound,
+    MessageSquare,
     LogOut,
     ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import { BRAND, RAIL_GRADIENT } from '../../../shared/ui/brandTheme';
+import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 
 const navItems = [
     { label: 'Dashboard', to: '/student', icon: LayoutDashboard, end: true },
     { label: 'Assignments', to: '/student/assignments', icon: BookOpen },
     { label: 'My Projects', to: '/student/project', icon: FolderKanban },
+    { label: 'Contact teacher', to: '/student/messages', icon: MessageSquare },
     { label: 'Profile', to: '/student/profile', icon: UserRound },
 ];
 
@@ -32,16 +34,8 @@ const StudentSidebar = () => {
             className="hidden lg:flex w-[200px] xl:w-[220px] shrink-0 min-h-screen flex-col text-white py-5 pl-4 pr-3 rounded-tr-[56px] xl:rounded-tr-[64px]"
             style={{ background: RAIL_GRADIENT }}
         >
-            <Link to="/student" className="flex items-center gap-2 px-2 mb-5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/30">
-                    <Rocket className="h-3.5 w-3.5" strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0">
-                    <span className="block text-[12px] font-extrabold tracking-tight leading-tight">ScholarVerify</span>
-                    <span className="block text-[8px] font-semibold uppercase tracking-[0.16em] text-white/60 mt-0.5">
-                        Student console
-                    </span>
-                </div>
+            <Link to="/student" className="px-2 mb-5">
+                <ProjectVerifyLogo onDark size="sm" tagline="Student console" />
             </Link>
 
             <nav className="flex-1 space-y-1 px-1">
@@ -66,14 +60,14 @@ const StudentSidebar = () => {
 
             <div className="mt-4 mr-1 rounded-xl bg-white p-3 text-slate-900 shadow-lg ring-1 ring-slate-200/80">
                 <p className="text-[10px] font-bold leading-snug text-slate-800">
-                    Submit before deadlines and check teacher feedback in Assignments.
+                    Need more time? Use Contact teacher to request a deadline extension.
                 </p>
                 <Link
-                    to="/student/assignments"
+                    to="/student/messages"
                     className="mt-2.5 inline-flex text-[11px] font-black hover:underline"
                     style={{ color: BRAND.shell }}
                 >
-                    Open assignments →
+                    Open messages →
                 </Link>
             </div>
 

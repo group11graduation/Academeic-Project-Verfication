@@ -343,6 +343,24 @@ const teacherService = {
         const response = await api.get(`${base}/proposals/${proposalId}/preview/session`);
         return response.data;
     },
+
+    listStudentMessages: async ({ status, assignmentId } = {}) => {
+        const params = {};
+        if (status) params.status = status;
+        if (assignmentId) params.assignmentId = assignmentId;
+        const response = await api.get(`${base}/messages`, { params });
+        return response.data;
+    },
+
+    getStudentMessagesOpenCount: async () => {
+        const response = await api.get(`${base}/messages/open-count`);
+        return response.data;
+    },
+
+    replyStudentMessage: async (messageId, { reply, close }) => {
+        const response = await api.patch(`${base}/messages/${messageId}/reply`, { reply, close });
+        return response.data;
+    },
 };
 
 export default teacherService;

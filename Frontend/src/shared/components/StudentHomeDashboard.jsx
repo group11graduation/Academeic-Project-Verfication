@@ -7,11 +7,10 @@ import {
     ChevronDown,
     FileText,
     Loader2,
-    Rocket,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
 import studentService from '../../services/studentService';
-import { BRAND, BRAND_GRADIENT } from '../ui/brandTheme';
+import { BRAND, BRAND_GRADIENT, PROJECT_NAME } from '../ui/brandTheme';
 
 const statusBadge = (row) => {
     const s = row?.proposal?.status;
@@ -143,8 +142,8 @@ const StudentHomeDashboard = () => {
                         >
                             <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10" />
                             <div className="absolute -right-2 bottom-4 h-12 w-12 rounded-full bg-rose-400/30 blur-sm" />
-                            <Rocket className="h-5 w-5 mb-5 opacity-90" />
-                            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/70">ScholarVerify</p>
+                            <img src="/project-verify-logo.png" alt="" className="h-8 w-8 mb-4 object-contain" />
+                            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/70">{PROJECT_NAME}</p>
                             <p className="text-[12px] font-black mt-0.5">{firstName}&apos;s workspace</p>
                             <p className="text-[10px] font-medium text-white/60 mt-2">Academic term {new Date().getFullYear()}</p>
                         </div>

@@ -15,7 +15,7 @@ import {
 import { useAuth } from '../../../context/authContext';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
-import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
+import { BRAND, BRAND_GRADIENT, PROJECT_NAME } from '../../../shared/ui/brandTheme';
 
 const workflowSteps = [
     { step: '1', title: 'Teacher publishes assignment', detail: 'Final or normal tasks with requirements, deadlines, and optional group mode.' },
@@ -114,13 +114,13 @@ const LandingPage = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
                         <div className="lg:col-span-3">
                             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">
-                                ScholarVerify · System overview
+                                {PROJECT_NAME} · System overview
                             </p>
                             <h1 className="text-3xl md:text-4xl lg:text-[2.75rem] font-black text-slate-900 leading-tight tracking-tight mb-5">
                                 Academic project verification — from proposal to graded submission
                             </h1>
                             <p className="text-base md:text-lg text-slate-600 font-medium leading-relaxed max-w-2xl mb-8">
-                                ScholarVerify is your institution&apos;s workflow for capstone and coursework projects: assignments,
+                                {PROJECT_NAME} is your institution&apos;s workflow for capstone and coursework projects: assignments,
                                 AI-assisted integrity checks, teacher review, collaborative dual-teacher tasks, and Docker previews
                                 — all in one place.
                             </p>
@@ -171,8 +171,8 @@ const LandingPage = () => {
                                     key={label}
                                     className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm"
                                 >
-                                    <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#2a3fa4] flex items-center justify-center mb-3">
-                                        <Icon className="h-4 w-4" />
+                                    <div className="ui-icon-box w-9 h-9 rounded-lg bg-blue-50 text-[#2a3fa4] mb-3">
+                                        <Icon className="h-4 w-4 shrink-0" />
                                     </div>
                                     <p className="text-xs font-bold text-slate-700 leading-snug">{label}</p>
                                 </div>
@@ -222,7 +222,7 @@ const LandingPage = () => {
                         </p>
                     </div>
                     <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-8">
-                        What you can do in ScholarVerify
+                        What you can do in {PROJECT_NAME}
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                         {visibleModules.map((mod) => {

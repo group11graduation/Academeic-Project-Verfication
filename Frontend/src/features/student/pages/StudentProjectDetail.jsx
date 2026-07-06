@@ -21,6 +21,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
+import { PROJECT_NAME, PROJECT_LEGAL_NAME } from '../../../shared/ui/brandTheme';
 import StudentHeader from '../components/StudentHeader';
 import axios from 'axios';
 
@@ -331,7 +332,7 @@ const StudentProjectDetail = () => {
             <footer className="w-full mt-auto py-10 bg-[#141C2B] text-white flex flex-col md:flex-row items-center justify-between px-12 pb-16">
                 <div className="flex flex-col items-center md:items-start mb-6 md:mb-0">
                     <div className="font-black text-white text-[18px] tracking-tighter mb-1">
-                        ScholarVerify
+                        {PROJECT_NAME}
                     </div>
                 </div>
                 
@@ -341,7 +342,7 @@ const StudentProjectDetail = () => {
                     <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Institutional Access</a>
                     <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Support</a>
                     <span className="text-[11px] font-medium text-slate-400 ml-4">
-                        &copy; {new Date().getFullYear()} ScholarVerify Academic Systems. All research rights reserved.
+                        &copy; {new Date().getFullYear()} {PROJECT_LEGAL_NAME}. All research rights reserved.
                     </span>
                 </div>
             </footer>

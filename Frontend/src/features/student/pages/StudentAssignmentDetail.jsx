@@ -12,7 +12,23 @@ import {
     Printer,
 } from 'lucide-react';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK } from '../../../shared/ui/zendentaLayout';
-import { DEADLINE_DUE_STUDENT_MESSAGE } from '../../../shared/utils/assignmentDeadlines';
+import {
+    DEADLINE_DUE_STUDENT_MESSAGE,
+    isProposalPhaseComplete,
+    shouldShowNormalDeadlineWarning,
+    shouldShowProjectDeadlineWarning,
+    shouldShowProposalDeadlineWarning,
+} from '../../../shared/utils/assignmentDeadlines';
+import {
+    getProjectTeacherFeedbackEntries,
+    getProjectWorkflowStatus,
+    getWorkflowBadgeClasses,
+} from '../../../shared/utils/projectWorkflowStatus';
+import StudentProjectFeedbackPanel from '../../../shared/components/StudentProjectFeedbackPanel';
+import StudentContactTeacherPanel from '../../../shared/components/StudentContactTeacherPanel';
+import StudentTeacherInfoPanel, {
+    resolveAssignmentTeachers,
+} from '../../../shared/components/StudentTeacherInfoPanel';
 
 function DetailRow({ label, value }) {
     return (
@@ -86,7 +102,12 @@ const StudentAssignmentDetail = () => {
 
     const assignment = row.assignment;
     const isNormalAssignment = String(assignment?.assignmentType || 'normal') === 'normal';
-    const teacherName = assignment?.teacher?.name || '—';
+    const assignmentTeachers = resolveAssignmentTeachers(assignment);
+    const teacherName =
+        assignmentTeachers.length > 1
+            ? assignmentTeachers.map((t) => `${t.name}${t.roleLabel ? ` (${t.roleLabel})` : ''}`).join(' · ')
+            : assignmentTeachers[0]?.name || assignment?.teacher?.name || '—';
+    const isCollaborativeAssignment = assignmentTeachers.length > 1 || Boolean(assignment?.isCollaborative || assignment?.coTeacherId);
     const subjectLabel = assignment?.subject?.name
         ? `${assignment.subject.name}${assignment.subject?.code ? ` (${assignment.subject.code})` : ''}`
         : '—';
@@ -98,9 +119,19 @@ const StudentAssignmentDetail = () => {
     const proposalApprovedOrProjectUploaded = Boolean(
         row?.latestProjectSubmission || row?.proposal?.status === 'teacher_approved'
     );
+    const workflow = !isNormalAssignment ? getProjectWorkflowStatus(row) : null;
+    const teacherFeedbackEntries = !isNormalAssignment ? getProjectTeacherFeedbackEntries(row) : [];
     const normalDeadlineClosed = isNormalAssignment && (row?.submissionDeadlinePassed || row?.normalSubmissionAllowed === false);
-    const proposalDeadlineClosed = !isNormalAssignment && row?.proposalDeadlinePassed;
-    const projectDeadlineClosed = !isNormalAssignment && row?.projectDeadlinePassed;
+    const showNormalDeadlineBanner = isNormalAssignment && shouldShowNormalDeadlineWarning(row);
+    const showProposalDeadlineBanner = !isNormalAssignment && shouldShowProposalDeadlineWarning(row);
+    const showProjectDeadlineBanner = !isNormalAssignment && shouldShowProjectDeadlineWarning(row);
+    const proposalPhaseComplete = isProposalPhaseComplete(row);
+    const projectSubmitted = Boolean(row?.latestProjectSubmission);
+    const anyDeadlinePassed = Boolean(
+        row?.proposalDeadlinePassed || row?.projectDeadlinePassed || row?.submissionDeadlinePassed
+    );
+    const showContactDeadlineHint =
+        showProposalDeadlineBanner || showProjectDeadlineBanner || showNormalDeadlineBanner || anyDeadlinePassed;
 
     const handleNormalUpload = async () => {
         if (normalDeadlineClosed) {
@@ -175,21 +206,26 @@ const StudentAssignmentDetail = () => {
                     </div>
                 </div>
 
-                {normalDeadlineClosed ? (
+                <StudentTeacherInfoPanel
+                    teachers={assignmentTeachers}
+                    assignmentTitle={displayTitle}
+                />
+
+                {showNormalDeadlineBanner ? (
                     <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
                         <p className="font-bold">Submission deadline due</p>
                         <p className="mt-1">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
                     </div>
                 ) : null}
 
-                {proposalDeadlineClosed ? (
+                {showProposalDeadlineBanner ? (
                     <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
                         <p className="font-bold">Proposal deadline due</p>
                         <p className="mt-1">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
                     </div>
                 ) : null}
 
-                {projectDeadlineClosed && proposalApprovedOrProjectUploaded ? (
+                {showProjectDeadlineBanner ? (
                     <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
                         <p className="font-bold">Project deadline due</p>
                         <p className="mt-1">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
@@ -228,6 +264,13 @@ const StudentAssignmentDetail = () => {
                                     <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Next deadline</p>
                                 </div>
                             </div>
+                            {!isNormalAssignment && workflow ? (
+                                <span
+                                    className={`mt-3 inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide ${getWorkflowBadgeClasses(workflow.tone)}`}
+                                >
+                                    {workflow.label}
+                                </span>
+                            ) : null}
                             {!isNormalAssignment ? (
                                 <Link to={`/student/assignments/${assignment._id}/proposal`} className={`${Z_BTN_PRIMARY} mt-4 w-full`}>
                                     Open proposal
@@ -250,10 +293,30 @@ const StudentAssignmentDetail = () => {
                     <div className={`${Z_CARD} p-4`}>
                         <h2 className="text-[12px] font-bold text-slate-900">Assignment details</h2>
                         <p className="mb-3 text-[11px] text-slate-500">Information from your teacher.</p>
+                        {assignmentTeachers.length ? (
+                            <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                                <StudentTeacherInfoPanel
+                                    teachers={assignmentTeachers}
+                                    compact
+                                    embedded
+                                />
+                            </div>
+                        ) : null}
                         <div>
-                            <DetailRow label="Teacher" value={teacherName} />
+                            {!assignmentTeachers.length ? (
+                                <DetailRow label="Teacher" value={teacherName} />
+                            ) : null}
                             <DetailRow label="Subject" value={subjectLabel} />
-                            <DetailRow label="Type" value={isNormalAssignment ? 'Normal (file upload)' : 'Final (proposal + project)'} />
+                            <DetailRow
+                                label="Type"
+                                value={
+                                    isCollaborativeAssignment
+                                        ? 'Collaborative final (2 teachers · proposal + project)'
+                                        : isNormalAssignment
+                                          ? 'Normal (file upload)'
+                                          : 'Final (proposal + project)'
+                                }
+                            />
                             <DetailRow label="Proposal deadline" value={proposalDeadline || '—'} />
                             <DetailRow label="Project deadline" value={projectDeadline || '—'} />
                             {!isNormalAssignment ? <DetailRow label="Proposal status" value={proposalStatusLabel(row)} /> : null}
@@ -265,9 +328,11 @@ const StudentAssignmentDetail = () => {
                             <h2 className="text-[12px] font-bold text-slate-900">Notes</h2>
                             <span className="text-xs font-semibold text-[#1e56e3]">{studentName}</span>
                         </div>
-                        {row?.proposal?.teacherComment ? (
+                        {teacherFeedbackEntries.length ? (
+                            <StudentProjectFeedbackPanel entries={teacherFeedbackEntries} />
+                        ) : row?.proposal?.teacherComment && !row?.latestProjectSubmission ? (
                             <div className="flex-1 rounded-lg border border-blue-100 bg-blue-50/80 p-3 text-sm leading-relaxed text-blue-950">
-                                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">Teacher feedback</p>
+                                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">Proposal feedback</p>
                                 {row.proposal.teacherComment}
                             </div>
                         ) : (
@@ -423,12 +488,21 @@ const StudentAssignmentDetail = () => {
                                             </div>
                                         ) : (
                                             <div className="grid gap-4 md:grid-cols-2">
-                                                {proposalDeadlineClosed ? (
+                                                {showProposalDeadlineBanner ? (
                                                     <div className={`${Z_CARD} border-rose-200 bg-rose-50/80 p-4 opacity-95`}>
                                                         <div className="text-[10px] font-bold uppercase tracking-widest text-rose-700">Step 1 (closed)</div>
                                                         <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
                                                         <p className="mt-1 text-[12px] text-rose-800">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
                                                     </div>
+                                                ) : proposalPhaseComplete ? (
+                                                    <Link
+                                                        to={`/student/assignments/${assignment._id}/proposal`}
+                                                        className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
+                                                    >
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 1 (done)</div>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
+                                                        <p className="mt-1 text-[12px] text-slate-600">Submitted — view your proposal details.</p>
+                                                    </Link>
                                                 ) : (
                                                     <Link
                                                         to={`/student/assignments/${assignment._id}/proposal`}
@@ -440,7 +514,18 @@ const StudentAssignmentDetail = () => {
                                                     </Link>
                                                 )}
                                                 {proposalApprovedOrProjectUploaded ? (
-                                                    projectDeadlineClosed ? (
+                                                    projectSubmitted ? (
+                                                        <Link
+                                                            to={`/student/project/${assignment._id}`}
+                                                            className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
+                                                        >
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 2 (done)</div>
+                                                            <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
+                                                            <p className="mt-1 text-[12px] text-slate-600">
+                                                                Submitted — view project and teacher feedback.
+                                                            </p>
+                                                        </Link>
+                                                    ) : showProjectDeadlineBanner ? (
                                                         <div className={`${Z_CARD} border-rose-200 bg-rose-50/80 p-4 opacity-95`}>
                                                             <div className="text-[10px] font-bold uppercase tracking-widest text-rose-700">Step 2 (closed)</div>
                                                             <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
@@ -467,16 +552,24 @@ const StudentAssignmentDetail = () => {
                                         )}
 
                                         {!isNormalAssignment && row.latestProjectSubmission ? (
-                                            <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                                                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
-                                                <div>
-                                                    <p className="text-sm font-bold text-emerald-900">
-                                                        Project uploaded: {row.latestProjectSubmission.originalFilename}
-                                                    </p>
-                                                    <p className="text-xs text-emerald-800">
-                                                        {new Date(row.latestProjectSubmission.createdAt).toLocaleString()}
-                                                    </p>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                                                    <div>
+                                                        <p className="text-sm font-bold text-emerald-900">
+                                                            Project submitted: {row.latestProjectSubmission.originalFilename}
+                                                        </p>
+                                                        <p className="text-xs text-emerald-800">
+                                                            {new Date(row.latestProjectSubmission.createdAt).toLocaleString()}
+                                                            {row.latestProjectSubmission.teacherPreviewedAt
+                                                                ? ` · Teacher previewed ${new Date(row.latestProjectSubmission.teacherPreviewedAt).toLocaleString()}`
+                                                                : ' · Waiting for teacher preview'}
+                                                        </p>
+                                                    </div>
                                                 </div>
+                                                {teacherFeedbackEntries.length ? (
+                                                    <StudentProjectFeedbackPanel entries={teacherFeedbackEntries} />
+                                                ) : null}
                                             </div>
                                         ) : !isNormalAssignment ? (
                                             <p className="text-sm font-medium text-slate-500">
@@ -535,6 +628,16 @@ const StudentAssignmentDetail = () => {
                             </ul>
                         </div>
                     </div>
+                </div>
+
+                <div className="mt-4">
+                    <StudentContactTeacherPanel
+                        assignmentId={assignment._id}
+                        assignmentTitle={displayTitle}
+                        teacherName={teacherName}
+                        teachers={assignmentTeachers}
+                        showDeadlineHint={showContactDeadlineHint}
+                    />
                 </div>
             </div>
         </div>

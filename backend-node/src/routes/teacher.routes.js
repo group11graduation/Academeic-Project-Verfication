@@ -3,6 +3,7 @@ import { requireRoles } from '../middleware/auth.js';
 import * as teacher from '../controllers/teacherProposal.controller.js';
 import * as teacherPreview from '../controllers/teacherPreview.controller.js';
 import * as teacherCollaborative from '../controllers/teacherCollaborative.controller.js';
+import * as teacherMessage from '../controllers/teacherMessage.controller.js';
 import { uploadAssignmentRequirement } from '../middleware/assignmentRequirementUpload.js';
 
 const router = Router();
@@ -55,6 +56,11 @@ router.post('/assignments/:assignmentId/groups/import', teacher.importAssignment
 router.get('/assignments/:assignmentId/groups', teacher.listGroups);
 router.post('/assignments/:assignmentId/groups', teacher.createGroup);
 router.patch('/proposals/:proposalId/review', teacher.reviewProposal);
+
+router.get('/messages/open-count', teacherMessage.openCount);
+router.get('/messages', teacherMessage.listMessages);
+router.get('/messages/:messageId', teacherMessage.getMessage);
+router.patch('/messages/:messageId/reply', teacherMessage.replyMessage);
 
 router.post('/proposals/:proposalId/preview/start', teacherPreview.startPreview);
 router.get('/proposals/:proposalId/preview/session', teacherPreview.getActivePreviewForProposal);

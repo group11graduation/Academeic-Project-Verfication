@@ -3,6 +3,7 @@ import { Search, ChevronDown, ArrowLeft, Loader2, Users, Mail } from 'lucide-rea
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
+import { getApiErrorMessage } from '../../../shared/utils/apiErrors';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
@@ -19,35 +20,45 @@ const StudentList = () => {
 
     useEffect(() => {
         let cancelled = false;
-        const fetchStudents = async () => {
+        const load = async () => {
             setLoading(true);
             setLoadError('');
+            setStudents([]);
+            setClassTitle('');
+
             try {
-                const [studentsRes, classRes] = await Promise.all([
-                    teacherService.getClassStudents(id),
-                    teacherService.getClassDetails(id),
-                ]);
+                const studentsRes = await teacherService.getClassStudents(id);
                 if (cancelled) return;
-                if (studentsRes.success) {
+                if (studentsRes?.success) {
                     setStudents(Array.isArray(studentsRes.data) ? studentsRes.data : []);
                 } else {
                     setStudents([]);
-                    setLoadError(studentsRes.message || 'Could not load students for this class.');
-                }
-                if (classRes.success) {
-                    setClassTitle(classRes.data?.title || classRes.data?.code || id);
+                    setLoadError(studentsRes?.message || 'Could not load students for this class.');
                 }
             } catch (error) {
-                console.error('Failed to fetch students:', error);
-                if (!cancelled) {
-                    setStudents([]);
-                    setLoadError(error.response?.data?.message || 'Failed to load students for this class.');
-                }
+                if (cancelled) return;
+                setStudents([]);
+                setLoadError(getApiErrorMessage(error, 'Could not load students for this class.'));
             } finally {
                 if (!cancelled) setLoading(false);
             }
+
+            teacherService
+                .getClassDetails(id)
+                .then((classRes) => {
+                    if (cancelled) return;
+                    if (classRes?.success) {
+                        setClassTitle(classRes.data?.title || classRes.data?.code || id);
+                    } else {
+                        setClassTitle(id);
+                    }
+                })
+                .catch(() => {
+                    if (!cancelled) setClassTitle(id);
+                });
         };
-        if (id) fetchStudents();
+
+        if (id) load();
         return () => {
             cancelled = true;
         };

@@ -17,7 +17,8 @@ const collaborativeReviewSchema = new mongoose.Schema(
     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     action: { type: String, enum: ['approve', 'reject', 'revision'], default: null },
     comment: { type: String, default: '' },
-    teacherProposalScore: { type: Number, min: 0, max: 100, default: null },
+    teacherProposalScore: { type: Number, min: 0, default: null },
+    teacherProposalScoreMax: { type: Number, min: 1, default: 100 },
     teacherVsAi: {
       type: String,
       enum: ['not_set', 'aligns', 'stricter', 'lenient'],
@@ -61,8 +62,9 @@ const proposalSchema = new mongoose.Schema(
     /** Snapshot when AI flagged previous-semester match (for diff on resubmit) */
     previousFeaturesAtFlag: [{ type: String }],
     teacherComment: { type: String, default: '' },
-    /** 0–100: teacher's own quality assessment (independent of AI similarity scores) */
-    teacherProposalScore: { type: Number, min: 0, max: 100, default: null },
+    /** Teacher quality score (points earned; see teacherProposalScoreMax for total) */
+    teacherProposalScore: { type: Number, min: 0, default: null },
+    teacherProposalScoreMax: { type: Number, min: 1, default: 100 },
     /**
      * How the teacher's judgment relates to the AI similarity signals.
      * `aligns` = agrees with the AI risk picture; stricter/lenient = teacher overrides the hint.

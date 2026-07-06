@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireRoles } from '../middleware/auth.js';
 import * as student from '../controllers/studentProposal.controller.js';
+import * as studentMessage from '../controllers/studentMessage.controller.js';
 import { uploadProjectArtifacts, uploadProjectScreenshotOnly } from '../middleware/projectArtifactsUpload.js';
 import { uploadProposalFile } from '../middleware/proposalUpload.js';
 import { uploadNormalAssignmentFile } from '../middleware/normalAssignmentUpload.js';
@@ -79,5 +80,10 @@ router.post(
   student.submitNormalAssignment
 );
 router.get('/proposals/:proposalId', student.getProposal);
+
+router.get('/messages', studentMessage.listMyMessages);
+router.post('/messages', studentMessage.createMessage);
+router.post('/assignments/:assignmentId/messages', studentMessage.createMessage);
+router.get('/messages/:messageId', studentMessage.getMessage);
 
 export default router;

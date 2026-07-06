@@ -1,0 +1,59 @@
+import React from 'react';
+import { BRAND, PRODUCT_TAGLINE, PROJECT_NAME } from '../ui/brandTheme';
+
+/**
+ * Shared Project Verify logo — image mark + optional wordmark.
+ */
+export default function ProjectVerifyLogo({
+    showText = true,
+    size = 'md',
+    className = '',
+    textClassName = '',
+    tagline = PRODUCT_TAGLINE,
+    onDark = false,
+    hideTextOnMobile = false,
+}) {
+    const box =
+        size === 'sm' ? 'h-8 w-8' : size === 'lg' ? 'h-11 w-11' : 'h-9 w-9';
+    const img =
+        size === 'sm' ? 'h-7 w-7' : size === 'lg' ? 'h-9 w-9' : 'h-8 w-8';
+    const titleSize =
+        size === 'sm' ? 'text-[13px]' : size === 'lg' ? 'text-[16px]' : 'text-[15px]';
+
+    return (
+        <div className={`flex items-center gap-3 shrink-0 ${className}`}>
+            <div
+                className={`ui-icon-box rounded-lg overflow-hidden ring-2 transition-transform ${box} ${
+                    onDark ? 'ring-white/25 bg-white' : 'ring-[#2a3fa4]/15'
+                }`}
+                style={onDark ? undefined : { backgroundColor: BRAND.primary }}
+            >
+                <img
+                    src="/project-verify-logo.png"
+                    alt=""
+                    className={`${img} object-contain shrink-0 ${onDark ? '' : 'brightness-110'}`}
+                />
+            </div>
+            {showText ? (
+                <div className={`leading-tight min-w-0 ${hideTextOnMobile ? 'hidden sm:block' : ''} ${textClassName}`}>
+                    <span
+                        className={`block font-extrabold tracking-tight ${titleSize} ${
+                            onDark ? 'text-white' : 'text-slate-900'
+                        }`}
+                    >
+                        {PROJECT_NAME}
+                    </span>
+                    {tagline ? (
+                        <span
+                            className={`block text-[10px] font-bold uppercase tracking-[0.14em] ${
+                                onDark ? 'text-white/65' : 'text-slate-400'
+                            }`}
+                        >
+                            {tagline}
+                        </span>
+                    ) : null}
+                </div>
+            ) : null}
+        </div>
+    );
+}

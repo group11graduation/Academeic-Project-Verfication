@@ -155,6 +155,7 @@ const TeacherProposalStudentDetail = () => {
     const [actionId, setActionId] = useState(null);
     const [comment, setComment] = useState('');
     const [evalScore, setEvalScore] = useState('');
+    const [evalScoreMax, setEvalScoreMax] = useState('100');
     const [vsAi, setVsAi] = useState('not_set');
     const [previewSessionByProposal, setPreviewSessionByProposal] = useState({});
     const [previewBusyId, setPreviewBusyId] = useState(null);
@@ -283,30 +284,76 @@ const TeacherProposalStudentDetail = () => {
 
     useEffect(() => {
         if (!proposal) return;
+        const zip = proposal.latestProjectSubmission;
+        const isProjectPhase = Boolean(zip);
+        const collabRole = assignment?.collaborationReviewRole;
+        const collabSlot =
+            isProjectPhase && isCollaborative && collabRole
+                ? zip?.collaborativeProjectReviews?.[collabRole]
+                : null;
+
         setComment('');
-        setEvalScore(
-            proposal.teacherProposalScore != null && proposal.teacherProposalScore !== undefined
-                ? String(proposal.teacherProposalScore)
-                : ''
-        );
+
+        if (collabSlot) {
+            setEvalScore(collabSlot.score != null ? String(collabSlot.score) : '');
+            setEvalScoreMax(collabSlot.scoreMax != null ? String(collabSlot.scoreMax) : '100');
+        } else if (isProjectPhase) {
+            setEvalScore(
+                zip.teacherScore != null && zip.teacherScore !== undefined
+                    ? String(zip.teacherScore)
+                    : proposal.teacherProposalScore != null
+                      ? String(proposal.teacherProposalScore)
+                      : ''
+            );
+            setEvalScoreMax(
+                String(zip.teacherScoreMax ?? proposal.teacherProposalScoreMax ?? 100)
+            );
+        } else {
+            setEvalScore(
+                proposal.teacherProposalScore != null && proposal.teacherProposalScore !== undefined
+                    ? String(proposal.teacherProposalScore)
+                    : ''
+            );
+            setEvalScoreMax(String(proposal.teacherProposalScoreMax ?? 100));
+        }
         setVsAi(
             proposal.teacherVsAi && ['aligns', 'stricter', 'lenient', 'not_set'].includes(proposal.teacherVsAi)
                 ? proposal.teacherVsAi
                 : 'not_set'
         );
-    }, [proposal?._id, proposal?.teacherProposalScore, proposal?.teacherVsAi]);
+    }, [
+        proposal?._id,
+        proposal?.teacherProposalScore,
+        proposal?.teacherProposalScoreMax,
+        proposal?.teacherVsAi,
+        proposal?.latestProjectSubmission?.teacherScore,
+        proposal?.latestProjectSubmission?.teacherScoreMax,
+        proposal?.latestProjectSubmission?._id,
+        proposal?.latestProjectSubmission?.collaborativeProjectReviews,
+        assignment?.collaborationReviewRole,
+        isCollaborative,
+    ]);
 
     const proposalPlain = useMemo(() => buildProposalPlainText(proposal), [proposal]);
 
     const reviewPayload = () => {
-        const n = String(evalScore).trim();
-        const num = n === '' ? undefined : Number(n);
-        return {
-            comment,
-            teacherProposalScore: num !== undefined && !Number.isNaN(num) && num >= 0 && num <= 100 ? num : undefined,
-            vsAi: vsAi || 'not_set',
-        };
+        const scoreStr = String(evalScore).trim();
+        const maxStr = String(evalScoreMax).trim();
+        const scoreNum = scoreStr === '' ? undefined : Number(scoreStr);
+        const maxNum = maxStr === '' ? 100 : Number(maxStr);
+        const payload = { vsAi: vsAi || 'not_set' };
+        if (comment.trim()) payload.comment = comment.trim();
+        if (scoreNum !== undefined && !Number.isNaN(scoreNum)) {
+            payload.teacherProposalScore = scoreNum;
+            payload.teacherProposalScoreMax =
+                !Number.isNaN(maxNum) && maxNum > 0 ? maxNum : 100;
+        } else if (!Number.isNaN(maxNum) && maxNum > 0 && maxNum !== 100) {
+            payload.teacherProposalScoreMax = maxNum;
+        }
+        return payload;
     };
+
+    const canSendFeedback = Boolean(comment.trim() || String(evalScore).trim());
 
     const runReview = async (action) => {
         if (!proposal) return;
@@ -460,6 +507,18 @@ const TeacherProposalStudentDetail = () => {
         : '—';
 
     const zip = proposal.latestProjectSubmission;
+    const isProjectReviewPhase = Boolean(zip);
+    const myProjectReviewSlot =
+        isProjectReviewPhase && isCollaborative && myReviewRole
+            ? zip?.collaborativeProjectReviews?.[myReviewRole]
+            : null;
+    const projectFeedbackComment = myProjectReviewSlot?.comment || zip?.teacherComment || '';
+    const projectFeedbackScore = myProjectReviewSlot?.score ?? zip?.teacherScore ?? null;
+    const projectFeedbackScoreMax = myProjectReviewSlot?.scoreMax ?? zip?.teacherScoreMax ?? 100;
+    const otherCollabProjectSlot =
+        isProjectReviewPhase && isCollaborative && myReviewRole
+            ? zip?.collaborativeProjectReviews?.[myReviewRole === 'frontend' ? 'backend' : 'frontend']
+            : null;
     const apiOrigin = getApiOrigin();
     const zipUrl =
         zip?.downloadPath && String(zip.downloadPath).startsWith('/')
@@ -681,21 +740,74 @@ const TeacherProposalStudentDetail = () => {
 
                     <div className="flex flex-col gap-4 lg:col-span-2">
                         <div className={`${Z_CARD} p-5`}>
-                            <h2 className="text-sm font-bold text-slate-900">Your review</h2>
-                            <p className="mb-4 text-xs text-slate-500">Score, AI comparison, and written feedback.</p>
-                            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <h2 className="text-sm font-bold text-slate-900">
+                                {isProjectReviewPhase ? 'Project feedback' : 'Your review'}
+                            </h2>
+                            <p className="mb-4 text-xs text-slate-500">
+                                {isProjectReviewPhase
+                                    ? 'Score and written feedback on the student project ZIP. The student sees this after submission.'
+                                    : 'Score, AI comparison, and written feedback on the proposal.'}
+                            </p>
+                            {isProjectReviewPhase && isCollaborative && myReviewRole ? (
+                                <p className="mb-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-900">
+                                    You are reviewing as the{' '}
+                                    <strong>{myReviewRole === 'frontend' ? 'Frontend' : 'Backend'} teacher</strong>.
+                                    The student will see your feedback separately from your co-teacher.
+                                </p>
+                            ) : null}
+                            {otherCollabProjectSlot &&
+                            (otherCollabProjectSlot.comment || otherCollabProjectSlot.score != null) ? (
+                                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
+                                    <p className="font-bold uppercase tracking-wide text-slate-500">
+                                        Co-teacher project feedback
+                                    </p>
+                                    {otherCollabProjectSlot.score != null ? (
+                                        <p className="mt-1 font-bold">
+                                            Score: {otherCollabProjectSlot.score}/{otherCollabProjectSlot.scoreMax ?? 100}
+                                        </p>
+                                    ) : null}
+                                    {otherCollabProjectSlot.comment ? (
+                                        <p className="mt-1">{otherCollabProjectSlot.comment}</p>
+                                    ) : null}
+                                </div>
+                            ) : null}
+                            {isProjectReviewPhase && (projectFeedbackComment || projectFeedbackScore != null) ? (
+                                <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50/80 px-3 py-2 text-xs text-violet-900">
+                                    <p className="font-bold uppercase tracking-wide text-violet-700">
+                                        {isCollaborative && myReviewRole ? 'Your saved project feedback' : 'Current project feedback'}
+                                    </p>
+                                    {projectFeedbackScore != null ? (
+                                        <p className="mt-1 font-bold">
+                                            Score: {projectFeedbackScore}/{projectFeedbackScoreMax}
+                                        </p>
+                                    ) : null}
+                                    {projectFeedbackComment ? <p className="mt-1">{projectFeedbackComment}</p> : null}
+                                </div>
+                            ) : null}
+                            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
-                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Quality score (0–100)</label>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Points earned</label>
                                     <input
                                         type="number"
                                         min={0}
-                                        max={100}
                                         value={evalScore}
                                         onChange={(e) => setEvalScore(e.target.value)}
                                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
-                                        placeholder="e.g. 78"
+                                        placeholder="e.g. 29"
                                     />
                                 </div>
+                                <div>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Out of (total)</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={evalScoreMax}
+                                        onChange={(e) => setEvalScoreMax(e.target.value)}
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                        placeholder="e.g. 30"
+                                    />
+                                </div>
+                                {!isProjectReviewPhase ? (
                                 <div>
                                     <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Vs AI signal</label>
                                     <select
@@ -709,6 +821,13 @@ const TeacherProposalStudentDetail = () => {
                                         <option value="lenient">The AI is too harsh — I accept this work</option>
                                     </select>
                                 </div>
+                                ) : (
+                                <div className="flex items-end">
+                                    <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600">
+                                        Preview: {evalScore.trim() ? `${evalScore}/${evalScoreMax || '100'}` : '—'}
+                                    </p>
+                                </div>
+                                )}
                             </div>
                             <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Written feedback</label>
                             <textarea
@@ -720,12 +839,12 @@ const TeacherProposalStudentDetail = () => {
                             />
                             <button
                                 type="button"
-                                disabled={!!actionId || !comment.trim()}
+                                disabled={!!actionId || !canSendFeedback}
                                 onClick={() => runReview('comment')}
                                 className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-50"
                             >
                                 <MessageSquare className="h-3.5 w-3.5" />
-                                Send feedback only
+                                {isProjectReviewPhase ? 'Send project feedback' : 'Send feedback only'}
                             </button>
                         </div>
 

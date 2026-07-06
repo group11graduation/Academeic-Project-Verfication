@@ -316,6 +316,11 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
       if (session.extractDirPath) {
         await previewWorkspaceCache.markWorkspacePreviewReady(session.extractDirPath).catch(() => {});
       }
+      if (session.submission) {
+        await ProjectSubmission.findByIdAndUpdate(session.submission, {
+          teacherPreviewedAt: new Date(),
+        }).catch(() => {});
+      }
       await schedulePreviewTtl(session);
       const until = session.expiresAt ? new Date(session.expiresAt).toLocaleTimeString() : '';
       appendLog(

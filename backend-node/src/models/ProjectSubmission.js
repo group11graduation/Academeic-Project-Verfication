@@ -1,5 +1,16 @@
 import mongoose from 'mongoose';
 
+const collaborativeProjectReviewSchema = new mongoose.Schema(
+  {
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    comment: { type: String, default: '' },
+    score: { type: Number, min: 0, default: null },
+    scoreMax: { type: Number, min: 1, default: 100 },
+    reviewedAt: { type: Date },
+  },
+  { _id: false }
+);
+
 /** Student-uploaded project archive (ZIP) linked to an approved-proposal context */
 const projectSubmissionSchema = new mongoose.Schema(
   {
@@ -41,6 +52,18 @@ const projectSubmissionSchema = new mongoose.Schema(
     lastRuntimeErrorAt: { type: Date },
     /** UI preview image for verified projects gallery (png/jpg/webp) */
     screenshotRelativePath: { type: String, default: '' },
+    /** Teacher review of the uploaded project (separate from proposal feedback) */
+    teacherComment: { type: String, default: '' },
+    teacherScore: { type: Number, min: 0, default: null },
+    teacherScoreMax: { type: Number, min: 1, default: 100 },
+    teacherReviewedAt: { type: Date },
+    /** Set when teacher successfully opens a live preview of this ZIP */
+    teacherPreviewedAt: { type: Date },
+    /** Dual-teacher project feedback (frontend + backend teachers) */
+    collaborativeProjectReviews: {
+      frontend: { type: collaborativeProjectReviewSchema, default: () => ({}) },
+      backend: { type: collaborativeProjectReviewSchema, default: () => ({}) },
+    },
   },
   { timestamps: true }
 );

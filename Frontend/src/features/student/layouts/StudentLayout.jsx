@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useLocation, Link, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Rocket, ChevronDown, Search } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, ChevronDown, Search } from 'lucide-react';
+import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import StudentSidebar from '../components/StudentSidebar';
 import { useAuth } from '../../../context/authContext';
 import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
@@ -56,14 +57,8 @@ const StudentLayoutInner = () => {
             <div className="flex min-h-screen min-w-0 flex-1 flex-col">
                     {/* Mobile top bar */}
                     <div className="lg:hidden flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200/80 bg-[#f8fafc]">
-                        <Link to="/student" className="flex items-center gap-2">
-                            <div
-                                className="h-8 w-8 rounded-lg flex items-center justify-center text-white"
-                                style={{ backgroundColor: BRAND.primary }}
-                            >
-                                <Rocket className="h-4 w-4" />
-                            </div>
-                            <span className="font-extrabold text-sm">ScholarVerify</span>
+                        <Link to="/student">
+                            <ProjectVerifyLogo size="sm" hideTextOnMobile />
                         </Link>
                         <button
                             type="button"

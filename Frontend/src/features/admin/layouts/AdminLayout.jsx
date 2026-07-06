@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
+import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 
 const ADMIN_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
@@ -149,10 +150,7 @@ const AdminLayoutInner = () => {
                 className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm lg:hidden"
             >
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e56e3] text-white shadow-sm">
-                        <ShieldCheck className="h-5 w-5" strokeWidth={2} />
-                    </div>
-                    <span className="truncate text-[15px] font-extrabold tracking-tight text-slate-900">ScholarVerify</span>
+                    <ProjectVerifyLogo size="sm" tagline="Admin console" />
                 </button>
                 <NavLink
                     to="/admin"
@@ -244,13 +242,7 @@ const AdminLayoutInner = () => {
                                 onClick={() => navigate('/admin')}
                                 className="mx-2 mb-1.5 mt-3 flex items-center gap-2 rounded-lg bg-white p-2 text-left ring-1 ring-slate-200/80 transition hover:bg-slate-50"
                             >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#1e56e3]/10 text-[#1e56e3]">
-                                    <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-[11px] font-extrabold leading-tight tracking-[0.03em] text-slate-900">ScholarVerify</div>
-                                    <div className="mt-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-slate-500">Admin console</div>
-                                </div>
+                                <ProjectVerifyLogo size="sm" tagline="Admin console" />
                             </button>
 
                             <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto pb-3 pl-0.5 pr-0.5">

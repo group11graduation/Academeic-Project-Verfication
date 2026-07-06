@@ -19,6 +19,12 @@ import {
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_INPUT, Z_LINK } from '../../../shared/ui/zendentaLayout';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import {
+    getProjectTeacherFeedbackEntries,
+    getProjectWorkflowStatus,
+    getWorkflowBadgeClasses,
+    formatTeacherScoreDisplay,
+} from '../../../shared/utils/projectWorkflowStatus';
 
 const StudentAssignments = () => {
     const [rows, setRows] = useState([]);
@@ -408,6 +414,12 @@ const StudentAssignments = () => {
                                         {displayedRowsFiltered.map((row) => {
                                             const a = row.assignment || {};
                                             const deadlineStatus = getDeadlineStatus(getSubmissionDeadline(a));
+                                            const workflow = getProjectWorkflowStatus(row);
+                                            const teacherFeedbackEntries = getProjectTeacherFeedbackEntries(row);
+                                            const showOverdue =
+                                                getSubmissionDeadline(a) &&
+                                                deadlineStatus.label === 'Overdue' &&
+                                                !row?.latestProjectSubmission;
                                             return (
                                                 <li key={a._id} className="px-3 py-3 md:px-4">
                                                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -441,29 +453,43 @@ const StudentAssignments = () => {
                                                                 </div>
                                                                 <div className="mt-2 flex flex-wrap gap-2">
                                                                     <span
-                                                                        className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                                                                            isProjectSubmitted(row)
-                                                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                                                                : 'border-amber-200 bg-amber-50 text-amber-800'
-                                                                        }`}
+                                                                        className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getWorkflowBadgeClasses(workflow.tone)}`}
                                                                     >
-                                                                        {isProjectSubmitted(row) ? 'Submitted' : 'Pending'}
+                                                                        {workflow.label}
                                                                     </span>
-                                                                    {getSubmissionDeadline(a) ? (
+                                                                    {showOverdue ? (
                                                                         <span
                                                                             className={`rounded-full border border-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${deadlineStatus.bg} ${deadlineStatus.color}`}
                                                                         >
                                                                             {deadlineStatus.label}
                                                                         </span>
                                                                     ) : null}
-                                                                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
-                                                                        {getProposalStatusLabel(row)}
-                                                                    </span>
                                                                 </div>
-                                                                {row?.proposal?.teacherComment ? (
-                                                                    <p className="mt-2 line-clamp-2 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-900">
-                                                                        {row.proposal.teacherComment}
-                                                                    </p>
+                                                                {teacherFeedbackEntries.length ? (
+                                                                    <div className="mt-2 space-y-2">
+                                                                        {teacherFeedbackEntries.map((entry) => (
+                                                                            <div
+                                                                                key={entry.role}
+                                                                                className="rounded-lg border border-violet-100 bg-violet-50/80 px-3 py-2 text-xs text-violet-900"
+                                                                            >
+                                                                                {teacherFeedbackEntries.length > 1 ? (
+                                                                                    <p className="mb-1 font-bold uppercase tracking-wide text-violet-700">
+                                                                                        {entry.roleLabel}
+                                                                                    </p>
+                                                                                ) : null}
+                                                                                {entry.scoreDisplay || entry.score != null ? (
+                                                                                    <p className="mb-1 font-bold">
+                                                                                        Score:{' '}
+                                                                                        {entry.scoreDisplay ||
+                                                                                            formatTeacherScoreDisplay(entry.score, entry.scoreMax)}
+                                                                                    </p>
+                                                                                ) : null}
+                                                                                {entry.comment ? (
+                                                                                    <p className="line-clamp-3 whitespace-pre-wrap">{entry.comment}</p>
+                                                                                ) : null}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
                                                                 ) : null}
                                                             </div>
                                                         </div>
@@ -498,7 +524,7 @@ const StudentAssignments = () => {
                                                                     to={`/student/project/${a._id}`}
                                                                     className="rounded-xl bg-emerald-600 px-3 py-2 text-center text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
                                                                 >
-                                                                    Project
+                                                                    {row?.latestProjectSubmission ? 'View project' : 'Project'}
                                                                 </Link>
                                                             ) : (
                                                                 <Link

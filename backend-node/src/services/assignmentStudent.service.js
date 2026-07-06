@@ -8,9 +8,87 @@ import { isProjectDeadlineOpen } from './projectCodeSubmission.service.js';
 import { isProposalFullyApprovedForProject } from './collaborativeProposalReview.service.js';
 import { isDeadlinePassed } from './assignmentDeadline.service.js';
 import { assignmentAcceptsStudentSubmissions } from './assignmentRequirements.service.js';
+import { toProjectSubmissionClient } from './projectSubmissionSummary.service.js';
 import { NormalAssignmentSubmission } from '../models/NormalAssignmentSubmission.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
+import { PreviewSession } from '../models/PreviewSession.js';
+import { TeacherProfile } from '../models/TeacherProfile.js';
+
+function idOf(value) {
+  if (!value) return '';
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
+}
+
+function collectAssignmentTeacherIds(assignment) {
+  const ids = new Set();
+  for (const key of ['teacher', 'coTeacherId', 'frontendTeacherId', 'backendTeacherId']) {
+    const v = assignment?.[key];
+    if (v) ids.add(idOf(v));
+  }
+  return ids;
+}
+
+function enrichTeacherRef(userRef, profileByUser, roleLabel) {
+  if (!userRef) return null;
+  const uid = idOf(userRef);
+  const profile = profileByUser.get(uid);
+  const name = userRef.name || 'Teacher';
+  const photo = String(userRef.photo || profile?.photo || '').trim();
+  return {
+    _id: uid,
+    name,
+    email: userRef.email || '',
+    username: userRef.username || '',
+    photo,
+    department: profile?.department || '',
+    employeeId: profile?.employeeId || '',
+    roleLabel,
+  };
+}
+
+function isDualTeacherAssignment(assignment) {
+  if (assignment?.isCollaborative) return true;
+  if (assignment?.coTeacherId) return true;
+  if (assignment?.frontendTeacherId && assignment?.backendTeacherId) return true;
+  if (assignment?.frontendTeacherId && assignment?.coTeacherId) return true;
+  return false;
+}
+
+function buildTeachersForStudent(assignment, profileByUser) {
+  const seen = new Set();
+  const list = [];
+
+  const add = (userRef, roleLabel) => {
+    if (!userRef) return;
+    const uid = idOf(userRef);
+    if (seen.has(uid)) return;
+    seen.add(uid);
+    const row = enrichTeacherRef(userRef, profileByUser, roleLabel);
+    if (row) list.push(row);
+  };
+
+  if (isDualTeacherAssignment(assignment)) {
+    add(assignment.frontendTeacherId || assignment.teacher, 'Frontend teacher');
+    add(assignment.backendTeacherId || assignment.coTeacherId, 'Backend teacher');
+  } else {
+    add(assignment.teacher, 'Teacher');
+    if (assignment.coTeacherId) add(assignment.coTeacherId, 'Co-teacher');
+  }
+
+  return list;
+}
+
+function enrichAssignmentTeachers(assignment, profileByUser) {
+  const teachers = buildTeachersForStudent(assignment, profileByUser);
+  const primary = enrichTeacherRef(assignment.teacher, profileByUser, 'Teacher');
+  return {
+    ...assignment,
+    teacher: primary || assignment.teacher,
+    teachers,
+  };
+}
 
 function normalizeAssignmentClasses(assignment) {
   const rawClasses = Array.isArray(assignment?.classes) && assignment.classes.length
@@ -83,7 +161,10 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
   if (!orFilters.length) return [];
 
   const assignments = await Assignment.find({ $or: orFilters })
-    .populate('teacher', 'name email')
+    .populate('teacher', 'name email photo username')
+    .populate('coTeacherId', 'name email photo username')
+    .populate('frontendTeacherId', 'name email photo username')
+    .populate('backendTeacherId', 'name email photo username')
     .populate('subject', 'code name')
     .populate('semester', 'name')
     .populate('academicYear', 'label')
@@ -92,9 +173,20 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     .sort({ createdAt: -1 })
     .lean();
 
+  const teacherIdSet = new Set();
+  for (const a of assignments) {
+    for (const tid of collectAssignmentTeacherIds(a)) teacherIdSet.add(tid);
+  }
+  const teacherProfiles = teacherIdSet.size
+    ? await TeacherProfile.find({ user: { $in: [...teacherIdSet] } })
+        .select('user department employeeId photo')
+        .lean()
+    : [];
+  const profileByUser = new Map(teacherProfiles.map((p) => [String(p.user), p]));
+
   const out = [];
   for (const a of assignments) {
-    const assignment = normalizeAssignmentClasses(a);
+    const assignment = enrichAssignmentTeachers(normalizeAssignmentClasses(a), profileByUser);
     let proposal = await Proposal.findOne({
       assignment: assignment._id,
       submittedBy: userId,
@@ -139,8 +231,26 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     if (proposal?._id) {
       latestProjectSubmission = await ProjectSubmission.findOne({ proposal: proposal._id })
         .sort({ createdAt: -1 })
-        .select('originalFilename sizeBytes createdAt updatedAt version _id')
+        .select(
+          'originalFilename sizeBytes createdAt updatedAt version _id storedRelativePath teacherComment teacherScore teacherScoreMax teacherReviewedAt teacherPreviewedAt collaborativeProjectReviews'
+        )
         .lean();
+    }
+    if (latestProjectSubmission) {
+      latestProjectSubmission = toProjectSubmissionClient(latestProjectSubmission);
+      if (!latestProjectSubmission.teacherPreviewedAt && proposal?._id) {
+        const preview = await PreviewSession.findOne({
+          proposal: proposal._id,
+          status: { $in: ['running', 'stopped', 'expired'] },
+        })
+          .sort({ readyAt: -1, createdAt: -1 })
+          .select('readyAt startedAt createdAt')
+          .lean();
+        if (preview) {
+          latestProjectSubmission.teacherPreviewedAt =
+            preview.readyAt || preview.startedAt || preview.createdAt || null;
+        }
+      }
     }
     const hasProjectSubmission = Boolean(latestProjectSubmission);
     const projectSubmissionAllowed =

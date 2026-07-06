@@ -36,6 +36,8 @@ import TeacherProposalStudentDetail from '../../features/teacher/pages/TeacherPr
 import NormalAssignmentStudents from '../../features/teacher/pages/NormalAssignmentStudents';
 import NormalAssignmentStudentDetail from '../../features/teacher/pages/NormalAssignmentStudentDetail';
 import StudentProposalSubmit from '../../features/student/pages/StudentProposalSubmit';
+import StudentMessages from '../../features/student/pages/StudentMessages';
+import TeacherStudentMessages from '../../features/teacher/pages/TeacherStudentMessages';
 
 const AppRoutes = () => {
     const { user, loading } = useAuth();
@@ -103,6 +105,7 @@ const AppRoutes = () => {
                 <Route path="assignments/:id/proposals/:proposalId" element={<TeacherProposalStudentDetail />} />
                 <Route path="assignments/:id/proposals" element={<TeacherAssignmentProposals />} />
                 <Route path="assignments/:id" element={<AssignmentDetail />} />
+                <Route path="messages" element={<TeacherStudentMessages />} />
             </Route>
 
             {/* Student app — sidebar + Outlet */}
@@ -122,6 +125,7 @@ const AppRoutes = () => {
                 <Route path="profile" element={<StudentProfile />} />
                 <Route path="project" element={<StudentProjectsList />} />
                 <Route path="project/:id" element={<StudentMyProjectDetail />} />
+                <Route path="messages" element={<StudentMessages />} />
                 <Route
                     path="chat"
                     element={

@@ -89,7 +89,25 @@ const studentService = {
         } catch (error) {
             return error.response?.data || { success: false, message: 'Server Error' };
         }
-    }
+    },
+
+    listTeacherMessages: async ({ assignmentId } = {}) => {
+        const params = assignmentId ? { assignmentId } : {};
+        const response = await api.get(`${base}/messages`, { params });
+        return response.data;
+    },
+
+    sendTeacherMessage: async ({ assignmentId, category, subject, message, deadlineType, recipientTarget }) => {
+        const response = await api.post(`${base}/messages`, {
+            assignmentId,
+            category,
+            subject,
+            message,
+            deadlineType,
+            recipientTarget,
+        });
+        return response.data;
+    },
 };
 
 export default studentService;

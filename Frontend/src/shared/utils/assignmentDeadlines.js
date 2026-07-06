@@ -71,3 +71,25 @@ export function validateAssignmentDeadlinesForm({
 
 export const DEADLINE_DUE_STUDENT_MESSAGE =
     'Deadline due — submission is closed. Contact your teacher to request an extension.';
+
+/** Student already submitted a proposal (any state past draft). */
+export function isProposalPhaseComplete(row) {
+    const status = row?.proposal?.status;
+    if (!status || status === 'draft') return false;
+    return true;
+}
+
+/** Show red proposal deadline banner only when the student has not submitted a proposal yet. */
+export function shouldShowProposalDeadlineWarning(row) {
+    return Boolean(row?.proposalDeadlinePassed) && !isProposalPhaseComplete(row);
+}
+
+/** Show red project deadline banner only when the project ZIP was never uploaded. */
+export function shouldShowProjectDeadlineWarning(row) {
+    return Boolean(row?.projectDeadlinePassed) && !row?.latestProjectSubmission;
+}
+
+/** Show red normal-assignment deadline banner only when no file was uploaded. */
+export function shouldShowNormalDeadlineWarning(row) {
+    return Boolean(row?.submissionDeadlinePassed) && !row?.latestNormalSubmission;
+}

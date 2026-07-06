@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../../context/authContext';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
+import { PROJECT_NAME } from '../../../shared/ui/brandTheme';
 
 const StudentAbout = () => {
     const { user } = useAuth();
@@ -44,7 +45,7 @@ const StudentAbout = () => {
                 <div className="max-w-[1400px] mx-auto">
                     <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#2a3fa4] mb-4">Platform guide</p>
                     <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight mb-4 max-w-3xl">
-                        How ScholarVerify works for your institution
+                        How {PROJECT_NAME} works for your institution
                     </h1>
                     <p className="text-lg text-slate-600 font-medium max-w-2xl mb-10">
                         Detailed reference for students, teachers, and admins — integrity checks, workflows, and preview sandboxes.
@@ -67,7 +68,7 @@ const StudentAbout = () => {
                         
                         <div className="space-y-6 text-lg text-slate-600 font-medium leading-relaxed">
                             <p>
-                                ScholarVerify was founded on the core principle that original ideas deserve protection. In an era where digital content is easily replicated, our platform ensures that student work remains unique and authentic.
+                                {PROJECT_NAME} was founded on the core principle that original ideas deserve protection. In an era where digital content is easily replicated, our platform ensures that student work remains unique and authentic.
                             </p>
                             <p>
                                 We aim to discourage academic misconduct by providing institutions and students with the tools to verify originality, encouraging genuine learning through the process of creation rather than duplication.

@@ -13,6 +13,13 @@ import {
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { DEADLINE_DUE_STUDENT_MESSAGE } from '../../../shared/utils/assignmentDeadlines';
+import {
+    getProjectTeacherFeedbackEntries,
+    getProjectWorkflowStatus,
+    getWorkflowBadgeClasses,
+    formatWorkflowDate,
+} from '../../../shared/utils/projectWorkflowStatus';
+import StudentProjectFeedbackPanel from '../../../shared/components/StudentProjectFeedbackPanel';
 import { useAuth } from '../../../context/authContext';
 import studentService from '../../../services/studentService';
 import { getApiOrigin } from '../../../lib/api';
@@ -91,6 +98,12 @@ const StudentMyProjectDetail = () => {
                     : 'Low',
         };
     }, [row, user]);
+
+    const workflow = useMemo(() => getProjectWorkflowStatus(row || {}), [row]);
+    const teacherFeedbackEntries = useMemo(() => getProjectTeacherFeedbackEntries(row || {}), [row]);
+    const feedbackReceived = teacherFeedbackEntries.length > 0;
+    const projectSubmitted = Boolean(row?.latestProjectSubmission);
+    const teacherPreviewed = Boolean(row?.latestProjectSubmission?.teacherPreviewedAt);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -305,8 +318,10 @@ const StudentMyProjectDetail = () => {
                             </h2>
                         </div>
                         <div className="flex gap-2 pt-1">
-                            <div className="bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest">
-                                {project.status}
+                            <div
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${getWorkflowBadgeClasses(workflow.tone)}`}
+                            >
+                                {workflow.label}
                             </div>
                             <div className="bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest">
                                 ID: {String(project._id || '').slice(0, 10).toUpperCase()}
@@ -325,38 +340,50 @@ const StudentMyProjectDetail = () => {
                         <div className="absolute left-0 right-0 top-5 h-0.5 bg-slate-300 -z-10"></div>
                         
                         <div className="flex flex-col items-center">
-                            <div className="w-9 h-9 bg-[#1D68E3] rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2">
-                                <Check className="h-4 w-4 text-white" />
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2 ${projectSubmitted ? 'bg-[#1D68E3]' : 'bg-white border-2 border-slate-300 text-slate-400'}`}>
+                                <Check className={`h-4 w-4 ${projectSubmitted ? 'text-white' : ''}`} />
                             </div>
-                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">Submitted</div>
-                            <div className="text-[9px] font-medium text-slate-400">Oct 12, 2024</div>
+                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">Project submitted</div>
+                            <div className="text-[9px] font-medium text-slate-400">
+                                {formatWorkflowDate(row?.latestProjectSubmission?.createdAt)}
+                            </div>
                         </div>
 
                         <div className="flex flex-col items-center">
-                            <div className="w-9 h-9 bg-[#1D68E3] rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2">
-                                <Cpu className="h-4 w-4 text-white" />
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2 ${teacherPreviewed ? 'bg-[#1D68E3]' : 'bg-white border-2 border-slate-300 text-slate-400'}`}>
+                                <Cpu className={`h-4 w-4 ${teacherPreviewed ? 'text-white' : ''}`} />
                             </div>
-                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">ML analysis</div>
-                            <div className="text-[9px] font-medium text-slate-400">Oct 14, 2024</div>
+                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">Teacher preview</div>
+                            <div className="text-[9px] font-medium text-slate-400">
+                                {teacherPreviewed
+                                    ? formatWorkflowDate(row?.latestProjectSubmission?.teacherPreviewedAt)
+                                    : projectSubmitted
+                                      ? 'Waiting'
+                                      : '—'}
+                            </div>
                         </div>
 
                         <div className="flex flex-col items-center">
-                            <div className="w-9 h-9 bg-[#1D68E3] rounded-lg flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2">
-                                <MessageSquare className="h-4 w-4 text-white fill-current" />
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2 ${feedbackReceived ? 'bg-[#1D68E3]' : 'bg-white border-2 border-slate-300 text-slate-400'}`}>
+                                <MessageSquare className={`h-4 w-4 ${feedbackReceived ? 'text-white fill-current' : ''}`} />
                             </div>
-                            <div className="text-[9px] font-bold text-[#1D68E3] uppercase tracking-widest">Review</div>
-                            <div className="text-[10px] font-medium text-[#1D68E3] italic">Ongoing</div>
-                        </div>
-
-                        <div className="flex flex-col items-center grayscale opacity-50">
-                            <div className="w-9 h-9 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center shadow-[0_0_0_3px_#F1F5F9] mb-2 text-slate-400">
-                                <Check className="h-4 w-4" />
+                            <div className={`text-[9px] font-bold uppercase tracking-widest ${feedbackReceived ? 'text-[#1D68E3]' : 'text-[#0F172A]'}`}>
+                                Teacher feedback
                             </div>
-                            <div className="text-[9px] font-bold text-[#0F172A] uppercase tracking-widest">Decision</div>
-                            <div className="text-[9px] font-medium text-slate-400">Pending</div>
+                            <div className={`text-[9px] font-medium ${feedbackReceived ? 'text-[#1D68E3]' : 'text-slate-400'}`}>
+                                {feedbackReceived
+                                    ? formatWorkflowDate(teacherFeedbackEntries[0]?.reviewedAt)
+                                    : teacherPreviewed
+                                      ? 'Pending'
+                                      : '—'}
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {teacherFeedbackEntries.length ? (
+                    <StudentProjectFeedbackPanel entries={teacherFeedbackEntries} className="mb-4" />
+                ) : null}
 
                 <div className="flex flex-col lg:flex-row gap-4">
                     <div className="flex-1 space-y-4">
@@ -444,7 +471,19 @@ const StudentMyProjectDetail = () => {
                                     )}
                                 </div>
                             </div>
-                            {row?.projectDeadlinePassed ? (
+                            {row?.projectDeadlinePassed && projectSubmitted ? (
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                    <p className="text-sm font-bold text-emerald-900">Project submitted</p>
+                                    <p className="mt-1 text-xs text-emerald-800">
+                                        {row.latestProjectSubmission.originalFilename} · v
+                                        {row.latestProjectSubmission.version || 1} ·{' '}
+                                        {new Date(row.latestProjectSubmission.createdAt).toLocaleString()}
+                                    </p>
+                                    <p className="mt-2 text-xs font-medium text-emerald-700">
+                                        The deadline has passed — your submission is locked. Your teacher can still preview and leave feedback.
+                                    </p>
+                                </div>
+                            ) : row?.projectDeadlinePassed ? (
                                 <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
                                     {DEADLINE_DUE_STUDENT_MESSAGE}
                                 </p>
