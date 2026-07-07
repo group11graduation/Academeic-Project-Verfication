@@ -1,4 +1,3 @@
-# Class-Based Academic Project Verification System (ML)
 
 Teacher-driven academic workflow: admin provisioning, classes/subjects, assignments, grouping, proposals, AI checks, project submission, Docker preview, and audit trails.
 
