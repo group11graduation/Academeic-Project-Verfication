@@ -709,12 +709,13 @@ export async function deleteStudent(profileId) {
 
 /** Admins — user accounts with primary role admin */
 export async function listAdmins() {
-  const users = await User.find({ role: 'admin' }).sort({ createdAt: -1 }).lean();
+  const users = await User.find({ role: 'admin' }).select('+handoffPasscode').sort({ createdAt: -1 }).lean();
   return users.map((u) => ({
     _id: u._id,
     name: u.name,
     email: u.email,
     username: u.username,
+    passcode: u.handoffPasscode || '',
     isActive: u.isActive,
     createdAt: u.createdAt,
   }));
@@ -735,19 +736,21 @@ export async function createAdminUser(body) {
     role: 'admin',
     roles: ['admin'],
     name: name?.trim() || '',
+    handoffPasscode: String(plain),
   });
   await user.save();
-  return { _id: user._id, name: user.name, email: user.email, username: user.username };
+  return { _id: user._id, name: user.name, email: user.email, username: user.username, passcode: user.handoffPasscode };
 }
 
 export async function getAdminById(id) {
-  const u = await User.findOne({ _id: id, role: 'admin' }).lean();
+  const u = await User.findOne({ _id: id, role: 'admin' }).select('+handoffPasscode').lean();
   if (!u) return null;
   return {
     _id: u._id,
     name: u.name,
     email: u.email,
     username: u.username,
+    passcode: u.handoffPasscode || '',
     isActive: u.isActive,
     photo: u.photo || '',
     createdAt: u.createdAt,
@@ -769,10 +772,26 @@ export async function updateAdminUser(id, body) {
   if (body.isActive !== undefined) u.isActive = Boolean(body.isActive);
   if (body.photo !== undefined) u.photo = body.photo;
   if (body.password || body.passcode) {
-    u.passwordHash = await User.hashPassword(body.password || body.passcode);
+    const nextPasscode = body.password || body.passcode;
+    u.passwordHash = await User.hashPassword(nextPasscode);
+    u.handoffPasscode = String(nextPasscode);
   }
   await u.save();
   return getAdminById(id);
+}
+
+export async function regenerateAdminPasscode(id) {
+  const u = await User.findOne({ _id: id, role: 'admin' }).select('+handoffPasscode');
+  if (!u) {
+    const err = new Error('Admin not found');
+    err.status = 404;
+    throw err;
+  }
+  const passcode = randomPasscode();
+  u.passwordHash = await User.hashPassword(passcode);
+  u.handoffPasscode = passcode;
+  await u.save();
+  return { passcode };
 }
 
 export async function deleteAdminUser(id, requesterUserId) {

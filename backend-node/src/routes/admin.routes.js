@@ -14,6 +14,7 @@ router.post('/admins', admin.createAdmin);
 router.get('/admins/:id', admin.getAdmin);
 router.put('/admins/:id', admin.updateAdmin);
 router.delete('/admins/:id', admin.removeAdmin);
+router.patch('/admins/:id/passcode', admin.patchAdminPasscode);
 
 router.get('/teachers', admin.listTeachers);
 router.post('/teachers/import', admin.importTeachers);

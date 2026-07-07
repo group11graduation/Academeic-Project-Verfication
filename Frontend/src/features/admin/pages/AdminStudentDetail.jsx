@@ -19,7 +19,8 @@ import {
     Trash2,
     ShieldCheck,
     Lock,
-    BookOpen
+    BookOpen,
+    Copy
 } from 'lucide-react';
 import adminStudentService from '../../../services/adminStudentService';
 import adminClassService from '../../../services/adminClassService';
@@ -46,6 +47,7 @@ const AdminStudentDetail = () => {
 
     // Certificate Preview State
     const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+    const [copiedPasscode, setCopiedPasscode] = useState(false);
 
     // Photo Edit States
     const fileInputRef = React.useRef(null);
@@ -241,6 +243,18 @@ const AdminStudentDetail = () => {
             console.error("Failed to delete student", err);
             alert("An error occurred while deleting the student.");
             setIsDeleting(false);
+        }
+    };
+
+    const handleCopyPasscode = async () => {
+        if (!student?.passcode) return;
+        try {
+            await navigator.clipboard.writeText(String(student.passcode));
+            setCopiedPasscode(true);
+            window.setTimeout(() => setCopiedPasscode(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy passcode', err);
+            alert('Failed to copy passcode.');
         }
     };
 
@@ -690,6 +704,25 @@ const AdminStudentDetail = () => {
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Security</h2>
                             </div>
                             <div className="p-4 space-y-3">
+                                <div className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 transition-colors">
+                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 transition-colors">Student Passcode</p>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5">
+                                            <span className="text-[15px] font-black tracking-widest font-mono text-slate-800 dark:text-slate-200 transition-colors">
+                                                {student.passcode || 'N/A'}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleCopyPasscode}
+                                                disabled={!student.passcode}
+                                                className="text-slate-500 hover:text-[#1D68E3] transition-colors disabled:opacity-60"
+                                                title="Copy passcode"
+                                            >
+                                                {copiedPasscode ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <button className="w-full flex items-center justify-between p-3 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group transition-colors">
                                     <div className="flex items-center gap-3">
                                         <Lock className="h-4 w-4 text-slate-400 group-hover:text-[#1D68E3] transition-colors" />

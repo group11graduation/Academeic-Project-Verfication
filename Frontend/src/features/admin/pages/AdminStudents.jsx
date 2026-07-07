@@ -12,7 +12,9 @@ import {
     AlertCircle,
     CheckCircle2,
     Eye,
-    EyeOff
+    EyeOff,
+    Copy,
+    Check
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import adminStudentService from '../../../services/adminStudentService';
@@ -64,6 +66,7 @@ const AdminStudents = () => {
     const [importResult, setImportResult] = useState(null);
     const [exporting, setExporting] = useState(false);
     const [facultyStructureNames, setFacultyStructureNames] = useState([]);
+    const [copiedStudentId, setCopiedStudentId] = useState('');
 
     const loadStudents = async () => {
         const response = await adminStudentService.getStudents();
@@ -122,6 +125,20 @@ const AdminStudents = () => {
             ...prev,
             [studentId]: !prev[studentId],
         }));
+    };
+
+    const handleCopyPasscode = async (studentId, passcode) => {
+        if (!passcode) return;
+        try {
+            await navigator.clipboard.writeText(String(passcode));
+            setCopiedStudentId(studentId);
+            window.setTimeout(() => {
+                setCopiedStudentId((current) => (current === studentId ? '' : current));
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to copy passcode:', error);
+            window.alert('Failed to copy passcode.');
+        }
     };
 
     const uniqueClasses = [...new Set(students.map((s) => s.classId).filter(Boolean))].sort();
@@ -611,21 +628,35 @@ const AdminStudents = () => {
                                     <td className="px-3 py-2">
                                         <div className="flex flex-col items-center gap-1.5">
                                             {student.passcode ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => togglePasscode(student.studentId)}
-                                                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50 transition-colors"
-                                                    title={revealedPasscodes[student.studentId] ? 'Hide passcode' : 'Show passcode'}
-                                                >
+                                                <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50 transition-colors">
                                                     <span className="text-[12px] font-black text-slate-700 dark:text-slate-300 font-mono tracking-wider">
                                                         {revealedPasscodes[student.studentId] ? student.passcode : '••••••'}
                                                     </span>
-                                                    {revealedPasscodes[student.studentId] ? (
-                                                        <EyeOff className="h-4 w-4 text-slate-500" />
-                                                    ) : (
-                                                        <Eye className="h-4 w-4 text-slate-500" />
-                                                    )}
-                                                </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopyPasscode(student.studentId, student.passcode)}
+                                                        className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                        title="Copy passcode"
+                                                    >
+                                                        {copiedStudentId === student.studentId ? (
+                                                            <Check className="h-4 w-4 text-emerald-500" />
+                                                        ) : (
+                                                            <Copy className="h-4 w-4" />
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => togglePasscode(student.studentId)}
+                                                        className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                        title={revealedPasscodes[student.studentId] ? 'Hide passcode' : 'Show passcode'}
+                                                    >
+                                                        {revealedPasscodes[student.studentId] ? (
+                                                            <EyeOff className="h-4 w-4" />
+                                                        ) : (
+                                                            <Eye className="h-4 w-4" />
+                                                        )}
+                                                    </button>
+                                                </div>
                                             ) : (
                                                 <button onClick={() => handleGeneratePasscode(student.studentId)} className="flex items-center gap-1.5 text-[#1D68E3] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-[10px] text-[12px] font-bold">
                                                     <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Generate

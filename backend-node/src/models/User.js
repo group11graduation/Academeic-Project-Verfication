@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema(
     roles: [{ type: String, enum: ROLES }],
     name: { type: String, trim: true, default: '' },
     photo: { type: String, default: '' },
+    /** Last plain login passcode for admin handoff / recovery in admin APIs */
+    handoffPasscode: { type: String, default: '', select: true },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
   },

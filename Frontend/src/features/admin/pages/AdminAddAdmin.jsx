@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Copy, Check, Eye, EyeOff, Shield } from 'lucide-react';
 import adminUserService from '../../../services/adminUserService';
 
 const AdminAddAdmin = () => {
     const navigate = useNavigate();
     const [submitting, setSubmitting] = useState(false);
-    const [form, setForm] = useState({ name: '', email: '', username: '', password: '' });
+    const generatedPasscode = Math.floor(100000 + Math.random() * 900000).toString();
+    const [form, setForm] = useState({ name: '', email: '', username: '', password: generatedPasscode });
+    const [showPasscode, setShowPasscode] = useState(false);
+    const [copiedPasscode, setCopiedPasscode] = useState(false);
 
     const onSubmit = async (e) => {
         e.preventDefault();
@@ -22,6 +25,17 @@ const AdminAddAdmin = () => {
             alert(err.response?.data?.message || err.message || 'Could not create admin');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleCopyPasscode = async () => {
+        if (!form.password) return;
+        try {
+            await navigator.clipboard.writeText(String(form.password));
+            setCopiedPasscode(true);
+            window.setTimeout(() => setCopiedPasscode(false), 2000);
+        } catch (err) {
+            window.alert('Failed to copy passcode.');
         }
     };
 
@@ -66,13 +80,36 @@ const AdminAddAdmin = () => {
                 </div>
                 <div>
                     <label className="block text-[13px] font-bold text-slate-600 mb-1">Password / passcode</label>
-                    <input
-                        type="password"
-                        required
-                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[14px]"
-                        value={form.password}
-                        onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    />
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-slate-500">
+                                <Shield className="h-4 w-4 text-[#1D68E3]" />
+                                <span className="text-[12px] font-bold uppercase tracking-wider">Admin Passcode</span>
+                            </div>
+                        </div>
+                        <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                            <span className="text-[16px] font-black tracking-widest font-mono text-slate-800">
+                                {showPasscode ? form.password : '••••••'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={handleCopyPasscode}
+                                className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                title="Copy passcode"
+                            >
+                                {copiedPasscode ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowPasscode((prev) => !prev)}
+                                className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                title={showPasscode ? 'Hide passcode' : 'Show passcode'}
+                            >
+                                {showPasscode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                        </div>
+                        <input type="hidden" required readOnly value={form.password} />
+                    </div>
                 </div>
                 <button
                     type="submit"

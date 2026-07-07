@@ -39,6 +39,11 @@ const adminUserService = {
         const res = await api.delete(`/admin/admins/${id}`);
         return res.data;
     },
+
+    async regenerateAdminPasscode(id) {
+        const res = await api.patch(`/admin/admins/${id}/passcode`, {});
+        return res.data;
+    },
 };
 
 export default adminUserService;

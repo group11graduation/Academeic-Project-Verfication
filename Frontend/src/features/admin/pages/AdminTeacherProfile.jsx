@@ -4,7 +4,7 @@ import {
     ArrowLeft, MapPin, Mail, MessageSquare, Edit2,
     User, Phone, Building2, BarChart2, CheckCircle2,
     Clock, RefreshCw, BookOpen, Users, ArrowRight,
-    Eye, EyeOff, Shield, Loader2, GraduationCap, Edit3, ShieldCheck
+    Eye, EyeOff, Shield, Loader2, GraduationCap, Edit3, ShieldCheck, Copy, Check
 } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
 import adminClassService from '../../../services/adminClassService';
@@ -22,6 +22,7 @@ const AdminTeacherProfile = () => {
     const [loadingAssignments, setLoadingAssignments] = useState(false);
     const [selectedClasses, setSelectedClasses] = useState([]);
     const [isPromoting, setIsPromoting] = useState(false);
+    const [copiedPasscode, setCopiedPasscode] = useState(false);
 
     useEffect(() => {
         const fetchTeacher = async () => {
@@ -104,6 +105,18 @@ const AdminTeacherProfile = () => {
             alert("Failed to update administrative status.");
         } finally {
             setIsPromoting(false);
+        }
+    };
+
+    const handleCopyPasscode = async () => {
+        if (!teacher?.passcode) return;
+        try {
+            await navigator.clipboard.writeText(String(teacher.passcode));
+            setCopiedPasscode(true);
+            window.setTimeout(() => setCopiedPasscode(false), 2000);
+        } catch (error) {
+            console.error('Failed to copy passcode:', error);
+            window.alert('Failed to copy passcode.');
         }
     };
 
@@ -256,6 +269,15 @@ const AdminTeacherProfile = () => {
                                             </span>
                                         )}
                                         <button
+                                            type="button"
+                                            onClick={handleCopyPasscode}
+                                            disabled={!teacher.passcode}
+                                            className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700 disabled:opacity-60"
+                                            title="Copy passcode"
+                                        >
+                                            {copiedPasscode ? <Check className="h-5 w-5 text-emerald-500" /> : <Copy className="h-5 w-5 text-slate-400 dark:text-slate-500" />}
+                                        </button>
+                                        <button
                                             onClick={() => setShowPasscode(!showPasscode)}
                                             className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                                         >
@@ -269,9 +291,6 @@ const AdminTeacherProfile = () => {
                             </div>
 
                             <div className="flex gap-2">
-                                <button className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 py-2 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
-                                    Copy Code
-                                </button>
                                 <button
                                     onClick={handleToggleAdmin}
                                     disabled={isPromoting}

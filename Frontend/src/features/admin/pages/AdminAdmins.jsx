@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Shield, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Search, Shield, Loader2, Pencil, Trash2, Plus, Eye, EyeOff, Copy, Check, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import adminUserService from '../../../services/adminUserService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
@@ -12,6 +13,9 @@ const AdminAdmins = () => {
     const [editEmail, setEditEmail] = useState('');
     const [savingEdit, setSavingEdit] = useState(false);
     const [deletingId, setDeletingId] = useState('');
+    const [revealedPasscodes, setRevealedPasscodes] = useState({});
+    const [copiedAdminId, setCopiedAdminId] = useState('');
+    const [generatingPasscodeId, setGeneratingPasscodeId] = useState('');
 
     useEffect(() => {
         const fetchAdmins = async () => {
@@ -83,6 +87,43 @@ const AdminAdmins = () => {
         }
     };
 
+    const togglePasscode = (adminId) => {
+        setRevealedPasscodes((prev) => ({
+            ...prev,
+            [adminId]: !prev[adminId],
+        }));
+    };
+
+    const handleCopyPasscode = async (adminId, passcode) => {
+        if (!passcode) return;
+        try {
+            await navigator.clipboard.writeText(String(passcode));
+            setCopiedAdminId(adminId);
+            window.setTimeout(() => {
+                setCopiedAdminId((current) => (current === adminId ? '' : current));
+            }, 2000);
+        } catch (error) {
+            window.alert('Failed to copy passcode.');
+        }
+    };
+
+    const handleGeneratePasscode = async (adminId) => {
+        setGeneratingPasscodeId(adminId);
+        try {
+            const response = await adminUserService.regenerateAdminPasscode(adminId);
+            if (!response.success) throw new Error(response.message || 'Failed to generate passcode');
+            const passcode = response.data?.passcode || '';
+            setAdmins((prev) => prev.map((item) => (
+                item._id === adminId ? { ...item, passcode } : item
+            )));
+            setRevealedPasscodes((prev) => ({ ...prev, [adminId]: true }));
+        } catch (error) {
+            window.alert(error.response?.data?.message || error.message || 'Failed to generate passcode');
+        } finally {
+            setGeneratingPasscodeId('');
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
@@ -106,6 +147,13 @@ const AdminAdmins = () => {
                     />
                 </div>
                 <div className="flex items-center gap-3">
+                    <Link
+                        to="/admin/admins/new"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D68E3] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 transition-colors"
+                    >
+                        <Plus className="h-3.5 w-3.5" />
+                        New Admin
+                    </Link>
                     <div className="text-[11px] font-semibold text-slate-500">
                         Total: <span className="font-bold text-slate-700 dark:text-slate-200">{filteredAdmins.length}</span>
                     </div>
@@ -118,12 +166,13 @@ const AdminAdmins = () => {
 
             <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left">
+                <table className="w-full min-w-[920px] text-left">
                     <thead>
                         <tr className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Admin ID</th>
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Email Address</th>
+                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Passcode</th>
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Status</th>
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Created At</th>
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Actions</th>
@@ -132,7 +181,7 @@ const AdminAdmins = () => {
                     <tbody className="divide-y divide-slate-100/90">
                         {filteredAdmins.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="text-center py-8 text-slate-400 font-medium text-[12px]">
+                                <td colSpan={7} className="text-center py-8 text-slate-400 font-medium text-[12px]">
                                     No administrative accounts found.
                                 </td>
                             </tr>
@@ -158,6 +207,53 @@ const AdminAdmins = () => {
                                             />
                                         ) : (
                                             <span className="text-[13px] font-semibold text-slate-600">{admin.email}</span>
+                                        )}
+                                    </td>
+                                    <td className="px-3 py-2">
+                                        {admin.passcode ? (
+                                            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50 transition-colors">
+                                                <span className="text-[12px] font-black text-slate-700 font-mono tracking-wider">
+                                                    {revealedPasscodes[admin._id] ? admin.passcode : '••••••'}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopyPasscode(admin._id, admin.passcode)}
+                                                    className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                    title="Copy passcode"
+                                                >
+                                                    {copiedAdminId === admin._id ? (
+                                                        <Check className="h-4 w-4 text-emerald-500" />
+                                                    ) : (
+                                                        <Copy className="h-4 w-4" />
+                                                    )}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => togglePasscode(admin._id)}
+                                                    className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                    title={revealedPasscodes[admin._id] ? 'Hide passcode' : 'Show passcode'}
+                                                >
+                                                    {revealedPasscodes[admin._id] ? (
+                                                        <EyeOff className="h-4 w-4" />
+                                                    ) : (
+                                                        <Eye className="h-4 w-4" />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleGeneratePasscode(admin._id)}
+                                                disabled={generatingPasscodeId === admin._id}
+                                                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                                            >
+                                                {generatingPasscodeId === admin._id ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <RefreshCw className="h-3.5 w-3.5" />
+                                                )}
+                                                Generate
+                                            </button>
                                         )}
                                     </td>
                                     <td className="px-3 py-2">

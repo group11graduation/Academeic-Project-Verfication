@@ -273,6 +273,11 @@ export const createAdmin = asyncHandler(async (req, res) => {
   return success(res, row, 201);
 });
 
+export const patchAdminPasscode = asyncHandler(async (req, res) => {
+  const { passcode } = await adminUser.regenerateAdminPasscode(req.params.id);
+  return success(res, { passcode, message: 'New passcode generated' });
+});
+
 export const getAdmin = asyncHandler(async (req, res) => {
   const row = await adminUser.getAdminById(req.params.id);
   if (!row) return fail(res, 'Admin not found', 404);
