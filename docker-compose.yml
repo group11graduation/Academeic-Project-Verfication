@@ -46,8 +46,11 @@ services:
       dockerfile: Dockerfile
     container_name: scholarverify-fastapi-ai
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # Do not bind FastAPI to the host. Node-backend talks to it via the compose
+    # network (AI_SERVICE_URL=http://fastapi-ai:8000). Binding to host port
+    # often conflicts on VPS when deploying multiple apps.
+    expose:
+      - "8000"
     environment:
       HOST: 0.0.0.0
       PORT: 8000
