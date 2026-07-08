@@ -86,7 +86,10 @@ services:
       fastapi-ai:
         condition: service_healthy
     env_file:
-      - .env
+      # Use a normal tracked file inside backend-node for deployment reliability.
+      # Some platforms treat the project-root hidden `.env` specially or do not
+      # include it in the final compose project directory.
+      - ./backend-node/runtime.env
     environment:
       NODE_ENV: production
       PORT: 5000
@@ -129,10 +132,9 @@ services:
       # CRITICAL: allows node-backend to build/run/stop student preview containers on the host
       - /var/run/docker.sock:/var/run/docker.sock
 
-      # Mount the project root env file so `import 'dotenv/config'` inside
-      # `src/index.js` can still load JWT secrets even when the platform does
-      # not inject env_file values into the runtime container as expected.
-      - ./.env:/app/.env:ro
+      # Mount the same runtime env file so startup can still load it directly
+      # via dotenv if platform env injection behaves differently than expected.
+      - ./backend-node/runtime.env:/app/.env:ro
 
       # Student uploads — host path must be visible to host Docker when bind-mounting student ZIPs
       - ./uploads:/app/uploads
