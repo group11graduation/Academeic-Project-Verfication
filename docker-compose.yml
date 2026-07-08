@@ -129,6 +129,11 @@ services:
       # CRITICAL: allows node-backend to build/run/stop student preview containers on the host
       - /var/run/docker.sock:/var/run/docker.sock
 
+      # Mount the project root env file so `import 'dotenv/config'` inside
+      # `src/index.js` can still load JWT secrets even when the platform does
+      # not inject env_file values into the runtime container as expected.
+      - ./.env:/app/.env:ro
+
       # Student uploads — host path must be visible to host Docker when bind-mounting student ZIPs
       - ./uploads:/app/uploads
 
