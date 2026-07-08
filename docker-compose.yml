@@ -104,10 +104,11 @@ services:
       UPLOAD_DIR: /app/uploads
       PREVIEW_CACHE_ROOT: /app/data/preview-cache
 
-      # Auth / CORS — MUST match backend-node/.env when running locally (same JWT_SECRET)
-      JWT_SECRET: ${JWT_SECRET}
+      # Auth / CORS
+      # JWT secrets come from `env_file: .env`. Do not re-declare them here with
+      # ${VAR} interpolation, because platforms like Coolify may substitute empty
+      # strings at deploy time and override the valid values from env_file.
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
 
