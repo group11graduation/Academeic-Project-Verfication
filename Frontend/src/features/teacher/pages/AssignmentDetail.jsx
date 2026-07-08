@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ArrowLeft, Download, Calendar, Users,
     CheckCircle2, Clock, FileText, Loader2, ClipboardCheck, ChevronRight, Pencil
@@ -162,7 +163,7 @@ const AssignmentDetail = () => {
             const res = await teacherService.uploadAssignmentRequirements(id, file);
             if (res.success) setData(res.data);
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to upload requirements file.');
+            await appError(err.response?.data?.message || 'Failed to upload requirements file.');
         } finally {
             setUploadingRequirement(false);
         }

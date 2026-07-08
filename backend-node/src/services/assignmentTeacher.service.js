@@ -6,7 +6,9 @@ import { StudentProfile } from '../models/StudentProfile.js';
 import { Semester } from '../models/Semester.js';
 import { Proposal } from '../models/Proposal.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
-import { countClassRosterStudents, syncAssignmentGroupsFromClassTemplates } from './teacherClassGroups.service.js';
+import { LegacyProject } from '../models/LegacyProject.js';
+import { toProjectSubmissionClient } from './projectSubmissionSummary.service.js';
+import { countClassRosterStudents, syncAssignmentGroupsFromClassTemplates, memberSetKeyFromGroupLean, classTemplateDuplicatesAssignmentGroup } from './teacherClassGroups.service.js';
 import {
   distinctAssignmentIdsForTeacher,
   findAssignmentVisibleToTeacher,
@@ -706,6 +708,8 @@ export async function listAllGroupsForTeacher(teacherId) {
   const studentIdByUser = new Map(memberProfiles.map((p) => [String(p.user), p.studentId || '']));
 
   const groupedByClass = new Map();
+  const assignmentGroupsByClassId = new Map();
+  const seenAssignmentMemberKeysByClass = new Map();
 
   function ensureBucket(classCode, title) {
     if (!groupedByClass.has(classCode)) {
@@ -719,10 +723,28 @@ export async function listAllGroupsForTeacher(teacherId) {
     return groupedByClass.get(classCode);
   }
 
+  for (const group of groups) {
+    const assignment = assignmentMap.get(String(group.assignment));
+    if (!assignment) continue;
+    const classIds = [
+      assignment.class?._id,
+      ...(Array.isArray(assignment.classes) ? assignment.classes.map((c) => c?._id || c) : []),
+    ]
+      .filter(Boolean)
+      .map(String);
+    for (const cid of classIds) {
+      if (!assignmentGroupsByClassId.has(cid)) assignmentGroupsByClassId.set(cid, []);
+      assignmentGroupsByClassId.get(cid).push(group);
+    }
+  }
+
   for (const group of templateGroups) {
     const hcId = String(group.hostClass || '');
     const clsMeta = classMetaById.get(hcId);
     if (!clsMeta) continue;
+    const assignmentGroupsForClass = assignmentGroupsByClassId.get(hcId) || [];
+    if (classTemplateDuplicatesAssignmentGroup(group, assignmentGroupsForClass)) continue;
+
     const classCode = clsMeta.code || clsMeta.name || 'CLASS';
     const bucket = ensureBucket(classCode, clsMeta.name || classCode);
     const members = [
@@ -753,6 +775,15 @@ export async function listAllGroupsForTeacher(teacherId) {
     const assignment = assignmentMap.get(String(group.assignment));
     if (!assignment) continue;
     const classCode = assignment.class?.code || assignment.class?.name || 'CLASS';
+    const memberKey = memberSetKeyFromGroupLean(group);
+    if (memberKey) {
+      if (!seenAssignmentMemberKeysByClass.has(classCode)) {
+        seenAssignmentMemberKeysByClass.set(classCode, new Set());
+      }
+      const seen = seenAssignmentMemberKeysByClass.get(classCode);
+      if (seen.has(memberKey)) continue;
+      seen.add(memberKey);
+    }
     const bucket = ensureBucket(classCode, assignment.class?.name || classCode);
     const proposal = proposalByGroup.get(String(group._id));
     const members = [
@@ -778,6 +809,156 @@ export async function listAllGroupsForTeacher(teacherId) {
   }
 
   return Array.from(groupedByClass.values());
+}
+
+function buildProposalPlainText(proposal) {
+  if (!proposal) return '';
+  const parts = [];
+  parts.push(`PROJECT TITLE\n${proposal.title || '—'}`);
+  parts.push(`\n\nOVERVIEW\n${String(proposal.description || '').trim() || 'No overview provided.'}`);
+  if (Array.isArray(proposal.features) && proposal.features.length) {
+    parts.push('\n\nPROPOSED FUNCTIONALITY');
+    for (const f of proposal.features) parts.push(`\n• ${f}`);
+  }
+  if (proposal.requirementCheckSummary && proposal.requirementCheckPassed === false) {
+    parts.push(`\n\nREQUIREMENT CHECK\n${proposal.requirementCheckSummary}`);
+  }
+  if (proposal.aiSummary) {
+    parts.push(`\n\nAI SUMMARY (ADVISORY)\n${proposal.aiSummary}`);
+  }
+  return parts.join('');
+}
+
+function buildGroupReviewChecklist(proposal, projectSubmission) {
+  const items = [];
+  if (proposal) {
+    const overviewOk = String(proposal.description || '').trim().length >= 40;
+    items.push({
+      label: 'Abstract & introduction',
+      desc: overviewOk ? 'Overview provided' : 'Overview missing or too short',
+      checked: overviewOk,
+    });
+    const featureCount = Array.isArray(proposal.features) ? proposal.features.length : 0;
+    items.push({
+      label: 'Proposed functionality',
+      desc: featureCount > 0 ? `${featureCount} feature(s) listed` : 'No features listed yet',
+      checked: featureCount > 0,
+    });
+    items.push({
+      label: 'Assignment requirements',
+      desc:
+        proposal.requirementCheckPassed === false
+          ? proposal.requirementCheckSummary || 'Requirements not met'
+          : 'Requirements check passed',
+      checked: proposal.requirementCheckPassed !== false,
+    });
+    const approved = proposal.status === 'teacher_approved';
+    items.push({
+      label: 'Teacher proposal review',
+      desc: approved
+        ? 'Approved'
+        : String(proposal.status || 'draft').replace(/_/g, ' '),
+      checked: approved,
+    });
+  }
+  if (projectSubmission) {
+    items.push({
+      label: 'Project submission',
+      desc: projectSubmission.originalFilename || 'Project ZIP uploaded',
+      checked: true,
+    });
+  }
+  return items;
+}
+
+function deriveSimilarityVerdict(proposal) {
+  const status = String(proposal?.status || '');
+  if (status === 'ai_rejected_same_semester') return 'reject_same_semester';
+  if (status === 'ai_flagged_previous_semester') return 'warn_previous_semester';
+  const same = Number(proposal?.aiSameSemesterMaxScore || 0);
+  const legacy = Number(proposal?.aiPreviousSemesterMaxScore || 0);
+  if (same >= 0.85) return 'reject_same_semester';
+  if (legacy >= 0.2) return 'warn_previous_semester';
+  return 'ok';
+}
+
+function buildHumanAiExplanation(proposal, matchedLegacy, matchedSameSemester) {
+  const samePct = Math.round(Number(proposal?.aiSameSemesterMaxScore || 0) * 100);
+  const legPct = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || 0) * 100);
+  const verdict = deriveSimilarityVerdict(proposal);
+  const lines = [];
+
+  if (verdict === 'reject_same_semester') {
+    lines.push(
+      `This proposal is highly similar to another submission in the current semester (${samePct}% overlap). Students should revise the idea, description, and features before resubmitting.`,
+    );
+    if (matchedSameSemester?.title) {
+      lines.push(
+        `Closest same-semester match: "${matchedSameSemester.title}"${
+          matchedSameSemester.submittedBy?.name ? ` (${matchedSameSemester.submittedBy.name})` : ''
+        }.`,
+      );
+      if (matchedSameSemester.description) {
+        lines.push(`Matched overview: ${String(matchedSameSemester.description).trim()}`);
+      }
+    }
+  } else if (verdict === 'warn_previous_semester') {
+    lines.push(
+      `This proposal resembles an approved project from a previous semester (${legPct}% semantic similarity). Review whether the team has added enough new scope.`,
+    );
+    if (matchedLegacy?.title) {
+      lines.push(`Matched legacy project: "${matchedLegacy.title}".`);
+    }
+    if (matchedLegacy?.proposalDescription) {
+      lines.push(`Legacy overview: ${String(matchedLegacy.proposalDescription).trim()}`);
+    }
+    if (proposal?.aiRecommendationText) {
+      lines.push(proposal.aiRecommendationText);
+    }
+  } else {
+    lines.push('No strong similarity was detected against same-semester peers or legacy projects.');
+    if (samePct > 0 || legPct > 0) {
+      lines.push(`Advisory scores — same semester: ${samePct}%, legacy / past term: ${legPct}%.`);
+    }
+  }
+
+  return lines.join('\n\n');
+}
+
+function buildGroupSimilarityPayload(proposal, matchedLegacy, matchedSameSemester) {
+  const sameSemester = Number(proposal?.aiSameSemesterMaxScore || 0);
+  const previousSemester = Number(proposal?.aiPreviousSemesterMaxScore || 0);
+  const overall = Math.round(Math.max(sameSemester, previousSemester) * 100);
+  const verdict = deriveSimilarityVerdict(proposal);
+  return {
+    overallPercent: overall,
+    level: overall >= 58 ? 'High' : overall >= 20 ? 'Medium' : 'Low',
+    sameSemesterPercent: Math.round(sameSemester * 100),
+    previousSemesterPercent: Math.round(previousSemester * 100),
+    verdict,
+    aiSummary: proposal?.aiSummary || '',
+    humanExplanation: buildHumanAiExplanation(proposal, matchedLegacy, matchedSameSemester),
+    recommendationText: proposal?.aiRecommendationText || '',
+    suggestedFeatures: proposal?.aiSuggestedFeatures || [],
+    matchedLegacy: matchedLegacy
+      ? {
+          title: matchedLegacy.title || '',
+          description: matchedLegacy.proposalDescription || '',
+          features: matchedLegacy.features || [],
+          ownerLabel: matchedLegacy.ownerLabel || '',
+        }
+      : null,
+    matchedSameSemester: matchedSameSemester
+      ? {
+          title: matchedSameSemester.title || '',
+          description: matchedSameSemester.description || '',
+          features: matchedSameSemester.features || [],
+          studentName: matchedSameSemester.submittedBy?.name || '',
+        }
+      : null,
+    matchedLegacyTitle: matchedLegacy?.title || '',
+    proposalStatus: proposal?.status || '',
+  };
 }
 
 export async function getGroupDetailsForTeacher(teacherId, groupId) {
@@ -820,20 +1001,72 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
     const submission = proposal?._id
       ? await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 }).lean()
       : null;
-    const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
+    const matchedLegacy = proposal?.aiMatchedLegacyId
+      ? await LegacyProject.findById(proposal.aiMatchedLegacyId)
+          .select('title proposalDescription features ownerLabel')
+          .lean()
+      : null;
+    const matchedSameSemester = proposal?.aiMatchedProposalId
+      ? await Proposal.findById(proposal.aiMatchedProposalId)
+          .select('title description features status submittedBy')
+          .populate('submittedBy', 'name')
+          .lean()
+      : null;
+    const similarityPayload = buildGroupSimilarityPayload(proposal, matchedLegacy, matchedSameSemester);
+    const projectClient = toProjectSubmissionClient(submission);
+    const proposalText = buildProposalPlainText(proposal);
+    const assignmentDoc = group.assignment?.toObject ? group.assignment.toObject() : group.assignment;
+
+    const screenshotUrl = submission?.screenshotRelativePath
+      ? `/uploads/${String(submission.screenshotRelativePath).replace(/^\/+/, '')}`
+      : '';
 
     return {
       _id: group._id,
-      title: proposal?.title || group.assignment?.title || group.name || 'Project',
+      title: proposal?.title || assignmentDoc?.title || group.name || 'Project',
       assignmentNumber: String(group._id).slice(-4).toUpperCase(),
-      type: group.assignment?.submissionMode === 'single' ? 'individual' : 'group',
-      classCode: group.assignment?.class?.code || group.assignment?.class?.name || '',
+      type: assignmentDoc?.submissionMode === 'single' ? 'individual' : 'group',
+      classCode: assignmentDoc?.class?.code || assignmentDoc?.class?.name || '',
+      assignmentId: String(assignmentDoc?._id || group.assignment._id || ''),
+      proposalId: proposal?._id ? String(proposal._id) : '',
       members,
-      similarity,
-      similarityLevel: similarity >= 58 ? 'High' : 'Low',
+      similarity: similarityPayload.overallPercent,
+      similarityLevel: similarityPayload.level,
+      similarityDetails: similarityPayload,
       status: submission ? 'SUBMITTED' : (proposal?.status || 'DRAFT').toUpperCase(),
+      proposalStatus: proposal?.status || 'draft',
       originalFileName: submission?.originalFilename || '',
       documentUrl: submission?.storedRelativePath ? `/uploads/${submission.storedRelativePath}` : '',
+      project: projectClient,
+      proposal: proposal
+        ? {
+            _id: String(proposal._id),
+            title: proposal.title || '',
+            description: proposal.description || '',
+            features: proposal.features || [],
+            status: proposal.status || 'draft',
+            submittedAt: proposal.submittedAt || null,
+            requirementCheckPassed: proposal.requirementCheckPassed !== false,
+            requirementCheckSummary: proposal.requirementCheckSummary || '',
+            requirementMissingKeywords: proposal.requirementMissingKeywords || [],
+            aiSummary: proposal.aiSummary || '',
+            teacherComment: proposal.teacherComment || '',
+            teacherProposalScore: proposal.teacherProposalScore ?? null,
+            teacherProposalScoreMax: proposal.teacherProposalScoreMax ?? 100,
+            plainText: proposalText,
+          }
+        : null,
+      documentation: {
+        hasProposal: Boolean(proposal),
+        hasProjectZip: Boolean(projectClient?.downloadPath),
+        proposalTitle: proposal?.title || '',
+        proposalPlainText: proposalText,
+        projectFileName: projectClient?.originalFilename || submission?.originalFilename || '',
+        projectDownloadPath: projectClient?.downloadPath || '',
+        screenshotUrl,
+      },
+      reviewChecklist: buildGroupReviewChecklist(proposal, submission),
+      reviewerFeedback: submission?.teacherComment || proposal?.teacherComment || '',
       isClassTeamTemplate: false,
     };
   }
@@ -857,9 +1090,26 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
       members,
       similarity: 0,
       similarityLevel: 'Low',
+      similarityDetails: buildGroupSimilarityPayload(null, null, null),
       status: 'CLASS_TEAM',
+      proposalStatus: '',
+      assignmentId: '',
+      proposalId: '',
       originalFileName: '',
       documentUrl: '',
+      project: null,
+      proposal: null,
+      documentation: {
+        hasProposal: false,
+        hasProjectZip: false,
+        proposalTitle: '',
+        proposalPlainText: '',
+        projectFileName: '',
+        projectDownloadPath: '',
+        screenshotUrl: '',
+      },
+      reviewChecklist: [],
+      reviewerFeedback: '',
       isClassTeamTemplate: true,
     };
   }

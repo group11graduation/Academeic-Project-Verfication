@@ -20,6 +20,50 @@ function normalizeClassCode(code) {
   return String(code || '').trim().toUpperCase();
 }
 
+function toDayStart(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function formatDayLabel(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString();
+}
+
+function assertSemesterDatesWithinAcademicYear({ startDate, endDate }, year) {
+  const semStart = startDate ? toDayStart(startDate) : null;
+  const semEnd = endDate ? toDayStart(endDate) : null;
+  const yearStart = year?.startDate ? toDayStart(year.startDate) : null;
+  const yearEnd = year?.endDate ? toDayStart(year.endDate) : null;
+
+  if (semStart && semEnd && semStart > semEnd) {
+    throw new Error('Semester start date must be on or before the end date.');
+  }
+
+  if (!semStart && !semEnd) return;
+
+  if (!yearStart || !yearEnd) {
+    throw new Error(
+      `Set start and end dates on academic year "${year?.label || 'selected year'}" before adding semester dates.`
+    );
+  }
+
+  if (semStart && semStart < yearStart) {
+    throw new Error(
+      `Semester start date cannot be before the academic year start (${formatDayLabel(year.startDate)}).`
+    );
+  }
+  if (semEnd && semEnd > yearEnd) {
+    throw new Error(
+      `Semester end date cannot be after the academic year end (${formatDayLabel(year.endDate)}).`
+    );
+  }
+}
+
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
@@ -420,6 +464,14 @@ export async function createAcademicYear(body) {
   };
   if (!payload.label) throw new Error('Academic year label is required');
 
+  if (payload.startDate && payload.endDate) {
+    const start = toDayStart(payload.startDate);
+    const end = toDayStart(payload.endDate);
+    if (start != null && end != null && start > end) {
+      throw new Error('Academic year end date must be on or after the start date.');
+    }
+  }
+
   if (payload.isCurrent) {
     await AcademicYear.updateMany({}, { $set: { isCurrent: false } });
   }
@@ -441,6 +493,14 @@ export async function createSemester(body) {
   const academicYearId = body.academicYearId || body.academicYear;
   if (!academicYearId) throw new Error('academicYearId is required');
   if (!String(body.name || '').trim()) throw new Error('Semester name is required');
+
+  const year = await AcademicYear.findById(academicYearId).lean();
+  if (!year) throw new Error('Academic year not found');
+
+  assertSemesterDatesWithinAcademicYear(
+    { startDate: body.startDate, endDate: body.endDate },
+    year
+  );
 
   const doc = await Semester.create({
     academicYear: academicYearId,

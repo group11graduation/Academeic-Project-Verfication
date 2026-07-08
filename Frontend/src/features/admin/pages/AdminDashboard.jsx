@@ -53,10 +53,10 @@ const AdminDashboard = () => {
 
     return (
         <div className="space-y-3">
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#111827]">
                 <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#1D68E3] mb-1">Admin Control Center</p>
-                <h1 className="text-base font-black text-[#0F172A] tracking-tight mb-1">Institution Dashboard</h1>
-                <p className="text-[11px] text-slate-500 font-medium max-w-3xl">
+                <h1 className="mb-1 text-base font-black tracking-tight text-[#0F172A] dark:text-slate-100">Institution Dashboard</h1>
+                <p className="max-w-3xl text-[11px] font-medium text-slate-500 dark:text-slate-300">
                     Monitor academic setup, people, and project activity from one place.
                 </p>
             </section>
@@ -65,22 +65,22 @@ const AdminDashboard = () => {
                 {statCards.map((card) => {
                     const Icon = card.icon;
                     return (
-                        <div key={card.title} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-                            <div className="flex items-center justify-between mb-2">
+                        <div key={card.title} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-[#111827]">
+                            <div className="mb-2 flex items-center justify-between">
                                 <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${card.tone}`}>
                                     <Icon className="h-3.5 w-3.5" />
                                 </div>
-                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">{card.title}</span>
+                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{card.title}</span>
                             </div>
-                            <p className="text-lg font-black text-[#0F172A] leading-none">{card.value}</p>
+                            <p className="text-lg font-black leading-none text-[#0F172A] dark:text-slate-100">{card.value}</p>
                         </div>
                     );
                 })}
             </section>
 
             <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                <div className="xl:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-                    <h2 className="text-sm font-black text-[#0F172A] mb-3">Priority Setup Actions</h2>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#111827] xl:col-span-2">
+                    <h2 className="mb-3 text-sm font-black text-[#0F172A] dark:text-slate-100">Priority Setup Actions</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <QuickLink to="/admin/setup-workflow" title="Setup Workflow" desc="Follow the exact setup order." icon={Workflow} />
                         <QuickLink to="/admin/semesters" title="Semesters" desc="Create academic terms first." icon={CalendarRange} />
@@ -89,8 +89,8 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <h2 className="text-sm font-black text-[#0F172A] mb-3">Role Workflow</h2>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#111827]">
+                    <h2 className="mb-3 text-sm font-black text-[#0F172A] dark:text-slate-100">Role Workflow</h2>
                     <div className="space-y-2 text-[11px]">
                         <WorkflowItem title="Admin" text="Setup terms, subjects, classes, teacher assignments, then student enrollment." />
                         <WorkflowItem title="Teacher" text="Create assignments, define requirements, review and decide proposals." />
@@ -103,22 +103,22 @@ const AdminDashboard = () => {
 };
 
 const QuickLink = ({ to, title, desc, icon: Icon }) => (
-    <Link to={to} className="rounded-lg border border-slate-200 bg-slate-50 p-3 hover:border-blue-300 hover:bg-blue-50/50 transition-all">
-        <div className="flex items-center justify-between mb-1.5">
-            <div className="h-7 w-7 rounded-md bg-white border border-slate-200 flex items-center justify-center">
+    <Link to={to} className="rounded-lg border border-slate-200 bg-slate-50 p-3 transition-all hover:border-blue-300 hover:bg-blue-50/50 dark:border-white/10 dark:bg-[#0f172a] dark:hover:border-blue-400/30 dark:hover:bg-[#162033]">
+        <div className="mb-1.5 flex items-center justify-between">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white dark:border-white/10 dark:bg-[#111827]">
                 <Icon className="h-3.5 w-3.5 text-[#1D68E3]" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+            <ArrowRight className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
         </div>
-        <p className="text-[12px] font-black text-[#0F172A]">{title}</p>
-        <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{desc}</p>
+        <p className="text-[12px] font-black text-[#0F172A] dark:text-slate-100">{title}</p>
+        <p className="mt-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">{desc}</p>
     </Link>
 );
 
 const WorkflowItem = ({ title, text }) => (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-[#0f172a]">
         <p className="text-[9px] font-black uppercase tracking-wider text-[#1D68E3] mb-0.5">{title}</p>
-        <p className="font-semibold text-slate-600 leading-snug">{text}</p>
+        <p className="font-semibold leading-snug text-slate-600 dark:text-slate-300">{text}</p>
     </div>
 );
 

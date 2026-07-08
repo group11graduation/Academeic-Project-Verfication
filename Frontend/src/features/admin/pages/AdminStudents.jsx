@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     Search,
     Plus,
@@ -23,7 +24,8 @@ import { adminAcademicService } from '../../../services/adminAcademicService';
 import {
     readSpreadsheetFileAsCsvText,
     normalizeStudentImportRow,
-    parseCsvToRecords,
+    parseStudentCsvToRecords,
+    validateStudentImportRows,
 } from '../../../lib/spreadsheetImport';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
@@ -137,7 +139,7 @@ const AdminStudents = () => {
             }, 2000);
         } catch (error) {
             console.error('Failed to copy passcode:', error);
-            window.alert('Failed to copy passcode.');
+            await appError('Failed to copy passcode.');
         }
     };
 
@@ -248,7 +250,11 @@ const AdminStudents = () => {
     };
 
     const handleDeleteStudent = async (studentId) => {
-        const shouldDelete = window.confirm('Are you sure you want to delete this student?');
+        const shouldDelete = await appConfirm({
+            message: 'Are you sure you want to delete this student?',
+            danger: true,
+            confirmLabel: 'Delete',
+        });
         if (!shouldDelete) return;
         setDeletingId(studentId);
         try {
@@ -256,7 +262,7 @@ const AdminStudents = () => {
             if (!res.success) throw new Error(res.message || 'Failed to delete student');
             await loadStudents();
         } catch (err) {
-            window.alert(err.response?.data?.message || err.message || 'Failed to delete student.');
+            await appError(err.response?.data?.message || err.message || 'Failed to delete student.');
         } finally {
             setDeletingId('');
         }
@@ -280,9 +286,14 @@ const AdminStudents = () => {
     const submitImport = async () => {
         setImportError('');
         setImportResult(null);
-        const rows = parseCsvToRecords(csvText).map(normalizeStudentImportRow);
+        const rows = parseStudentCsvToRecords(csvText).map(normalizeStudentImportRow);
         if (!rows.length) {
-            setImportError('Add CSV with header and at least one row.');
+            setImportError('Add CSV with header and at least one row (name, email, studentId required).');
+            return;
+        }
+        const validationError = validateStudentImportRows(rows);
+        if (validationError) {
+            await appWarning(validationError);
             return;
         }
         setImporting(true);
@@ -292,7 +303,7 @@ const AdminStudents = () => {
             setImportResult(res.data);
             await loadStudents();
         } catch (err) {
-            setImportError(err.response?.data?.message || err.message || 'Import failed');
+            setImportError(err.userMessage || err.response?.data?.message || err.message || 'Import failed');
         } finally {
             setImporting(false);
         }
@@ -316,7 +327,7 @@ const AdminStudents = () => {
             window.URL.revokeObjectURL(url);
         } catch (err) {
             const message = err.response?.data?.message || err.message || 'Failed to export students';
-            window.alert(message);
+            await appError(message);
         } finally {
             setExporting(false);
         }
@@ -332,21 +343,52 @@ const AdminStudents = () => {
     }
 
     return (
-        <div className="font-sans text-[13px] transition-colors">
-            <div className="flex flex-col lg:flex-row items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
-                <div className="relative w-full lg:w-[280px] shrink-0">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                        type="text"
-                        placeholder="Search by name, ID or class..."
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 outline-none font-medium text-slate-700 dark:text-slate-200"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+        <div className="font-sans text-[13px] transition-colors min-w-0 max-w-full">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-3 space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Students</h1>
+                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Directory</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={submitExport}
+                            disabled={exporting}
+                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60 whitespace-nowrap"
+                        >
+                            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                            {exporting ? 'Exporting...' : 'Export CSV'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setMode('add')}
+                            className="inline-flex items-center gap-1.5 bg-[#1D68E3] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
+                        >
+                            <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Add Student
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setMode('import')}
+                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
+                        >
+                            <Upload className="h-3.5 w-3.5" /> Import Students
+                        </button>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0">
-                    <div className="relative w-[130px] shrink-0">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search by name, ID or class..."
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 outline-none font-medium text-slate-700 dark:text-slate-200"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="relative w-full sm:w-[130px] shrink-0">
                         <select
                             value={classFilter}
                             onChange={(e) => setClassFilter(e.target.value)}
@@ -357,7 +399,7 @@ const AdminStudents = () => {
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                     </div>
-                    <div className="relative w-[160px] shrink-0">
+                    <div className="relative w-full sm:w-[160px] shrink-0">
                         <select
                             value={facultyFilter}
                             onChange={(e) => setFacultyFilter(e.target.value)}
@@ -371,36 +413,6 @@ const AdminStudents = () => {
                             ))}
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-end w-full gap-2 shrink-0">
-                    <button
-                        type="button"
-                        onClick={submitExport}
-                        disabled={exporting}
-                        className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60"
-                    >
-                        {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                        {exporting ? 'Exporting...' : 'Export CSV'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setMode('add')}
-                        className="flex items-center gap-1.5 bg-[#1D68E3] text-white px-3 py-1.5 rounded-lg font-bold text-[12px]"
-                    >
-                        <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Add Student
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setMode('import')}
-                        className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px]"
-                    >
-                        <Upload className="h-3.5 w-3.5" /> Import Students
-                    </button>
-                    <div className="text-right hidden sm:block">
-                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Students</h1>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Directory</p>
                     </div>
                 </div>
             </div>
@@ -545,7 +557,7 @@ const AdminStudents = () => {
                             value={csvText}
                             onChange={(e) => setCsvText(e.target.value)}
                             rows={8}
-                            placeholder={`name,email,studentId,classCode,faculty\nDemo Student,demo@student.com,ST-2026-001,CA223_A,Computer Science\n\nOr upload .csv / .xlsx — Excel is parsed automatically.`}
+                            placeholder={`name,email,studentId\nDemo Student,demo@student.com,ST-2026-001\n\nOr upload .csv / .xlsx — Excel is parsed automatically.`}
                             className="w-full rounded-lg border border-slate-200 dark:border-slate-700 p-3 font-mono text-[12px] text-slate-900 dark:text-slate-100"
                         />
                         {importError && (
@@ -570,14 +582,14 @@ const AdminStudents = () => {
             )}
 
             <div className="flex items-center gap-3 pt-2 mb-2">
-                <p className="text-[11px] font-semibold text-slate-500">
-                    Showing <span className="text-slate-700 font-black">{filteredStudents.length}</span> of {students.length} students
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    Showing <span className="font-black text-slate-700 dark:text-slate-200">{filteredStudents.length}</span> of {students.length} students
                 </p>
             </div>
 
-            <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-                <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-left">
+            <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden min-w-0">
+                <div className="overflow-x-auto max-w-full">
+                <table className="w-full min-w-[720px] text-left">
                     <thead>
                         <tr className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>
@@ -611,7 +623,7 @@ const AdminStudents = () => {
                                             {student.name || 'Unknown Student'}
                                         </Link>
                                     </td>
-                                    <td className="px-3 py-2"><span className="text-[12px] font-bold text-slate-500 tracking-wide">{student.studentId || 'N/A'}</span></td>
+                                    <td className="px-3 py-2"><span className="text-[12px] font-bold tracking-wide text-slate-500 dark:text-slate-400">{student.studentId || 'N/A'}</span></td>
                                     <td className="px-3 py-2">
                                         {student.classId || student.classCode ? (
                                             <Link
@@ -628,14 +640,14 @@ const AdminStudents = () => {
                                     <td className="px-3 py-2">
                                         <div className="flex flex-col items-center gap-1.5">
                                             {student.passcode ? (
-                                                <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50 transition-colors">
-                                                    <span className="text-[12px] font-black text-slate-700 dark:text-slate-300 font-mono tracking-wider">
+                                                <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                                                    <span className="font-mono text-[12px] font-black tracking-wider text-slate-700 dark:text-slate-300">
                                                         {revealedPasscodes[student.studentId] ? student.passcode : '••••••'}
                                                     </span>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleCopyPasscode(student.studentId, student.passcode)}
-                                                        className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                        className="text-slate-500 transition-colors hover:text-[#1D68E3] dark:text-slate-400 dark:hover:text-blue-300"
                                                         title="Copy passcode"
                                                     >
                                                         {copiedStudentId === student.studentId ? (
@@ -647,7 +659,7 @@ const AdminStudents = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => togglePasscode(student.studentId)}
-                                                        className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                        className="text-slate-500 transition-colors hover:text-[#1D68E3] dark:text-slate-400 dark:hover:text-blue-300"
                                                         title={revealedPasscodes[student.studentId] ? 'Hide passcode' : 'Show passcode'}
                                                     >
                                                         {revealedPasscodes[student.studentId] ? (
@@ -669,7 +681,7 @@ const AdminStudents = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => startEdit(student)}
-                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                             >
                                                 <Pencil className="h-3.5 w-3.5" /> Update
                                             </button>

@@ -33,7 +33,7 @@ export function parseCsvLine(line) {
 
 /** Parse whole CSV / pasted text into row objects (first row = headers). */
 export function parseCsvToRecords(text) {
-    const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
+    const lines = String(text || '').trim().split(/\r?\n/).filter((l) => l.trim());
     if (lines.length < 2) return [];
     const headers = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/^\ufeff/, ''));
     return lines.slice(1).map((line) => {
@@ -51,6 +51,29 @@ function canonicalKey(k) {
         .trim()
         .toLowerCase()
         .replace(/[\s_-]+/g, '');
+}
+
+function headerLooksLikeStudentRow(headers) {
+    const keys = headers.map((h) => canonicalKey(h));
+    const hasName = keys.some((k) => ['name', 'fullname', 'studentname', 'student'].includes(k));
+    const hasEmail = keys.some((k) => ['email', 'emailaddress', 'mail'].includes(k));
+    return hasName && hasEmail;
+}
+
+/** Prepend standard header when paste omits it (common in bulk copy from Excel). */
+export function ensureStudentImportHeader(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return trimmed;
+    const lines = trimmed.split(/\r?\n/).filter((l) => l.trim());
+    if (!lines.length) return trimmed;
+    const headers = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/^\ufeff/, ''));
+    if (headerLooksLikeStudentRow(headers)) return trimmed;
+    return `name,email,studentId\n${trimmed}`;
+}
+
+/** Student bulk import — auto-detects missing header row. */
+export function parseStudentCsvToRecords(text) {
+    return parseCsvToRecords(ensureStudentImportHeader(text));
 }
 
 /** Map messy spreadsheet headers to import fields (CSV or Excel). */
@@ -73,13 +96,25 @@ export function normalizeStudentImportRow(raw) {
         studentId: val('studentid', 'id', 'studentnumber', 'matric', 'matricno', 'registrationnumber'),
         password: val('password', 'passwd'),
         passcode: val('passcode', 'pin', 'logincode'),
-        classCode: val('classcode', 'class', 'section', 'group'),
-        classId: val('classid'),
-        faculty: val('faculty', 'department', 'school'),
-        program: val('program', 'major', 'course'),
-        score: val('score', 'currentscore', 'mark'),
-        gpa: val('gpa', 'currentgpa', 'cgpa'),
     };
+}
+
+/** Required columns for student bulk import: name, email, studentId */
+export function validateStudentImportRows(rows) {
+    for (let i = 0; i < rows.length; i += 1) {
+        const row = rows[i] || {};
+        const line = i + 2;
+        if (!String(row.name || '').trim()) {
+            return `Row ${line}: name is required`;
+        }
+        if (!String(row.email || '').trim()) {
+            return `Row ${line}: email is required`;
+        }
+        if (!String(row.studentId || '').trim()) {
+            return `Row ${line}: student ID is required`;
+        }
+    }
+    return null;
 }
 
 export function normalizeTeacherImportRow(raw) {

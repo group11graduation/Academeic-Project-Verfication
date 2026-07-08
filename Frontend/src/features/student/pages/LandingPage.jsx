@@ -86,18 +86,18 @@ const LandingPage = () => {
 
     return (
         <StudentPublicShell forcePublic>
-        <div className="min-h-screen font-sans text-slate-900" style={{ backgroundColor: BRAND.pageBg }}>
+        <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900 dark:bg-[#020617] dark:text-slate-100">
 
             <main>
                 {/* System hero */}
                 <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12 md:pt-14">
                     {user && (
-                        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-blue-200/80 bg-white px-5 py-4 shadow-sm">
+                        <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-blue-200/80 bg-white px-5 py-4 shadow-sm dark:border-blue-400/20 dark:bg-[#111827] sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p className="text-xs font-black uppercase tracking-widest text-[#2a3fa4] mb-1">
                                     Already signed in
                                 </p>
-                                <p className="text-sm font-bold text-slate-800">
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
                                     Continue as {user.name || user.email} from your workspace, or browse the public overview below.
                                 </p>
                             </div>
@@ -113,13 +113,13 @@ const LandingPage = () => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
                         <div className="lg:col-span-3">
-                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">
+                            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                                 {PROJECT_NAME} · System overview
                             </p>
-                            <h1 className="text-3xl md:text-4xl lg:text-[2.75rem] font-black text-slate-900 leading-tight tracking-tight mb-5">
+                            <h1 className="mb-5 text-3xl font-black leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-4xl lg:text-[2.75rem]">
                                 Academic project verification — from proposal to graded submission
                             </h1>
-                            <p className="text-base md:text-lg text-slate-600 font-medium leading-relaxed max-w-2xl mb-8">
+                            <p className="mb-8 max-w-2xl text-base font-medium leading-relaxed text-slate-600 dark:text-slate-300 md:text-lg">
                                 {PROJECT_NAME} is your institution&apos;s workflow for capstone and coursework projects: assignments,
                                 AI-assisted integrity checks, teacher review, collaborative dual-teacher tasks, and Docker previews
                                 — all in one place.
@@ -135,7 +135,7 @@ const LandingPage = () => {
                                     </Link>
                                     <Link
                                         to="/about"
-                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:hover:bg-[#1f2937]"
                                     >
                                         Platform guide
                                     </Link>
@@ -152,7 +152,7 @@ const LandingPage = () => {
                                     </Link>
                                     <Link
                                         to="/gallery"
-                                        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:hover:bg-[#1f2937]"
                                     >
                                         Verified projects
                                     </Link>
@@ -169,12 +169,12 @@ const LandingPage = () => {
                             ].map(({ label, icon: Icon }) => (
                                 <div
                                     key={label}
-                                    className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm"
+                                    className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111827]"
                                 >
                                     <div className="ui-icon-box w-9 h-9 rounded-lg bg-blue-50 text-[#2a3fa4] mb-3">
                                         <Icon className="h-4 w-4 shrink-0" />
                                     </div>
-                                    <p className="text-xs font-bold text-slate-700 leading-snug">{label}</p>
+                                    <p className="text-xs font-bold leading-snug text-slate-700 dark:text-slate-200">{label}</p>
                                 </div>
                             ))}
                         </div>
@@ -182,7 +182,7 @@ const LandingPage = () => {
                 </section>
 
                 {/* Workflow */}
-                <section className="border-y border-slate-200/80 bg-white">
+                <section className="border-y border-slate-200/80 bg-white dark:border-white/10 dark:bg-[#0b1220]">
                     <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
                         <div className="flex items-center gap-2 mb-2">
                             <Workflow className="h-5 w-5 text-[#2a3fa4]" />
@@ -190,14 +190,14 @@ const LandingPage = () => {
                                 End-to-end workflow
                             </p>
                         </div>
-                        <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-8">
+                        <h2 className="mb-8 text-2xl font-black text-slate-900 dark:text-slate-100 md:text-3xl">
                             How a project moves through the system
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             {workflowSteps.map((s) => (
                                 <div
                                     key={s.step}
-                                    className="rounded-2xl border border-slate-200 bg-[#f8faff] p-5 relative"
+                                    className="relative rounded-2xl border border-slate-200 bg-[#f8faff] p-5 dark:border-white/10 dark:bg-[#111827]"
                                 >
                                     <span
                                         className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-black text-white mb-4"
@@ -205,8 +205,8 @@ const LandingPage = () => {
                                     >
                                         {s.step}
                                     </span>
-                                    <h3 className="text-sm font-black text-slate-900 mb-2">{s.title}</h3>
-                                    <p className="text-xs font-medium text-slate-600 leading-relaxed">{s.detail}</p>
+                                    <h3 className="mb-2 text-sm font-black text-slate-900 dark:text-slate-100">{s.title}</h3>
+                                    <p className="text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-300">{s.detail}</p>
                                 </div>
                             ))}
                         </div>
@@ -221,7 +221,7 @@ const LandingPage = () => {
                             Platform modules
                         </p>
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-8">
+                    <h2 className="mb-8 text-2xl font-black text-slate-900 dark:text-slate-100 md:text-3xl">
                         What you can do in {PROJECT_NAME}
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -230,17 +230,17 @@ const LandingPage = () => {
                             return (
                                 <div
                                     key={mod.title}
-                                    className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm flex flex-col"
+                                    className="flex flex-col rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]"
                                 >
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#2a3fa4] flex items-center justify-center">
                                             <Icon className="h-5 w-5" />
                                         </div>
-                                        <h3 className="text-base font-black text-slate-900">{mod.title}</h3>
+                                        <h3 className="text-base font-black text-slate-900 dark:text-slate-100">{mod.title}</h3>
                                     </div>
                                     <ul className="space-y-2 mb-5 flex-1">
                                         {mod.points.map((p) => (
-                                            <li key={p} className="text-sm font-medium text-slate-600 flex gap-2">
+                                            <li key={p} className="flex gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
                                                 <span className="text-[#2a3fa4] shrink-0">•</span>
                                                 {p}
                                             </li>

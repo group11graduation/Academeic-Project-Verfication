@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus, X, Send, Save, UploadCloud, ChevronRight } from 'lucide-react';
 import studentService from '../../../services/studentService';
+import { getApiErrorMessage } from '../../../shared/utils/apiErrors';
+import MatchedSimilarProjectPanel from '../components/MatchedSimilarProjectPanel';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK, Z_INPUT } from '../../../shared/ui/zendentaLayout';
 import { DEADLINE_DUE_STUDENT_MESSAGE } from '../../../shared/utils/assignmentDeadlines';
 
@@ -125,6 +127,7 @@ const StudentProposalSubmit = () => {
     const [message, setMessage] = useState(null);
     const [recommendation, setRecommendation] = useState(null);
     const [suggestedFeatures, setSuggestedFeatures] = useState([]);
+    const [matchedSimilarProject, setMatchedSimilarProject] = useState(null);
     const [error, setError] = useState(null);
     const [proposalFile, setProposalFile] = useState(null);
     const [inputMode, setInputMode] = useState('text'); // text | file
@@ -150,6 +153,7 @@ const StudentProposalSubmit = () => {
                               ? p.aiSuggestedFeatures
                               : []
                     );
+                    setMatchedSimilarProject(p.matchedSimilarProject || null);
                 }
             }
         } catch (e) {
@@ -251,8 +255,6 @@ const StudentProposalSubmit = () => {
     const submitFinal = async () => {
         setError(null);
         setMessage(null);
-        setRecommendation(null);
-        setSuggestedFeatures([]);
         if (!canSubmitFinal) {
             setError('Proposal does not satisfy teacher requirements yet. Please fix the missing items first.');
             return;
@@ -281,6 +283,7 @@ const StudentProposalSubmit = () => {
                           ? res.data.proposal.aiSuggestedFeatures
                           : []
                 );
+                setMatchedSimilarProject(res.data?.matchedSimilarProject || res.data?.proposal?.matchedSimilarProject || null);
                 const p = res.data?.proposal;
                 if (p) {
                     setRow((prev) => ({ ...prev, proposal: p }));
@@ -290,9 +293,17 @@ const StudentProposalSubmit = () => {
                         features: p.features,
                     });
                 }
+                await load();
+            } else {
+                setError(res.message || 'Submission failed');
             }
         } catch (e) {
-            setError(e.response?.data?.message || 'Submission failed');
+            setError(
+                getApiErrorMessage(
+                    e,
+                    'Submission failed. AI analysis can take 1–3 minutes — keep this page open and try again.'
+                )
+            );
         } finally {
             setSubmitting(false);
         }
@@ -578,12 +589,50 @@ const StudentProposalSubmit = () => {
                     </div>
                 )}
 
-                {proposal?.status === 'ai_flagged_previous_semester' && (
+                {proposal?.status === 'ai_flagged_previous_semester' && matchedSimilarProject ? (
+                    <MatchedSimilarProjectPanel
+                        match={matchedSimilarProject}
+                        recommendation={recommendation}
+                        suggestedFeatures={suggestedFeatures}
+                        onAddFeature={addSuggestedFeature}
+                    />
+                ) : proposal?.status === 'ai_flagged_previous_semester' ? (
                     <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-                        This idea resembles an approved project from a previous semester. You can optionally add extra
-                        features to make your project more original before teacher review.
+                        <p>
+                            This idea resembles an approved project from a previous semester. You can optionally add extra
+                            features to make your project more original before teacher review.
+                        </p>
+                        <Link
+                            to="/gallery"
+                            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2 text-xs font-bold text-white hover:bg-[#1a4dcc]"
+                        >
+                            Browse verified projects
+                        </Link>
                     </div>
-                )}
+                ) : null}
+
+                {proposal?.status === 'ai_flagged_previous_semester' &&
+                !matchedSimilarProject &&
+                (recommendation || suggestedFeatures.length > 0) ? (
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                        <p className="font-bold mb-1">Optional feature recommendations</p>
+                        {recommendation && <p className="font-semibold mb-2">{recommendation}</p>}
+                        {suggestedFeatures.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {suggestedFeatures.map((feat) => (
+                                    <button
+                                        key={feat}
+                                        type="button"
+                                        onClick={() => addSuggestedFeature(feat)}
+                                        className="rounded-full border border-amber-300 bg-white dark:bg-amber-950 px-3 py-1.5 text-xs font-bold text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900"
+                                    >
+                                        + {feat}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : null}
 
                 {proposal?.teacherComment && (
                     <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
@@ -624,32 +673,6 @@ const StudentProposalSubmit = () => {
                 {message && (
                     <div className="mb-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 px-4 py-3 text-sm font-semibold">
                         {message}
-                    </div>
-                )}
-                {(recommendation || suggestedFeatures.length > 0) && (
-                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-                        <p className="font-bold mb-1">Optional feature recommendations</p>
-                        {recommendation && <p className="font-semibold mb-2">{recommendation}</p>}
-                        {suggestedFeatures.length > 0 && (
-                            <div className="mt-2">
-                                <p className="text-xs font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200 mb-2">
-                                    Missing compared to similar past project (click to add — optional)
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                    {suggestedFeatures.map((feat) => (
-                                        <button
-                                            key={feat}
-                                            type="button"
-                                            onClick={() => addSuggestedFeature(feat)}
-                                            className="rounded-full border border-amber-300 bg-white dark:bg-amber-950 px-3 py-1.5 text-xs font-bold text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900"
-                                            title="Add to your features list"
-                                        >
-                                            + {feat}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -737,9 +760,18 @@ const StudentProposalSubmit = () => {
                             ) : (
                                 <Send className="h-4 w-4" />
                             )}
-                            {alreadyFinalSubmitted ? 'Update & Resubmit' : 'Submit for AI & teacher review'}
+                            {submitting
+                                ? 'Running AI check…'
+                                : alreadyFinalSubmitted
+                                  ? 'Update & Resubmit'
+                                  : 'Submit for AI & teacher review'}
                         </button>
                     </div>
+                    {submitting && (
+                        <p className="mt-3 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            AI similarity analysis can take 1–3 minutes. Keep this page open until it finishes.
+                        </p>
+                    )}
                 </div>
             </div>
         </div>

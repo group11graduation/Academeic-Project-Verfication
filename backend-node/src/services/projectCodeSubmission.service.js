@@ -16,6 +16,7 @@ import {
   SUBMISSION_PIPELINE_STATUSES,
 } from './submissionErrorHandler.service.js';
 import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
+import { getUploadDir } from '../config/env.js';
 
 export function isProjectDeadlineOpen(assignment) {
   if (!assignment?.projectDeadline) return true;
@@ -38,7 +39,7 @@ function normalizeZipExt(originalName) {
 async function persistProjectScreenshot(proposalId, file) {
   if (!file?.path) return null;
 
-  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const uploadsRoot = getUploadDir();
   const relDir = path.join('project-screenshots', String(proposalId));
   const destDir = path.join(uploadsRoot, relDir);
   await fs.mkdir(destDir, { recursive: true });
@@ -105,7 +106,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     throw err;
   }
 
-  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const uploadsRoot = getUploadDir();
   const relDir = path.join('project-code', String(proposal._id));
   const destDir = path.join(uploadsRoot, relDir);
   await fs.mkdir(destDir, { recursive: true });

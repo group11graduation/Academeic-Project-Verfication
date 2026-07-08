@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import { 
     ShieldCheck, 
     Download, 
@@ -73,7 +74,7 @@ const StudentProjectDetail = () => {
     };
 
     const handleSubmitProposal = async () => {
-        if (!uploadedFile || !uploadedFile.file) return alert('Please upload a file first');
+        if (!uploadedFile || !uploadedFile.file) return await appWarning('Please upload a file first');
         
         setIsSubmitting(true);
         const formData = new FormData();
@@ -87,7 +88,7 @@ const StudentProjectDetail = () => {
                 }
             });
             if (response.data.success) {
-                alert('Project proposal submitted successfully!');
+                await appSuccess('Project proposal submitted successfully!');
                 setProject(prev => ({
                     ...prev,
                     status: 'SUBMITTED',
@@ -98,7 +99,7 @@ const StudentProjectDetail = () => {
             }
         } catch (error) {
             console.error('Submit failed:', error);
-            alert(error.response?.data?.message || 'Failed to submit proposal.');
+            await appError(error.response?.data?.message || 'Failed to submit proposal.');
         } finally {
             setIsSubmitting(false);
         }

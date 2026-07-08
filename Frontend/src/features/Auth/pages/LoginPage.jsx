@@ -7,6 +7,7 @@ import { useAuth } from '../../../context/authContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { BRAND, PROJECT_NAME } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const loginSchema = z.object({
     identifier: z.string().trim().min(1, 'Username, email, or ID is required'),
@@ -147,7 +148,7 @@ const LoginPage = () => {
                             <button
                                 type="button"
                                 className="text-sm font-semibold text-white/75 hover:text-white transition-colors"
-                                onClick={() => alert('Contact your administrator to reset your password.')}
+                                onClick={() => void appWarning('Contact your administrator to reset your password.')}
                             >
                                 Forgot password?
                             </button>

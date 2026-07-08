@@ -26,6 +26,7 @@ import {
   isProposalFullyApprovedForProject,
   reconcileCollaborativeProposalStatus,
 } from './collaborativeProposalReview.service.js';
+import { resolveSimilarMatchedProject } from './verifiedGallery.service.js';
 import {
   distinctAssignmentIdsForTeacher,
   findAssignmentVisibleToTeacher,
@@ -171,7 +172,7 @@ function buildMissingFeatureRecommendation({
 
   if (missingFromLegacy.length) {
     return {
-      text: `Optional: these features appeared in a similar previous-semester project but are missing from yours. You may add any of them (not required): ${suggestedFeatures.join('; ')}.`,
+      text: 'Your idea overlaps with a verified project from a past semester. Open that project below to review its scope and UI, then optionally add differentiating features.',
       suggestedFeatures,
     };
   }
@@ -640,6 +641,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   proposal.aiMatchedLegacyId = mongoose.Types.ObjectId.isValid(matchedLegacyId)
     ? new mongoose.Types.ObjectId(matchedLegacyId)
     : null;
+  proposal.aiMatchedLegacyKey = matchedLegacyRaw || '';
   proposal.aiSummary = aiResult.summary || '';
   proposal.submittedAt = new Date();
 
@@ -682,11 +684,17 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
 
   await proposal.save();
 
+  const matchedSimilarProject =
+    verdict === 'warn_previous_semester'
+      ? await resolveSimilarMatchedProject(proposal.toObject ? proposal.toObject() : proposal)
+      : null;
+
   return {
     proposal,
     ai: aiResult,
     recommendation,
     suggestedFeatures,
+    matchedSimilarProject,
     parsed: parsedFromFile,
     message:
       verdict === 'reject_same_semester'
@@ -1004,11 +1012,17 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
   }
   const list = await Proposal.find(filter)
     .populate('submittedBy', 'name email')
-    .populate('group')
+    .populate({
+      path: 'group',
+      populate: [
+        { path: 'leader', select: 'name email' },
+        { path: 'members.user', select: 'name email' },
+      ],
+    })
     .populate({
       path: 'assignment',
       select:
-        'title class subject semester academicYear isCollaborative teacher coTeacherId frontendTeacherId backendTeacherId frontendTechRequirements backendTechRequirements',
+        'title class subject semester academicYear submissionMode isCollaborative teacher coTeacherId frontendTeacherId backendTeacherId frontendTechRequirements backendTechRequirements',
       populate: [
         { path: 'class', select: 'code name' },
         { path: 'subject', select: 'code name' },
@@ -1046,13 +1060,42 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
       latestZipByProposal.set(String(row._id), toProjectSubmissionClient(row.doc));
     }
   }
-  const studentUserIds = list
-    .map((p) => p?.submittedBy?._id)
-    .filter(Boolean);
-  const profiles = studentUserIds.length
-    ? await StudentProfile.find({ user: { $in: studentUserIds } }).select('user studentId').lean()
+  const studentUserIds = new Set();
+  for (const p of list) {
+    if (p?.submittedBy?._id) studentUserIds.add(String(p.submittedBy._id));
+    if (p?.group?.leader?._id) studentUserIds.add(String(p.group.leader._id));
+    for (const m of p?.group?.members || []) {
+      if (m?.user?._id) studentUserIds.add(String(m.user._id));
+    }
+  }
+  const profiles = studentUserIds.size
+    ? await StudentProfile.find({ user: { $in: [...studentUserIds] } }).select('user studentId').lean()
     : [];
   const studentIdByUser = new Map(profiles.map((sp) => [String(sp.user), sp.studentId || '']));
+
+  const enrichGroupForClient = (group) => {
+    if (!group || typeof group !== 'object') return group;
+    return {
+      ...group,
+      leader: group.leader
+        ? {
+            ...group.leader,
+            studentId: studentIdByUser.get(String(group.leader._id)) || '',
+          }
+        : group.leader,
+      members: (group.members || []).map((m) =>
+        m?.user
+          ? {
+              ...m,
+              user: {
+                ...m.user,
+                studentId: studentIdByUser.get(String(m.user._id)) || '',
+              },
+            }
+          : m
+      ),
+    };
+  };
 
   return list.map((p) => {
     const latestProjectSubmission = latestZipByProposal.get(String(p._id)) || null;
@@ -1060,6 +1103,7 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     ...p,
     hasProjectSubmission: Boolean(latestProjectSubmission),
     latestProjectSubmission,
+    group: enrichGroupForClient(p.group),
     submittedBy: p.submittedBy
       ? {
           ...p.submittedBy,

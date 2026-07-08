@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, User, Lock, ChevronDown, Upload, Link, X, Mail, Phone, ArrowLeft, Loader2 } from 'lucide-react';
 import adminTeacherService, { resolveUploadUrl } from '../../../services/adminTeacherService';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminAddTeacher = () => {
     const navigate = useNavigate();
@@ -45,7 +46,7 @@ const AdminAddTeacher = () => {
             setFormData({ ...formData, photo: resolveUploadUrl(imageUrl) });
         } catch (error) {
             console.error("Failed to upload image:", error);
-            alert("Failed to upload image. Please try again.");
+            await appWarning("Failed to upload image. Please try again.");
         } finally {
             setUploadingImage(false);
             // Reset input so the same file could be selected again if needed
@@ -72,7 +73,7 @@ const AdminAddTeacher = () => {
             }
         } catch (error) {
             console.error("Failed to register teacher:", error);
-            alert(error.response?.data?.message || "Failed to register teacher");
+            await appError(error.response?.data?.message || "Failed to register teacher");
         } finally {
             setLoading(false);
         }

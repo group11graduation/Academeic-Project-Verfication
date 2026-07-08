@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import adminUserService from '../../../services/adminUserService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminAdmins = () => {
     const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search admins…');
@@ -50,7 +51,7 @@ const AdminAdmins = () => {
     const submitEdit = async () => {
         if (!editingId) return;
         if (!editEmail.trim()) {
-            window.alert('Email is required');
+            await appWarning('Email is required');
             return;
         }
         setSavingEdit(true);
@@ -66,14 +67,18 @@ const AdminAdmins = () => {
             )));
             cancelEdit();
         } catch (error) {
-            window.alert(error.response?.data?.message || error.message || 'Failed to update admin');
+            await appError(error.response?.data?.message || error.message || 'Failed to update admin');
         } finally {
             setSavingEdit(false);
         }
     };
 
     const handleDelete = async (adminId) => {
-        const shouldDelete = window.confirm('Are you sure you want to delete this admin account?');
+        const shouldDelete = await appConfirm({
+            message: 'Are you sure you want to delete this admin account?',
+            danger: true,
+            confirmLabel: 'Delete',
+        });
         if (!shouldDelete) return;
         setDeletingId(adminId);
         try {
@@ -81,7 +86,7 @@ const AdminAdmins = () => {
             if (!response.success) throw new Error(response.message || 'Failed to delete admin');
             setAdmins((prev) => prev.filter((item) => item._id !== adminId));
         } catch (error) {
-            window.alert(error.response?.data?.message || error.message || 'Failed to delete admin');
+            await appError(error.response?.data?.message || error.message || 'Failed to delete admin');
         } finally {
             setDeletingId('');
         }
@@ -103,7 +108,7 @@ const AdminAdmins = () => {
                 setCopiedAdminId((current) => (current === adminId ? '' : current));
             }, 2000);
         } catch (error) {
-            window.alert('Failed to copy passcode.');
+            await appError('Failed to copy passcode.');
         }
     };
 
@@ -118,7 +123,7 @@ const AdminAdmins = () => {
             )));
             setRevealedPasscodes((prev) => ({ ...prev, [adminId]: true }));
         } catch (error) {
-            window.alert(error.response?.data?.message || error.message || 'Failed to generate passcode');
+            await appError(error.response?.data?.message || error.message || 'Failed to generate passcode');
         } finally {
             setGeneratingPasscodeId('');
         }
@@ -154,7 +159,7 @@ const AdminAdmins = () => {
                         <Plus className="h-3.5 w-3.5" />
                         New Admin
                     </Link>
-                    <div className="text-[11px] font-semibold text-slate-500">
+                    <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                         Total: <span className="font-bold text-slate-700 dark:text-slate-200">{filteredAdmins.length}</span>
                     </div>
                     <div className="text-right">
@@ -178,17 +183,17 @@ const AdminAdmins = () => {
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100/90">
+                    <tbody className="divide-y divide-slate-100/90 dark:divide-slate-800">
                         {filteredAdmins.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-8 text-slate-400 font-medium text-[12px]">
+                                <td colSpan={7} className="py-8 text-center text-[12px] font-medium text-slate-400 dark:text-slate-500">
                                     No administrative accounts found.
                                 </td>
                             </tr>
                         ) : (
                             filteredAdmins.map((admin, index) => (
-                                <tr key={admin._id} className="hover:bg-blue-50/30 transition-colors">
-                                    <td className="px-3 py-2 text-[12px] font-bold text-slate-400">{index + 1}</td>
+                                <tr key={admin._id} className="transition-colors hover:bg-blue-50/30 dark:hover:bg-[#162033]">
+                                    <td className="px-3 py-2 text-[12px] font-bold text-slate-400 dark:text-slate-500">{index + 1}</td>
                                     <td className="px-3 py-2">
                                         <div className="flex items-center gap-2.5">
                                             <div className="bg-blue-50 p-1.5 rounded-md">
@@ -203,22 +208,22 @@ const AdminAdmins = () => {
                                                 type="email"
                                                 value={editEmail}
                                                 onChange={(e) => setEditEmail(e.target.value)}
-                                                className="w-full min-w-[220px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12px] font-semibold text-slate-700"
+                                                className="w-full min-w-[220px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                                             />
                                         ) : (
-                                            <span className="text-[13px] font-semibold text-slate-600">{admin.email}</span>
+                                            <span className="text-[13px] font-semibold text-slate-600 dark:text-slate-300">{admin.email}</span>
                                         )}
                                     </td>
                                     <td className="px-3 py-2">
                                         {admin.passcode ? (
-                                            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50 transition-colors">
-                                                <span className="text-[12px] font-black text-slate-700 font-mono tracking-wider">
+                                            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                                                <span className="font-mono text-[12px] font-black tracking-wider text-slate-700 dark:text-slate-200">
                                                     {revealedPasscodes[admin._id] ? admin.passcode : '••••••'}
                                                 </span>
                                                 <button
                                                     type="button"
                                                     onClick={() => handleCopyPasscode(admin._id, admin.passcode)}
-                                                    className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                    className="text-slate-500 transition-colors hover:text-[#1D68E3] dark:text-slate-400 dark:hover:text-blue-300"
                                                     title="Copy passcode"
                                                 >
                                                     {copiedAdminId === admin._id ? (
@@ -230,7 +235,7 @@ const AdminAdmins = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => togglePasscode(admin._id)}
-                                                    className="text-slate-500 hover:text-[#1D68E3] transition-colors"
+                                                    className="text-slate-500 transition-colors hover:text-[#1D68E3] dark:text-slate-400 dark:hover:text-blue-300"
                                                     title={revealedPasscodes[admin._id] ? 'Hide passcode' : 'Show passcode'}
                                                 >
                                                     {revealedPasscodes[admin._id] ? (
@@ -257,12 +262,12 @@ const AdminAdmins = () => {
                                         )}
                                     </td>
                                     <td className="px-3 py-2">
-                                        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wider rounded-full">
+                                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
                                             {admin.accountStatus || 'ACTIVE'}
                                         </span>
                                     </td>
                                     <td className="px-3 py-2">
-                                        <span className="text-[12px] font-semibold text-slate-500">
+                                        <span className="text-[12px] font-semibold text-slate-500 dark:text-slate-400">
                                             {new Date(admin.createdAt).toLocaleDateString()}
                                         </span>
                                     </td>
@@ -282,7 +287,7 @@ const AdminAdmins = () => {
                                                     <button
                                                         type="button"
                                                         onClick={cancelEdit}
-                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                                                     >
                                                         Cancel
                                                     </button>
@@ -292,7 +297,7 @@ const AdminAdmins = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => startEdit(admin)}
-                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                                     >
                                                         <Pencil className="h-3.5 w-3.5" /> Update
                                                     </button>

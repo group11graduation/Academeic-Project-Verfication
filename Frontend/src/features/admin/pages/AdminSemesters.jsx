@@ -1,6 +1,57 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarRange, Loader2, Plus } from 'lucide-react';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+import { appError, appWarning } from '../../../lib/appDialog';
+
+function toDateInputValue(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function toDayStart(value) {
+    if (!value) return null;
+    const d = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.getTime();
+}
+
+function formatDayLabel(value) {
+    if (!value) return '';
+    const d = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString();
+}
+
+function validateSemesterDates({ startDate, endDate }, year) {
+    const semStart = toDayStart(startDate);
+    const semEnd = toDayStart(endDate);
+    const yearStart = year?.startDate ? toDayStart(toDateInputValue(year.startDate)) : null;
+    const yearEnd = year?.endDate ? toDayStart(toDateInputValue(year.endDate)) : null;
+
+    if (semStart && semEnd && semStart > semEnd) {
+        return 'Semester start date must be on or before the end date.';
+    }
+
+    if (!semStart && !semEnd) return null;
+
+    if (!yearStart || !yearEnd) {
+        return `Set start and end dates on academic year "${year?.label || 'selected year'}" before adding semester dates.`;
+    }
+
+    if (semStart && semStart < yearStart) {
+        return `Semester start date cannot be before the academic year start (${formatDayLabel(toDateInputValue(year.startDate))}).`;
+    }
+    if (semEnd && semEnd > yearEnd) {
+        return `Semester end date cannot be after the academic year end (${formatDayLabel(toDateInputValue(year.endDate))}).`;
+    }
+
+    return null;
+}
 
 const AdminSemesters = () => {
     const [academicYears, setAcademicYears] = useState([]);
@@ -57,7 +108,7 @@ const AdminSemesters = () => {
             setStructure(res.data || { faculties: [] });
         } catch (err) {
             console.error(err);
-            alert(err.response?.data?.message || err.message || 'Could not save academic structure');
+            await appError(err.response?.data?.message || err.message || 'Could not save academic structure');
         } finally {
             setStructureSaving(false);
         }
@@ -68,7 +119,7 @@ const AdminSemesters = () => {
         if (!name) return;
         const exists = (structure.faculties || []).some((f) => String(f.name).toLowerCase() === name.toLowerCase());
         if (exists) {
-            alert('Faculty already exists.');
+            await appWarning('Faculty already exists.');
             return;
         }
         const next = {
@@ -120,19 +171,34 @@ const AdminSemesters = () => {
         refresh();
     }, [selectedYearId]);
 
-    const selectedYear = useMemo(
-        () => academicYears.find((y) => String(y._id) === String(selectedYearId)),
-        [academicYears, selectedYearId]
-    );
+    const { selectedYear, yearDateBounds } = useMemo(() => {
+        const year = academicYears.find((y) => String(y._id) === String(selectedYearId));
+        if (!year?.startDate || !year?.endDate) {
+            return { selectedYear: year || null, yearDateBounds: null };
+        }
+        return {
+            selectedYear: year,
+            yearDateBounds: {
+                min: toDateInputValue(year.startDate),
+                max: toDateInputValue(year.endDate),
+                label: year.label,
+            },
+        };
+    }, [academicYears, selectedYearId]);
 
     const handleCreateSemester = async (e) => {
         e.preventDefault();
         if (!selectedYearId) {
-            alert('Please select an academic year first.');
+            await appWarning('Please select an academic year first.');
             return;
         }
         if (!form.name.trim()) {
-            alert('Semester name is required.');
+            await appWarning('Semester name is required.');
+            return;
+        }
+        const dateError = validateSemesterDates(form, selectedYear);
+        if (dateError) {
+            await appWarning(dateError);
             return;
         }
         try {
@@ -153,7 +219,7 @@ const AdminSemesters = () => {
             if (listRes.success) setSemesters(listRes.data || []);
         } catch (err) {
             console.error(err);
-            alert(err.response?.data?.message || err.message || 'Could not create semester');
+            await appError(err.response?.data?.message || err.message || 'Could not create semester');
         } finally {
             setSubmitting(false);
         }
@@ -162,8 +228,16 @@ const AdminSemesters = () => {
     const handleCreateAcademicYear = async (e) => {
         e.preventDefault();
         if (!yearForm.label.trim()) {
-            alert('Academic year label is required.');
+            await appWarning('Academic year label is required.');
             return;
+        }
+        if (yearForm.startDate && yearForm.endDate) {
+            const start = toDayStart(yearForm.startDate);
+            const end = toDayStart(yearForm.endDate);
+            if (start != null && end != null && start > end) {
+                await appWarning('Academic year end date must be on or after the start date.');
+                return;
+            }
         }
         try {
             setYearSubmitting(true);
@@ -186,7 +260,7 @@ const AdminSemesters = () => {
             setShowYearForm(false);
         } catch (err) {
             console.error(err);
-            alert(err.response?.data?.message || err.message || 'Could not create academic year');
+            await appError(err.response?.data?.message || err.message || 'Could not create academic year');
         } finally {
             setYearSubmitting(false);
         }
@@ -201,15 +275,15 @@ const AdminSemesters = () => {
     }
 
     return (
-        <div className="admin-page font-sans text-[13px] space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="admin-page space-y-4 font-sans text-[13px]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#1e56e3]">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#1e56e3] dark:bg-blue-500/15 dark:text-blue-300">
                         <CalendarRange className="h-4 w-4" />
                     </div>
                     <div>
-                        <h1 className="text-base font-extrabold text-slate-900 leading-none">Semesters</h1>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Manage academic years, structure, and terms.</p>
+                        <h1 className="text-base font-extrabold leading-none text-slate-900 dark:text-slate-100">Semesters</h1>
+                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Manage academic years, structure, and terms.</p>
                     </div>
                 </div>
 
@@ -217,7 +291,7 @@ const AdminSemesters = () => {
                     <button
                         type="button"
                         onClick={() => setShowYearForm((v) => !v)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-[#162033]"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">New Year</span>
@@ -225,7 +299,7 @@ const AdminSemesters = () => {
                     <select
                         value={selectedYearId}
                         onChange={(e) => setSelectedYearId(e.target.value)}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-800 bg-white"
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
                     >
                         <option value="">Select year</option>
                         {academicYears.map((y) => (
@@ -248,51 +322,52 @@ const AdminSemesters = () => {
             {showYearForm && (
                 <form
                     onSubmit={handleCreateAcademicYear}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
+                    className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111827] dark:shadow-none"
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-black text-slate-900">New Academic Year</h2>
+                        <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">New Academic Year</h2>
                         <button
                             type="button"
                             onClick={() => setShowYearForm(false)}
-                            className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                            className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-[#162033]"
                         >
                             Close
                         </button>
                     </div>
 
                     <div>
-                        <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-slate-500">Label</label>
+                        <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Label</label>
                         <input
                             value={yearForm.label}
                             onChange={(e) => setYearForm((f) => ({ ...f, label: e.target.value }))}
                             placeholder="e.g. 2025/2026"
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
                         />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
-                            <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-slate-500">Start Date</label>
+                            <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Start Date</label>
                             <input
                                 type="date"
                                 value={yearForm.startDate}
                                 onChange={(e) => setYearForm((f) => ({ ...f, startDate: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
                             />
                         </div>
                         <div>
-                            <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-slate-500">End Date</label>
+                            <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">End Date</label>
                             <input
                                 type="date"
                                 value={yearForm.endDate}
+                                min={yearForm.startDate || undefined}
                                 onChange={(e) => setYearForm((f) => ({ ...f, endDate: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
                             />
                         </div>
                     </div>
 
-                    <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-700">
+                    <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                         <input
                             type="checkbox"
                             checked={yearForm.isCurrent}
@@ -454,6 +529,8 @@ const AdminSemesters = () => {
                             <input
                                 type="date"
                                 value={form.startDate}
+                                min={yearDateBounds?.min}
+                                max={yearDateBounds?.max}
                                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
                                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
                             />
@@ -465,10 +542,22 @@ const AdminSemesters = () => {
                         <input
                             type="date"
                             value={form.endDate}
+                            min={yearDateBounds?.min}
+                            max={yearDateBounds?.max}
                             onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
                             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
                         />
                     </div>
+
+                    {yearDateBounds ? (
+                        <p className="text-[11px] font-medium text-slate-500">
+                            Dates must fall within {yearDateBounds.label}: {formatDayLabel(yearDateBounds.min)} – {formatDayLabel(yearDateBounds.max)}.
+                        </p>
+                    ) : (
+                        <p className="text-[11px] font-medium text-amber-700">
+                            Add start and end dates to academic year {selectedYear?.label || 'selected year'} before setting semester dates.
+                        </p>
+                    )}
 
                     <div className="flex items-center justify-end gap-2 pt-1">
                         <button

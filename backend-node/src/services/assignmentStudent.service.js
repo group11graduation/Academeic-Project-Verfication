@@ -2,6 +2,7 @@ import { Enrollment } from '../models/Enrollment.js';
 import { Assignment } from '../models/Assignment.js';
 import { Proposal } from '../models/Proposal.js';
 import { resolveStoredProposalRecommendation } from './proposalWorkflow.service.js';
+import { resolveSimilarMatchedProject } from './verifiedGallery.service.js';
 import { Group } from '../models/Group.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { isProjectDeadlineOpen } from './projectCodeSubmission.service.js';
@@ -271,11 +272,15 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
 
     let proposalOut = proposal || null;
     if (proposalOut?.status === 'ai_flagged_previous_semester') {
-      const rec = await resolveStoredProposalRecommendation(proposalOut);
+      const [rec, matchedSimilarProject] = await Promise.all([
+        resolveStoredProposalRecommendation(proposalOut),
+        resolveSimilarMatchedProject(proposalOut),
+      ]);
       proposalOut = {
         ...proposalOut,
         recommendation: rec.recommendation,
         suggestedFeatures: rec.suggestedFeatures,
+        matchedSimilarProject,
       };
     }
 

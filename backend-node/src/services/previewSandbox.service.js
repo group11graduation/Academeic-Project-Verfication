@@ -3,6 +3,7 @@ import fsSync from 'fs';
 import path from 'path';
 import Docker from 'dockerode';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
+import { getPreviewProbeHost } from '../config/previewProbe.js';
 import * as previewCredentials from './previewCredentials.service.js';
 import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as previewMern from './previewMern.service.js';
@@ -23,6 +24,7 @@ import { Proposal } from '../models/Proposal.js';
 import { Assignment } from '../models/Assignment.js';
 import { isProposalFullyApprovedForProject } from './collaborativeProposalReview.service.js';
 import { teacherCanAccessAssignmentReview } from './teacherAssignmentAccess.service.js';
+import { uploadPath } from '../config/env.js';
 
 const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 600000);
 const PREVIEW_STATIC_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STATIC_STARTUP_TIMEOUT_MS || 90000);
@@ -557,7 +559,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   const nanoCpus = Number(process.env.PREVIEW_NANO_CPUS || 500000000);
   const ttl = PREVIEW_TTL_MS;
 
-  const zipAbs = path.join(process.cwd(), 'uploads', submission.storedRelativePath);
+  const zipAbs = uploadPath(submission.storedRelativePath);
   if (!fsSync.existsSync(zipAbs)) {
     const err = new Error('Stored archive missing on server');
     err.status = 500;
@@ -980,12 +982,13 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
 
     const hostPort = Number(session.hostPort);
     if (hostPort > 0) {
+      const probeHost = getPreviewProbeHost();
       session.portReachable = session.previewUrl
-        ? await dockerOrchestrator.isPreviewPortReachable(session.previewUrl, '127.0.0.1', hostPort)
-        : await dockerOrchestrator.isTcpPortOpen('127.0.0.1', hostPort);
+        ? await dockerOrchestrator.isPreviewPortReachable(session.previewUrl, probeHost, hostPort)
+        : await dockerOrchestrator.isTcpPortOpen(probeHost, hostPort);
       const apiPort = Number(session.previewApiHostPort);
       if (apiPort > 0) {
-        session.apiPortReachable = await dockerOrchestrator.isTcpPortOpen('127.0.0.1', apiPort);
+        session.apiPortReachable = await dockerOrchestrator.isTcpPortOpen(probeHost, apiPort);
       }
       const running = await dockerOrchestrator.isPreviewContainerRunning(
         dockerOrchestrator.containerNameFor(sessionId.toString())

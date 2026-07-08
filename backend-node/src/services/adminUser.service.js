@@ -386,29 +386,29 @@ export async function importStudents(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const created = [];
   const failed = [];
-  for (let i = 0; i < list.length; i++) {
-    const row = list[i] || {};
+  const concurrency = Math.min(5, Math.max(1, Number(process.env.IMPORT_CONCURRENCY) || 5));
+
+  const importOne = async (row, i) => {
     try {
-      const plain =
-        row.password ||
-        row.passcode ||
-        String(Math.floor(100000 + Math.random() * 900000));
       if (!row.name || !String(row.name).trim()) {
         throw new Error('name is required');
       }
       if (!row.email || !String(row.email).trim()) {
         throw new Error('email is required');
       }
+      const studentId = String(row.studentId || row.id || row.student_id || '').trim();
+      if (!studentId) {
+        throw new Error('student ID is required');
+      }
+      const plain =
+        row.password ||
+        row.passcode ||
+        String(Math.floor(100000 + Math.random() * 900000));
       const stu = await createStudent({
         name: row.name,
         email: row.email,
         username: row.username,
-        studentId: row.studentId || row.id || row.student_id,
-        program: row.program || '',
-        classCode: row.classCode || row.classId || row.class,
-        faculty: row.faculty || '',
-        currentScore: row.score ?? row.currentScore,
-        currentGpa: row.gpa ?? row.currentGpa,
+        studentId,
         password: plain,
       });
       created.push({
@@ -426,7 +426,13 @@ export async function importStudents(rows) {
         message: e.message || 'Failed',
       });
     }
+  };
+
+  for (let offset = 0; offset < list.length; offset += concurrency) {
+    const slice = list.slice(offset, offset + concurrency);
+    await Promise.all(slice.map((row, j) => importOne(row, offset + j)));
   }
+
   return { created, failed, total: list.length };
 }
 

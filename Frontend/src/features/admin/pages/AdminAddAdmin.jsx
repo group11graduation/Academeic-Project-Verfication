@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Copy, Check, Eye, EyeOff, Shield } from 'lucide-react';
 import adminUserService from '../../../services/adminUserService';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminAddAdmin = () => {
     const navigate = useNavigate();
@@ -19,10 +20,10 @@ const AdminAddAdmin = () => {
             if (res.success) {
                 navigate('/admin/admins');
             } else {
-                alert(res.message || 'Could not create admin');
+                await appError(res.message || 'Could not create admin');
             }
         } catch (err) {
-            alert(err.response?.data?.message || err.message || 'Could not create admin');
+            await appError(err.response?.data?.message || err.message || 'Could not create admin');
         } finally {
             setSubmitting(false);
         }
@@ -35,7 +36,7 @@ const AdminAddAdmin = () => {
             setCopiedPasscode(true);
             window.setTimeout(() => setCopiedPasscode(false), 2000);
         } catch (err) {
-            window.alert('Failed to copy passcode.');
+            await appError('Failed to copy passcode.');
         }
     };
 

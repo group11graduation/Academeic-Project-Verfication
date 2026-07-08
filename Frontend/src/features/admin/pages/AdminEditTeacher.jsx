@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, User, ChevronDown, Upload, X, Mail, Phone, ArrowLeft, Loader2 } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminEditTeacher = () => {
     const { id } = useParams();
@@ -70,7 +71,7 @@ const AdminEditTeacher = () => {
             setFormData({ ...formData, photo: `http://localhost:5000${imageUrl}` });
         } catch (error) {
             console.error("Failed to upload image:", error);
-            alert("Failed to upload image. Please try again.");
+            await appWarning("Failed to upload image. Please try again.");
         } finally {
             setUploadingImage(false);
             if (fileInputRef.current) {
@@ -93,7 +94,7 @@ const AdminEditTeacher = () => {
             }
         } catch (error) {
             console.error("Failed to update teacher:", error);
-            alert(error.response?.data?.message || "Failed to update teacher");
+            await appError(error.response?.data?.message || "Failed to update teacher");
         } finally {
             setLoading(false);
         }

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="stylesheet" href="/src/index.css" />
+
+    <title>BMS</title>
+
+    <meta property="og:image" content="/og-preview.png" />
+    
+    <!-- Apply theme immediately to prevent flash -->
+    <script>
+      (function() {
+        try {
+          const userString = localStorage.getItem('user');
+          let themeKey = 'theme_default';
+          if (userString) {
+            const user = JSON.parse(userString);
+            // Use id, _id, or email - backend returns 'id'
+            const userId = user.id || user._id || user.email;
+            if (userId) {
+              themeKey = 'theme_' + userId;
+            }
+          }
+          const stored = localStorage.getItem(themeKey);
+          let theme = stored || 'system';
+          
+          let actualTheme = 'light';
+          if (theme === 'system') {
+            actualTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          } else {
+            actualTheme = theme;
+          }
+          
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(actualTheme);
+        } catch (e) {
+          // Fallback to light if error
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

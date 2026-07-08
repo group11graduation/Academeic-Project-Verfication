@@ -95,9 +95,9 @@ const AdminSetupWorkflow = () => {
 
     return (
         <div className="admin-page font-sans text-[13px]">
-            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-                <h1 className="text-base font-black text-slate-900 mb-1">Setup Workflow Center</h1>
-                <p className="text-[12px] text-slate-600 font-medium">
+            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#111827]">
+                <h1 className="mb-1 text-base font-black text-slate-900 dark:text-slate-100">Setup Workflow Center</h1>
+                <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">
                     Keep setup in its own pages, and follow this order to avoid confusion.
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -108,7 +108,7 @@ const AdminSetupWorkflow = () => {
                         type="button"
                         onClick={() => loadStats(false)}
                         disabled={refreshing}
-                        className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-[10px] font-black hover:bg-slate-200 disabled:opacity-60"
+                        className="rounded-md bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60 dark:bg-[#0f172a] dark:text-slate-200 dark:hover:bg-[#162033]"
                     >
                         {refreshing ? 'Refreshing...' : 'Refresh data'}
                     </button>
@@ -116,21 +116,21 @@ const AdminSetupWorkflow = () => {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Semesters</p>
-                    <p className="text-lg font-black text-slate-900 leading-tight">{semestersCount}</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#111827]">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Semesters</p>
+                    <p className="text-lg font-black leading-tight text-slate-900 dark:text-slate-100">{semestersCount}</p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Subjects</p>
-                    <p className="text-lg font-black text-slate-900 leading-tight">{subjectsCount}</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#111827]">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Subjects</p>
+                    <p className="text-lg font-black leading-tight text-slate-900 dark:text-slate-100">{subjectsCount}</p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Classes</p>
-                    <p className="text-lg font-black text-slate-900 leading-tight">{classesCount}</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#111827]">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Classes</p>
+                    <p className="text-lg font-black leading-tight text-slate-900 dark:text-slate-100">{classesCount}</p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Teachers</p>
-                    <p className="text-lg font-black text-slate-900 leading-tight">{teachersCount}</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#111827]">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Teachers</p>
+                    <p className="text-lg font-black leading-tight text-slate-900 dark:text-slate-100">{teachersCount}</p>
                 </div>
             </div>
 
@@ -138,25 +138,25 @@ const AdminSetupWorkflow = () => {
                 {steps.map((step, index) => {
                     const Icon = step.icon;
                     return (
-                        <div key={step.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div key={step.id} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#111827]">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex items-start gap-2 min-w-0">
                                     <div className="mt-0.5 shrink-0">
                                         {step.done ? (
                                             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                                         ) : (
-                                            <Circle className="h-4 w-4 text-slate-400" />
+                                            <Circle className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                                         )}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
+                                        <p className="mb-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                                             Step {index + 1}
                                         </p>
-                                        <h3 className="text-[13px] font-black text-slate-900 flex items-center gap-1.5">
+                                        <h3 className="flex items-center gap-1.5 text-[13px] font-black text-slate-900 dark:text-slate-100">
                                             <Icon className="h-3.5 w-3.5 text-[#1D68E3] shrink-0" />
                                             <span className="truncate">{step.title}</span>
                                         </h3>
-                                        <p className="text-[11px] font-medium text-slate-600 mt-0.5 leading-snug">{step.description}</p>
+                                        <p className="mt-0.5 text-[11px] font-medium leading-snug text-slate-600 dark:text-slate-300">{step.description}</p>
                                     </div>
                                 </div>
                                 <Link
@@ -172,24 +172,24 @@ const AdminSetupWorkflow = () => {
                 })}
             </div>
 
-            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-black text-slate-900 mb-3">Role Workflow (Clear Sequence)</h2>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#111827]">
+                <h2 className="mb-3 text-sm font-black text-slate-900 dark:text-slate-100">Role Workflow (Clear Sequence)</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]">
-                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
                         <p className="font-black text-[#1D68E3] mb-1.5 text-[12px]">Admin</p>
-                        <p className="font-medium text-slate-700 leading-relaxed">
+                        <p className="font-medium leading-relaxed text-slate-700 dark:text-slate-300">
                             1) Create semester/year in Semesters page. 2) Create subjects in Subjects page. 3) Create classes and link subjects in Classes page. 4) Assign teacher+subject from Class Detail. 5) Add/import students.
                         </p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
                         <p className="font-black text-[#1D68E3] mb-1.5 text-[12px]">Teacher</p>
-                        <p className="font-medium text-slate-700 leading-relaxed">
+                        <p className="font-medium leading-relaxed text-slate-700 dark:text-slate-300">
                             1) See assigned classes. 2) Create assignment. 3) Set requirement text + required tech keywords. 4) Review proposals. 5) Approve/reject/revision.
                         </p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
                         <p className="font-black text-[#1D68E3] mb-1.5 text-[12px]">Student</p>
-                        <p className="font-medium text-slate-700 leading-relaxed">
+                        <p className="font-medium leading-relaxed text-slate-700 dark:text-slate-300">
                             1) Open assignment. 2) Submit proposal matching required technologies. 3) Revise if rejected. 4) Upload project ZIP after approval.
                         </p>
                     </div>

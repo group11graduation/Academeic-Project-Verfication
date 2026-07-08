@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ClipboardList, Plus, Trash2, ChevronRight,
     Calendar, FileText, Loader2, UserPlus, Settings2,
@@ -153,13 +154,17 @@ const Assignments = () => {
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
-        if (!confirm('Delete this assignment?')) return;
+        if (!(await appConfirm({
+            message: 'Delete this assignment?',
+            danger: true,
+            confirmLabel: 'Delete',
+        }))) return;
         try {
             await teacherService.deleteAssignment(id);
             setAssignments((prev) => prev.filter((a) => a._id !== id));
         } catch (err) {
             console.error(err);
-            alert(err.response?.data?.message || 'Delete not available.');
+            await appError(err.response?.data?.message || 'Delete not available.');
         }
     };
 

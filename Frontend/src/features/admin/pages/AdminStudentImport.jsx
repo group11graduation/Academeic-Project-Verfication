@@ -5,8 +5,10 @@ import adminStudentService from '../../../services/adminStudentService';
 import {
     readSpreadsheetFileAsCsvText,
     normalizeStudentImportRow,
-    parseCsvToRecords,
+    parseStudentCsvToRecords,
+    validateStudentImportRows,
 } from '../../../lib/spreadsheetImport';
+import { appError, appWarning } from '../../../lib/appDialog';
 
 const AdminStudentImport = () => {
     const navigate = useNavigate();
@@ -33,9 +35,14 @@ const AdminStudentImport = () => {
     const handleSubmit = async () => {
         setError('');
         setResult(null);
-        const rows = parseCsvToRecords(text).map(normalizeStudentImportRow);
+        const rows = parseStudentCsvToRecords(text).map(normalizeStudentImportRow);
         if (!rows.length) {
-            setError('Add a CSV with a header row and at least one data row (name, email required).');
+            setError('Add a CSV with a header row and at least one data row (name, email, studentId required).');
+            return;
+        }
+        const validationError = validateStudentImportRows(rows);
+        if (validationError) {
+            await appWarning(validationError);
             return;
         }
         setSubmitting(true);
@@ -47,7 +54,7 @@ const AdminStudentImport = () => {
                 setError(res.message || 'Import failed');
             }
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Import failed');
+            setError(err.userMessage || err.response?.data?.message || err.message || 'Import failed');
         } finally {
             setSubmitting(false);
         }
@@ -67,11 +74,8 @@ const AdminStudentImport = () => {
             <h1 className="text-base font-extrabold text-slate-900 tracking-tight mb-1">Import students</h1>
             <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
                 Upload CSV/Excel or paste rows below. Header row required. Columns:{' '}
-                <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
-                    name, email, studentId, password, classCode, faculty, program, score, gpa
-                </code>
-                . If <code className="text-[10px]">studentId</code> or <code className="text-[10px]">password</code> are omitted,
-                the system auto-generates them.
+                <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">name, email, studentId</code>
+                . Login passcode is auto-generated for each student. Assign class and faculty later from the student profile or class roster.
             </p>
 
             <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/60 p-4 space-y-3">
@@ -94,8 +98,9 @@ const AdminStudentImport = () => {
                             setError('');
                         }}
                         rows={10}
-                        placeholder={`name,email,studentId,classCode,faculty,score,gpa
-Jane Doe,jane@school.edu,S-1001,CS401,Computer Science,88,3.4`}
+                        placeholder={`name,email,studentId
+Jane Doe,jane@school.edu,S-1001
+John Smith,john@school.edu,S-1002`}
                         className="w-full rounded-lg border border-slate-200 p-3 text-[12px] font-mono text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/30"
                     />
                 </div>

@@ -10,14 +10,30 @@
     --sv-shell: #1e56e3;
     --sv-page-bg: #f8faff;
     --sv-card: #ffffff;
+    --sv-card-muted: #f8fafc;
+    --sv-border: #e2e8f0;
     --sv-text: #0f172a;
     --sv-muted: #51628f;
+    --sv-input-text: #0f172a;
+    --sv-input-placeholder: #6b7280;
+  }
+
+  .dark {
+    --sv-page-bg: #020617;
+    --sv-card: #0f172a;
+    --sv-card-muted: #111827;
+    --sv-border: rgba(255, 255, 255, 0.1);
+    --sv-text: #e5eefc;
+    --sv-muted: #94a3b8;
+    --sv-input-text: #f8fafc;
+    --sv-input-placeholder: #94a3b8;
   }
 
   html {
     font-size: 100%;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    scroll-behavior: smooth;
   }
 
   html,
@@ -52,17 +68,17 @@
     height: auto;
   }
 
-  /* Global form text readability rule: always black text in fields */
+  /* Global form readability with theme-aware text colors */
   input,
   textarea,
   select,
   option {
-    color: #000 !important;
+    color: var(--sv-input-text) !important;
   }
 
   input::placeholder,
   textarea::placeholder {
-    color: #6b7280 !important;
+    color: var(--sv-input-placeholder) !important;
     opacity: 1;
   }
 }
@@ -109,7 +125,9 @@
 
   /* Shared table look — compact data grids */
   .app-table-shell {
-    @apply rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden;
+    @apply rounded-xl border shadow-sm overflow-hidden;
+    border-color: var(--sv-border);
+    background-color: var(--sv-card);
   }
 
   .app-table-wrap {
@@ -121,15 +139,19 @@
   }
 
   .app-table-headrow {
-    @apply border-b border-slate-200 bg-slate-50/70;
+    @apply border-b;
+    border-color: var(--sv-border);
+    background-color: color-mix(in srgb, var(--sv-card-muted) 90%, transparent);
   }
 
   .app-table-th {
-    @apply px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500;
+    @apply px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em];
+    color: var(--sv-muted);
   }
 
   .app-table-body {
-    @apply divide-y divide-slate-100;
+    @apply divide-y;
+    border-color: var(--sv-border);
   }
 
   .app-table-row {
@@ -137,10 +159,12 @@
   }
 
   .app-table-td {
-    @apply px-3 py-2 text-[12px] font-medium text-slate-700;
+    @apply px-3 py-2 text-[12px] font-medium;
+    color: var(--sv-text);
   }
 
   .app-table-empty {
-    @apply py-8 text-center text-[12px] font-semibold text-slate-400;
+    @apply py-8 text-center text-[12px] font-semibold;
+    color: var(--sv-muted);
   }
 }

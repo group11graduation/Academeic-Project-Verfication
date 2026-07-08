@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import { 
     Check,
     Cpu,
@@ -166,7 +167,7 @@ const StudentMyProjectDetail = () => {
         if (!file) return;
         setIsUploading(true);
         try {
-            alert('Optional asset uploads are not connected to the API. Use “Project code (.zip)” below for teacher sandbox preview.');
+            await appError('Optional asset uploads are not connected to the API. Use “Project code (.zip)” below for teacher sandbox preview.');
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';

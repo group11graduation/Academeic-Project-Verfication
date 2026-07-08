@@ -1,10 +1,9 @@
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { uploadPath } from '../config/env.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadRoot = path.join(__dirname, '../../uploads/assignment-requirements');
+const uploadRoot = uploadPath('assignment-requirements');
 
 if (!fs.existsSync(uploadRoot)) {
   fs.mkdirSync(uploadRoot, { recursive: true });

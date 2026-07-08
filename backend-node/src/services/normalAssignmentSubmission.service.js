@@ -17,6 +17,7 @@ import {
   isDeadlinePassed,
   NORMAL_DEADLINE_PASSED_MESSAGE,
 } from './assignmentDeadline.service.js';
+import { getUploadDir } from '../config/env.js';
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.md', '.json', '.csv', '.ipynb', '.js', '.jsx', '.ts', '.tsx', '.java', '.py', '.c', '.cpp', '.cs', '.go', '.php', '.rb',
@@ -88,7 +89,7 @@ export async function submitNormalAssignmentFile(userId, assignmentId, file) {
 
   const ext = path.extname(file.originalname || file.filename || '').toLowerCase();
   const relDir = path.join('normal-assignment', String(assignmentId), String(userId));
-  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const uploadsRoot = getUploadDir();
   const destDir = path.join(uploadsRoot, relDir);
   await fs.mkdir(destDir, { recursive: true });
   const finalName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext || ''}`;

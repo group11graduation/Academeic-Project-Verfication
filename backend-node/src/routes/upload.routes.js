@@ -2,11 +2,10 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { requireAuth } from '../middleware/auth.js';
+import { getUploadDir } from '../config/env.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadRoot = path.join(__dirname, '../../uploads');
+const uploadRoot = getUploadDir();
 
 if (!fs.existsSync(uploadRoot)) {
   fs.mkdirSync(uploadRoot, { recursive: true });

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Plus, Eye, EyeOff, ShieldCheck, Loader2, GraduationCap, Pencil, Trash2 } from 'lucide-react';
+import { Search, Plus, Upload, Eye, EyeOff, ShieldCheck, Loader2, GraduationCap, Pencil, Trash2 } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminTeachers = () => {
     const location = useLocation();
@@ -47,7 +48,11 @@ const AdminTeachers = () => {
     };
 
     const handleDeleteTeacher = async (teacherId) => {
-        const shouldDelete = window.confirm('Are you sure you want to delete this teacher?');
+        const shouldDelete = await appConfirm({
+            message: 'Are you sure you want to delete this teacher?',
+            danger: true,
+            confirmLabel: 'Delete',
+        });
         if (!shouldDelete) return;
         setDeletingId(teacherId);
         try {
@@ -55,7 +60,7 @@ const AdminTeachers = () => {
             if (!response.success) throw new Error(response.message || 'Failed to delete teacher');
             setTeachers((prev) => prev.filter((teacher) => teacher.id !== teacherId));
         } catch (error) {
-            window.alert(error.response?.data?.message || error.message || 'Failed to delete teacher');
+            await appError(error.response?.data?.message || error.message || 'Failed to delete teacher');
         } finally {
             setDeletingId('');
         }
@@ -75,9 +80,29 @@ const AdminTeachers = () => {
     }
 
     return (
-        <div className="font-sans transition-colors">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-3 gap-3">
-                <div className="relative w-full max-w-sm">
+        <div className="font-sans transition-colors min-w-0 max-w-full">
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-3 space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Faculty</h1>
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Directory</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Link to="/admin/teachers/new" className="inline-flex items-center gap-1.5 bg-[#1D68E3] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors whitespace-nowrap">
+                            <Plus className="h-3.5 w-3.5" />
+                            Add Teacher
+                        </Link>
+                        <Link
+                            to="/admin/teachers/import"
+                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors whitespace-nowrap"
+                        >
+                            <Upload className="h-3.5 w-3.5" />
+                            Import Teachers
+                        </Link>
+                    </div>
+                </div>
+
+                <div className="relative w-full sm:max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
                     <input
                         type="text"
@@ -86,17 +111,6 @@ const AdminTeachers = () => {
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-slate-700 dark:text-slate-200 outline-none"
                     />
-                </div>
-
-                <div className="flex items-center gap-2 justify-between sm:justify-end">
-                    <Link to="/admin/teachers/new" className="flex items-center gap-1.5 bg-[#1D68E3] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors">
-                        <Plus className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Add Teacher</span>
-                    </Link>
-                    <div className="text-right">
-                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Faculty</h1>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Directory</p>
-                    </div>
                 </div>
             </div>
 
@@ -163,7 +177,7 @@ const AdminTeachers = () => {
                             )}
                         </div>
                         <div className="px-3 pb-3 flex items-center gap-1.5">
-                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/admin/teachers/${teacher.id}/edit`); }} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-50">
+                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/admin/teachers/${teacher.id}/edit`); }} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
                                 <Pencil className="h-3 w-3" /> Update
                             </button>
                             <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteTeacher(teacher.id); }} disabled={deletingId === teacher.id} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-60">

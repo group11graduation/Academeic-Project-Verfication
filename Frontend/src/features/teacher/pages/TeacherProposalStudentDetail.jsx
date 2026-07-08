@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ArrowLeft,
     Loader2,
@@ -75,6 +76,40 @@ const studentIdentityLabel = (proposal) => {
     const name = proposal?.submittedBy?.name || 'Student';
     const sid = proposal?.submittedBy?.studentId || proposal?.submittedBy?.email || '';
     return sid ? `${name} (${sid})` : name;
+};
+
+const userIdOf = (u) => String(u?._id || u?.id || '');
+
+/** Leader first, then other members alphabetically by name. */
+const buildGroupRoster = (group) => {
+    if (!group || typeof group !== 'object') return [];
+    const leaderId = userIdOf(group.leader);
+    const seen = new Set();
+    const roster = [];
+
+    const addUser = (u, isLeader) => {
+        const id = userIdOf(u);
+        if (!id || seen.has(id)) return;
+        if (!u?.name && !u?.email) return;
+        seen.add(id);
+        roster.push({ ...u, isLeader });
+    };
+
+    if (group.leader && typeof group.leader === 'object') {
+        addUser(group.leader, true);
+    }
+    for (const m of group.members || []) {
+        const u = m?.user;
+        if (u && typeof u === 'object') {
+            addUser(u, leaderId && userIdOf(u) === leaderId);
+        }
+    }
+
+    const leaders = roster.filter((r) => r.isLeader);
+    const others = roster
+        .filter((r) => !r.isLeader)
+        .sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+    return [...leaders, ...others];
 };
 
 const safePreviewUrl = (url) => {
@@ -159,8 +194,8 @@ const TeacherProposalStudentDetail = () => {
     const [vsAi, setVsAi] = useState('not_set');
     const [previewSessionByProposal, setPreviewSessionByProposal] = useState({});
     const [previewBusyId, setPreviewBusyId] = useState(null);
-    const [previewAdminEmail, setPreviewAdminEmail] = useState('admin@preview.demo');
-    const [previewAdminPassword, setPreviewAdminPassword] = useState('Preview123!');
+    const [previewAdminEmail, setPreviewAdminEmail] = useState('');
+    const [previewAdminPassword, setPreviewAdminPassword] = useState('');
     const previewMapRef = useRef({});
 
     useEffect(() => {
@@ -169,8 +204,13 @@ const TeacherProposalStudentDetail = () => {
 
     useEffect(() => {
         const sess = proposalId ? previewSessionByProposal[proposalId] : null;
-        if (sess?.previewLoginEmail) setPreviewAdminEmail(sess.previewLoginEmail);
-        if (sess?.previewLoginPassword) setPreviewAdminPassword(sess.previewLoginPassword);
+        if (sess && isPreviewOpenReady(sess)) {
+            if (sess.previewLoginEmail) setPreviewAdminEmail(sess.previewLoginEmail);
+            if (sess.previewLoginPassword) setPreviewAdminPassword(sess.previewLoginPassword);
+        } else if (!sess || ['stopped', 'failed', 'expired', 'runtime_error'].includes(sess?.status)) {
+            setPreviewAdminEmail('');
+            setPreviewAdminPassword('');
+        }
     }, [previewSessionByProposal, proposalId]);
 
     useEffect(() => {
@@ -367,11 +407,11 @@ const TeacherProposalStudentDetail = () => {
                     action === 'approve' &&
                     res.data?.collaborativeApproval?.awaitingDualApproval
                 ) {
-                    alert('Your approval was saved. Waiting for your co-teacher to approve before the student can proceed.');
+                    await appWarning('Your approval was saved. Waiting for your co-teacher to approve before the student can proceed.');
                 }
             }
         } catch (e) {
-            alert(e.response?.data?.message || 'Action failed');
+            await appError(e.response?.data?.message || 'Action failed');
         } finally {
             setActionId(null);
         }
@@ -381,22 +421,20 @@ const TeacherProposalStudentDetail = () => {
         if (!proposal) return;
         setPreviewBusyId(proposal._id);
         try {
-            const r = await teacherService.startProposalPreview(proposal._id, {
-                adminEmail: previewAdminEmail.trim(),
-                adminPassword: previewAdminPassword,
-            });
+            const previewOpts = {};
+            if (previewAdminEmail.trim()) previewOpts.adminEmail = previewAdminEmail.trim();
+            if (previewAdminPassword) previewOpts.adminPassword = previewAdminPassword;
+            const r = await teacherService.startProposalPreview(proposal._id, previewOpts);
             if (r.success && r.data) {
                 setPreviewSessionByProposal((prev) => ({ ...prev, [proposal._id]: r.data }));
-                if (r.data.previewLoginEmail) setPreviewAdminEmail(r.data.previewLoginEmail);
-                if (r.data.previewLoginPassword) setPreviewAdminPassword(r.data.previewLoginPassword);
             } else {
-                alert(r.message || 'Could not start preview');
+                await appError(r.message || 'Could not start preview');
             }
         } catch (e) {
             const data = e.response?.data;
             const timedOut = e.code === 'ECONNABORTED' || /timeout/i.test(e.message || '');
             if (timedOut) {
-                alert(
+                await appWarning(
                     'Preview is still starting in the background (this can take several minutes). ' +
                         'Keep this page open — status will update automatically.'
                 );
@@ -422,7 +460,7 @@ const TeacherProposalStudentDetail = () => {
                     },
                 }));
             } else {
-                alert(data?.error || data?.message || 'Could not start preview');
+                await appError(data?.error || data?.message || 'Could not start preview');
             }
         } finally {
             setPreviewBusyId(null);
@@ -440,7 +478,7 @@ const TeacherProposalStudentDetail = () => {
                 setPreviewSessionByProposal((prev) => ({ ...prev, [proposal._id]: r.data }));
             }
         } catch (e) {
-            alert(e.response?.data?.message || 'Stop failed');
+            await appError(e.response?.data?.message || 'Stop failed');
         } finally {
             setPreviewBusyId(null);
         }
@@ -463,6 +501,14 @@ const TeacherProposalStudentDetail = () => {
             : '—';
     const classCodeForStudents = assignment?.class?.code || assignment?.class?.name || '';
     const student = proposal?.submittedBy;
+    const isGroupSubmission = assignment?.submissionMode === 'group' && proposal?.group;
+    const group = isGroupSubmission ? proposal.group : null;
+    const groupRoster = isGroupSubmission ? buildGroupRoster(group) : [];
+    const groupName = group?.name || 'Group';
+    const profileTitle = isGroupSubmission ? groupName : student?.name || 'Student';
+    const profileInitial = isGroupSubmission
+        ? (groupName.charAt(0) || 'G').toUpperCase()
+        : (student?.name || student?.email || '?').charAt(0).toUpperCase();
     const submittedAt = proposal?.submittedAt
         ? new Date(proposal.submittedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
         : '—';
@@ -568,8 +614,8 @@ const TeacherProposalStudentDetail = () => {
                         {assignmentTitle}
                     </Link>
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="max-w-[180px] truncate text-slate-800 md:max-w-md" title={student?.name || ''}>
-                        {student?.name || 'Student'}
+                    <span className="max-w-[180px] truncate text-slate-800 md:max-w-md" title={profileTitle}>
+                        {profileTitle}
                     </span>
                 </nav>
 
@@ -595,13 +641,37 @@ const TeacherProposalStudentDetail = () => {
                 </div>
 
                 <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    <div className={`${Z_CARD} p-5`}>
+                    <div className={`${Z_CARD} flex h-full flex-col p-5`}>
                         <div className="flex flex-col items-center text-center">
-                            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-2xl font-bold text-white shadow-md">
-                                {(student?.name || student?.email || '?').charAt(0).toUpperCase()}
+                            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-2xl font-bold text-white shadow-md">
+                                {profileInitial}
                             </div>
-                            <h1 className="mt-4 text-lg font-bold text-slate-900">{student?.name || 'Student'}</h1>
-                            <p className="mt-1 max-w-full break-all text-sm text-slate-500">{student?.email || '—'}</p>
+                            <h1 className="mt-4 max-w-full break-words text-lg font-bold text-slate-900">{profileTitle}</h1>
+                            {isGroupSubmission ? (
+                                <ul className="mt-3 w-full space-y-2 text-left">
+                                    {groupRoster.length ? (
+                                        groupRoster.map((member) => (
+                                            <li key={member._id || member.email} className="rounded-lg bg-slate-50 px-3 py-2">
+                                                <p className="text-sm font-semibold break-words text-slate-900">
+                                                    {member.name || member.email || 'Student'}
+                                                    {member.isLeader ? (
+                                                        <span className="ml-1 text-[11px] font-bold uppercase tracking-wide text-[#1e56e3]">
+                                                            (Leader)
+                                                        </span>
+                                                    ) : null}
+                                                </p>
+                                                {member.email ? (
+                                                    <p className="mt-0.5 text-xs break-all text-slate-500">{member.email}</p>
+                                                ) : null}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">No members listed</li>
+                                    )}
+                                </ul>
+                            ) : (
+                                <p className="mt-1 min-h-[1.25rem] max-w-full break-all text-sm text-slate-500">{student?.email || '—'}</p>
+                            )}
                             <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[#1e56e3]">
                                 {statusLabel(proposal.status, proposal)}
                             </p>
@@ -631,8 +701,38 @@ const TeacherProposalStudentDetail = () => {
                         <p className="mb-4 text-xs text-slate-500">Identity and submission metadata.</p>
                         <div className="divide-y divide-slate-50">
                             <DetailRow label="Proposal title" value={proposal.title} />
-                            <DetailRow label="Author" value={studentIdentityLabel(proposal)} />
-                            <DetailRow label="Student ID" value={student?.studentId || '—'} />
+                            {isGroupSubmission ? (
+                                <>
+                                    <DetailRow label="Group" value={groupName} />
+                                    <DetailRow
+                                        label="Members"
+                                        value={
+                                            groupRoster.length ? (
+                                                <ul className="space-y-1.5">
+                                                    {groupRoster.map((member) => (
+                                                        <li key={member._id || member.email} className="break-words">
+                                                            {member.name || member.email || 'Student'}
+                                                            {member.studentId ? ` (${member.studentId})` : ''}
+                                                            {member.isLeader ? (
+                                                                <span className="ml-1 text-[11px] font-bold uppercase tracking-wide text-[#1e56e3]">
+                                                                    (Leader)
+                                                                </span>
+                                                            ) : null}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                '—'
+                                            )
+                                        }
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <DetailRow label="Author" value={studentIdentityLabel(proposal)} />
+                                    <DetailRow label="Student ID" value={student?.studentId || '—'} />
+                                </>
+                            )}
                             <DetailRow label="Assignment" value={assignmentTitle} />
                             <DetailRow label="Subject" value={subjectLine} />
                             <DetailRow label="Class" value={classCodeForStudents || classLabelFromAssignment(assignment) || '—'} />
@@ -1017,8 +1117,15 @@ const TeacherProposalStudentDetail = () => {
                                     const sess = previewSessionByProposal[proposal._id];
                                     const previewRunning = sess?.status === 'running';
                                     const previewStarting = sess?.status === 'starting';
-                                    const displayIdentifier = sess?.previewLoginEmail || previewAdminEmail;
-                                    const displayPassword = sess?.previewLoginPassword || previewAdminPassword;
+                                    const previewOpenReady = isPreviewOpenReady(sess);
+                                    const displayIdentifier =
+                                        previewOpenReady && (sess?.previewLoginEmail || previewAdminEmail)
+                                            ? sess?.previewLoginEmail || previewAdminEmail
+                                            : '';
+                                    const displayPassword =
+                                        previewOpenReady && (sess?.previewLoginPassword || previewAdminPassword)
+                                            ? sess?.previewLoginPassword || previewAdminPassword
+                                            : '';
                                     const identifierLabel = sess?.previewLoginIdentifierLabel || 'Email';
                                     const identifierType =
                                         sess?.previewLoginIdentifierType === 'email' ? 'email' : 'text';
@@ -1029,20 +1136,37 @@ const TeacherProposalStudentDetail = () => {
                                         sess?.previewLoginUrl ||
                                         (sess?.previewUrl ? `${String(sess.previewUrl).replace(/\/$/, '')}/login` : '');
                                     const copyText = async (label, value) => {
+                                        if (!value) return;
                                         try {
                                             await navigator.clipboard.writeText(value);
-                                            alert(`${label} copied`);
+                                            await appSuccess(`${label} copied`);
                                         } catch {
-                                            alert(`Copy ${label} manually: ${value}`);
+                                            await appWarning(`Copy ${label} manually: ${value}`);
                                         }
                                     };
+
+                                    if (!previewOpenReady) {
+                                        return (
+                                            <div className="mb-4 rounded-2xl border border-dashed border-emerald-300 bg-white/80 p-4">
+                                                <p className="text-sm font-black text-slate-900">Login credentials</p>
+                                                <p className="mt-1 text-xs font-semibold text-slate-600">
+                                                    {!sess
+                                                        ? 'Click Start preview below. Email and password appear here once the container is ready and Open preview unlocks.'
+                                                        : previewStarting || previewRunning
+                                                          ? 'Preview is building… login credentials will appear when Open preview becomes available.'
+                                                          : 'Start preview again to load login credentials for the student app.'}
+                                                </p>
+                                            </div>
+                                        );
+                                    }
+
                                     return (
                                         <div className="mb-4 rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-sm">
-                                            <p className="text-sm font-black text-slate-900">Login credentials for student app</p>
+                                            <p className="text-sm font-black text-emerald-900">Preview ready — sign in to the student app</p>
                                             <p className="mt-1 mb-4 text-xs font-semibold text-slate-600">
                                                 {fromProject
-                                                    ? `Use this ${identifierLabel.toLowerCase()} and password from the student project on the login page after you open the preview.`
-                                                    : `Use this ${identifierLabel.toLowerCase()} and password on the student login page after you open the preview.`}
+                                                    ? `Open preview, then use this ${identifierLabel.toLowerCase()} and password from the student project on the login page.`
+                                                    : `Open preview, then use this ${identifierLabel.toLowerCase()} and password on the student login page.`}
                                             </p>
                                             <div className="space-y-3">
                                                 <div>
@@ -1100,7 +1224,7 @@ const TeacherProposalStudentDetail = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            {loginUrl && isPreviewOpenReady(sess) && (
+                                            {loginUrl && (
                                                 <p className="mt-4 text-xs font-semibold text-slate-700">
                                                     Student login page:{' '}
                                                     <a
@@ -1113,30 +1237,17 @@ const TeacherProposalStudentDetail = () => {
                                                     </a>
                                                 </p>
                                             )}
-                                            {(previewStarting || (previewRunning && !isPreviewOpenReady(sess))) && (
-                                                <p className="mt-4 text-xs font-semibold text-amber-800">
-                                                    Wait until status shows “Preview ready” in the log below, then open
-                                                    the login page.
-                                                </p>
-                                            )}
-                                            {sess?.previewApiUrl && ['starting', 'running'].includes(sess?.status) && (
+                                            {sess?.previewApiUrl && (
                                                 <p className="mt-2 text-xs font-semibold text-slate-600">
                                                     Student API (not port 5000):{' '}
                                                     <code className="bg-white px-1 rounded text-[11px]">{sess.previewApiUrl}</code>
                                                     {sess.apiPortReachable === false && (
                                                         <span className="ml-1 text-rose-700 font-bold">
-                                                            —{' '}
-                                                            {sess.previewStack === 'java-spring-react'
-                                                                ? 'Spring API still compiling (first start can take 5–15 min).'
-                                                                : 'API not responding yet; wait for Preview ready or check MongoDB is running.'}
+                                                            — API still starting; wait a moment before signing in.
                                                         </span>
                                                     )}
                                                 </p>
                                             )}
-                                            <p className="mt-3 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-                                                Wait until the log shows Preview ready, then sign in. ERR_EMPTY_RESPONSE means the student API
-                                                is still starting — Stop and Start preview again if it persists after 5 minutes.
-                                            </p>
                                             {sess?.previewLoginHint && (
                                                 <p className="mt-2 text-[11px] font-semibold text-emerald-800">{sess.previewLoginHint}</p>
                                             )}

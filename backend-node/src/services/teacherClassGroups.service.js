@@ -35,6 +35,111 @@ function shuffleInPlace(arr) {
   return arr;
 }
 
+function memberUserIdsFromGroupLean(group) {
+  const ids = [
+    String(group.leader?._id || group.leader || ''),
+    ...(group.members || []).map((m) => String(m.user?._id || m.user || '')),
+  ].filter(Boolean);
+  return [...new Set(ids)];
+}
+
+function memberSetKeyFromGroupLean(group) {
+  return memberUserIdsFromGroupLean(group).sort().join('|');
+}
+
+export { memberSetKeyFromGroupLean, classTemplateDuplicatesAssignmentGroup };
+
+function classTemplateDuplicatesAssignmentGroup(templateGroup, assignmentGroups) {
+  const templateKey = memberSetKeyFromGroupLean(templateGroup);
+  if (!templateKey) return false;
+  return (assignmentGroups || []).some((g) => memberSetKeyFromGroupLean(g) === templateKey);
+}
+
+/** Students already placed on a class template or any group-mode assignment for this class. */
+async function collectAlreadyGroupedUserIdsForClass(cls, teacherId) {
+  const grouped = new Set();
+  const cid = cls._id;
+  const tid = new mongoose.Types.ObjectId(teacherId);
+
+  const templateGroups = await Group.find({ assignment: null, hostClass: cid }).select('leader members').lean();
+  for (const g of templateGroups) {
+    memberUserIdsFromGroupLean(g).forEach((id) => grouped.add(id));
+  }
+
+  const assignments = await Assignment.find({
+    teacher: tid,
+    isActive: true,
+    submissionMode: 'group',
+    $or: [{ class: cid }, { classes: cid }],
+  })
+    .select('_id')
+    .lean();
+
+  const assignmentIds = assignments.map((a) => a._id);
+  if (assignmentIds.length) {
+    const assignmentGroups = await Group.find({ assignment: { $in: assignmentIds } })
+      .select('leader members')
+      .lean();
+    for (const g of assignmentGroups) {
+      memberUserIdsFromGroupLean(g).forEach((id) => grouped.add(id));
+    }
+  }
+
+  return grouped;
+}
+
+/** Copy new class templates onto group-mode assignments without duplicating member sets. */
+async function syncNewClassTemplatesToAssignments(teacherId, hostClassId) {
+  const tid = new mongoose.Types.ObjectId(teacherId);
+  const cid = hostClassId;
+
+  const [assignments, templates] = await Promise.all([
+    Assignment.find({
+      teacher: tid,
+      isActive: true,
+      submissionMode: 'group',
+      $or: [{ class: cid }, { classes: cid }],
+    })
+      .select('_id')
+      .lean(),
+    Group.find({ assignment: null, hostClass: cid }).lean(),
+  ]);
+
+  if (!assignments.length || !templates.length) return { synced: 0 };
+
+  let synced = 0;
+  for (const a of assignments) {
+    const existingGroups = await Group.find({ assignment: a._id }).select('leader members').lean();
+    const existingMemberKeys = new Set(existingGroups.map((g) => memberSetKeyFromGroupLean(g)));
+    const assignedUserIds = new Set();
+    for (const g of existingGroups) {
+      memberUserIdsFromGroupLean(g).forEach((id) => assignedUserIds.add(id));
+    }
+
+    for (const t of templates) {
+      const templateKey = memberSetKeyFromGroupLean(t);
+      if (!templateKey || existingMemberKeys.has(templateKey)) continue;
+
+      const templateUserIds = memberUserIdsFromGroupLean(t);
+      const overlapsExisting = templateUserIds.some((id) => assignedUserIds.has(id));
+      if (overlapsExisting) continue;
+
+      await Group.create({
+        assignment: a._id,
+        hostClass: null,
+        name: t.name || 'Group',
+        leader: t.leader,
+        members: t.members || [],
+      });
+      templateUserIds.forEach((id) => assignedUserIds.add(id));
+      existingMemberKeys.add(templateKey);
+      synced += 1;
+    }
+  }
+
+  return { synced };
+}
+
 function csvEscapeCell(s) {
   const t = String(s ?? '');
   if (/[",\n\r]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
@@ -670,16 +775,36 @@ export async function autoGenerateClassTemplateGroups(teacherId, classRef, { typ
     throw err;
   }
 
-  shuffleInPlace(userIds);
-
-  await deleteClassTemplateGroups(cls._id);
+  const alreadyGrouped = await collectAlreadyGroupedUserIdsForClass(cls, teacherId);
+  const unassigned = userIds.filter((uid) => !alreadyGrouped.has(String(uid)));
 
   const size = type === 'individual' ? 1 : Math.max(2, Math.min(10, Number(groupSize) || 4));
+
+  if (!unassigned.length) {
+    return {
+      createdCount: 0,
+      groupSize: size,
+      type,
+      scope: 'class_template',
+      studentCount: uniqueStudentCount,
+      skippedAlreadyGrouped: userIds.length,
+      unassignedStudentCount: 0,
+      message: 'All students are already assigned to groups.',
+      rosterBreakdown: {
+        matchedProfiles: profileMatchCount,
+        activeEnrollments: enrollmentMatchCount,
+      },
+    };
+  }
+
+  shuffleInPlace(unassigned);
+
+  const existingTemplateCount = await Group.countDocuments({ assignment: null, hostClass: cls._id });
   const created = [];
-  let idx = 0;
-  for (let i = 0; i < userIds.length; i += size) {
+  let idx = existingTemplateCount;
+  for (let i = 0; i < unassigned.length; i += size) {
     idx += 1;
-    const chunk = userIds.slice(i, i + size);
+    const chunk = unassigned.slice(i, i + size);
     const leader = chunk[0];
     const members = chunk.slice(1).map((uid) => ({ user: uid }));
     const g = await Group.create({
@@ -692,12 +817,17 @@ export async function autoGenerateClassTemplateGroups(teacherId, classRef, { typ
     created.push(g);
   }
 
+  const { synced: assignmentGroupsSynced } = await syncNewClassTemplatesToAssignments(teacherId, cls._id);
+
   return {
     createdCount: created.length,
     groupSize: size,
     type,
     scope: 'class_template',
     studentCount: uniqueStudentCount,
+    skippedAlreadyGrouped: userIds.length - unassigned.length,
+    unassignedStudentCount: unassigned.length,
+    assignmentGroupsSynced,
     rosterBreakdown: {
       matchedProfiles: profileMatchCount,
       activeEnrollments: enrollmentMatchCount,
@@ -877,16 +1007,33 @@ export async function autoGenerateGroupsForAssignment(teacherId, assignmentId, {
     throw err;
   }
 
-  shuffleInPlace(userIds);
+  const existingGroups = await Group.find({ assignment: a._id }).select('leader members').lean();
+  const alreadyGrouped = new Set();
+  for (const g of existingGroups) {
+    memberUserIdsFromGroupLean(g).forEach((id) => alreadyGrouped.add(id));
+  }
 
-  await deleteOrphanGroupsForAssignment(a._id);
-
+  const unassigned = userIds.filter((uid) => !alreadyGrouped.has(String(uid)));
   const size = type === 'individual' ? 1 : Math.max(2, Math.min(10, Number(groupSize) || 4));
+
+  if (!unassigned.length) {
+    return {
+      createdCount: 0,
+      groupSize: size,
+      type,
+      skippedAlreadyGrouped: userIds.length,
+      unassignedStudentCount: 0,
+      message: 'All students are already assigned to groups on this assignment.',
+    };
+  }
+
+  shuffleInPlace(unassigned);
+
   const created = [];
-  let idx = 0;
-  for (let i = 0; i < userIds.length; i += size) {
+  let idx = existingGroups.length;
+  for (let i = 0; i < unassigned.length; i += size) {
     idx += 1;
-    const chunk = userIds.slice(i, i + size);
+    const chunk = unassigned.slice(i, i + size);
     const leader = chunk[0];
     const members = chunk.slice(1).map((uid) => ({ user: uid }));
     const g = await Group.create({
@@ -898,7 +1045,13 @@ export async function autoGenerateGroupsForAssignment(teacherId, assignmentId, {
     created.push(g);
   }
 
-  return { createdCount: created.length, groupSize: size, type };
+  return {
+    createdCount: created.length,
+    groupSize: size,
+    type,
+    skippedAlreadyGrouped: userIds.length - unassigned.length,
+    unassignedStudentCount: unassigned.length,
+  };
 }
 
 export async function exportGroupsCsvForAssignment(teacherId, assignmentId) {
@@ -1083,6 +1236,7 @@ export async function listGroupsDisplayForClass(teacherId, classRef) {
   const studentIdByUser = new Map(memberProfiles.map((p) => [String(p.user), p.studentId || '']));
 
   const projects = [];
+  const seenAssignmentMemberKeys = new Set();
 
   function pushFromTemplate(group) {
     const members = [
@@ -1110,6 +1264,7 @@ export async function listGroupsDisplayForClass(teacherId, classRef) {
   }
 
   for (const group of templateRows) {
+    if (classTemplateDuplicatesAssignmentGroup(group, groups)) continue;
     pushFromTemplate(group);
   }
 
@@ -1117,6 +1272,9 @@ export async function listGroupsDisplayForClass(teacherId, classRef) {
     const assignment = assignmentMap.get(String(group.assignment));
     if (!assignment) continue;
     if (!assignmentIncludesClassCode(assignment, cls.code)) continue;
+    const memberKey = memberSetKeyFromGroupLean(group);
+    if (memberKey && seenAssignmentMemberKeys.has(memberKey)) continue;
+    if (memberKey) seenAssignmentMemberKeys.add(memberKey);
     const proposal = proposalByGroup.get(String(group._id));
     const members = [
       group.leader ? { ...group.leader, user: group.leader } : null,

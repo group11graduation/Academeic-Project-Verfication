@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     Search, Plus, BookOpen, User, GraduationCap, Link as LinkIcon, Edit2, Trash2, X, Loader2
 } from 'lucide-react';
@@ -51,7 +52,7 @@ const AdminSubjects = () => {
             if (structureRes.success) setAcademicStructure(structureRes.data || { faculties: [] });
         } catch (error) {
             console.error('Error fetching data:', error);
-            alert('Failed to load subjects data');
+            await appError('Failed to load subjects data');
         } finally {
             setLoading(false);
         }
@@ -86,13 +87,17 @@ const AdminSubjects = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm('Are you sure you want to delete this subject?')) return;
+        if (!(await appConfirm({
+            message: 'Are you sure you want to delete this subject?',
+            danger: true,
+            confirmLabel: 'Delete',
+        }))) return;
         try {
             await adminSubjectService.deleteSubject(id);
             setSubjects(subjects.filter(s => s._id !== id));
         } catch (err) {
             console.error(err);
-            alert('Failed to delete subject');
+            await appError('Failed to delete subject');
         }
     };
 
@@ -118,7 +123,7 @@ const AdminSubjects = () => {
             fetchData();
         } catch (error) {
             console.error(error);
-            alert(error.response?.data?.message || 'Failed to save subject. Ensure code is unique.');
+            await appError(error.response?.data?.message || 'Failed to save subject. Ensure code is unique.');
         } finally {
             setSubmitting(false);
         }

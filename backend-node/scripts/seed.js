@@ -1,6 +1,7 @@
 /**
- * Seed initial admin user and sample academic structure for local development.
- * Run: npm run seed
+ * Seed initial admin user and sample academic structure.
+ * Docker: docker compose exec node-backend node scripts/seed.js
+ * Local:  cd backend-node && npm run seed  (uses MONGO_URI in backend-node/.env)
  */
 
 import 'dotenv/config';
@@ -17,14 +18,15 @@ import { Enrollment } from '../src/models/Enrollment.js';
 import { Assignment } from '../src/models/Assignment.js';
 import { LegacyProject } from '../src/models/LegacyProject.js';
 import { TeacherCollaboration } from '../src/models/TeacherCollaboration.js';
+import { getMongoUri } from '../src/config/env.js';
 
-const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/academic_verification';
+const uri = getMongoUri();
 
 async function run() {
   await mongoose.connect(uri);
   console.log('Connected:', uri);
 
-  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@university.edum';
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@university.edu';
   const adminPass = process.env.SEED_ADMIN_PASSWORD || 'Admin@123';
 
   let admin = await User.findOne({ email: adminEmail });
@@ -41,6 +43,11 @@ async function run() {
     await admin.save();
     console.log('Created admin:', adminEmail, '/', adminPass);
   } else {
+    if (admin.email === 'admin@university.edum' && adminEmail === 'admin@university.edu') {
+      admin.email = adminEmail;
+      await admin.save();
+      console.log('Updated admin email to', adminEmail);
+    }
     console.log('Admin already exists:', adminEmail);
   }
 

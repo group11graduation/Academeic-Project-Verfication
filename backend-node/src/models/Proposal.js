@@ -48,6 +48,8 @@ const proposalSchema = new mongoose.Schema(
     aiPreviousSemesterMaxScore: { type: Number },
     aiMatchedProposalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proposal' },
     aiMatchedLegacyId: { type: mongoose.Schema.Types.ObjectId, ref: 'LegacyProject' },
+    /** Raw AI match key e.g. legacy:… or proposal:… (stable link to verified gallery) */
+    aiMatchedLegacyKey: { type: String, default: '' },
     aiSummary: { type: String, default: '' },
     /** Optional feature hints when flagged as similar to a previous-semester project */
     aiRecommendationText: { type: String, default: '' },

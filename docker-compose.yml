@@ -1,43 +1,147 @@
-# Dual backend + MongoDB — development / demo stack
+# =============================================================================
+# ScholarVerify — multi-container stack (Step 2)
+#
+# Services:
+#   db            MongoDB (local dev / demo database)
+#   fastapi-ai    Python ML API (proposal + code similarity)
+#   node-backend  Node.js orchestration API + Docker preview sandbox control
+#
+# Start:  docker compose up --build
+# Stop:   docker compose down
+#
+# NOTE: Student preview sandboxes are created on the HOST Docker daemon via the
+#       socket mount below — not inside the node-backend container filesystem.
+# =============================================================================
+
+name: scholarverify
+
 services:
-  mongo:
-    image: mongo:7
+  # ---------------------------------------------------------------------------
+  # MongoDB — primary application database
+  # ---------------------------------------------------------------------------
+  db:
+    image: mongo:latest
+    container_name: scholarverify-db
     restart: unless-stopped
     ports:
       - "27017:27017"
+    environment:
+      TZ: UTC
+      MONGO_INITDB_DATABASE: academic_verification
     volumes:
       - mongo_data:/data/db
-    environment:
-      MONGO_INITDB_DATABASE: academic_verification
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
 
-  orchestration:
-    build:
-      context: ./backend-node
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    environment:
-      NODE_ENV: production
-      PORT: 5000
-      MONGODB_URI: mongodb://mongo:27017/academic_verification
-      JWT_SECRET: ${JWT_SECRET:-dev-change-me-use-long-secret-in-prod}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
-      AI_SERVICE_URL: http://analytics:8000
-    depends_on:
-      - mongo
-      - analytics
-
-  analytics:
+  # ---------------------------------------------------------------------------
+  # FastAPI AI — internal hostname: fastapi-ai (port 8000 inside the network)
+  # ---------------------------------------------------------------------------
+  fastapi-ai:
     build:
       context: ./backend-python
       dockerfile: Dockerfile
+    container_name: scholarverify-fastapi-ai
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      CORS_ORIGINS: "*"
+      HOST: 0.0.0.0
       PORT: 8000
+      DEBUG: "false"
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      APP_NAME: Academic Verification AI Service
+      DATA_DIR: /app/data
+      MODELS_CACHE_DIR: /app/data/models-cache
+    volumes:
+      # SBERT weights + SQLite embedding/job stores survive container rebuilds
+      - ai_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+  # ---------------------------------------------------------------------------
+  # Node.js API — preview orchestration requires host Docker socket access
+  # ---------------------------------------------------------------------------
+  node-backend:
+    build:
+      context: ./backend-node
+      dockerfile: Dockerfile
+    container_name: scholarverify-node-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      fastapi-ai:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      TZ: UTC
+
+      # Database (service name `db` resolves on the compose network)
+      MONGO_URI: mongodb://db:27017/academic_verification
+      MONGODB_URI: mongodb://db:27017/academic_verification
+
+      # AI service — use Docker DNS hostname, NOT localhost
+      AI_SERVICE_URL: http://fastapi-ai:8000
+      AI_SERVICE_TIMEOUT_MS: ${AI_SERVICE_TIMEOUT_MS:-120000}
+
+      # Uploads + preview cache (must match volume mounts below)
+      UPLOAD_DIR: /app/uploads
+      PREVIEW_CACHE_ROOT: /app/data/preview-cache
+
+      # Auth / CORS — MUST match backend-node/.env when running locally (same JWT_SECRET)
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+
+      # Docker preview sandbox (host daemon via socket mount)
+      DOCKER_PREVIEW_ENABLED: ${DOCKER_PREVIEW_ENABLED:-true}
+      DOCKER_SOCKET: /var/run/docker.sock
+      PREVIEW_PUBLIC_HOST: ${PREVIEW_PUBLIC_HOST:-http://localhost}
+      PREVIEW_PROBE_HOST: ${PREVIEW_PROBE_HOST:-host.docker.internal}
+      PREVIEW_PORT_MIN: ${PREVIEW_PORT_MIN:-8000}
+      PREVIEW_PORT_MAX: ${PREVIEW_PORT_MAX:-9000}
+      PREVIEW_WORKSPACE_CACHE: ${PREVIEW_WORKSPACE_CACHE:-true}
+      PREVIEW_DEPENDENCY_CACHE: ${PREVIEW_DEPENDENCY_CACHE:-true}
+      PREVIEW_SIDECAR_MONGO: ${PREVIEW_SIDECAR_MONGO:-true}
+      PREVIEW_SIDECAR_MYSQL: ${PREVIEW_SIDECAR_MYSQL:-true}
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # CRITICAL: allows node-backend to build/run/stop student preview containers on the host
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Student uploads — host path must be visible to host Docker when bind-mounting student ZIPs
+      - ./uploads:/app/uploads
+
+      # Preview workspace + Maven/npm caches
+      - ./data:/app/data
+
+    # Optional: run as non-root if your host docker.sock group id is passed in
+    # group_add:
+    #   - "${DOCKER_GID:-999}"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 volumes:
   mongo_data:
+  ai_data:

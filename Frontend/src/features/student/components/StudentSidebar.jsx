@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../../../context/authContext';
 import { BRAND, RAIL_GRADIENT } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
+import ThemeToggle from '../../../shared/components/ThemeToggle';
 
 const navItems = [
     { label: 'Dashboard', to: '/student', icon: LayoutDashboard, end: true },
@@ -58,8 +59,8 @@ const StudentSidebar = () => {
                 ))}
             </nav>
 
-            <div className="mt-4 mr-1 rounded-xl bg-white p-3 text-slate-900 shadow-lg ring-1 ring-slate-200/80">
-                <p className="text-[10px] font-bold leading-snug text-slate-800">
+            <div className="mt-4 mr-1 rounded-xl bg-white p-3 text-slate-900 shadow-lg ring-1 ring-slate-200/80 dark:bg-[#111827] dark:text-slate-100 dark:ring-white/10">
+                <p className="text-[10px] font-bold leading-snug text-slate-800 dark:text-slate-100">
                     Need more time? Use Contact teacher to request a deadline extension.
                 </p>
                 <Link
@@ -77,6 +78,14 @@ const StudentSidebar = () => {
             >
                 <ExternalLink className="h-3.5 w-3.5" /> System overview
             </Link>
+
+            <div className="mt-2 px-3">
+                <ThemeToggle
+                    compact
+                    iconOnly
+                    className="w-full border-white/20 bg-white/10 text-white hover:bg-white/15 dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                />
+            </div>
 
             <button
                 type="button"

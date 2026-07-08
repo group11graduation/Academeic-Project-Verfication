@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     Search,
     Users,
@@ -100,7 +101,7 @@ const ProjectsOverview = () => {
                 URL.revokeObjectURL(url);
             }
         } catch (error) {
-            alert(error.response?.data?.message || error.message || 'Export failed');
+            await appError(error.response?.data?.message || error.message || 'Export failed');
         } finally {
             setExportingFile(false);
         }
@@ -115,7 +116,7 @@ const ProjectsOverview = () => {
                 teacherService.downloadXlsxFromBase64(res.data.filename, res.data.xlsxBase64);
             }
         } catch (error) {
-            alert(error.response?.data?.message || error.message || 'Export failed');
+            await appError(error.response?.data?.message || error.message || 'Export failed');
         } finally {
             setExportingFile(false);
         }
@@ -145,7 +146,7 @@ const ProjectsOverview = () => {
                 setImportPreview(res.data);
             }
         } catch (error) {
-            alert(error.response?.data?.message || error.message || 'Preview failed');
+            await appError(error.response?.data?.message || error.message || 'Preview failed');
         } finally {
             setImportingFile(false);
         }
@@ -166,7 +167,7 @@ const ProjectsOverview = () => {
                 await refreshProjectsList();
             }
         } catch (error) {
-            alert(error.response?.data?.message || error.message || 'Could not apply import');
+            await appError(error.response?.data?.message || error.message || 'Could not apply import');
         } finally {
             setApplyingImport(false);
         }
@@ -181,7 +182,7 @@ const ProjectsOverview = () => {
 
     const handleCreateGroups = async () => {
         if (!createForm.classCode) {
-            alert('Select class first.');
+            await appWarning('Select class first.');
             return;
         }
         try {
@@ -198,7 +199,7 @@ const ProjectsOverview = () => {
             if (res.data) setGenerateSummary(res.data);
         } catch (error) {
             console.error('Failed to create groups:', error);
-            alert(error.response?.data?.message || error.message || 'Could not create groups');
+            await appError(error.response?.data?.message || error.message || 'Could not create groups');
         } finally {
             setCreating(false);
         }
@@ -448,9 +449,8 @@ const ProjectsOverview = () => {
                             Auto-generate (system)
                         </p>
                         <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
-                            The server loads <strong>every student</strong> linked to this class (roster profiles that list this class code, plus{' '}
-                            <strong>active enrollments</strong> in this class), shuffles the list, then builds teams using the{' '}
-                            <strong>group size</strong> you set below. The last team may be smaller if the count does not divide evenly. This replaces existing class-level teams for the selected class.
+                            Adds teams only for students <strong>not already in a group</strong> (class templates or assignment groups).
+                            Existing teams are kept. The last new team may be smaller if the count does not divide evenly.
                         </p>
                     </div>
 
@@ -458,8 +458,16 @@ const ProjectsOverview = () => {
                         <div className="md:col-span-2 rounded-lg border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/90 dark:bg-emerald-950/25 p-3 text-[12px]">
                             <p className="font-black text-emerald-900 dark:text-emerald-100">
                                 {generateSummary.type === 'individual'
-                                    ? `Created ${generateSummary.createdCount} individual assignment(s) from ${generateSummary.studentCount ?? 'all'} student(s).`
-                                    : `Created ${generateSummary.createdCount} team(s) from ${generateSummary.studentCount ?? 'all'} student(s), up to ${generateSummary.groupSize} students per team (last team may be smaller).`}
+                                    ? generateSummary.createdCount > 0
+                                        ? `Created ${generateSummary.createdCount} individual assignment(s) for unassigned student(s).`
+                                        : generateSummary.message || 'All students are already assigned.'
+                                    : generateSummary.createdCount > 0
+                                        ? `Created ${generateSummary.createdCount} new team(s) for ${generateSummary.unassignedStudentCount ?? 'unassigned'} student(s), up to ${generateSummary.groupSize} per team.${
+                                              generateSummary.skippedAlreadyGrouped
+                                                  ? ` ${generateSummary.skippedAlreadyGrouped} student(s) already in groups were skipped.`
+                                                  : ''
+                                          }`
+                                        : generateSummary.message || 'All students are already assigned to groups.'}
                             </p>
                         </div>
                     )}

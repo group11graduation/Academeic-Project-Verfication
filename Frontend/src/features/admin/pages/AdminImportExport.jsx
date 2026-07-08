@@ -3,6 +3,7 @@ import { FileSpreadsheet, Upload, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import adminStudentService from '../../../services/adminStudentService';
 import adminTeacherService from '../../../services/adminTeacherService';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminImportExport = () => {
     const navigate = useNavigate();
@@ -26,7 +27,7 @@ const AdminImportExport = () => {
             downloadBlob(file);
         } catch (err) {
             const message = err.response?.data?.message || err.message || 'Failed to export students';
-            window.alert(message);
+            await appError(message);
         } finally {
             setExportingKey('');
         }
@@ -39,7 +40,7 @@ const AdminImportExport = () => {
             downloadBlob(file);
         } catch (err) {
             const message = err.response?.data?.message || err.message || 'Failed to export teachers';
-            window.alert(message);
+            await appError(message);
         } finally {
             setExportingKey('');
         }

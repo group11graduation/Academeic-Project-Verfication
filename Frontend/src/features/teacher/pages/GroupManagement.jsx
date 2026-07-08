@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     Search,
     RotateCw,
@@ -86,7 +87,7 @@ const GroupManagement = () => {
             }
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Export failed';
-            alert(msg);
+            await appError(msg);
         } finally {
             setExportingFile(false);
         }
@@ -102,7 +103,7 @@ const GroupManagement = () => {
             }
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Export failed';
-            alert(msg);
+            await appError(msg);
         } finally {
             setExportingFile(false);
         }
@@ -131,7 +132,7 @@ const GroupManagement = () => {
             }
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Import failed';
-            alert(msg);
+            await appError(msg);
         } finally {
             setImportingFile(false);
         }
@@ -152,7 +153,7 @@ const GroupManagement = () => {
             }
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Failed to generate groups';
-            alert(msg);
+            await appError(msg);
         } finally {
             setGenerating(false);
         }

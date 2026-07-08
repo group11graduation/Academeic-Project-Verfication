@@ -1,17 +1,16 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 import { fail } from '../utils/apiResponse.js';
+import { getJwtSecret } from '../config/auth.js';
 
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
   if (!token) {
     return fail(res, 'Authentication required', 401);
   }
   try {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error('JWT_SECRET is not configured');
-    const payload = jwt.verify(token, secret);
+    const payload = jwt.verify(token, getJwtSecret());
     const primaryRole = String(payload.role || '').trim().toLowerCase();
     const parsedRoles = Array.isArray(payload.roles)
       ? payload.roles.map((role) => String(role || '').trim().toLowerCase()).filter(Boolean)
@@ -25,8 +24,12 @@ export function requireAuth(req, res, next) {
     req.userRole = primaryRole;
     req.roles = roles;
     next();
-  } catch {
-    return fail(res, 'Invalid or expired token', 401);
+  } catch (err) {
+    const message =
+      err?.name === 'TokenExpiredError'
+        ? 'Session expired — please sign in again'
+        : 'Invalid or expired token';
+    return fail(res, message, 401);
   }
 }
 

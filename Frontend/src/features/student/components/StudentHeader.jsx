@@ -20,6 +20,7 @@ import { useAuth } from '../../../context/authContext';
 import { useShellSearch } from '../../../context/shellSearchContext';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
+import ThemeToggle from '../../../shared/components/ThemeToggle';
 
 function buildNavItems(user) {
     if (!user) {
@@ -76,9 +77,9 @@ const StudentHeader = ({ forcePublic = false }) => {
 
     const desktopNavClass = ({ isActive }) =>
         `relative px-1 py-4 text-sm font-semibold transition-colors ${
-            isActive ? 'text-[#2a3fa4]' : 'text-slate-600 hover:text-slate-900'
+            isActive ? 'text-[#2a3fa4] dark:text-blue-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
         } after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:rounded-full after:transition-opacity ${
-            isActive ? 'after:opacity-100 after:bg-[#2a3fa4]' : 'after:opacity-0 hover:after:opacity-40 after:bg-slate-300'
+            isActive ? 'after:opacity-100 after:bg-[#2a3fa4]' : 'after:opacity-0 hover:after:opacity-40 after:bg-slate-300 dark:after:bg-slate-600'
         }`;
 
     const mobileIcon = (path) => {
@@ -94,7 +95,7 @@ const StudentHeader = ({ forcePublic = false }) => {
     };
 
     return (
-        <header className="sticky top-0 z-50 bg-white border-b border-slate-200/80 shadow-[0_1px_0_rgba(42,63,164,0.04)]">
+        <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white shadow-[0_1px_0_rgba(42,63,164,0.04)] dark:border-white/10 dark:bg-[#0b1220]">
             <div className="h-[3px] w-full" style={{ background: BRAND_GRADIENT }} />
 
             <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -113,21 +114,22 @@ const StudentHeader = ({ forcePublic = false }) => {
 
                     {user && !showPublicShell ? (
                         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                            <div className="hidden md:flex items-center rounded-full border border-slate-200 bg-slate-50/80 pl-3 pr-2 py-1.5 w-[160px] lg:w-[180px]">
-                                <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                            <div className="hidden md:flex items-center rounded-full border border-slate-200 bg-slate-50/80 pl-3 pr-2 py-1.5 w-[160px] lg:w-[180px] dark:border-white/10 dark:bg-[#111827]">
+                                <Search className="h-4 w-4 text-slate-400 shrink-0 dark:text-slate-500" />
                                 <input
                                     type="search"
                                     value={shellSearchQuery}
                                     onChange={(e) => setShellSearchQuery(e.target.value)}
                                     placeholder={shellSearchPlaceholder}
                                     aria-label={shellSearchPlaceholder}
-                                    className="ml-2 w-full bg-transparent text-xs font-medium text-slate-700 placeholder:text-slate-400 outline-none border-0 !text-slate-700"
+                                    className="ml-2 w-full border-0 bg-transparent text-xs font-medium text-slate-700 placeholder:text-slate-400 outline-none !text-slate-700 dark:placeholder:text-slate-500 dark:!text-slate-200"
                                 />
                             </div>
+                            <ThemeToggle compact className="hidden sm:inline-flex" />
 
                             <button
                                 type="button"
-                                className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+                                className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
                                 title="Notifications"
                             >
                                 <Bell className="h-[18px] w-[18px]" />
@@ -138,7 +140,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                                 <button
                                     type="button"
                                     onClick={() => setProfileOpen((v) => !v)}
-                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/60 pl-1 pr-3 py-1 hover:bg-slate-100"
+                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/60 pl-1 pr-3 py-1 hover:bg-slate-100 dark:border-white/10 dark:bg-[#111827] dark:hover:bg-[#1f2937]"
                                 >
                                     <div
                                         className="h-8 w-8 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-black ring-2 ring-white"
@@ -150,10 +152,10 @@ const StudentHeader = ({ forcePublic = false }) => {
                                             (user.name || 'U').charAt(0).toUpperCase()
                                         )}
                                     </div>
-                                    <span className="hidden lg:block max-w-[120px] truncate text-xs font-bold text-slate-800">
+                                    <span className="hidden lg:block max-w-[120px] truncate text-xs font-bold text-slate-800 dark:text-slate-100">
                                         {user.name || user.role}
                                     </span>
-                                    <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+                                    <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform dark:text-slate-500 ${profileOpen ? 'rotate-180' : ''}`} />
                                 </button>
 
                                 {profileOpen && (
@@ -164,18 +166,18 @@ const StudentHeader = ({ forcePublic = false }) => {
                                             aria-label="Close menu"
                                             onClick={() => setProfileOpen(false)}
                                         />
-                                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl">
-                                            <div className="px-4 py-2.5 border-b border-slate-100">
-                                                <p className="text-xs font-black text-slate-900 truncate">{user.name}</p>
-                                                <p className="text-[11px] text-slate-500 truncate capitalize">{user.role} account</p>
+                                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl dark:border-white/10 dark:bg-[#111827]">
+                                            <div className="px-4 py-2.5 border-b border-slate-100 dark:border-white/10">
+                                                <p className="text-xs font-black text-slate-900 truncate dark:text-slate-100">{user.name}</p>
+                                                <p className="text-[11px] text-slate-500 truncate capitalize dark:text-slate-400">{user.role} account</p>
                                             </div>
                                             {user.role === 'student' && (
                                                 <Link
                                                     to="/student/profile"
                                                     onClick={() => setProfileOpen(false)}
-                                                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10"
                                                 >
-                                                    <UserRound className="h-4 w-4 text-slate-400" />
+                                                    <UserRound className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                                                     My profile
                                                 </Link>
                                             )}
@@ -194,7 +196,7 @@ const StudentHeader = ({ forcePublic = false }) => {
 
                             <button
                                 type="button"
-                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200"
+                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-white/10 dark:text-slate-100"
                                 onClick={() => setMobileOpen((v) => !v)}
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -205,14 +207,15 @@ const StudentHeader = ({ forcePublic = false }) => {
                             {user && showPublicShell ? (
                                 <Link
                                     to={user.role === 'student' ? '/student' : user.role === 'teacher' ? '/teacher' : '/admin'}
-                                    className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[#2a3fa4] hover:underline"
+                                    className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[#2a3fa4] hover:underline dark:text-blue-300"
                                 >
                                     My workspace
                                 </Link>
                             ) : null}
-                            <Link to="/login" className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-slate-700 hover:text-[#2a3fa4]">
+                            <Link to="/login" className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-slate-700 hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300">
                                 Sign in
                             </Link>
+                            <ThemeToggle compact className="hidden sm:inline-flex" />
                             <button
                                 type="button"
                                 onClick={() => navigate('/login')}
@@ -223,7 +226,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                             </button>
                             <button
                                 type="button"
-                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200"
+                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-white/10 dark:text-slate-100"
                                 onClick={() => setMobileOpen((v) => !v)}
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -234,8 +237,9 @@ const StudentHeader = ({ forcePublic = false }) => {
             </div>
 
             {mobileOpen && (
-                <div className="lg:hidden border-t border-slate-200 bg-white">
+                <div className="lg:hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#0b1220]">
                     <nav className="max-w-[1400px] mx-auto px-4 py-4 space-y-1">
+                        <ThemeToggle className="mb-2 w-full justify-center" />
                         {navItems.map((item) => {
                             const Icon = mobileIcon(item.path) || LayoutDashboard;
                             return (
@@ -246,7 +250,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     onClick={() => setMobileOpen(false)}
                                     className={({ isActive }) =>
                                         `flex items-center justify-between rounded-lg px-4 py-3 text-sm font-bold ${
-                                            isActive ? 'bg-[#2a3fa4]/10 text-[#2a3fa4]' : 'text-slate-700 hover:bg-slate-50'
+                                            isActive ? 'bg-[#2a3fa4]/10 text-[#2a3fa4] dark:text-blue-300' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10'
                                         }`
                                     }
                                 >
@@ -259,11 +263,11 @@ const StudentHeader = ({ forcePublic = false }) => {
                         })}
                         {user?.role === 'student' && (
                             <>
-                                <div className="my-2 border-t border-slate-100" />
+                                <div className="my-2 border-t border-slate-100 dark:border-white/10" />
                                 <Link
                                     to="/student/profile"
                                     onClick={() => setMobileOpen(false)}
-                                    className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                    className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10"
                                 >
                                     <UserRound className="h-4 w-4" /> My profile
                                 </Link>

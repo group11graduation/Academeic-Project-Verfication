@@ -24,6 +24,8 @@ import {
 import { resolveFlutterNodePair, patchFlutterApiPort } from './previewFlutter.service.js';
 import { resolveSpringReactPair, patchSpringForPreview, springReactDisplayLabel } from './previewSpring.service.js';
 import { ensurePreviewDependencyCacheDirs } from './previewWorkspaceCache.service.js';
+import { resolveDockerHostPath } from '../config/dockerPaths.js';
+import { getPreviewProbeHost, previewProbeHostname, rewritePreviewUrlForProbe } from '../config/previewProbe.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, '../..');
@@ -110,13 +112,9 @@ function getPublicPreviewBase() {
   return (process.env.PREVIEW_PUBLIC_HOST || 'http://localhost').replace(/\/$/, '').replace('127.0.0.1', 'localhost');
 }
 
-/** Host path for docker -v (Docker Desktop on Windows needs forward slashes). */
+/** Host path for docker -v (resolves container paths when API runs in Docker). */
 function dockerVolumePath(hostPath) {
-  const resolved = path.resolve(hostPath);
-  if (process.platform === 'win32') {
-    return resolved.replace(/\\/g, '/');
-  }
-  return resolved;
+  return resolveDockerHostPath(hostPath);
 }
 
 function previewNodeTemplateDir(flutterPair) {
@@ -1837,23 +1835,15 @@ export function isPreviewPlaceholderBody(body = '') {
 }
 
 function normalizeProbeUrl(url) {
-  if (!url) return url;
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === 'localhost') {
-      parsed.hostname = '127.0.0.1';
-    }
-    return parsed.toString();
-  } catch {
-    return String(url).replace(/^http:\/\/localhost(?=[:/])/i, 'http://127.0.0.1');
-  }
+  return rewritePreviewUrlForProbe(url);
 }
 
 async function fetchPreviewHttp(url) {
   const candidates = [normalizeProbeUrl(url)];
   try {
     const parsed = new URL(url);
-    const alt = `http://127.0.0.1:${parsed.port || '80'}${parsed.pathname || '/'}${parsed.search || ''}`;
+    const probeHost = getPreviewProbeHost();
+    const alt = `http://${probeHost}:${parsed.port || '80'}${parsed.pathname || '/'}${parsed.search || ''}`;
     if (!candidates.includes(alt)) candidates.push(alt);
   } catch {
     /* ignore */
@@ -1932,7 +1922,7 @@ export async function checkPreviewAppHttpReady({
   }
 
   const apiTarget = parseHostPortFromPreviewUrl(apiPreviewUrl);
-  const apiCheckHost = apiTarget.host === 'localhost' ? '127.0.0.1' : apiTarget.host;
+  const apiCheckHost = previewProbeHostname(apiTarget.host);
   const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
 
   // MERN / Node full-stack: UI ready is enough to unlock preview; API readiness tracked separately.
@@ -1994,7 +1984,7 @@ export async function waitForPreviewReady({
       ? Math.max(timeoutMs, nodeTimeout)
       : timeoutMs;
   const { host, port } = parseHostPortFromPreviewUrl(previewUrl);
-  const checkHost = host === 'localhost' ? '127.0.0.1' : host;
+  const checkHost = previewProbeHostname(host);
   const apiTarget = apiPreviewUrl ? parseHostPortFromPreviewUrl(apiPreviewUrl) : null;
   const started = Date.now();
   let sawPortOpen = false;
@@ -2027,7 +2017,7 @@ export async function waitForPreviewReady({
     if (portOpen) sawPortOpen = true;
 
     if (apiTarget) {
-      const apiCheckHost = apiTarget.host === 'localhost' ? '127.0.0.1' : apiTarget.host;
+      const apiCheckHost = previewProbeHostname(apiTarget.host);
       // eslint-disable-next-line no-await-in-loop
       const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
       if (apiOpen) sawApiPortOpen = true;
@@ -2080,6 +2070,10 @@ export async function waitForPreviewReady({
  */
 export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
   if (!logText?.trim()) return null;
+
+  if (/\[preview\]\s*serve static:/i.test(logText) && /Accepting connections/i.test(logText)) {
+    return { ready: true, reason: 'log_serve_listening' };
+  }
 
   if (/\[preview\]\s*serve static:/i.test(logText) && /Returned\s+200/i.test(logText)) {
     return { ready: true, reason: 'log_serve_static' };

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import adminUserService from '../../../services/adminUserService';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminAdminDetail = () => {
     const { id } = useParams();
@@ -44,10 +45,10 @@ const AdminAdminDetail = () => {
             if (res.success) {
                 navigate('/admin/admins');
             } else {
-                alert(res.message || 'Update failed');
+                await appError(res.message || 'Update failed');
             }
         } catch (err) {
-            alert(err.response?.data?.message || err.message || 'Update failed');
+            await appError(err.response?.data?.message || err.message || 'Update failed');
         }
     };
 

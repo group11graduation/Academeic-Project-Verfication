@@ -1,4 +1,5 @@
 import { logger } from '../config/logger.js';
+import { getAiServiceUrl } from '../config/env.js';
 
 /**
  * Base URL for the FastAPI AI service (proposal, code, screenshot).
@@ -10,7 +11,7 @@ import { logger } from '../config/logger.js';
  * - POST /analyze/screenshot — Pillow + ImageHash phash vs stored reference hashes.
  */
 function aiBaseUrl() {
-  return (process.env.AI_SERVICE_URL || 'http://localhost:8000').replace(/\/$/, '');
+  return getAiServiceUrl();
 }
 
 function aiTimeoutMs(path) {

@@ -5,12 +5,12 @@ import adminClassService from '../../../services/adminClassService';
 import adminSemesterService from '../../../services/adminSemesterService';
 import adminSubjectService from '../../../services/adminSubjectService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminAddClass = () => {
     const navigate = useNavigate();
     const [className, setClassName] = useState('');
     const [classCode, setClassCode] = useState('');
-    const [category, setCategory] = useState('ACADEMIC');
     const [selectedFaculty, setSelectedFaculty] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState('');
     const [selectedSemester, setSelectedSemester] = useState('');
@@ -72,7 +72,7 @@ const AdminAddClass = () => {
 
     const handleRegisterClass = async () => {
         if (!className.trim() || !classCode.trim() || !selectedFaculty || !selectedDepartment || !selectedSemester) {
-            alert('Please fill Class Name, Class Code, Faculty, Department and Semester.');
+            await appWarning('Please fill Class Name, Class Code, Faculty, Department and Semester.');
             return;
         }
         try {
@@ -82,7 +82,6 @@ const AdminAddClass = () => {
                 code: classCode.trim().toUpperCase(),
                 faculty: selectedFaculty,
                 department: selectedDepartment,
-                category,
                 semester: selectedSemester,
                 description: description.trim(),
                 subjectIds: selectedSubjectId ? [selectedSubjectId] : [],
@@ -94,7 +93,7 @@ const AdminAddClass = () => {
             navigate(`/admin/classes/${payload.code}`);
         } catch (err) {
             console.error('Register class failed:', err);
-            alert(err.response?.data?.message || err.message || 'Could not register class');
+            await appError(err.response?.data?.message || err.message || 'Could not register class');
         } finally {
             setSaving(false);
         }
@@ -147,7 +146,7 @@ const AdminAddClass = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div>
                         <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Faculty</label>
                         <select
@@ -180,20 +179,6 @@ const AdminAddClass = () => {
                             {departmentOptions.map((d) => (
                                 <option key={d} value={d}>{d}</option>
                             ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Category</label>
-                        <select
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none"
-                        >
-                            <option value="ACADEMIC">Academic</option>
-                            <option value="LAB BASED">Lab Based</option>
-                            <option value="THEORY">Theory</option>
-                            <option value="WORKSHOP">Workshop</option>
-                            <option value="SEMINAR">Seminar</option>
                         </select>
                     </div>
                     <div>

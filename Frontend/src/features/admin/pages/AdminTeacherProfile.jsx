@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ArrowLeft, MapPin, Mail, MessageSquare, Edit2,
     User, Phone, Building2, BarChart2, CheckCircle2,
@@ -80,14 +81,14 @@ const AdminTeacherProfile = () => {
             }
         } catch (error) {
             console.error("Failed to assign classes:", error);
-            alert("Failed to save assignments.");
+            await appError("Failed to save assignments.");
         } finally {
             setLoadingAssignments(false);
         }
     };
 
     const handleToggleAdmin = async () => {
-        if (!window.confirm(`Are you sure you want to ${teacher.userId?.roles?.includes('admin') ? 'revoke' : 'grant'} administrative privileges for this teacher?`)) return;
+        if (!(await appConfirm(`Are you sure you want to ${teacher.userId?.roles?.includes('admin') ? 'revoke' : 'grant'} administrative privileges for this teacher?`))) return;
 
         setIsPromoting(true);
         try {
@@ -98,11 +99,11 @@ const AdminTeacherProfile = () => {
                 if (response.success) {
                     setTeacher(response.data);
                 }
-                alert(res.message);
+                await appSuccess(res.message);
             }
         } catch (error) {
             console.error("Failed to toggle admin status:", error);
-            alert("Failed to update administrative status.");
+            await appError("Failed to update administrative status.");
         } finally {
             setIsPromoting(false);
         }
@@ -116,7 +117,7 @@ const AdminTeacherProfile = () => {
             window.setTimeout(() => setCopiedPasscode(false), 2000);
         } catch (error) {
             console.error('Failed to copy passcode:', error);
-            window.alert('Failed to copy passcode.');
+            await appError('Failed to copy passcode.');
         }
     };
 

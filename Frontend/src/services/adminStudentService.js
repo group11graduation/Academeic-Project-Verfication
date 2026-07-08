@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api, { IMPORT_TIMEOUT_MS } from '../lib/api';
 
 const API_URL = '/admin/students';
 
@@ -33,7 +33,7 @@ const generatePasscode = async (id) => {
 };
 
 const importStudents = async (students) => {
-    const response = await api.post(`${API_URL}/import`, { students });
+    const response = await api.post(`${API_URL}/import`, { students }, { timeout: IMPORT_TIMEOUT_MS });
     return response.data;
 };
 

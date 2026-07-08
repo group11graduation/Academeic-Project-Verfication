@@ -1,10 +1,9 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
+import { uploadPath } from '../config/env.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const staging = path.join(__dirname, '../../uploads/proposal-staging');
+const staging = uploadPath('proposal-staging');
 
 if (!fs.existsSync(staging)) {
   fs.mkdirSync(staging, { recursive: true });

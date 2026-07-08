@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ArrowLeft,
     User,
@@ -71,7 +72,7 @@ const GroupConfiguration = () => {
         if (!file || !classRef) return;
         setSelectedFile(file.name);
         if (!selectedAssignmentId) {
-            alert('No group-mode assignment found for this class, or assignments are still loading.');
+            await appWarning('No group-mode assignment found for this class, or assignments are still loading.');
             return;
         }
         const lower = file.name.toLowerCase();
@@ -92,7 +93,7 @@ const GroupConfiguration = () => {
             }
         } catch (error) {
             const msg = error.response?.data?.message || error.message || 'Import failed';
-            alert(msg);
+            await appError(msg);
         } finally {
             setImportingFile(false);
         }
@@ -114,7 +115,7 @@ const GroupConfiguration = () => {
             }
         } catch (error) {
             const msg = error.response?.data?.message || error.message || 'Export failed';
-            alert(msg);
+            await appError(msg);
         } finally {
             setExportingFile(false);
         }
@@ -130,7 +131,7 @@ const GroupConfiguration = () => {
             }
         } catch (error) {
             const msg = error.response?.data?.message || error.message || 'Export failed';
-            alert(msg);
+            await appError(msg);
         } finally {
             setExportingFile(false);
         }
@@ -151,7 +152,7 @@ const GroupConfiguration = () => {
             }
         } catch (error) {
             const msg = error.response?.data?.message || error.message || 'Generation failed';
-            alert(msg);
+            await appError(msg);
         } finally {
             setIsGenerating(false);
         }

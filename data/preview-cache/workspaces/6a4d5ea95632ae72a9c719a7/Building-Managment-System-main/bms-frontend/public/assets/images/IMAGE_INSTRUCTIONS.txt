@@ -1,0 +1,11 @@
+INSTRUCTIONS TO ADD YOUR BACKGROUND IMAGE:
+
+1. Place your image file in this folder: bms-frontend/public/assets/images/
+2. Name it exactly: login-bg.jpg
+3. Make sure it's a real image file (JPG, PNG, or WebP format)
+4. Recommended size: 1920x1080 pixels or larger
+5. File size: Under 2MB for fast loading
+
+The image will automatically appear as the login page background.
+
+If you don't have an image yet, the page will show a gradient background instead.

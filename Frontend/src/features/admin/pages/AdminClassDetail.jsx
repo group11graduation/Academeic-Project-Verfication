@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     Users, GraduationCap, Calendar, Clock, Search,
     MoreVertical, Plus, ArrowLeft, Layout, BookOpen, Loader2,
@@ -57,13 +58,13 @@ const AdminClassDetail = () => {
     });
 
     const handleGenerateAccounts = async () => {
-        if (!window.confirm('This will create User login accounts for all students in this class. Proceed?')) return;
+        if (!(await appConfirm('This will create User login accounts for all students in this class. Proceed?'))) return;
 
         try {
             setGenerating(true);
             const res = await adminClassService.generateAccounts(id);
             if (res.success) {
-                alert(res.message);
+                await appSuccess(res.message);
                 // Refresh class details to see updated user status
                 const updatedRes = await adminClassService.getClass(id);
                 if (updatedRes.success) {
@@ -72,7 +73,7 @@ const AdminClassDetail = () => {
             }
         } catch (error) {
             console.error("Error generating accounts:", error);
-            alert("Failed to generate student accounts.");
+            await appError("Failed to generate student accounts.");
         } finally {
             setGenerating(false);
         }
@@ -129,7 +130,7 @@ const AdminClassDetail = () => {
     const handleAssignTeacher = async () => {
         if (!selectedTeacherId) return;
         if (!selectedTeacherSubjectIds.length) {
-            alert('Select at least one subject for this teacher.');
+            await appWarning('Select at least one subject for this teacher.');
             return;
         }
         try {
@@ -144,7 +145,7 @@ const AdminClassDetail = () => {
             await fetchClassDetails();
         } catch (error) {
             console.error('Error assigning teacher:', error);
-            alert(error.message || 'Could not assign teacher');
+            await appError(error.message || 'Could not assign teacher');
         } finally {
             setAssigningTeacher(false);
         }
@@ -162,7 +163,7 @@ const AdminClassDetail = () => {
             return c && c !== targetCode;
         });
         if (movingFromOther.length > 0) {
-            const okMove = window.confirm(
+            const okMove = await appConfirm(
                 `${movingFromOther.length} student(s) are already assigned to another class on their profile (e.g. import placeholder). ` +
                     `Adding them here will move their class to ${targetCode || id}. Continue?`
             );
@@ -208,13 +209,16 @@ const AdminClassDetail = () => {
             const sRes = await adminStudentService.getStudents();
             if (sRes.success) setAllStudents(sRes.data || []);
             if (failures.length) {
-                alert(`Assigned ${ok} of ${ids.length} student(s). Some errors:\n${failures.slice(0, 8).join('\n')}${failures.length > 8 ? '\n…' : ''}`);
+                await appWarning({
+                    title: 'Partially assigned',
+                    message: `Assigned ${ok} of ${ids.length} student(s). Some errors:\n${failures.slice(0, 8).join('\n')}${failures.length > 8 ? '\n…' : ''}`,
+                });
             } else {
-                alert(`Assigned ${ok} student(s) to this class.`);
+                await appSuccess(`Assigned ${ok} student(s) to this class.`);
             }
         } catch (error) {
             console.error('Error assigning students:', error);
-            alert(error.message || 'Could not add students to class');
+            await appError(error.message || 'Could not add students to class');
         } finally {
             setAssigningStudent(false);
         }
@@ -222,7 +226,7 @@ const AdminClassDetail = () => {
 
     const handleRemoveStudent = async (studentProfileId) => {
         if (!studentProfileId) return;
-        if (!window.confirm('Remove this student from the current class?')) return;
+        if (!(await appConfirm('Remove this student from the current class?'))) return;
         try {
             setRemovingStudentId(String(studentProfileId));
             const res = await adminStudentService.updateStudent(studentProfileId, { classCode: '', classId: '' });
@@ -232,7 +236,7 @@ const AdminClassDetail = () => {
             if (sRes.success) setAllStudents(sRes.data || []);
         } catch (error) {
             console.error('Error removing student from class:', error);
-            alert(error.message || 'Could not remove student from class');
+            await appError(error.message || 'Could not remove student from class');
         } finally {
             setRemovingStudentId('');
         }
@@ -240,7 +244,7 @@ const AdminClassDetail = () => {
 
     const handleRemoveTeacher = async (teacherUserId) => {
         if (!teacherUserId) return;
-        if (!window.confirm('Remove this teacher (and their subjects) from the current class?')) return;
+        if (!(await appConfirm('Remove this teacher (and their subjects) from the current class?'))) return;
         try {
             setRemovingTeacherId(String(teacherUserId));
             const res = await adminClassService.removeTeacher(id, teacherUserId);
@@ -250,7 +254,7 @@ const AdminClassDetail = () => {
             await fetchClassDetails();
         } catch (error) {
             console.error('Error removing teacher from class:', error);
-            alert(error.response?.data?.message || error.message || 'Could not remove teacher from class');
+            await appError(error.response?.data?.message || error.message || 'Could not remove teacher from class');
         } finally {
             setRemovingTeacherId('');
         }
@@ -390,10 +394,10 @@ const AdminClassDetail = () => {
             });
             if (!res.success) throw new Error(res.message || 'Failed to update class');
             await fetchClassDetails();
-            alert('Class information updated successfully.');
+            await appSuccess('Class information updated successfully.');
         } catch (error) {
             console.error('Error updating class info:', error);
-            alert(error.response?.data?.message || error.message || 'Could not update class');
+            await appError(error.response?.data?.message || error.message || 'Could not update class');
         } finally {
             setSavingClassInfo(false);
         }
@@ -406,11 +410,11 @@ const AdminClassDetail = () => {
             if (!res.success) throw new Error(res.message || 'Failed to generate account');
             const passcode = res.data?.passcode || '';
             setGeneratedPasscodes((prev) => ({ ...prev, [String(studentProfileId)]: passcode }));
-            alert(`New passcode for ${studentLabel}: ${passcode}`);
+            await appSuccess(`New passcode for ${studentLabel}: ${passcode}`);
             await fetchClassDetails();
         } catch (error) {
             console.error('Error generating student account:', error);
-            alert(error.response?.data?.message || error.message || 'Could not generate account');
+            await appError(error.response?.data?.message || error.message || 'Could not generate account');
         } finally {
             setGeneratingStudentPasscodeFor('');
         }

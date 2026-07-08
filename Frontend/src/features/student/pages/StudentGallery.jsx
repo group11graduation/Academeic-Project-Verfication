@@ -4,6 +4,7 @@ import { ArrowRight, Heart, Loader2, ShieldCheck, TrendingUp, ImageIcon } from '
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
+import ProjectScreenshotLightbox from '../components/ProjectScreenshotLightbox';
 import { BRAND } from '../../../shared/ui/brandTheme';
 import { useShellSearchFilter } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
@@ -48,6 +49,7 @@ const StudentGallery = () => {
     const [categories, setCategories] = useState(['ALL CATEGORIES']);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [lightbox, setLightbox] = useState(null);
     const searchQuery = useShellSearchFilter('Search verified projects…');
 
     useEffect(() => {
@@ -113,15 +115,15 @@ const StudentGallery = () => {
 
     return (
         <StudentPublicShell>
-        <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900 overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
+        <div className="min-h-screen overflow-x-hidden bg-[#f8faff] font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900 dark:bg-[#020617] dark:text-slate-100">
 
             <main className="pt-32 pb-12 px-6 max-w-[1536px] mx-auto">
                 <div className="mb-16">
                     <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#2a3fa4] mb-3">Verified projects</p>
-                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.1] mb-6 tracking-tight">
+                    <h1 className="mb-6 text-4xl font-black leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 md:text-5xl">
                         Approved student <span className="text-[#1D68E3]">submissions</span>
                     </h1>
-                    <p className="text-lg text-slate-500 font-medium max-w-2xl leading-relaxed">
+                    <p className="max-w-2xl text-lg font-medium leading-relaxed text-slate-500 dark:text-slate-300">
                         Top teacher-approved capstone projects from the academic database — each with a description and UI
                         screenshot when the student uploads one.
                     </p>
@@ -136,7 +138,7 @@ const StudentGallery = () => {
                             className={`px-5 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 ${
                                 activeCategory === cat && sortBest
                                     ? 'bg-[#1D68E3] text-white shadow-md shadow-blue-200'
-                                    : 'bg-slate-100/80 text-slate-500 hover:bg-slate-200'
+                                    : 'bg-slate-100/80 text-slate-500 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15'
                             }`}
                         >
                             {cat}
@@ -151,7 +153,7 @@ const StudentGallery = () => {
                         className={`px-5 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2 ${
                             sortBest
                                 ? 'bg-gradient-to-r from-[#2a3fa4] to-[#1D68E3] text-white shadow-md shadow-blue-200'
-                                : 'bg-blue-50 text-[#2a3fa4] hover:bg-blue-100 border border-blue-200'
+                                : 'border border-blue-200 bg-blue-50 text-[#2a3fa4] hover:bg-blue-100 dark:border-blue-400/20 dark:bg-[#111827] dark:text-blue-300 dark:hover:bg-[#1f2937]'
                         }`}
                     >
                         <TrendingUp className="h-3.5 w-3.5" />
@@ -164,14 +166,14 @@ const StudentGallery = () => {
                         <Loader2 className="h-10 w-10 animate-spin text-[#2a3fa4]" />
                     </div>
                 ) : error ? (
-                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-8 text-center text-rose-700 font-semibold">
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-8 text-center font-semibold text-rose-700 dark:border-rose-400/20 dark:bg-rose-950/30 dark:text-rose-200">
                         {error}
                     </div>
                 ) : sortedProjects.length === 0 ? (
-                    <div className="rounded-[24px] border border-slate-200 bg-white px-8 py-16 text-center max-w-xl mx-auto">
+                    <div className="mx-auto max-w-xl rounded-[24px] border border-slate-200 bg-white px-8 py-16 text-center dark:border-white/10 dark:bg-[#111827]">
                         <ShieldCheck className="h-12 w-12 text-[#2a3fa4] mx-auto mb-4" />
-                        <h2 className="text-xl font-black text-slate-900 mb-2">No verified projects yet</h2>
-                        <p className="text-sm text-slate-500 font-medium">
+                        <h2 className="mb-2 text-xl font-black text-slate-900 dark:text-slate-100">No verified projects yet</h2>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">
                             When teachers approve final projects and students upload a UI screenshot, they appear here
                             automatically.
                         </p>
@@ -181,14 +183,31 @@ const StudentGallery = () => {
                         {sortedProjects.map((proj) => {
                             const totalLikes = getProjectLikes(proj);
                             const isLiked = !!likesData[proj.id];
+                            const screenshotUrls =
+                                proj.screenshotUrls?.length > 0
+                                    ? proj.screenshotUrls
+                                    : proj.screenshotUrl
+                                      ? [proj.screenshotUrl]
+                                      : [];
                             return (
                                 <article
                                     key={proj.id}
-                                    className="bg-white rounded-[24px] border border-slate-100 overflow-hidden group hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 flex flex-col h-full"
+                                    className="group flex h-full flex-col overflow-hidden rounded-[24px] border border-slate-100 bg-white transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/50 dark:border-white/10 dark:bg-[#111827] dark:hover:shadow-none"
                                 >
-                                    <Link to={`/gallery/${proj.id}`} className="relative h-[240px] overflow-hidden bg-slate-100 block">
-                                        <ProjectCover project={proj} className="group-hover:scale-[1.02] transition-transform duration-700 ease-out" />
-                                        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-700 shadow-sm">
+                                    <div className="relative h-[240px] overflow-hidden bg-slate-100 dark:bg-[#0f172a]">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                screenshotUrls.length
+                                                    ? setLightbox({ title: proj.title, urls: screenshotUrls })
+                                                    : undefined
+                                            }
+                                            className={`block h-full w-full text-left ${screenshotUrls.length ? 'cursor-zoom-in' : 'cursor-default'}`}
+                                            title={screenshotUrls.length ? 'View screenshots' : undefined}
+                                        >
+                                            <ProjectCover project={proj} className="group-hover:scale-[1.02] transition-transform duration-700 ease-out" />
+                                        </button>
+                                        <div className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-700 shadow-sm backdrop-blur-md dark:bg-[#0b1220]/95 dark:text-slate-100">
                                             {proj.category}
                                         </div>
                                         {proj.teacherScore != null && (
@@ -203,22 +222,22 @@ const StudentGallery = () => {
                                                 toggleLike(proj.id);
                                             }}
                                             className={`absolute top-4 right-4 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] font-black shadow-sm flex items-center gap-1.5 transition-all ${
-                                                isLiked ? 'bg-rose-500 text-white' : 'bg-white/95 text-slate-600'
+                                                isLiked ? 'bg-rose-500 text-white' : 'bg-white/95 text-slate-600 dark:bg-[#0b1220]/95 dark:text-slate-200'
                                             }`}
                                         >
                                             <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
                                             {totalLikes}
                                         </button>
-                                    </Link>
+                                    </div>
                                     <div className="p-8 flex flex-col flex-grow">
-                                        <h3 className="text-2xl font-black text-slate-900 mb-2">{proj.title}</h3>
-                                        <p className="text-sm font-semibold text-slate-500 mb-4">
-                                            By <span className="text-slate-700">{proj.author}</span>
+                                        <h3 className="mb-2 text-2xl font-black text-slate-900 dark:text-slate-100">{proj.title}</h3>
+                                        <p className="mb-4 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                                            By <span className="text-slate-700 dark:text-slate-200">{proj.author}</span>
                                             {proj.subject ? (
-                                                <span className="text-slate-400"> · {proj.subject}</span>
+                                                <span className="text-slate-400 dark:text-slate-500"> · {proj.subject}</span>
                                             ) : null}
                                         </p>
-                                        <p className="text-[15px] text-slate-600 leading-relaxed mb-8 flex-grow line-clamp-4">
+                                        <p className="mb-8 flex-grow line-clamp-4 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
                                             {proj.description}
                                         </p>
                                         {proj.tags?.length > 0 && (
@@ -226,7 +245,7 @@ const StudentGallery = () => {
                                                 {proj.tags.map((tag) => (
                                                     <span
                                                         key={tag}
-                                                        className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] border border-slate-200 px-2.5 py-1 rounded-md"
+                                                        className="rounded-md border border-slate-200 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:border-white/10 dark:text-slate-500"
                                                     >
                                                         {tag}
                                                     </span>
@@ -248,7 +267,7 @@ const StudentGallery = () => {
 
                 {!loading && sortedProjects.length > 0 && (
                     <div className="py-24 text-center">
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-[0.25em]">
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
                             Showing {sortedProjects.length} verified project{sortedProjects.length === 1 ? '' : 's'}
                         </p>
                     </div>
@@ -256,6 +275,14 @@ const StudentGallery = () => {
             </main>
 
             <PublicSiteFooter />
+
+            {lightbox ? (
+                <ProjectScreenshotLightbox
+                    urls={lightbox.urls}
+                    title={lightbox.title}
+                    onClose={() => setLightbox(null)}
+                />
+            ) : null}
         </div>
         </StudentPublicShell>
     );

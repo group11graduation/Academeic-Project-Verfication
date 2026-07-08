@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ChevronRight,
     Edit3,
@@ -174,7 +175,7 @@ const AdminStudentDetail = () => {
             setEditForm(prev => ({ ...prev, photo: imageUrl }));
         } catch (error) {
             console.error("Failed to upload photo:", error);
-            alert("Failed to upload image. Please try again.");
+            await appWarning("Failed to upload image. Please try again.");
         } finally {
             setUploadingPhoto(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -221,14 +222,18 @@ const AdminStudentDetail = () => {
             }
         } catch (err) {
             console.error("Failed to update student", err);
-            alert("Failed to update student details.");
+            await appError("Failed to update student details.");
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleDelete = async () => {
-        if (!window.confirm("Are you sure you want to delete this student profile? This action cannot be undone.")) return;
+        if (!(await appConfirm({
+            message: 'Are you sure you want to delete this student profile? This action cannot be undone.',
+            danger: true,
+            confirmLabel: 'Delete',
+        }))) return;
 
         setIsDeleting(true);
         try {
@@ -236,12 +241,12 @@ const AdminStudentDetail = () => {
             if (response.success) {
                 navigate('/admin/students');
             } else {
-                alert(response.message || "Failed to delete student.");
+                await appError(response.message || "Failed to delete student.");
                 setIsDeleting(false);
             }
         } catch (err) {
             console.error("Failed to delete student", err);
-            alert("An error occurred while deleting the student.");
+            await appError("An error occurred while deleting the student.");
             setIsDeleting(false);
         }
     };
@@ -254,7 +259,7 @@ const AdminStudentDetail = () => {
             window.setTimeout(() => setCopiedPasscode(false), 2000);
         } catch (err) {
             console.error('Failed to copy passcode', err);
-            alert('Failed to copy passcode.');
+            await appError('Failed to copy passcode.');
         }
     };
 

@@ -1,4 +1,4 @@
-import api from '../lib/api';
+import api, { PROPOSAL_AI_SUBMIT_TIMEOUT_MS, UPLOAD_TIMEOUT_MS } from '../lib/api';
 
 const base = '/student';
 
@@ -28,7 +28,8 @@ const studentService = {
     },
 
     submitProposal: async (assignmentId, body) => {
-        const response = await api.post(`${base}/assignments/${assignmentId}/proposals`, body);
+        const timeout = body?.finalize ? PROPOSAL_AI_SUBMIT_TIMEOUT_MS : undefined;
+        const response = await api.post(`${base}/assignments/${assignmentId}/proposals`, body, { timeout });
         return response.data;
     },
 
@@ -49,7 +50,10 @@ const studentService = {
         if (payload?.groupId) fd.append('groupId', payload.groupId);
         fd.append('finalize', payload?.finalize ? 'true' : 'false');
         if (payload?.file) fd.append('proposalFile', payload.file);
-        const response = await api.post(`${base}/assignments/${assignmentId}/proposals`, fd);
+        const timeout = payload?.finalize
+            ? Math.max(PROPOSAL_AI_SUBMIT_TIMEOUT_MS, UPLOAD_TIMEOUT_MS)
+            : UPLOAD_TIMEOUT_MS;
+        const response = await api.post(`${base}/assignments/${assignmentId}/proposals`, fd, { timeout });
         return response.data;
     },
 
