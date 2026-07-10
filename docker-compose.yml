@@ -47,11 +47,12 @@ services:
     image: mongo:latest
     container_name: scholarverify-db
     restart: unless-stopped
-    ports:
-      - "27017:27017"
+    
     environment:
       TZ: UTC
       MONGO_INITDB_DATABASE: academic_verification
+      MONGO_INITDB_ROOT_USERNAME: dbadmin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -120,8 +121,8 @@ services:
       TZ: UTC
 
       # Database (service name `db` resolves on the compose network)
-      MONGO_URI: mongodb://db:27017/academic_verification
-      MONGODB_URI: mongodb://db:27017/academic_verification
+      MONGO_URI: mongodb://dbadmin:${MONGO_ROOT_PASSWORD}@db:27017/academic_verification?authSource=admin
+      MONGODB_URI: mongodb://dbadmin:${MONGO_ROOT_PASSWORD}@db:27017/academic_verification?authSource=admin
 
       # AI service — use Docker DNS hostname, NOT localhost
       AI_SERVICE_URL: http://fastapi-ai:8000
