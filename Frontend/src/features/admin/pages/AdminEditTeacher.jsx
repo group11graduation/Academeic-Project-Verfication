@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, User, ChevronDown, Upload, X, Mail, Phone, ArrowLeft, Loader2 } from 'lucide-react';
-import adminTeacherService from '../../../services/adminTeacherService';
+import adminTeacherService, { resolveUploadUrl } from '../../../services/adminTeacherService';
+import { adminAcademicService } from '../../../services/adminAcademicService';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
+
+function inferFacultyFromDepartment(structure, department) {
+    const dept = String(department || '').trim().toLowerCase();
+    if (!dept) return '';
+    const match = (structure?.faculties || []).find((f) =>
+        (f.departments || []).some((d) => String(d).trim().toLowerCase() === dept)
+    );
+    return match?.name || '';
+}
 
 const AdminEditTeacher = () => {
     const { id } = useParams();
@@ -16,20 +26,36 @@ const AdminEditTeacher = () => {
 
     const [formData, setFormData] = useState({
         name: '',
+        faculty: '',
         department: '',
         email: '',
         phone: '',
         photo: 'https://via.placeholder.com/150'
     });
+    const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
+
+    const facultyOptions = (academicStructure.faculties || []).map((f) => f.name);
+    const departmentOptions = useMemo(() => {
+        const row = (academicStructure.faculties || []).find((f) => f.name === formData.faculty);
+        return row?.departments || [];
+    }, [academicStructure, formData.faculty]);
 
     useEffect(() => {
         const fetchTeacherData = async () => {
             try {
-                const response = await adminTeacherService.getTeacher(id);
+                const [response, structureRes] = await Promise.all([
+                    adminTeacherService.getTeacher(id),
+                    adminAcademicService.getAcademicStructure(),
+                ]);
+                const structure = structureRes.success ? (structureRes.data || { faculties: [] }) : { faculties: [] };
+                setAcademicStructure(structure);
+
                 if (response.success) {
                     const t = response.data;
+                    const faculty = t.faculty || inferFacultyFromDepartment(structure, t.department);
                     setFormData({
                         name: t.name || '',
+                        faculty,
                         department: t.department || '',
                         email: t.email || '',
                         phone: t.phone || '',
@@ -48,7 +74,12 @@ const AdminEditTeacher = () => {
     }, [id]);
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        if (name === 'faculty') {
+            setFormData({ ...formData, faculty: value, department: '' });
+            return;
+        }
+        setFormData({ ...formData, [name]: value });
     };
 
     const handleAddSkill = (skill) => {
@@ -68,7 +99,7 @@ const AdminEditTeacher = () => {
         setUploadingImage(true);
         try {
             const imageUrl = await adminTeacherService.uploadProfileImage(file);
-            setFormData({ ...formData, photo: `http://localhost:5000${imageUrl}` });
+            setFormData({ ...formData, photo: resolveUploadUrl(imageUrl) });
         } catch (error) {
             console.error("Failed to upload image:", error);
             await appWarning("Failed to upload image. Please try again.");
@@ -82,6 +113,10 @@ const AdminEditTeacher = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!formData.faculty || !formData.department) {
+            await appWarning('Please select both faculty and department.');
+            return;
+        }
         setLoading(true);
         try {
             const payload = {
@@ -179,26 +214,45 @@ const AdminEditTeacher = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Faculty Department</label>
+                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Faculty</label>
+                            <div className="relative">
+                                <select
+                                    name="faculty"
+                                    value={formData.faculty}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none"
+                                >
+                                    <option value="" disabled>Select Faculty</option>
+                                    {facultyOptions.map((f) => (
+                                        <option key={f} value={f}>{f}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Department</label>
                             <div className="relative">
                                 <select
                                     name="department"
                                     value={formData.department}
                                     onChange={handleChange}
                                     required
-                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none"
+                                    disabled={!formData.faculty}
+                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none disabled:bg-slate-100 disabled:text-slate-400"
                                 >
                                     <option value="" disabled>Select Department</option>
-                                    <option value="Computer Science">Computer Science</option>
-                                    <option value="Information Technology">Information Technology</option>
-                                    <option value="Mathematics">Mathematics</option>
-                                    <option value="Software Engineering">Software Engineering</option>
-                                    <option value="Data Science">Data Science</option>
-                                    <option value="Cybersecurity">Cybersecurity</option>
+                                    {departmentOptions.map((d) => (
+                                        <option key={d} value={d}>{d}</option>
+                                    ))}
                                 </select>
                                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
                             </div>
                         </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
                         <div>
                             <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Profile Picture & URL</label>
                             <div className="flex items-center gap-4">

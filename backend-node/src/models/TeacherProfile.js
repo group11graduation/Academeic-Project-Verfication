@@ -4,6 +4,7 @@ const teacherProfileSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     employeeId: { type: String, trim: true, unique: true, sparse: true },
+    faculty: { type: String, trim: true, default: '' },
     department: { type: String, trim: true, default: '' },
     phone: { type: String, trim: true, default: '' },
     skills: [{ type: String, trim: true }],

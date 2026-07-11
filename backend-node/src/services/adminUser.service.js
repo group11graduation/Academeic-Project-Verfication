@@ -86,6 +86,7 @@ function formatTeacher(profile) {
     email: u.email,
     username: u.username,
     department: profile.department,
+    faculty: profile.faculty || '',
     teacherId: profile.employeeId,
     employeeId: profile.employeeId,
     phone: profile.phone || '',
@@ -108,6 +109,7 @@ export async function createTeacher(body) {
     name,
     email,
     username,
+    faculty,
     department,
     teacherId,
     employeeId,
@@ -138,6 +140,7 @@ export async function createTeacher(body) {
   const profile = new TeacherProfile({
     user: user._id,
     employeeId: empId || undefined,
+    faculty: faculty?.trim() || '',
     department: department?.trim() || '',
     phone: phone?.trim() || '',
     skills: Array.isArray(skills) ? skills : [],
@@ -162,6 +165,7 @@ export async function updateTeacher(profileId, body) {
   if (body.username !== undefined) u.username = body.username?.trim();
   if (body.photo !== undefined) u.photo = body.photo;
   if (body.isActive !== undefined) u.isActive = body.isActive;
+  if (body.faculty !== undefined) profile.faculty = String(body.faculty).trim();
   if (body.department !== undefined) profile.department = body.department;
   if (body.phone !== undefined) profile.phone = body.phone;
   if (body.skills !== undefined) profile.skills = body.skills;

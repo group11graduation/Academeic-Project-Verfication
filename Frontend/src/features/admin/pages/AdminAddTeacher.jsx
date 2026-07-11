@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, User, Lock, ChevronDown, Upload, Link, X, Mail, Phone, ArrowLeft, Loader2 } from 'lucide-react';
 import adminTeacherService, { resolveUploadUrl } from '../../../services/adminTeacherService';
+import { adminAcademicService } from '../../../services/adminAcademicService';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
 const AdminAddTeacher = () => {
@@ -12,18 +13,45 @@ const AdminAddTeacher = () => {
     const fileInputRef = React.useRef(null);
     const [formData, setFormData] = useState({
         name: '',
+        faculty: '',
         department: '',
         email: '',
         phone: '',
         photo: 'https://via.placeholder.com/150'
     });
+    const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
+
+    useEffect(() => {
+        const loadStructure = async () => {
+            try {
+                const structureRes = await adminAcademicService.getAcademicStructure();
+                if (structureRes.success) {
+                    setAcademicStructure(structureRes.data || { faculties: [] });
+                }
+            } catch (err) {
+                console.error('Failed to load academic structure:', err);
+            }
+        };
+        loadStructure();
+    }, []);
+
+    const facultyOptions = (academicStructure.faculties || []).map((f) => f.name);
+    const departmentOptions = useMemo(() => {
+        const row = (academicStructure.faculties || []).find((f) => f.name === formData.faculty);
+        return row?.departments || [];
+    }, [academicStructure, formData.faculty]);
 
     // Generate a random ID and Passcode on mount
     const [teacherId] = useState(`TC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
     const [passcode] = useState(Math.floor(100000 + Math.random() * 900000).toString());
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        if (name === 'faculty') {
+            setFormData({ ...formData, faculty: value, department: '' });
+            return;
+        }
+        setFormData({ ...formData, [name]: value });
     };
 
     const handleAddSkill = (skill) => {
@@ -58,6 +86,10 @@ const AdminAddTeacher = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!formData.faculty || !formData.department) {
+            await appWarning('Please select both faculty and department.');
+            return;
+        }
         setLoading(true);
         try {
             const payload = {
@@ -133,23 +165,45 @@ const AdminAddTeacher = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Faculty Department</label>
+                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Faculty</label>
+                            <div className="relative">
+                                <select
+                                    name="faculty"
+                                    value={formData.faculty}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                >
+                                    <option value="" disabled>Select Faculty</option>
+                                    {facultyOptions.map((f) => (
+                                        <option key={f} value={f}>{f}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Department</label>
                             <div className="relative">
                                 <select
                                     name="department"
                                     value={formData.department}
                                     onChange={handleChange}
                                     required
-                                    className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                    disabled={!formData.faculty}
+                                    className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none disabled:bg-slate-100/80 disabled:text-slate-400 dark:disabled:bg-slate-800/50"
                                 >
                                     <option value="" disabled>Select Department</option>
-                                    <option value="Computer Science">Computer Science</option>
-                                    <option value="Information Technology">Information Technology</option>
-                                    <option value="Mathematics">Mathematics</option>
+                                    {departmentOptions.map((d) => (
+                                        <option key={d} value={d}>{d}</option>
+                                    ))}
                                 </select>
                                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
                         </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
                         <div>
                             <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Profile Picture</label>
                             <div className="flex items-center gap-4">
