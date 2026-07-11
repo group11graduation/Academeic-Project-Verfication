@@ -455,6 +455,16 @@ export async function listAcademicYears() {
   return AcademicYear.find().sort({ createdAt: -1 }).lean();
 }
 
+function validateAcademicYearDates({ startDate, endDate }) {
+  if (startDate && endDate) {
+    const start = toDayStart(startDate);
+    const end = toDayStart(endDate);
+    if (start != null && end != null && start > end) {
+      throw new Error('Academic year end date must be on or after the start date.');
+    }
+  }
+}
+
 export async function createAcademicYear(body) {
   const payload = {
     label: String(body.label || '').trim(),
@@ -464,18 +474,44 @@ export async function createAcademicYear(body) {
   };
   if (!payload.label) throw new Error('Academic year label is required');
 
-  if (payload.startDate && payload.endDate) {
-    const start = toDayStart(payload.startDate);
-    const end = toDayStart(payload.endDate);
-    if (start != null && end != null && start > end) {
-      throw new Error('Academic year end date must be on or after the start date.');
-    }
-  }
+  validateAcademicYearDates(payload);
 
   if (payload.isCurrent) {
     await AcademicYear.updateMany({}, { $set: { isCurrent: false } });
   }
   const doc = await AcademicYear.create(payload);
+  return doc.toObject();
+}
+
+export async function updateAcademicYear(id, body) {
+  const doc = await AcademicYear.findById(id);
+  if (!doc) {
+    const err = new Error('Academic year not found');
+    err.status = 404;
+    throw err;
+  }
+
+  if (body.label !== undefined) {
+    const label = String(body.label || '').trim();
+    if (!label) throw new Error('Academic year label is required');
+    const duplicate = await AcademicYear.findOne({ label, _id: { $ne: doc._id } }).lean();
+    if (duplicate) throw new Error('An academic year with this label already exists.');
+    doc.label = label;
+  }
+  if (body.startDate !== undefined) doc.startDate = body.startDate || undefined;
+  if (body.endDate !== undefined) doc.endDate = body.endDate || undefined;
+  if (body.isCurrent !== undefined) doc.isCurrent = Boolean(body.isCurrent);
+
+  validateAcademicYearDates({
+    startDate: doc.startDate,
+    endDate: doc.endDate,
+  });
+
+  if (doc.isCurrent) {
+    await AcademicYear.updateMany({ _id: { $ne: doc._id } }, { $set: { isCurrent: false } });
+  }
+
+  await doc.save();
   return doc.toObject();
 }
 
@@ -509,6 +545,48 @@ export async function createSemester(body) {
     startDate: body.startDate || undefined,
     endDate: body.endDate || undefined,
   });
+  await doc.populate('academicYear');
+  const row = doc.toObject();
+  return {
+    ...row,
+    academicYearId: row.academicYear?._id || row.academicYear || null,
+    academicYearLabel: row.academicYear?.label || '',
+  };
+}
+
+export async function updateSemester(id, body) {
+  const doc = await Semester.findById(id);
+  if (!doc) {
+    const err = new Error('Semester not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const academicYearId = body.academicYearId || body.academicYear;
+  if (academicYearId) {
+    const year = await AcademicYear.findById(academicYearId).lean();
+    if (!year) throw new Error('Academic year not found');
+    doc.academicYear = academicYearId;
+  }
+
+  if (body.name !== undefined) {
+    const name = String(body.name || '').trim();
+    if (!name) throw new Error('Semester name is required');
+    doc.name = name;
+  }
+  if (body.order !== undefined) doc.order = Number(body.order) || 0;
+  if (body.startDate !== undefined) doc.startDate = body.startDate || undefined;
+  if (body.endDate !== undefined) doc.endDate = body.endDate || undefined;
+
+  const year = await AcademicYear.findById(doc.academicYear).lean();
+  if (!year) throw new Error('Academic year not found');
+
+  assertSemesterDatesWithinAcademicYear(
+    { startDate: doc.startDate, endDate: doc.endDate },
+    year
+  );
+
+  await doc.save();
   await doc.populate('academicYear');
   const row = doc.toObject();
   return {

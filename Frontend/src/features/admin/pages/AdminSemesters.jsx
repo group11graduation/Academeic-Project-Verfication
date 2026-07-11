@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarRange, Loader2, Plus } from 'lucide-react';
+import { CalendarRange, Check, Edit2, Loader2, Plus, X } from 'lucide-react';
 import { adminAcademicService } from '../../../services/adminAcademicService';
 import { appError, appWarning } from '../../../lib/appDialog';
 
@@ -61,6 +61,10 @@ const AdminSemesters = () => {
     const [submitting, setSubmitting] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showYearForm, setShowYearForm] = useState(false);
+    const [editingYearId, setEditingYearId] = useState('');
+    const [editingSemesterId, setEditingSemesterId] = useState('');
+    const [editingFaculty, setEditingFaculty] = useState(null);
+    const [editingDepartment, setEditingDepartment] = useState(null);
     const [yearSubmitting, setYearSubmitting] = useState(false);
     const [yearForm, setYearForm] = useState({
         label: '',
@@ -145,6 +149,114 @@ const AdminSemesters = () => {
         setDepartmentDrafts((prev) => ({ ...prev, [facultyName]: '' }));
     };
 
+    const handleRenameFaculty = async (oldName, newName) => {
+        const trimmed = String(newName || '').trim();
+        if (!trimmed) {
+            await appWarning('Faculty name is required.');
+            return;
+        }
+        if (trimmed.toLowerCase() === String(oldName).toLowerCase()) {
+            setEditingFaculty(null);
+            return;
+        }
+        const exists = (structure.faculties || []).some(
+            (f) => String(f.name).toLowerCase() === trimmed.toLowerCase() && f.name !== oldName
+        );
+        if (exists) {
+            await appWarning('Faculty already exists.');
+            return;
+        }
+        const next = {
+            faculties: (structure.faculties || []).map((f) =>
+                f.name === oldName ? { ...f, name: trimmed } : f
+            ),
+        };
+        await saveStructure(next);
+        setDepartmentDrafts((prev) => {
+            const nextDrafts = { ...prev };
+            if (Object.prototype.hasOwnProperty.call(nextDrafts, oldName)) {
+                nextDrafts[trimmed] = nextDrafts[oldName];
+                delete nextDrafts[oldName];
+            }
+            return nextDrafts;
+        });
+        setEditingFaculty(null);
+    };
+
+    const handleRenameDepartment = async (facultyName, oldDepartment, newDepartment) => {
+        const trimmed = String(newDepartment || '').trim();
+        if (!trimmed) {
+            await appWarning('Department name is required.');
+            return;
+        }
+        if (trimmed.toLowerCase() === String(oldDepartment).toLowerCase()) {
+            setEditingDepartment(null);
+            return;
+        }
+        const faculty = (structure.faculties || []).find((f) => f.name === facultyName);
+        const departments = Array.isArray(faculty?.departments) ? faculty.departments : [];
+        const exists = departments.some(
+            (d) => String(d).toLowerCase() === trimmed.toLowerCase() && d !== oldDepartment
+        );
+        if (exists) {
+            await appWarning('Department already exists in this faculty.');
+            return;
+        }
+        const next = {
+            faculties: (structure.faculties || []).map((f) => {
+                if (f.name !== facultyName) return f;
+                return {
+                    ...f,
+                    departments: (f.departments || []).map((d) => (d === oldDepartment ? trimmed : d)),
+                };
+            }),
+        };
+        await saveStructure(next);
+        setEditingDepartment(null);
+    };
+
+    const resetYearForm = () => {
+        setYearForm({ label: '', startDate: '', endDate: '', isCurrent: false });
+        setEditingYearId('');
+    };
+
+    const resetSemesterForm = () => {
+        setForm({ name: '', order: 1, startDate: '', endDate: '' });
+        setEditingSemesterId('');
+    };
+
+    const openCreateYearForm = () => {
+        resetYearForm();
+        setShowYearForm(true);
+    };
+
+    const openEditYearForm = (year) => {
+        setEditingYearId(year._id);
+        setYearForm({
+            label: year.label || '',
+            startDate: toDateInputValue(year.startDate),
+            endDate: toDateInputValue(year.endDate),
+            isCurrent: Boolean(year.isCurrent),
+        });
+        setShowYearForm(true);
+    };
+
+    const openCreateSemesterForm = () => {
+        resetSemesterForm();
+        setShowCreateForm(true);
+    };
+
+    const openEditSemesterForm = (semester) => {
+        setEditingSemesterId(semester._id);
+        setForm({
+            name: semester.name || '',
+            order: semester.order ?? 1,
+            startDate: toDateInputValue(semester.startDate),
+            endDate: toDateInputValue(semester.endDate),
+        });
+        setShowCreateForm(true);
+    };
+
     useEffect(() => {
         const init = async () => {
             try {
@@ -186,7 +298,7 @@ const AdminSemesters = () => {
         };
     }, [academicYears, selectedYearId]);
 
-    const handleCreateSemester = async (e) => {
+    const handleSaveSemester = async (e) => {
         e.preventDefault();
         if (!selectedYearId) {
             await appWarning('Please select an academic year first.');
@@ -210,22 +322,24 @@ const AdminSemesters = () => {
                 startDate: form.startDate || undefined,
                 endDate: form.endDate || undefined,
             };
-            const res = await adminAcademicService.createSemester(payload);
-            if (!res.success) throw new Error(res.message || 'Failed to create semester');
+            const res = editingSemesterId
+                ? await adminAcademicService.updateSemester(editingSemesterId, payload)
+                : await adminAcademicService.createSemester(payload);
+            if (!res.success) throw new Error(res.message || `Failed to ${editingSemesterId ? 'update' : 'create'} semester`);
 
-            setForm({ name: '', order: 1, startDate: '', endDate: '' });
+            resetSemesterForm();
             setShowCreateForm(false);
             const listRes = await adminAcademicService.getSemesters(selectedYearId);
             if (listRes.success) setSemesters(listRes.data || []);
         } catch (err) {
             console.error(err);
-            await appError(err.response?.data?.message || err.message || 'Could not create semester');
+            await appError(err.response?.data?.message || err.message || `Could not ${editingSemesterId ? 'update' : 'create'} semester`);
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handleCreateAcademicYear = async (e) => {
+    const handleSaveAcademicYear = async (e) => {
         e.preventDefault();
         if (!yearForm.label.trim()) {
             await appWarning('Academic year label is required.');
@@ -247,20 +361,22 @@ const AdminSemesters = () => {
                 endDate: yearForm.endDate || undefined,
                 isCurrent: Boolean(yearForm.isCurrent),
             };
-            const res = await adminAcademicService.createAcademicYear(payload);
-            if (!res.success) throw new Error(res.message || 'Failed to create academic year');
+            const res = editingYearId
+                ? await adminAcademicService.updateAcademicYear(editingYearId, payload)
+                : await adminAcademicService.createAcademicYear(payload);
+            if (!res.success) throw new Error(res.message || `Failed to ${editingYearId ? 'update' : 'create'} academic year`);
 
             const yearsRes = await adminAcademicService.getAcademicYears();
             if (yearsRes.success) {
                 setAcademicYears(yearsRes.data || []);
-                const newId = res.data?._id;
-                if (newId) setSelectedYearId(newId);
+                const savedId = editingYearId || res.data?._id;
+                if (savedId) setSelectedYearId(savedId);
             }
-            setYearForm({ label: '', startDate: '', endDate: '', isCurrent: false });
+            resetYearForm();
             setShowYearForm(false);
         } catch (err) {
             console.error(err);
-            await appError(err.response?.data?.message || err.message || 'Could not create academic year');
+            await appError(err.response?.data?.message || err.message || `Could not ${editingYearId ? 'update' : 'create'} academic year`);
         } finally {
             setYearSubmitting(false);
         }
@@ -290,7 +406,7 @@ const AdminSemesters = () => {
                 <div className="flex flex-wrap items-center gap-2">
                     <button
                         type="button"
-                        onClick={() => setShowYearForm((v) => !v)}
+                        onClick={openCreateYearForm}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-[#162033]"
                     >
                         <Plus className="h-3.5 w-3.5" />
@@ -308,9 +424,20 @@ const AdminSemesters = () => {
                             </option>
                         ))}
                     </select>
+                    {selectedYear ? (
+                        <button
+                            type="button"
+                            onClick={() => openEditYearForm(selectedYear)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-[#162033]"
+                            title="Edit selected academic year"
+                        >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Edit Year</span>
+                        </button>
+                    ) : null}
                     <button
                         type="button"
-                        onClick={() => setShowCreateForm(true)}
+                        onClick={openCreateSemesterForm}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e56e3] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700"
                     >
                         <Plus className="h-3.5 w-3.5" />
@@ -321,14 +448,19 @@ const AdminSemesters = () => {
 
             {showYearForm && (
                 <form
-                    onSubmit={handleCreateAcademicYear}
+                    onSubmit={handleSaveAcademicYear}
                     className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111827] dark:shadow-none"
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">New Academic Year</h2>
+                        <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">
+                            {editingYearId ? 'Edit Academic Year' : 'New Academic Year'}
+                        </h2>
                         <button
                             type="button"
-                            onClick={() => setShowYearForm(false)}
+                            onClick={() => {
+                                resetYearForm();
+                                setShowYearForm(false);
+                            }}
                             className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-[#162033]"
                         >
                             Close
@@ -380,7 +512,10 @@ const AdminSemesters = () => {
                     <div className="flex items-center justify-end gap-2 pt-1">
                         <button
                             type="button"
-                            onClick={() => setShowYearForm(false)}
+                            onClick={() => {
+                                resetYearForm();
+                                setShowYearForm(false);
+                            }}
                             className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-bold text-slate-600 hover:bg-slate-50"
                         >
                             Cancel
@@ -390,8 +525,8 @@ const AdminSemesters = () => {
                             disabled={yearSubmitting}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e56e3] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                         >
-                            {yearSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                            {yearSubmitting ? 'Creating...' : 'Create Year'}
+                            {yearSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editingYearId ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                            {yearSubmitting ? 'Saving...' : editingYearId ? 'Update Year' : 'Create Year'}
                         </button>
                     </div>
                 </form>
@@ -426,13 +561,96 @@ const AdminSemesters = () => {
                 <div className="space-y-2">
                     {(structure.faculties || []).map((f) => (
                         <div key={f.name} className="rounded-lg border border-slate-200 p-3">
-                            <h3 className="text-[13px] font-black text-slate-900">{f.name}</h3>
+                            <div className="flex items-center justify-between gap-2">
+                                {editingFaculty?.oldName === f.name ? (
+                                    <div className="flex flex-1 items-center gap-2">
+                                        <input
+                                            value={editingFaculty.value}
+                                            onChange={(e) => setEditingFaculty((prev) => ({ ...prev, value: e.target.value }))}
+                                            className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-800"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRenameFaculty(f.name, editingFaculty.value)}
+                                            disabled={structureSaving}
+                                            className="rounded-lg bg-[#1e56e3] p-1.5 text-white hover:bg-blue-700 disabled:opacity-60"
+                                            title="Save faculty name"
+                                        >
+                                            <Check className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingFaculty(null)}
+                                            className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                                            title="Cancel"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <h3 className="text-[13px] font-black text-slate-900">{f.name}</h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingFaculty({ oldName: f.name, value: f.name })}
+                                            className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                                            title="Edit faculty"
+                                        >
+                                            <Edit2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                             <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {(f.departments || []).map((d) => (
-                                    <span key={`${f.name}-${d}`} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                                        {d}
-                                    </span>
-                                ))}
+                                {(f.departments || []).map((d) => {
+                                    const isEditing =
+                                        editingDepartment?.facultyName === f.name && editingDepartment?.oldName === d;
+                                    return isEditing ? (
+                                        <div key={`${f.name}-${d}-edit`} className="inline-flex items-center gap-1">
+                                            <input
+                                                value={editingDepartment.value}
+                                                onChange={(e) =>
+                                                    setEditingDepartment((prev) => ({ ...prev, value: e.target.value }))
+                                                }
+                                                className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRenameDepartment(f.name, d, editingDepartment.value)}
+                                                disabled={structureSaving}
+                                                className="rounded-full bg-[#1e56e3] p-1 text-white hover:bg-blue-700 disabled:opacity-60"
+                                                title="Save department"
+                                            >
+                                                <Check className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingDepartment(null)}
+                                                className="rounded-full border border-slate-200 p-1 text-slate-600 hover:bg-slate-50"
+                                                title="Cancel"
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <span
+                                            key={`${f.name}-${d}`}
+                                            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600"
+                                        >
+                                            {d}
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setEditingDepartment({ facultyName: f.name, oldName: d, value: d })
+                                                }
+                                                className="text-slate-500 hover:text-slate-800"
+                                                title="Edit department"
+                                            >
+                                                <Edit2 className="h-3 w-3" />
+                                            </button>
+                                        </span>
+                                    );
+                                })}
                                 {(f.departments || []).length === 0 && (
                                     <span className="text-[11px] text-slate-500">No departments yet.</span>
                                 )}
@@ -473,9 +691,19 @@ const AdminSemesters = () => {
                             <div key={s._id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                                 <div className="flex items-center justify-between gap-2">
                                     <p className="text-[13px] font-extrabold text-slate-900 truncate">{s.name}</p>
-                                    <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-slate-600 ring-1 ring-slate-200 shrink-0">
-                                        Order {s.order ?? 0}
-                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-slate-600 ring-1 ring-slate-200">
+                                            Order {s.order ?? 0}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => openEditSemesterForm(s)}
+                                            className="rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-100"
+                                            title="Edit semester"
+                                        >
+                                            <Edit2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
                                 <p className="mt-1.5 text-[10px] font-medium text-slate-500">
                                     {s.startDate ? new Date(s.startDate).toLocaleDateString() : 'No start'} -{' '}
@@ -489,14 +717,19 @@ const AdminSemesters = () => {
 
             {showCreateForm && (
                 <form
-                    onSubmit={handleCreateSemester}
+                    onSubmit={handleSaveSemester}
                     className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-black text-slate-900">New Semester Registration</h2>
+                        <h2 className="text-sm font-black text-slate-900">
+                            {editingSemesterId ? 'Edit Semester' : 'New Semester Registration'}
+                        </h2>
                         <button
                             type="button"
-                            onClick={() => setShowCreateForm(false)}
+                            onClick={() => {
+                                resetSemesterForm();
+                                setShowCreateForm(false);
+                            }}
                             className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
                         >
                             Close
@@ -562,7 +795,10 @@ const AdminSemesters = () => {
                     <div className="flex items-center justify-end gap-2 pt-1">
                         <button
                             type="button"
-                            onClick={() => setShowCreateForm(false)}
+                            onClick={() => {
+                                resetSemesterForm();
+                                setShowCreateForm(false);
+                            }}
                             className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-bold text-slate-600 hover:bg-slate-50"
                         >
                             Cancel
@@ -572,8 +808,8 @@ const AdminSemesters = () => {
                             disabled={submitting}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e56e3] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                         >
-                            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                            {submitting ? 'Creating...' : 'Create Semester'}
+                            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editingSemesterId ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                            {submitting ? 'Saving...' : editingSemesterId ? 'Update Semester' : 'Create Semester'}
                         </button>
                     </div>
                 </form>

@@ -59,9 +59,11 @@ router.delete('/subjects/:id', admin.removeSubject);
 
 router.get('/academic-years', admin.listAcademicYears);
 router.post('/academic-years', admin.createAcademicYear);
+router.put('/academic-years/:id', admin.updateAcademicYear);
 
 router.get('/semesters', admin.listSemesters);
 router.post('/semesters', admin.createSemester);
+router.put('/semesters/:id', admin.updateSemester);
 
 router.post('/enrollments', admin.postEnrollment);
 router.patch('/students/:studentUserId/performance', admin.patchPerformance);

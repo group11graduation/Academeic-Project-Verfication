@@ -223,6 +223,11 @@ export const createAcademicYear = asyncHandler(async (req, res) => {
   return success(res, row, 201);
 });
 
+export const updateAcademicYear = asyncHandler(async (req, res) => {
+  const row = await academic.updateAcademicYear(req.params.id, req.body);
+  return success(res, row);
+});
+
 export const listSemesters = asyncHandler(async (req, res) => {
   const academicYearId = req.query.academicYearId;
   const data = await academic.listSemesters(academicYearId);
@@ -232,6 +237,11 @@ export const listSemesters = asyncHandler(async (req, res) => {
 export const createSemester = asyncHandler(async (req, res) => {
   const row = await academic.createSemester(req.body);
   return success(res, row, 201);
+});
+
+export const updateSemester = asyncHandler(async (req, res) => {
+  const row = await academic.updateSemester(req.params.id, req.body);
+  return success(res, row);
 });
 
 /** Enrollment & performance */

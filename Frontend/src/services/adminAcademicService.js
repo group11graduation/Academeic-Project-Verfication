@@ -10,6 +10,10 @@ export const adminAcademicService = {
         const res = await api.post('/admin/academic-years', body);
         return res.data;
     },
+    updateAcademicYear: async (id, body) => {
+        const res = await api.put(`/admin/academic-years/${id}`, body);
+        return res.data;
+    },
     getSemesters: async (academicYearId) => {
         const res = await api.get('/admin/semesters', {
             params: academicYearId ? { academicYearId } : undefined
@@ -18,6 +22,10 @@ export const adminAcademicService = {
     },
     createSemester: async (body) => {
         const res = await api.post('/admin/semesters', body);
+        return res.data;
+    },
+    updateSemester: async (id, body) => {
+        const res = await api.put(`/admin/semesters/${id}`, body);
         return res.data;
     },
     getSettings: async () => {
