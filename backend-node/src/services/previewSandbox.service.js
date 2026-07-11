@@ -27,6 +27,7 @@ import { teacherCanAccessAssignmentReview } from './teacherAssignmentAccess.serv
 import { uploadPath } from '../config/env.js';
 
 const PREVIEW_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STARTUP_TIMEOUT_MS || 600000);
+const PREVIEW_SESSION_PORT_PROBE_MS = Number(process.env.PREVIEW_SESSION_PORT_PROBE_MS || 5_000);
 const PREVIEW_STATIC_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_STATIC_STARTUP_TIMEOUT_MS || 90000);
 const PREVIEW_SPRING_STARTUP_TIMEOUT_MS = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 1800000);
 const PREVIEW_TTL_MS = Number(process.env.PREVIEW_TTL_MS || 1800000);
@@ -983,12 +984,21 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
     const hostPort = Number(session.hostPort);
     if (hostPort > 0) {
       const probeHost = getPreviewProbeHost();
+      const portProbeMs =
+        session.status === 'starting' ? PREVIEW_SESSION_PORT_PROBE_MS : Math.min(PREVIEW_SESSION_PORT_PROBE_MS, 2_000);
       session.portReachable = session.previewUrl
-        ? await dockerOrchestrator.isPreviewPortReachable(session.previewUrl, probeHost, hostPort)
-        : await dockerOrchestrator.isTcpPortOpen(probeHost, hostPort);
+        ? await dockerOrchestrator.waitForHostPortPublished({
+            previewUrl: session.previewUrl,
+            host: probeHost,
+            port: hostPort,
+            timeoutMs: portProbeMs,
+          })
+        : await dockerOrchestrator.pollTcpPortOpen(probeHost, hostPort, { timeoutMs: portProbeMs });
       const apiPort = Number(session.previewApiHostPort);
       if (apiPort > 0) {
-        session.apiPortReachable = await dockerOrchestrator.isTcpPortOpen(probeHost, apiPort);
+        session.apiPortReachable = await dockerOrchestrator.pollTcpPortOpen(probeHost, apiPort, {
+          timeoutMs: portProbeMs,
+        });
       }
       const running = await dockerOrchestrator.isPreviewContainerRunning(
         dockerOrchestrator.containerNameFor(sessionId.toString())

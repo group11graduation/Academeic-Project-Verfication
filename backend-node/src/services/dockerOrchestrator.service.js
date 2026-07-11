@@ -34,6 +34,9 @@ const TEMPLATES_ROOT = path.join(BACKEND_ROOT, 'docker-templates');
 
 const PORT_RANGE_MIN = Number(process.env.PREVIEW_PORT_MIN || 8000);
 const PORT_RANGE_MAX = Number(process.env.PREVIEW_PORT_MAX || 9000);
+const PREVIEW_PORT_PUBLISH_POLL_MS = Number(process.env.PREVIEW_PORT_PUBLISH_POLL_MS || 500);
+const PREVIEW_PORT_PUBLISH_GRACE_MS = Number(process.env.PREVIEW_PORT_PUBLISH_GRACE_MS || 20_000);
+const PREVIEW_STARTUP_POLL_MS = Number(process.env.PREVIEW_STARTUP_POLL_MS || 1000);
 const BUILD_TIMEOUT_MS = Number(process.env.PREVIEW_BUILD_TIMEOUT_MS || 600_000);
 const FLUTTER_BUILD_TIMEOUT_MS = Number(
   process.env.PREVIEW_FLUTTER_BUILD_TIMEOUT_MS || process.env.PREVIEW_BUILD_TIMEOUT_MS || 900_000
@@ -1851,6 +1854,53 @@ export async function isPreviewPortReachable(previewUrl, host, port) {
   return hit.ok;
 }
 
+/**
+ * Poll until the mapped host port accepts traffic. Docker often needs several seconds
+ * to publish -p bindings after `docker run` returns — a single TCP probe is too early.
+ */
+export async function waitForHostPortPublished({
+  previewUrl = '',
+  host,
+  port,
+  timeoutMs = PREVIEW_PORT_PUBLISH_GRACE_MS,
+  pollMs = PREVIEW_PORT_PUBLISH_POLL_MS,
+} = {}) {
+  const parsed = previewUrl ? parseHostPortFromPreviewUrl(previewUrl) : { host: 'localhost', port: 80 };
+  const resolvedHost = host || previewProbeHostname(parsed.host);
+  const resolvedPort = port || parsed.port;
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+
+  while (Date.now() < deadline) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await isPreviewPortReachable(previewUrl, resolvedHost, resolvedPort)) {
+      return true;
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(Math.min(pollMs, remaining));
+  }
+  return false;
+}
+
+/** Poll raw TCP until the port opens or the grace window expires. */
+export async function pollTcpPortOpen(
+  host,
+  port,
+  { timeoutMs = PREVIEW_PORT_PUBLISH_GRACE_MS, pollMs = PREVIEW_PORT_PUBLISH_POLL_MS } = {}
+) {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  while (Date.now() < deadline) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await isTcpPortOpen(host, port)) return true;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(Math.min(pollMs, remaining));
+  }
+  return false;
+}
+
 export async function isPreviewContainerRunning(containerName) {
   try {
     const { stdout } = await runCommand(
@@ -2016,12 +2066,14 @@ export async function waitForPreviewReady({
 } = {}) {
   const nodeTimeout = Number(process.env.PREVIEW_NODE_STARTUP_TIMEOUT_MS || 600_000);
   const springTimeout = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 1_800_000);
-  const effectiveTimeout =
+  const portPublishGraceMs = PREVIEW_PORT_PUBLISH_GRACE_MS;
+  const baseEffectiveTimeout =
     stack === 'java-spring-react'
       ? Math.max(timeoutMs, springTimeout)
       : stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js'
-      ? Math.max(timeoutMs, nodeTimeout)
-      : timeoutMs;
+        ? Math.max(timeoutMs, nodeTimeout)
+        : timeoutMs;
+  const effectiveTimeout = Math.max(baseEffectiveTimeout, portPublishGraceMs);
   const { host, port } = parseHostPortFromPreviewUrl(previewUrl);
   const checkHost = previewProbeHostname(host);
   const apiTarget = apiPreviewUrl ? parseHostPortFromPreviewUrl(apiPreviewUrl) : null;
@@ -2029,6 +2081,33 @@ export async function waitForPreviewReady({
   let sawPortOpen = false;
   let sawApiPortOpen = false;
   let lastLogTail = '';
+
+  async function probeUiPort() {
+    const graceLeft = portPublishGraceMs - (Date.now() - started);
+    if (!sawPortOpen && graceLeft > 0) {
+      return waitForHostPortPublished({
+        previewUrl,
+        host: checkHost,
+        port,
+        timeoutMs: graceLeft,
+        pollMs: PREVIEW_PORT_PUBLISH_POLL_MS,
+      });
+    }
+    return isPreviewPortReachable(previewUrl, checkHost, port);
+  }
+
+  async function probeApiPort() {
+    if (!apiTarget) return false;
+    const apiCheckHost = previewProbeHostname(apiTarget.host);
+    const graceLeft = portPublishGraceMs - (Date.now() - started);
+    if (!sawApiPortOpen && graceLeft > 0) {
+      return pollTcpPortOpen(apiCheckHost, apiTarget.port, {
+        timeoutMs: graceLeft,
+        pollMs: PREVIEW_PORT_PUBLISH_POLL_MS,
+      });
+    }
+    return isTcpPortOpen(apiCheckHost, apiTarget.port);
+  }
 
   while (Date.now() - started < effectiveTimeout) {
     if (containerName) {
@@ -2052,13 +2131,12 @@ export async function waitForPreviewReady({
     }
 
     // eslint-disable-next-line no-await-in-loop
-    let portOpen = await isPreviewPortReachable(previewUrl, checkHost, port);
+    let portOpen = await probeUiPort();
     if (portOpen) sawPortOpen = true;
 
     if (apiTarget) {
-      const apiCheckHost = previewProbeHostname(apiTarget.host);
       // eslint-disable-next-line no-await-in-loop
-      const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
+      const apiOpen = await probeApiPort();
       if (apiOpen) sawApiPortOpen = true;
     }
 
@@ -2093,7 +2171,31 @@ export async function waitForPreviewReady({
     }
 
     // eslint-disable-next-line no-await-in-loop
-    await sleep(Number(process.env.PREVIEW_STARTUP_POLL_MS || 2000));
+    await sleep(PREVIEW_STARTUP_POLL_MS);
+  }
+
+  if (!sawPortOpen) {
+    const graceLeft = portPublishGraceMs - (Date.now() - started);
+    if (graceLeft > 0) {
+      const opened = await waitForHostPortPublished({
+        previewUrl,
+        host: checkHost,
+        port,
+        timeoutMs: graceLeft,
+        pollMs: PREVIEW_PORT_PUBLISH_POLL_MS,
+      });
+      if (opened) {
+        sawPortOpen = true;
+        const probe = await checkPreviewAppHttpReady({
+          previewUrl,
+          apiPreviewUrl,
+          stack,
+        });
+        if (probe.ready) {
+          return { ready: true, reason: probe.reason };
+        }
+      }
+    }
   }
 
   if (apiTarget && !sawApiPortOpen && sawPortOpen) {
