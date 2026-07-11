@@ -30,6 +30,7 @@ import {
     validateStudentImportRows,
 } from '../../../lib/spreadsheetImport';
 import { usePageSearch } from '../../../context/shellSearchContext';
+import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const AdminStudents = () => {
@@ -140,7 +141,7 @@ const AdminStudents = () => {
     const handleCopyPasscode = async (studentId, passcode) => {
         if (!passcode) return;
         try {
-            await navigator.clipboard.writeText(String(passcode));
+            await copyTextToClipboard(passcode);
             setCopiedStudentId(studentId);
             window.setTimeout(() => {
                 setCopiedStudentId((current) => (current === studentId ? '' : current));

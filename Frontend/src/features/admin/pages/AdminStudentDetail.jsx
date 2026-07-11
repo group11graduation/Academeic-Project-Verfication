@@ -26,6 +26,7 @@ import {
 import adminStudentService from '../../../services/adminStudentService';
 import adminClassService from '../../../services/adminClassService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 
 const AdminStudentDetail = () => {
     const { id } = useParams();
@@ -254,7 +255,7 @@ const AdminStudentDetail = () => {
     const handleCopyPasscode = async () => {
         if (!student?.passcode) return;
         try {
-            await navigator.clipboard.writeText(String(student.passcode));
+            await copyTextToClipboard(student.passcode);
             setCopiedPasscode(true);
             window.setTimeout(() => setCopiedPasscode(false), 2000);
         } catch (err) {

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
 import adminClassService from '../../../services/adminClassService';
+import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 import { X, Save } from 'lucide-react';
 
 const AdminTeacherProfile = () => {
@@ -112,7 +113,7 @@ const AdminTeacherProfile = () => {
     const handleCopyPasscode = async () => {
         if (!teacher?.passcode) return;
         try {
-            await navigator.clipboard.writeText(String(teacher.passcode));
+            await copyTextToClipboard(teacher.passcode);
             setCopiedPasscode(true);
             window.setTimeout(() => setCopiedPasscode(false), 2000);
         } catch (error) {

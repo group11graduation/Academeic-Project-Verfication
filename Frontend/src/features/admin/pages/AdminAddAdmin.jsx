@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Copy, Check, Eye, EyeOff, Shield } from 'lucide-react';
 import adminUserService from '../../../services/adminUserService';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
+import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 
 const AdminAddAdmin = () => {
     const navigate = useNavigate();
@@ -32,7 +33,7 @@ const AdminAddAdmin = () => {
     const handleCopyPasscode = async () => {
         if (!form.password) return;
         try {
-            await navigator.clipboard.writeText(String(form.password));
+            await copyTextToClipboard(form.password);
             setCopiedPasscode(true);
             window.setTimeout(() => setCopiedPasscode(false), 2000);
         } catch (err) {

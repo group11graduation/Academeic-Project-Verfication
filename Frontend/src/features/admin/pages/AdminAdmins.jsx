@@ -3,6 +3,7 @@ import { Search, Shield, Loader2, Pencil, Trash2, Plus, Eye, EyeOff, Copy, Check
 import { Link } from 'react-router-dom';
 import adminUserService from '../../../services/adminUserService';
 import { usePageSearch } from '../../../context/shellSearchContext';
+import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 
@@ -102,7 +103,7 @@ const AdminAdmins = () => {
     const handleCopyPasscode = async (adminId, passcode) => {
         if (!passcode) return;
         try {
-            await navigator.clipboard.writeText(String(passcode));
+            await copyTextToClipboard(passcode);
             setCopiedAdminId(adminId);
             window.setTimeout(() => {
                 setCopiedAdminId((current) => (current === adminId ? '' : current));
