@@ -142,7 +142,7 @@ const StudentHomeDashboard = () => {
                         >
                             <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10" />
                             <div className="absolute -right-2 bottom-4 h-12 w-12 rounded-full bg-rose-400/30 blur-sm" />
-                            <img src="/project-verify-logo.png" alt="" className="h-8 w-8 mb-4 object-contain" />
+                            <img src="/project-verify-logo.svg" alt="" className="h-8 w-8 mb-4 object-contain" />
                             <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/70">{PROJECT_NAME}</p>
                             <p className="text-[12px] font-black mt-0.5">{firstName}&apos;s workspace</p>
                             <p className="text-[10px] font-medium text-white/60 mt-2">Academic term {new Date().getFullYear()}</p>

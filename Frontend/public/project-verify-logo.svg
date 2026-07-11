@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Project Verify">
+  <defs>
+    <linearGradient id="shieldFill" x1="32" y1="6" x2="32" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3b57c8"/>
+      <stop offset="1" stop-color="#223688"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M32 6L52 14.5V30.5C52 42.8 43.4 52.9 32 58C20.6 52.9 12 42.8 12 30.5V14.5L32 6Z"
+    fill="url(#shieldFill)"
+    stroke="#ffffff"
+    stroke-width="2.5"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M24.5 31.5L29.5 36.5L40.5 25.5"
+    stroke="#ffffff"
+    stroke-width="3.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path d="M20 28.5L23.5 28.5" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M40.5 28.5L44 28.5" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M20 28.5L23 31.5" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M44 28.5L41 31.5" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

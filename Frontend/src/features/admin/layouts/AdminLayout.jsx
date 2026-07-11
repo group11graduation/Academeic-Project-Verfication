@@ -250,7 +250,7 @@ const AdminLayoutInner = () => {
                             <button
                                 type="button"
                                 onClick={() => navigate('/admin')}
-                                className="mx-2 mb-1.5 mt-3 flex items-center gap-2 rounded-lg bg-white p-2 text-left ring-1 ring-slate-200/80 transition hover:bg-slate-50 dark:bg-[#111827] dark:ring-white/10 dark:hover:bg-[#162033]"
+                                className="mx-2 mb-1.5 mt-3 flex items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:opacity-90"
                             >
                                 <ProjectVerifyLogo size="sm" tagline="Admin console" />
                             </button>
