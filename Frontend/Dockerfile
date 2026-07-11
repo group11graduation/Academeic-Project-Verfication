@@ -15,9 +15,12 @@ FROM base AS release
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./package.json
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 ENV HOST=0.0.0.0
 ENV PORT=4173
+ENV PUBLIC_API_URL=
 EXPOSE 4173
 
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

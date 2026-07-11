@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
+import { assetUrl } from '../../../lib/api';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
@@ -394,7 +395,7 @@ const GroupManagement = () => {
                                             <div className="w-10 h-10 rounded-[12px] bg-slate-50 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 flex items-center justify-center text-[12px] font-black text-slate-700 dark:text-slate-100 shrink-0 overflow-hidden shadow-sm group-hover/member:border-blue-500/20">
                                                 {member.photo && member.photo !== 'default-student.jpg' ? (
                                                     <img
-                                                        src={member.photo.startsWith('http') ? member.photo : `http://localhost:5000/uploads/${member.photo}`}
+                                                        src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)}
                                                         className="w-full h-full object-cover"
                                                         alt=""
                                                     />

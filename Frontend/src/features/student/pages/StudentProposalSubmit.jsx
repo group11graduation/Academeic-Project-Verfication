@@ -349,8 +349,8 @@ const StudentProposalSubmit = () => {
         description,
         features: normalizedFeatures,
     });
-    const showRequirementWarning = inputMode === 'text' && requirementCheck.hasRules && hasAnyTextInput;
-    const canSubmitFinal = !lockedByApproval && beforeDeadline && (inputMode === 'file' || requirementCheck.passed);
+    const showRequirementWarning = requirementCheck.hasRules && hasAnyTextInput && !requirementCheck.passed;
+    const canSubmitFinal = !lockedByApproval && beforeDeadline && requirementCheck.passed;
 
     if (!canEdit) {
         return (
@@ -449,13 +449,7 @@ const StudentProposalSubmit = () => {
                 <p className="text-[12px] text-slate-600 mb-4">{assignment.title}</p>
 
                 {showRequirementWarning && (
-                    <div
-                        className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
-                            requirementCheck.passed
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                : 'border-rose-200 bg-rose-50 text-rose-800'
-                        }`}
-                    >
+                    <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
                         <p className="font-black uppercase tracking-wider text-[11px] mb-1.5">
                             Teacher Requirement Check
                         </p>
@@ -464,43 +458,30 @@ const StudentProposalSubmit = () => {
                                 Requirement: {requirementCheck.requirementText}
                             </p>
                         )}
-                        {requirementCheck.passed ? (
+                        <p className="font-semibold mb-2">
+                            Missing items found. Final submit is disabled until you add them.
+                        </p>
+                        {requirementCheck.missingAllowedTech.length > 0 && (
                             <p className="font-semibold">
-                                Good to submit. Your proposal currently matches teacher requirements.
+                                Missing required technologies: {requirementCheck.missingAllowedTech.join(', ')}
                             </p>
-                        ) : (
-                            <>
-                                <p className="font-semibold mb-2">
-                                    Missing items found. Final submit is disabled until you add them.
-                                </p>
-                                {requirementCheck.missingAllowedTech.length > 0 && (
-                                    <p className="font-semibold">
-                                        Missing required technologies: {requirementCheck.missingAllowedTech.join(', ')}
-                                    </p>
-                                )}
-                                {requirementCheck.missingImplicitTerms.length > 0 && (
-                                    <p className="font-semibold">
-                                        Missing technologies from teacher text:{' '}
-                                        {requirementCheck.missingImplicitTerms.join(', ')}
-                                    </p>
-                                )}
-                                {requirementCheck.missingKeywords.length > 0 && (
-                                    <p className="font-semibold">
-                                        Missing required keywords: {requirementCheck.missingKeywords.join(', ')}
-                                    </p>
-                                )}
-                                {requirementCheck.disallowedMentionedTech.length > 0 && (
-                                    <p className="font-semibold">
-                                        Disallowed technologies detected: {requirementCheck.disallowedMentionedTech.join(', ')}
-                                    </p>
-                                )}
-                            </>
                         )}
-                    </div>
-                )}
-                {inputMode === 'file' && (
-                    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-sm font-semibold">
-                        File mode note: missing-technology pre-check is not shown locally. Requirements will still be enforced by the server after upload.
+                        {requirementCheck.missingImplicitTerms.length > 0 && (
+                            <p className="font-semibold">
+                                Missing technologies from teacher text:{' '}
+                                {requirementCheck.missingImplicitTerms.join(', ')}
+                            </p>
+                        )}
+                        {requirementCheck.missingKeywords.length > 0 && (
+                            <p className="font-semibold">
+                                Missing required keywords: {requirementCheck.missingKeywords.join(', ')}
+                            </p>
+                        )}
+                        {requirementCheck.disallowedMentionedTech.length > 0 && (
+                            <p className="font-semibold">
+                                Disallowed technologies detected: {requirementCheck.disallowedMentionedTech.join(', ')}
+                            </p>
+                        )}
                     </div>
                 )}
 

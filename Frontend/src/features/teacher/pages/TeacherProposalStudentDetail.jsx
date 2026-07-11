@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { useAuth } from '../../../context/authContext';
-import { getApiOrigin } from '../../../lib/api';
+import { getApiOrigin, getApiErrorMessage } from '../../../lib/api';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
 
@@ -460,7 +460,12 @@ const TeacherProposalStudentDetail = () => {
                     },
                 }));
             } else {
-                await appError(data?.error || data?.message || 'Could not start preview');
+                await appError(
+                    getApiErrorMessage(
+                        e,
+                        'Could not start preview. Make sure the backend API is running on port 5000 and Docker Desktop is started.'
+                    )
+                );
             }
         } finally {
             setPreviewBusyId(null);

@@ -1,7 +1,30 @@
 import axios from 'axios';
 import { getApiErrorMessage } from '../shared/utils/apiErrors.js';
 
-const base = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+function resolveApiBase() {
+  if (typeof window !== 'undefined') {
+    const runtime = window.__APP_CONFIG__?.API_URL;
+    if (typeof runtime === 'string' && runtime.trim()) {
+      return runtime.trim().replace(/\/$/, '');
+    }
+  }
+
+  const built = String(import.meta.env.VITE_API_URL || '').trim();
+  const isDockerBuildPlaceholder =
+    built === 'http://localhost:5000' || built === 'http://127.0.0.1:5000';
+
+  if (built && !isDockerBuildPlaceholder) {
+    return built.replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin && import.meta.env.PROD) {
+    return window.location.origin;
+  }
+
+  return built.replace(/\/$/, '') || 'http://localhost:5000';
+}
+
+const base = resolveApiBase();
 
 /** Default for JSON/list requests — fail fast instead of hanging. */
 export const API_TIMEOUT_MS = 12_000;
@@ -65,6 +88,14 @@ api.interceptors.response.use(
 
 export function getApiOrigin() {
   return base.replace(/\/$/, '');
+}
+
+export function assetUrl(path) {
+  const value = String(path || '').trim();
+  if (!value) return '';
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  const origin = getApiOrigin();
+  return value.startsWith('/') ? `${origin}${value}` : `${origin}/${value}`;
 }
 
 export { getApiErrorMessage };

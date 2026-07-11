@@ -27,6 +27,7 @@ import adminStudentService from '../../../services/adminStudentService';
 import adminClassService from '../../../services/adminClassService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
 import { copyTextToClipboard } from '../../../shared/utils/clipboard';
+import { assetUrl } from '../../../lib/api';
 
 const AdminStudentDetail = () => {
     const { id } = useParams();
@@ -172,7 +173,7 @@ const AdminStudentDetail = () => {
         try {
             const response = await adminStudentService.uploadProfileImage(file);
             // Result is usually /uploads/filename
-            const imageUrl = `http://localhost:5000${response}`;
+            const imageUrl = assetUrl(response);
             setEditForm(prev => ({ ...prev, photo: imageUrl }));
         } catch (error) {
             console.error("Failed to upload photo:", error);

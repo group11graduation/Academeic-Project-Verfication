@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
+import { assetUrl } from '../../../lib/api';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
@@ -575,7 +576,7 @@ const ProjectsOverview = () => {
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 flex items-center justify-center overflow-hidden">
                                                                         {student.photo && student.photo !== 'default-student.jpg' ? (
-                                                                            <img src={student.photo.startsWith('http') ? student.photo : `http://localhost:5000/uploads/${student.photo}`} className="w-full h-full object-cover" alt="" />
+                                                                            <img src={assetUrl(student.photo.startsWith('http') ? student.photo : `/uploads/${student.photo}`)} className="w-full h-full object-cover" alt="" />
                                                                         ) : <span className="text-sm font-black text-slate-400 uppercase">{student.name?.[0]}</span>}
                                                                     </div>
                                                                     <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">{student.name || 'Unknown Student'}</span>
@@ -631,7 +632,7 @@ const ProjectsOverview = () => {
                                                         <div key={i} className="flex items-center gap-2">
                                                             <div className="w-6 h-6 rounded-md bg-slate-50 dark:bg-[#0B1120] flex items-center justify-center text-[9px] font-black text-slate-700 dark:text-slate-100 uppercase overflow-hidden border border-slate-100 dark:border-white/5">
                                                                 {member.photo && member.photo !== 'default-student.jpg' ? (
-                                                                    <img src={member.photo.startsWith('http') ? member.photo : `http://localhost:5000/uploads/${member.photo}`} className="w-full h-full object-cover" alt="" />
+                                                                    <img src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)} className="w-full h-full object-cover" alt="" />
                                                                 ) : member.name[0]}
                                                             </div>
                                                             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{member.name}</span>

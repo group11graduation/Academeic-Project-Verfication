@@ -24,7 +24,7 @@ import {
 import { useAuth } from '../../../context/authContext';
 import { PROJECT_NAME, PROJECT_LEGAL_NAME } from '../../../shared/ui/brandTheme';
 import StudentHeader from '../components/StudentHeader';
-import axios from 'axios';
+import api, { assetUrl } from '../../../lib/api';
 
 const StudentProjectDetail = () => {
     const { id } = useParams();
@@ -46,9 +46,7 @@ const StudentProjectDetail = () => {
         
         const fetchProject = async () => {
             try {
-                const response = await axios.get(`http://localhost:5000/api/student/projects/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const response = await api.get(`/student/projects/${id}`);
                 if (response.data.success) {
                     setProject(response.data.data);
                 }
@@ -81,12 +79,7 @@ const StudentProjectDetail = () => {
         formData.append('proposalFile', uploadedFile.file);
 
         try {
-            const response = await axios.post(`http://localhost:5000/api/student/projects/${id}/submit`, formData, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
+            const response = await api.post(`/student/projects/${id}/submit`, formData);
             if (response.data.success) {
                 await appSuccess('Project proposal submitted successfully!');
                 setProject(prev => ({
@@ -177,7 +170,7 @@ const StudentProjectDetail = () => {
                                 </div>
                             ) : (
                                 <a 
-                                    href={`http://localhost:5000${project.documentUrl}`} 
+                                    href={assetUrl(project.documentUrl)} 
                                     download
                                     target="_blank"
                                     rel="noopener noreferrer"
@@ -208,7 +201,7 @@ const StudentProjectDetail = () => {
                                         Status: {project.status}
                                     </div>
                                     <a 
-                                        href={`http://localhost:5000${project.documentUrl}`}
+                                        href={assetUrl(project.documentUrl)}
                                         download
                                         target="_blank"
                                         rel="noopener noreferrer"
@@ -312,7 +305,7 @@ const StudentProjectDetail = () => {
                                 <div key={idx} className="bg-slate-50 rounded-[20px] p-4 flex items-center gap-4 border border-slate-100">
                                     <div className="w-12 h-12 bg-white rounded-xl shadow-sm overflow-hidden flex items-center justify-center font-black text-slate-400 text-lg">
                                         {member.photo && member.photo !== 'default-student.jpg' ? (
-                                            <img src={member.photo.startsWith('http') ? member.photo : `http://localhost:5000/uploads/${member.photo}`} className="w-full h-full object-cover" alt="" />
+                                            <img src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)} className="w-full h-full object-cover" alt="" />
                                         ) : (
                                             member.name[0]
                                         )}
