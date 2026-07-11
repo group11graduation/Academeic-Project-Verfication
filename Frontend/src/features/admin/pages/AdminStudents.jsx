@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     Search,
@@ -15,12 +15,14 @@ import {
     Eye,
     EyeOff,
     Copy,
-    Check
+    Check,
+    User,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import adminStudentService from '../../../services/adminStudentService';
 import adminClassService from '../../../services/adminClassService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+import { resolveUploadUrl } from '../../../services/adminTeacherService';
 import {
     readSpreadsheetFileAsCsvText,
     normalizeStudentImportRow,
@@ -49,6 +51,7 @@ const AdminStudents = () => {
         email: '',
         classId: '',
         faculty: '',
+        photo: '',
     });
     const [editing, setEditing] = useState(false);
     const [editError, setEditError] = useState('');
@@ -58,7 +61,12 @@ const AdminStudents = () => {
         email: '',
         classId: '',
         faculty: '',
+        photo: '',
     });
+    const [uploadingAddPhoto, setUploadingAddPhoto] = useState(false);
+    const [uploadingEditPhoto, setUploadingEditPhoto] = useState(false);
+    const addPhotoInputRef = useRef(null);
+    const editPhotoInputRef = useRef(null);
     const [deletingId, setDeletingId] = useState('');
 
     // Import state
@@ -143,6 +151,74 @@ const AdminStudents = () => {
         }
     };
 
+    const handlePhotoUpload = async (file, mode) => {
+        if (!file) return;
+        const setUploading = mode === 'add' ? setUploadingAddPhoto : setUploadingEditPhoto;
+        const setForm = mode === 'add' ? setAddForm : setEditForm;
+        const inputRef = mode === 'add' ? addPhotoInputRef : editPhotoInputRef;
+
+        setUploading(true);
+        try {
+            const imageUrl = await adminStudentService.uploadProfileImage(file);
+            setForm((prev) => ({ ...prev, photo: resolveUploadUrl(imageUrl) }));
+        } catch (error) {
+            console.error('Failed to upload photo:', error);
+            await appWarning('Failed to upload image. Please try again.');
+        } finally {
+            setUploading(false);
+            if (inputRef.current) inputRef.current.value = '';
+        }
+    };
+
+    const renderPhotoField = ({ form, mode, uploading }) => (
+        <div className="md:col-span-2 lg:col-span-3">
+            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Profile Image</label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="h-14 w-14 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center shrink-0">
+                    {uploading ? (
+                        <Loader2 className="h-5 w-5 text-[#1D68E3] animate-spin" />
+                    ) : form.photo ? (
+                        <img src={form.photo} alt="Student" className="h-full w-full object-cover" />
+                    ) : (
+                        <User className="h-6 w-6 text-slate-400" />
+                    )}
+                </div>
+                <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={mode === 'add' ? addPhotoInputRef : editPhotoInputRef}
+                            onChange={(e) => handlePhotoUpload(e.target.files?.[0], mode)}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => (mode === 'add' ? addPhotoInputRef : editPhotoInputRef).current?.click()}
+                            disabled={uploading}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-[12px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"
+                        >
+                            <Upload className="h-3.5 w-3.5" />
+                            {uploading ? 'Uploading...' : 'Upload Image'}
+                        </button>
+                        <span className="text-[11px] font-medium text-slate-400">or paste image URL</span>
+                    </div>
+                    <input
+                        type="text"
+                        value={form.photo}
+                        onChange={(e) => {
+                            const value = e.target.value;
+                            if (mode === 'add') setAddForm((p) => ({ ...p, photo: value }));
+                            else setEditForm((p) => ({ ...p, photo: value }));
+                        }}
+                        placeholder="https://example.com/photo.jpg"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
+                    />
+                </div>
+            </div>
+        </div>
+    );
+
     const uniqueClasses = [...new Set(students.map((s) => s.classId).filter(Boolean))].sort();
     const uniqueFaculties = [...new Set(students.map((s) => s.academicInfo?.faculty).filter(Boolean))].sort();
 
@@ -192,12 +268,13 @@ const AdminStudents = () => {
                 academicInfo: {
                     faculty: addForm.faculty || selectedClass?.faculty || '',
                 },
+                photo: addForm.photo || undefined,
             };
             const res = await adminStudentService.registerStudent(payload);
             if (!res.success) throw new Error(res.message || 'Failed to add student');
             await loadStudents();
             setMode('list');
-            setAddForm((prev) => ({ ...prev, name: '', email: '' }));
+            setAddForm((prev) => ({ ...prev, name: '', email: '', photo: '' }));
         } catch (err) {
             setAddError(err.response?.data?.message || err.message || 'Failed to add student.');
         } finally {
@@ -213,6 +290,7 @@ const AdminStudents = () => {
             email: student.email || '',
             classId: student.classId || '',
             faculty: student.academicInfo?.faculty || '',
+            photo: student.photo || '',
         });
         setMode('edit');
     };
@@ -234,6 +312,7 @@ const AdminStudents = () => {
                 name: editForm.name.trim(),
                 email: editForm.email.trim(),
                 classId: editForm.classId,
+                photo: editForm.photo || undefined,
                 academicInfo: {
                     faculty: editForm.faculty || classes.find((c) => c.code === editForm.classId)?.faculty || '',
                 },
@@ -462,6 +541,7 @@ const AdminStudents = () => {
                                 ))}
                             </select>
                         </div>
+                        {renderPhotoField({ form: addForm, mode: 'add', uploading: uploadingAddPhoto })}
                         {addError && (
                             <div className="md:col-span-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-semibold text-red-700">
                                 {addError}
@@ -523,6 +603,7 @@ const AdminStudents = () => {
                                 ))}
                             </select>
                         </div>
+                        {renderPhotoField({ form: editForm, mode: 'edit', uploading: uploadingEditPhoto })}
                         {editError && (
                             <div className="md:col-span-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-semibold text-red-700">
                                 {editError}
