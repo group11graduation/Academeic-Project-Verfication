@@ -97,7 +97,7 @@ patch_php_config() {
   echo "[preview] patching PHP config (BASE_URL=${PREVIEW_BASE_URL:-n/a}, DB_HOST=${DB_HOST:-n/a}, DB_NAME=${DB_NAME:-bbms})"
   patch_php_tree "$DOCROOT" 0
   if [ -f "$DOCROOT/setup_db.php" ] && [ -n "$DB_NAME" ]; then
-    sed -i "s|USE[[:space:]]\+[`'\"]\?[A-Za-z0-9_]\+[`'\"]\?[[:space:]]*;|USE ${DB_NAME};|g" "$DOCROOT/setup_db.php" 2>/dev/null || true
+    sed -i "s|USE[[:space:]]\+[\`'\"]\?[A-Za-z0-9_]\+[\`'\"]\?[[:space:]]*;|USE ${DB_NAME};|g" "$DOCROOT/setup_db.php" 2>/dev/null || true
   fi
 }
 
@@ -107,7 +107,7 @@ fix_setup_use_in_script() {
   [ -n "$DB_NAME" ] || return 0
   sed -i "s|exec(\"USE[^\"]*\"|exec(\"USE ${DB_NAME}\"|g" "$script" 2>/dev/null || true
   sed -i "s|exec('USE[^']*'|exec('USE ${DB_NAME}'|g" "$script" 2>/dev/null || true
-  sed -i "s|USE[[:space:]]\+[`'\"]\?[A-Za-z0-9_]\+[`'\"]\?[[:space:]]*;|USE ${DB_NAME};|g" "$script" 2>/dev/null || true
+  sed -i "s|USE[[:space:]]\+[\`'\"]\?[A-Za-z0-9_]\+[\`'\"]\?[[:space:]]*;|USE ${DB_NAME};|g" "$script" 2>/dev/null || true
 }
 
 ensure_preview_database() {
