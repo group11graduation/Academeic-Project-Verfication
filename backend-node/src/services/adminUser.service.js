@@ -268,6 +268,100 @@ export async function getStudentById(id) {
   return formatStudent(profile);
 }
 
+function parseOptionalDate(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatPersonalInfo(profile) {
+  const p = profile.personalInfo || {};
+  return {
+    phone: p.phone || '',
+    dob: p.dob ? new Date(p.dob).toISOString() : null,
+    gender: p.gender || '',
+  };
+}
+
+function formatParentDetails(profile) {
+  const p = profile.parentDetails || {};
+  return {
+    fatherName: p.fatherName || '',
+    fatherContact: p.fatherContact || '',
+    motherName: p.motherName || '',
+    motherContact: p.motherContact || '',
+  };
+}
+
+function formatEducationalBackground(profile) {
+  const e = profile.educationalBackground || {};
+  return {
+    highSchoolName: e.highSchoolName || '',
+    graduationYear: e.graduationYear || '',
+    certificateUrl: e.certificateUrl || '',
+  };
+}
+
+function formatAcademicInfo(profile) {
+  return {
+    faculty: profile.faculty || '',
+    department: profile.department || '',
+    campus: profile.campus || '',
+    studyMode: profile.studyMode || '',
+    entryDate: profile.entryDate ? new Date(profile.entryDate).toISOString() : null,
+  };
+}
+
+function applyStudentExtendedFields(profile, body) {
+  if (body.personalInfo) {
+    const p = body.personalInfo;
+    profile.personalInfo = profile.personalInfo || {};
+    if (p.phone !== undefined) profile.personalInfo.phone = String(p.phone || '').trim();
+    if (p.dob !== undefined) profile.personalInfo.dob = parseOptionalDate(p.dob);
+    if (p.gender !== undefined) profile.personalInfo.gender = String(p.gender || '').trim();
+  }
+
+  if (body.parentDetails) {
+    const p = body.parentDetails;
+    profile.parentDetails = profile.parentDetails || {};
+    if (p.fatherName !== undefined) profile.parentDetails.fatherName = String(p.fatherName || '').trim();
+    if (p.fatherContact !== undefined) {
+      profile.parentDetails.fatherContact = String(p.fatherContact || '').trim();
+    }
+    if (p.motherName !== undefined) profile.parentDetails.motherName = String(p.motherName || '').trim();
+    if (p.motherContact !== undefined) {
+      profile.parentDetails.motherContact = String(p.motherContact || '').trim();
+    }
+  }
+
+  if (body.educationalBackground) {
+    const e = body.educationalBackground;
+    profile.educationalBackground = profile.educationalBackground || {};
+    if (e.highSchoolName !== undefined) {
+      profile.educationalBackground.highSchoolName = String(e.highSchoolName || '').trim();
+    }
+    if (e.graduationYear !== undefined) {
+      profile.educationalBackground.graduationYear = String(e.graduationYear || '').trim();
+    }
+    if (e.certificateUrl !== undefined) {
+      profile.educationalBackground.certificateUrl = String(e.certificateUrl || '').trim();
+    }
+  }
+
+  if (body.academicInfo) {
+    const a = body.academicInfo;
+    if (a.faculty !== undefined) profile.faculty = String(a.faculty).trim();
+    if (a.department !== undefined) profile.department = String(a.department).trim();
+    if (a.campus !== undefined) profile.campus = String(a.campus).trim();
+    if (a.studyMode !== undefined) profile.studyMode = String(a.studyMode).trim();
+    if (a.entryDate !== undefined) profile.entryDate = parseOptionalDate(a.entryDate);
+  }
+
+  if (body.personalInfo) profile.markModified('personalInfo');
+  if (body.parentDetails) profile.markModified('parentDetails');
+  if (body.educationalBackground) profile.markModified('educationalBackground');
+}
+
 function formatStudent(profile) {
   const u = profile.user;
   if (!u) return null;
@@ -283,7 +377,10 @@ function formatStudent(profile) {
     classId: profile.classCode || '',
     classCode: profile.classCode || '',
     faculty: profile.faculty || '',
-    academicInfo: { faculty: profile.faculty || '' },
+    academicInfo: formatAcademicInfo(profile),
+    personalInfo: formatPersonalInfo(profile),
+    parentDetails: formatParentDetails(profile),
+    educationalBackground: formatEducationalBackground(profile),
     currentScore: profile.currentScore,
     currentGpa: profile.currentGpa,
     photo: u.photo || '',
@@ -319,7 +416,7 @@ export async function createStudent(body) {
   }
   const sid = (studentId || '').trim() || (await generateUniqueStudentId());
   const cc = normalizeStudentClassCodeValue(classCode || classId || '');
-  const fac = (faculty || '').trim();
+  const fac = (faculty || body.academicInfo?.faculty || '').trim();
   const user = new User({
     email: email?.toLowerCase()?.trim(),
     username: username?.trim() || sid || email?.split('@')[0],
@@ -336,10 +433,15 @@ export async function createStudent(body) {
     program: program?.trim() || '',
     classCode: cc,
     faculty: fac,
+    department: String(body.academicInfo?.department || body.department || '').trim(),
+    campus: String(body.academicInfo?.campus || body.campus || '').trim(),
+    studyMode: String(body.academicInfo?.studyMode || body.studyMode || '').trim(),
+    entryDate: parseOptionalDate(body.academicInfo?.entryDate ?? body.entryDate),
     currentScore: currentScore != null && currentScore !== '' ? Number(currentScore) : undefined,
     currentGpa: currentGpa != null && currentGpa !== '' ? Number(currentGpa) : undefined,
     handoffPasscode: String(plain),
   });
+  applyStudentExtendedFields(profile, body);
   await profile.save();
   await profile.populate('user');
   return formatStudent(profile);
@@ -367,6 +469,7 @@ export async function updateStudent(profileId, body) {
   else if (body.academicInfo?.faculty !== undefined) {
     profile.faculty = String(body.academicInfo.faculty).trim();
   }
+  applyStudentExtendedFields(profile, body);
   if (body.currentScore !== undefined) {
     profile.currentScore =
       body.currentScore === '' || body.currentScore === null ? undefined : Number(body.currentScore);
@@ -414,6 +517,37 @@ export async function importStudents(rows) {
         username: row.username,
         studentId,
         password: plain,
+        passcode: row.passcode || plain,
+        photo: row.photo || '',
+        classId: row.classId || row.classCode || '',
+        classCode: row.classCode || row.classId || '',
+        faculty: row.faculty || '',
+        program: row.program || '',
+        currentScore: row.currentScore ?? row.score,
+        currentGpa: row.currentGpa ?? row.gpa,
+        personalInfo: {
+          phone: row.phone || '',
+          dob: row.dob || row.dateOfBirth || null,
+          gender: row.gender || '',
+        },
+        parentDetails: {
+          fatherName: row.fatherName || '',
+          fatherContact: row.fatherContact || '',
+          motherName: row.motherName || '',
+          motherContact: row.motherContact || '',
+        },
+        educationalBackground: {
+          highSchoolName: row.highSchoolName || row.highSchool || '',
+          graduationYear: row.graduationYear || '',
+          certificateUrl: row.certificateUrl || '',
+        },
+        academicInfo: {
+          faculty: row.faculty || '',
+          department: row.department || '',
+          campus: row.campus || '',
+          studyMode: row.studyMode || '',
+          entryDate: row.entryDate || null,
+        },
       });
       created.push({
         index: i,
@@ -533,7 +667,20 @@ export async function exportStudentsCsv(filters = {}) {
     'studentId',
     'classCode',
     'faculty',
+    'department',
     'program',
+    'phone',
+    'dob',
+    'gender',
+    'fatherName',
+    'fatherContact',
+    'motherName',
+    'motherContact',
+    'highSchoolName',
+    'graduationYear',
+    'campus',
+    'studyMode',
+    'entryDate',
     'score',
     'gpa',
     'status',
@@ -547,7 +694,20 @@ export async function exportStudentsCsv(filters = {}) {
         csvEscape(student.studentId),
         csvEscape(student.classId || student.classCode),
         csvEscape(student.faculty || student.academicInfo?.faculty),
+        csvEscape(student.academicInfo?.department),
         csvEscape(student.program),
+        csvEscape(student.personalInfo?.phone),
+        csvEscape(student.personalInfo?.dob ? new Date(student.personalInfo.dob).toISOString().split('T')[0] : ''),
+        csvEscape(student.personalInfo?.gender),
+        csvEscape(student.parentDetails?.fatherName),
+        csvEscape(student.parentDetails?.fatherContact),
+        csvEscape(student.parentDetails?.motherName),
+        csvEscape(student.parentDetails?.motherContact),
+        csvEscape(student.educationalBackground?.highSchoolName),
+        csvEscape(student.educationalBackground?.graduationYear),
+        csvEscape(student.academicInfo?.campus),
+        csvEscape(student.academicInfo?.studyMode),
+        csvEscape(student.academicInfo?.entryDate ? new Date(student.academicInfo.entryDate).toISOString().split('T')[0] : ''),
         csvEscape(student.currentScore),
         csvEscape(student.currentGpa),
         csvEscape(student.status),
@@ -596,7 +756,22 @@ export async function exportStudentsXlsx(filters = {}) {
       studentId: student.studentId || '',
       classCode: student.classId || student.classCode || '',
       faculty: student.faculty || student.academicInfo?.faculty || '',
+      department: student.academicInfo?.department || '',
       program: student.program || '',
+      phone: student.personalInfo?.phone || '',
+      dob: student.personalInfo?.dob ? new Date(student.personalInfo.dob).toISOString().split('T')[0] : '',
+      gender: student.personalInfo?.gender || '',
+      fatherName: student.parentDetails?.fatherName || '',
+      fatherContact: student.parentDetails?.fatherContact || '',
+      motherName: student.parentDetails?.motherName || '',
+      motherContact: student.parentDetails?.motherContact || '',
+      highSchoolName: student.educationalBackground?.highSchoolName || '',
+      graduationYear: student.educationalBackground?.graduationYear || '',
+      campus: student.academicInfo?.campus || '',
+      studyMode: student.academicInfo?.studyMode || '',
+      entryDate: student.academicInfo?.entryDate
+        ? new Date(student.academicInfo.entryDate).toISOString().split('T')[0]
+        : '',
       score: student.currentScore ?? '',
       gpa: student.currentGpa ?? '',
       status: student.status || '',

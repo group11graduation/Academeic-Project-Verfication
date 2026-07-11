@@ -1,6 +1,44 @@
 import { StudentProfile } from '../models/StudentProfile.js';
 import * as assignmentStudent from './assignmentStudent.service.js';
 
+function formatPersonalInfo(profile) {
+  const p = profile.personalInfo || {};
+  return {
+    phone: p.phone || '',
+    dob: p.dob ? new Date(p.dob).toISOString() : null,
+    gender: p.gender || '',
+  };
+}
+
+function formatParentDetails(profile) {
+  const p = profile.parentDetails || {};
+  return {
+    fatherName: p.fatherName || '',
+    fatherContact: p.fatherContact || '',
+    motherName: p.motherName || '',
+    motherContact: p.motherContact || '',
+  };
+}
+
+function formatEducationalBackground(profile) {
+  const e = profile.educationalBackground || {};
+  return {
+    highSchoolName: e.highSchoolName || '',
+    graduationYear: e.graduationYear || '',
+    certificateUrl: e.certificateUrl || '',
+  };
+}
+
+function formatAcademicInfo(profile) {
+  return {
+    faculty: profile.faculty || '',
+    department: profile.department || '',
+    campus: profile.campus || '',
+    studyMode: profile.studyMode || '',
+    entryDate: profile.entryDate ? new Date(profile.entryDate).toISOString() : null,
+  };
+}
+
 function countProjectStats(assignments = []) {
   let submitted = 0;
   let pending = 0;
@@ -46,15 +84,10 @@ export async function getProfileForStudent(userId) {
     status: u.isActive === false ? 'INACTIVE' : 'ACTIVE',
     currentScore: profile.currentScore,
     currentGpa: profile.currentGpa,
-    academicInfo: {
-      faculty: profile.faculty || '',
-      campus: '',
-      studyMode: '',
-      entryDate: profile.createdAt || null,
-    },
-    personalInfo: {},
-    parentDetails: {},
-    educationalBackground: {},
+    academicInfo: formatAcademicInfo(profile),
+    personalInfo: formatPersonalInfo(profile),
+    parentDetails: formatParentDetails(profile),
+    educationalBackground: formatEducationalBackground(profile),
     projectStats,
     class: overview.class || null,
     subjects: overview.subjects || [],

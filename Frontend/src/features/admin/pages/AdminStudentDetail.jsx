@@ -29,6 +29,33 @@ import { adminAcademicService } from '../../../services/adminAcademicService';
 import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 import { assetUrl } from '../../../lib/api';
 
+function mapStudentToEditForm(data) {
+    if (!data) return null;
+    return {
+        name: data.name || '',
+        email: data.email || data.userId?.email || '',
+        photo: data.photo || '',
+        classId: data.classId || data.classCode || '',
+        phone: data.personalInfo?.phone || '',
+        dob: data.personalInfo?.dob ? new Date(data.personalInfo.dob).toISOString().split('T')[0] : '',
+        gender: data.personalInfo?.gender || 'Unknown',
+        fatherName: data.parentDetails?.fatherName || '',
+        motherName: data.parentDetails?.motherName || '',
+        fatherContact: data.parentDetails?.fatherContact || '',
+        motherContact: data.parentDetails?.motherContact || '',
+        highSchoolName: data.educationalBackground?.highSchoolName || '',
+        graduationYear: data.educationalBackground?.graduationYear || '',
+        certificateUrl: data.educationalBackground?.certificateUrl || '',
+        faculty: data.academicInfo?.faculty || data.faculty || '',
+        department: data.academicInfo?.department || '',
+        campus: data.academicInfo?.campus || '',
+        studyMode: data.academicInfo?.studyMode || '',
+        entryDate: data.academicInfo?.entryDate
+            ? new Date(data.academicInfo.entryDate).toISOString().split('T')[0]
+            : '',
+    };
+}
+
 const AdminStudentDetail = () => {
     const { id } = useParams();
     const location = useLocation();
@@ -74,27 +101,7 @@ const AdminStudentDetail = () => {
                 const response = await adminStudentService.getStudent(id);
                 if (response.success) {
                     setStudent(response.data);
-                    // Initialize edit form with fetched data
-                    setEditForm({
-                        name: response.data.name || '',
-                        email: response.data.email || response.data.userId?.email || '',
-                        photo: response.data.photo || '',
-                        classId: response.data.classId || '',
-                        phone: response.data.personalInfo?.phone || '',
-                        dob: response.data.personalInfo?.dob ? new Date(response.data.personalInfo.dob).toISOString().split('T')[0] : '',
-                        gender: response.data.personalInfo?.gender || 'Unknown',
-                        fatherName: response.data.parentDetails?.fatherName || '',
-                        motherName: response.data.parentDetails?.motherName || '',
-                        fatherContact: response.data.parentDetails?.fatherContact || '',
-                        motherContact: response.data.parentDetails?.motherContact || '',
-                        highSchoolName: response.data.educationalBackground?.highSchoolName || '',
-                        graduationYear: response.data.educationalBackground?.graduationYear || '',
-                        certificateUrl: response.data.educationalBackground?.certificateUrl || '',
-                        faculty: response.data.academicInfo?.faculty || '',
-                        campus: response.data.academicInfo?.campus || '',
-                        studyMode: response.data.academicInfo?.studyMode || '',
-                        entryDate: response.data.academicInfo?.entryDate ? new Date(response.data.academicInfo.entryDate).toISOString().split('T')[0] : '',
-                    });
+                    setEditForm(mapStudentToEditForm(response.data));
                 } else {
                     setError('Student not found');
                 }
@@ -220,7 +227,9 @@ const AdminStudentDetail = () => {
             const response = await adminStudentService.updateStudent(id, payload);
             if (response.success) {
                 setStudent(response.data);
+                setEditForm(mapStudentToEditForm(response.data));
                 setIsEditing(false);
+                await appSuccess('Student details saved.');
             }
         } catch (err) {
             console.error("Failed to update student", err);

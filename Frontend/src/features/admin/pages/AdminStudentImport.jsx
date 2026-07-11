@@ -73,9 +73,14 @@ const AdminStudentImport = () => {
 
             <h1 className="text-base font-extrabold text-slate-900 tracking-tight mb-1">Import students</h1>
             <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-                Upload CSV/Excel or paste rows below. Header row required. Columns:{' '}
-                <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">name, email, studentId</code>
-                . Login passcode is auto-generated for each student. Assign class and faculty later from the student profile or class roster.
+                Upload CSV/Excel or paste rows below. Header row required. Required columns:{' '}
+                <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">name, email, studentId</code>.
+                Optional columns:{' '}
+                <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
+                    classCode, faculty, phone, dob, gender, highSchoolName, graduationYear, fatherName,
+                    fatherContact, motherName, motherContact, campus, studyMode, entryDate
+                </code>
+                . Login passcode is auto-generated unless you provide passcode/password.
             </p>
 
             <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/60 p-4 space-y-3">

@@ -440,13 +440,12 @@ const AdminStudents = () => {
                             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                             {exporting ? 'Exporting...' : 'Export CSV'}
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setMode('add')}
+                        <Link
+                            to="/admin/students/new"
                             className="inline-flex items-center gap-1.5 bg-[#1D68E3] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
                         >
                             <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Add Student
-                        </button>
+                        </Link>
                         <button
                             type="button"
                             onClick={() => setMode('import')}
@@ -639,7 +638,7 @@ const AdminStudents = () => {
                             value={csvText}
                             onChange={(e) => setCsvText(e.target.value)}
                             rows={8}
-                            placeholder={`name,email,studentId\nDemo Student,demo@student.com,ST-2026-001\n\nOr upload .csv / .xlsx — Excel is parsed automatically.`}
+                            placeholder={`name,email,studentId,classCode,faculty,phone,dob,gender,highSchoolName,graduationYear\nDemo Student,demo@student.com,ST-2026-001,CA229,Engineering,+252610000000,2003-05-25,Male,Jabir School,2022\n\nOr upload .csv / .xlsx — Excel is parsed automatically.`}
                             className="w-full rounded-lg border border-slate-200 dark:border-slate-700 p-3 font-mono text-[12px] text-slate-900 dark:text-slate-100"
                         />
                         {importError && (
