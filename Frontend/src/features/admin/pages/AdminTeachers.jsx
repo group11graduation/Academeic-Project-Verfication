@@ -141,7 +141,6 @@ const AdminTeachers = () => {
                         <div className="p-3 pb-2 flex flex-col flex-1">
                             <div className="mb-2">
                                 <h3 className="text-[13px] font-bold text-[#0F172A] dark:text-slate-100 mb-0.5 line-clamp-1">{teacher.name}</h3>
-                                <p className="text-[10px] font-bold text-[#1D68E3] dark:text-blue-400 uppercase tracking-wide">{teacher.id}</p>
                             </div>
                             <div className="mt-auto">
                                 <p className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1.5">Subjects</p>
