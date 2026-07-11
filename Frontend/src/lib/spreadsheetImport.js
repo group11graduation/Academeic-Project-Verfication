@@ -50,7 +50,86 @@ function canonicalKey(k) {
     return String(k ?? '')
         .trim()
         .toLowerCase()
-        .replace(/[\s_-]+/g, '');
+        .replace(/[^a-z0-9]/g, '');
+}
+
+/** Normalize spreadsheet dates (Excel serials, DD/MM/YYYY, ISO) to YYYY-MM-DD. */
+export function normalizeImportDate(value) {
+    const raw = value;
+    if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+        return raw.toISOString().split('T')[0];
+    }
+
+    const s = String(raw ?? '').trim();
+    if (!s) return '';
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        return s.slice(0, 10);
+    }
+
+    const serial = Number(s);
+    if (/^\d+(\.\d+)?$/.test(s) && serial > 1000 && serial < 100000) {
+        const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000);
+        if (!Number.isNaN(utc.getTime())) {
+            return utc.toISOString().split('T')[0];
+        }
+    }
+
+    const dmy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if (dmy) {
+        const day = Number(dmy[1]);
+        const month = Number(dmy[2]);
+        const year = Number(dmy[3]);
+        const d = new Date(Date.UTC(year, month - 1, day));
+        if (!Number.isNaN(d.getTime())) {
+            return d.toISOString().split('T')[0];
+        }
+    }
+
+    const parsed = new Date(s);
+    if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+    }
+
+    return '';
+}
+
+/** Match spreadsheet columns when headers vary (e.g. "Name of Father", "Father's Name"). */
+function pickFromNormKeys(norm, { include = [], exclude = [] } = {}) {
+    for (const [key, value] of Object.entries(norm || {})) {
+        const text = String(value ?? '').trim();
+        if (!text) continue;
+        if (!include.every((part) => key.includes(part))) continue;
+        if (exclude.some((part) => key.includes(part))) continue;
+        return text;
+    }
+    return '';
+}
+
+function findDobInNorm(norm) {
+    for (const [key, value] of Object.entries(norm || {})) {
+        const text = String(value ?? '').trim();
+        if (!text) continue;
+        if (
+            key === 'dob' ||
+            key.includes('dateofbirth') ||
+            key.includes('birthdate') ||
+            (key.includes('birth') && !key.includes('place') && !key.includes('certificate'))
+        ) {
+            const normalized = normalizeImportDate(text);
+            if (normalized) return normalized;
+        }
+    }
+    return '';
+}
+
+function pickParentContact(norm, parent) {
+    const hints = ['contact', 'phone', 'mobile', 'tel', 'cell', 'number'];
+    for (const hint of hints) {
+        const found = pickFromNormKeys(norm, { include: [parent, hint], exclude: [] });
+        if (found) return found;
+    }
+    return '';
 }
 
 function headerLooksLikeStudentRow(headers) {
@@ -102,21 +181,76 @@ export function normalizeStudentImportRow(raw) {
         department: val('department', 'dept', 'programme'),
         program: val('program', 'major'),
         photo: val('photo', 'photourl', 'image', 'profileimage'),
-        phone: val('phone', 'phonenumber', 'mobile', 'tel', 'telephone'),
-        dob: val('dob', 'dateofbirth', 'birthdate', 'birthday'),
-        dateOfBirth: val('dateofbirth', 'dob', 'birthdate'),
+        phone: val('phone', 'phonenumber', 'mobile', 'tel', 'telephone', 'phoneno'),
+        dob:
+            normalizeImportDate(
+                val(
+                    'dob',
+                    'dateofbirth',
+                    'birthdate',
+                    'birthday',
+                    'datebirth',
+                    'birth',
+                    'studentdob',
+                    'studentdateofbirth'
+                )
+            ) || findDobInNorm(norm),
         gender: val('gender', 'sex'),
-        fatherName: val('fathername', 'father'),
-        fatherContact: val('fathercontact', 'fatherphone', 'fathermobile'),
-        motherName: val('mothername', 'mother'),
-        motherContact: val('mothercontact', 'motherphone', 'mothermobile'),
+        fatherName:
+            val(
+                'fathername',
+                'fathersname',
+                'fatherfullname',
+                'fathersfullname',
+                'nameoffather',
+                'father',
+                'parentfathername',
+                'guardianfather'
+            ) || pickFromNormKeys(norm, { include: ['father'], exclude: ['contact', 'phone', 'mobile', 'tel', 'email', 'number'] }),
+        fatherContact:
+            val(
+                'fathercontact',
+                'fatherscontact',
+                'fatherphone',
+                'fathersphone',
+                'fathermobile',
+                'fathersmobile',
+                'fatherphonenumber',
+                'fatherstel',
+                'fathercell',
+                'fathernumber'
+            ) || pickParentContact(norm, 'father'),
+        motherName:
+            val(
+                'mothername',
+                'mothersname',
+                'motherfullname',
+                'mothersfullname',
+                'nameofmother',
+                'mother',
+                'parentmothername',
+                'guardianmother'
+            ) || pickFromNormKeys(norm, { include: ['mother'], exclude: ['contact', 'phone', 'mobile', 'tel', 'email', 'number'] }),
+        motherContact:
+            val(
+                'mothercontact',
+                'motherscontact',
+                'motherphone',
+                'mothersphone',
+                'mothermobile',
+                'mothersmobile',
+                'motherphonenumber',
+                'motherstel',
+                'mothercell',
+                'mothernumber'
+            ) || pickParentContact(norm, 'mother'),
         highSchoolName: val('highschoolname', 'highschool', 'schoolname'),
         highSchool: val('highschool', 'highschoolname', 'schoolname'),
         graduationYear: val('graduationyear', 'gradyear', 'yearofgraduation'),
         certificateUrl: val('certificateurl', 'certificate'),
         campus: val('campus', 'location'),
         studyMode: val('studymode', 'mode', 'studymethod'),
-        entryDate: val('entrydate', 'enrollmentdate', 'admissiondate'),
+        entryDate: normalizeImportDate(val('entrydate', 'enrollmentdate', 'admissiondate')),
         currentScore: val('score', 'currentscore', 'mark'),
         currentGpa: val('gpa', 'currentgpa', 'cgpa'),
     };
@@ -177,7 +311,7 @@ export async function readSpreadsheetFileAsCsvText(file) {
         const wb = XLSX.read(buf, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         if (!ws) throw new Error('Excel file has no sheets.');
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, dateNF: 'yyyy-mm-dd' });
         if (!rows.length) throw new Error('Excel sheet is empty.');
         const headers = Object.keys(rows[0]);
         const lines = [
@@ -186,7 +320,12 @@ export async function readSpreadsheetFileAsCsvText(file) {
                 headers
                     .map((h) => {
                         const cell = row[h] ?? '';
-                        const s = String(cell).replace(/\r?\n/g, ' ').trim();
+                        let s;
+                        if (cell instanceof Date && !Number.isNaN(cell.getTime())) {
+                            s = cell.toISOString().split('T')[0];
+                        } else {
+                            s = String(cell).replace(/\r?\n/g, ' ').trim();
+                        }
                         if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
                         return s;
                     })

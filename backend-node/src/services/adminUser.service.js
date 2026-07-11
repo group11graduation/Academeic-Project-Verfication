@@ -270,7 +270,32 @@ export async function getStudentById(id) {
 
 function parseOptionalDate(value) {
   if (value === undefined || value === null || value === '') return null;
-  const d = new Date(value);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+  const s = String(value).trim();
+  if (!s) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const d = new Date(`${s.slice(0, 10)}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const serial = Number(s);
+  if (/^\d+(\.\d+)?$/.test(s) && serial > 1000 && serial < 100000) {
+    const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000);
+    return Number.isNaN(utc.getTime()) ? null : utc;
+  }
+
+  const dmy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    const d = new Date(year, month - 1, day);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -511,6 +536,10 @@ export async function importStudents(rows) {
         row.password ||
         row.passcode ||
         String(Math.floor(100000 + Math.random() * 900000));
+      const personalInfo = row.personalInfo || {};
+      const parentDetails = row.parentDetails || {};
+      const educationalBackground = row.educationalBackground || {};
+      const academicInfo = row.academicInfo || {};
       const stu = await createStudent({
         name: row.name,
         email: row.email,
@@ -519,34 +548,34 @@ export async function importStudents(rows) {
         password: plain,
         passcode: row.passcode || plain,
         photo: row.photo || '',
-        classId: row.classId || row.classCode || '',
+        classId: row.classId || row.classCode || academicInfo.classId || '',
         classCode: row.classCode || row.classId || '',
-        faculty: row.faculty || '',
+        faculty: row.faculty || academicInfo.faculty || '',
         program: row.program || '',
         currentScore: row.currentScore ?? row.score,
         currentGpa: row.currentGpa ?? row.gpa,
         personalInfo: {
-          phone: row.phone || '',
-          dob: row.dob || row.dateOfBirth || null,
-          gender: row.gender || '',
+          phone: row.phone || personalInfo.phone || '',
+          dob: row.dob || personalInfo.dob || null,
+          gender: row.gender || personalInfo.gender || '',
         },
         parentDetails: {
-          fatherName: row.fatherName || '',
-          fatherContact: row.fatherContact || '',
-          motherName: row.motherName || '',
-          motherContact: row.motherContact || '',
+          fatherName: row.fatherName || parentDetails.fatherName || '',
+          fatherContact: row.fatherContact || parentDetails.fatherContact || '',
+          motherName: row.motherName || parentDetails.motherName || '',
+          motherContact: row.motherContact || parentDetails.motherContact || '',
         },
         educationalBackground: {
-          highSchoolName: row.highSchoolName || row.highSchool || '',
-          graduationYear: row.graduationYear || '',
-          certificateUrl: row.certificateUrl || '',
+          highSchoolName: row.highSchoolName || row.highSchool || educationalBackground.highSchoolName || '',
+          graduationYear: row.graduationYear || educationalBackground.graduationYear || '',
+          certificateUrl: row.certificateUrl || educationalBackground.certificateUrl || '',
         },
         academicInfo: {
-          faculty: row.faculty || '',
-          department: row.department || '',
-          campus: row.campus || '',
-          studyMode: row.studyMode || '',
-          entryDate: row.entryDate || null,
+          faculty: row.faculty || academicInfo.faculty || '',
+          department: row.department || academicInfo.department || '',
+          campus: row.campus || academicInfo.campus || '',
+          studyMode: row.studyMode || academicInfo.studyMode || '',
+          entryDate: row.entryDate || academicInfo.entryDate || null,
         },
       });
       created.push({

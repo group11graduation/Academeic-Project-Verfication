@@ -26,6 +26,7 @@ import { resolveSpringReactPair, patchSpringForPreview, springReactDisplayLabel 
 import { ensurePreviewDependencyCacheDirs } from './previewWorkspaceCache.service.js';
 import { resolveDockerHostPath } from '../config/dockerPaths.js';
 import { getPreviewProbeHost, previewProbeHostname, rewritePreviewUrlForProbe } from '../config/previewProbe.js';
+import { logger } from '../config/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, '../..');
@@ -150,7 +151,38 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     await fs.cp(fallbackSrc, path.join(stageDir, 'preview-fallback'), { recursive: true });
   }
 
+  if (templateDirName === 'php-apache') {
+    const bootstrapSrc = path.join(templateDir, 'preview-bootstrap.php');
+    if (fsSync.existsSync(bootstrapSrc)) {
+      await fs.copyFile(bootstrapSrc, path.join(stageDir, 'preview-bootstrap.php'));
+    }
+  }
+
   return stageDir;
+}
+
+function previewBaseImageFailureMessage(stack) {
+  const messages = {
+    'php-apache': 'PHP preview is temporarily unavailable',
+    jupyter: 'Jupyter preview is temporarily unavailable',
+    'java-spring-react': 'Spring/React preview is temporarily unavailable',
+    'node-js': 'Node preview is temporarily unavailable',
+    'static-html': 'Static HTML preview is temporarily unavailable',
+    'static-html-js': 'Static HTML preview is temporarily unavailable',
+  };
+  return messages[stack] || 'Project preview is temporarily unavailable';
+}
+
+async function runPreviewBaseImageBuild({ imageTag, stageDir, timeoutMs, label }) {
+  try {
+    await spawnProcess('docker', ['build', '-t', imageTag, '.'], { cwd: stageDir, timeoutMs });
+    return { imageTag, reused: false };
+  } catch (err) {
+    logger.warn(`Preview base image build failed (${label}): ${err.stderr || err.message}`);
+    return { imageTag, reused: false, failed: true, error: err.message };
+  } finally {
+    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 /**
@@ -165,15 +197,12 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
   }
 
   const stageDir = await stagePreviewBaseBuildDir(templateDirName);
-  try {
-    await spawnProcess('docker', ['build', '-t', imageTag, '.'], {
-      cwd: stageDir,
-      timeoutMs: flutterPair ? FLUTTER_BUILD_TIMEOUT_MS : BUILD_TIMEOUT_MS,
-    });
-  } finally {
-    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
-  }
-  return { imageTag, reused: false };
+  return runPreviewBaseImageBuild({
+    imageTag,
+    stageDir,
+    timeoutMs: flutterPair ? FLUTTER_BUILD_TIMEOUT_MS : BUILD_TIMEOUT_MS,
+    label: templateDirName,
+  });
 }
 
 /**
@@ -561,12 +590,12 @@ async function ensurePreviewPhpBaseImage({ forceRebuild = false } = {}) {
     return { imageTag, reused: true };
   }
   const stageDir = await stagePreviewBaseBuildDir('php-apache');
-  try {
-    await spawnProcess('docker', ['build', '-t', imageTag, '.'], { cwd: stageDir, timeoutMs: BUILD_TIMEOUT_MS });
-  } finally {
-    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
-  }
-  return { imageTag, reused: false };
+  return runPreviewBaseImageBuild({
+    imageTag,
+    stageDir,
+    timeoutMs: BUILD_TIMEOUT_MS,
+    label: 'php-apache',
+  });
 }
 
 async function ensurePreviewJavaBaseImage() {
@@ -592,7 +621,8 @@ async function ensurePreviewJavaBaseImage() {
       }
     }
   }
-  throw lastErr;
+  logger.warn(`Preview Java base image pull failed: ${lastErr?.stderr || lastErr?.message}`);
+  return { pulled: false, failed: true, error: lastErr?.message };
 }
 
 async function ensurePreviewSpringReactBaseImage({ forceRebuild = false } = {}) {
@@ -600,17 +630,17 @@ async function ensurePreviewSpringReactBaseImage({ forceRebuild = false } = {}) 
   if (!forceRebuild && (await dockerImageExists(imageTag))) {
     return { imageTag, reused: true };
   }
-  await ensurePreviewJavaBaseImage();
-  const stageDir = await stagePreviewBaseBuildDir('java-spring-react');
-  try {
-    await spawnProcess('docker', ['build', '-t', imageTag, '.'], {
-      cwd: stageDir,
-      timeoutMs: SPRING_BUILD_TIMEOUT_MS,
-    });
-  } finally {
-    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
+  const javaMeta = await ensurePreviewJavaBaseImage();
+  if (javaMeta.failed) {
+    return { imageTag, reused: false, failed: true, error: javaMeta.error };
   }
-  return { imageTag, reused: false };
+  const stageDir = await stagePreviewBaseBuildDir('java-spring-react');
+  return runPreviewBaseImageBuild({
+    imageTag,
+    stageDir,
+    timeoutMs: SPRING_BUILD_TIMEOUT_MS,
+    label: 'java-spring-react',
+  });
 }
 
 async function ensurePreviewJupyterBaseImage({ forceRebuild = false } = {}) {
@@ -619,12 +649,12 @@ async function ensurePreviewJupyterBaseImage({ forceRebuild = false } = {}) {
     return { imageTag, reused: true };
   }
   const stageDir = await stagePreviewBaseBuildDir('jupyter');
-  try {
-    await spawnProcess('docker', ['build', '-t', imageTag, '.'], { cwd: stageDir, timeoutMs: BUILD_TIMEOUT_MS });
-  } finally {
-    await fs.rm(stageDir, { recursive: true, force: true }).catch(() => {});
-  }
-  return { imageTag, reused: false };
+  return runPreviewBaseImageBuild({
+    imageTag,
+    stageDir,
+    timeoutMs: BUILD_TIMEOUT_MS,
+    label: 'jupyter',
+  });
 }
 
 /**
@@ -1686,10 +1716,19 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   let projectMount = null;
   try {
     const baseMeta = await baseMetaPromise;
+    if (baseMeta?.failed) {
+      const err = new Error(previewBaseImageFailureMessage(stack));
+      err.status = 503;
+      throw err;
+    }
     imageTag = baseMeta.imageTag;
     imageReused = Boolean(baseMeta.reused);
     projectMount = buildContext;
   } catch (e) {
+    releaseHostPort(hostPort);
+    if (apiHostPort) releaseHostPort(apiHostPort);
+    await stopPreviewSidecars(projectId).catch(() => {});
+    if (e.status === 503) throw e;
     const err = new Error(`Docker build failed: ${e.stderr || e.message}`);
     err.status = 500;
     throw err;
