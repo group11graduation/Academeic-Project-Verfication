@@ -105,9 +105,41 @@ fix_setup_use_in_script() {
   script="$1"
   [ -f "$script" ] || return 0
   [ -n "$DB_NAME" ] || return 0
+
+  # Literal USE dbname; inside SQL strings (legacy / simple typos)
   sed -i "s|exec(\"USE[^\"]*\"|exec(\"USE ${DB_NAME}\"|g" "$script" 2>/dev/null || true
   sed -i "s|exec('USE[^']*'|exec('USE ${DB_NAME}'|g" "$script" 2>/dev/null || true
   sed -i "s|USE[[:space:]]\+[\`'\"]\?[A-Za-z0-9_]\+[\`'\"]\?[[:space:]]*;|USE ${DB_NAME};|g" "$script" 2>/dev/null || true
+
+  # Broken USE + DB_NAME / $dbname inside ->exec() / ->query() (concat / interpolation typos)
+  fix_use_db_call() {
+    method="$1"
+    # "USE …" . DB_NAME . SOMETHING  →  "USE " . DB_NAME
+    sed -i -E \
+      "s|->${method}\\([[:space:]]*[\"']USE [^\"']*[\"'][[:space:]]*\\.[[:space:]]*DB_NAME[[:space:]]*\\.[[:space:]]*[^)]*\\)|->${method}(\"USE \" . DB_NAME)|g" \
+      "$script" 2>/dev/null || true
+    # "USE anything" . DB_NAME  →  "USE " . DB_NAME
+    sed -i -E \
+      "s|->${method}\\([[:space:]]*[\"']USE [^\"']*[\"'][[:space:]]*\\.[[:space:]]*DB_NAME[[:space:]]*\\)|->${method}(\"USE \" . DB_NAME)|g" \
+      "$script" 2>/dev/null || true
+    # "USE …" . $dbname . SOMETHING  →  "USE " . DB_NAME
+    sed -i -E \
+      "s|->${method}\\([[:space:]]*[\"']USE [^\"']*[\"'][[:space:]]*\\.[[:space:]]*\\\$dbname[[:space:]]*\\.[[:space:]]*[^)]*\\)|->${method}(\"USE \" . DB_NAME)|g" \
+      "$script" 2>/dev/null || true
+    # "USE anything" . $dbname  →  "USE " . DB_NAME
+    sed -i -E \
+      "s|->${method}\\([[:space:]]*[\"']USE [^\"']*[\"'][[:space:]]*\\.[[:space:]]*\\\$dbname[[:space:]]*\\)|->${method}(\"USE \" . DB_NAME)|g" \
+      "$script" 2>/dev/null || true
+    # "USE anything$dbname" / "USE anything$DB_NAME" (double-quoted interpolation)  →  "USE " . DB_NAME
+    sed -i -E \
+      "s|->${method}\\([[:space:]]*[\"']USE [^\"']*\\\$dbname[^\"']*[\"']\\)|->${method}(\"USE \" . DB_NAME)|g" \
+      "$script" 2>/dev/null || true
+    sed -i -E \
+      "s|->${method}\\([[:space:]]*[\"']USE [^\"']*\\\$DB_NAME[^\"']*[\"']\\)|->${method}(\"USE \" . DB_NAME)|g" \
+      "$script" 2>/dev/null || true
+  }
+  fix_use_db_call exec
+  fix_use_db_call query
 }
 
 ensure_preview_database() {
@@ -149,6 +181,40 @@ run_bootstrap_scripts() {
         ;;
     esac
   done
+}
+
+check_bootstrap_tables() {
+  [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || return 0
+  php -r "
+    try {
+      \$host = getenv('DB_HOST');
+      \$db = preg_replace('/[^a-zA-Z0-9_]/', '', getenv('DB_NAME') ?: '');
+      if (!\$db) exit(0);
+      \$user = getenv('DB_USER') ?: 'root';
+      \$pass = getenv('DB_PASS') ?: '';
+      \$pdo = new PDO(
+        'mysql:host=' . \$host . ';dbname=' . \$db,
+        \$user,
+        \$pass,
+        [PDO::ATTR_TIMEOUT => 3]
+      );
+      \$rows = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+      if (count(\$rows) === 0) {
+        fwrite(
+          STDERR,
+          '[preview] WARNING: no tables found in database after bootstrap scripts ran — student'\''s setup script may have failed'
+          . PHP_EOL
+        );
+        exit(0);
+      }
+      echo '[preview] database ' . \$db . ' has ' . count(\$rows) . ' table(s)' . PHP_EOL;
+    } catch (Throwable \$e) {
+      fwrite(
+        STDERR,
+        '[preview] WARNING: could not verify tables after bootstrap: ' . \$e->getMessage() . PHP_EOL
+      );
+    }
+  " || true
 }
 
 wait_for_mysql_server() {
@@ -218,6 +284,7 @@ if [ -n "$DB_HOST" ]; then
   wait_for_mysql_server || true
   ensure_preview_database
   run_bootstrap_scripts
+  check_bootstrap_tables
   wait_for_mysql || true
 fi
 
