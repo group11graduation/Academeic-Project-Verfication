@@ -3,6 +3,7 @@ import fsSync from 'fs';
 import path from 'path';
 import Docker from 'dockerode';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
+import { isProjectStackHint } from '../constants/projectStackHints.js';
 import { getPreviewProbeHost } from '../config/previewProbe.js';
 import * as previewCredentials from './previewCredentials.service.js';
 import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
@@ -594,10 +595,9 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
 
   // Student ZIP hint first, then assignment title — file signals still win when auto-detecting.
   const submissionHint = submission.projectStackHint || null;
-  const stackHint =
-    submissionHint && ['static-html', 'static-html-js'].includes(submissionHint)
-      ? submissionHint
-      : dockerOrchestrator.inferStackHintFromAssignment(assignment);
+  const stackHint = isProjectStackHint(submissionHint)
+    ? submissionHint
+    : dockerOrchestrator.inferStackHintFromAssignment(assignment);
   const memory = Number(process.env.PREVIEW_MEMORY_BYTES || 268435456);
   const nanoCpus = Number(process.env.PREVIEW_NANO_CPUS || 500000000);
   const ttl = PREVIEW_TTL_MS;
@@ -656,9 +656,11 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       }
       appendLog(session, 'info', `Extracted ${extractMeta.fileCount} file(s); running technical audit.`);
 
-      const auditStackHint =
-        submission.projectStackHint ||
-        (stackHint && ['static-html', 'static-html-js'].includes(stackHint) ? stackHint : '');
+      const auditStackHint = isProjectStackHint(submission.projectStackHint)
+        ? submission.projectStackHint
+        : isProjectStackHint(stackHint)
+          ? stackHint
+          : '';
       await executeTechAuditBarrier({
         extractDir,
         submissionId: submission._id,

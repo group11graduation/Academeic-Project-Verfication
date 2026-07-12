@@ -132,6 +132,9 @@ write_mern_backend_env() {
   fi
   jwt="${JWT_SECRET:-preview-sandbox-jwt-secret-change-me}"
   cors="${CORS_ORIGIN:-}"
+  if [ -z "$cors" ] && [ -n "$PREVIEW_PUBLIC_UI_URL" ]; then
+    cors="$PREVIEW_PUBLIC_UI_URL"
+  fi
   if [ -z "$cors" ] && [ -n "$PREVIEW_UI_HOST_PORT" ]; then
     cors="http://localhost:${PREVIEW_UI_HOST_PORT}"
   fi
@@ -364,38 +367,49 @@ run_flutter_web_preview() {
   return 1
 }
 
+preview_api_bundle_url() {
+  if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
+    printf '%s' "$PREVIEW_PUBLIC_API_URL"
+  elif [ -n "$PREVIEW_API_HOST_PORT" ]; then
+    printf 'http://localhost:%s' "$PREVIEW_API_HOST_PORT"
+  fi
+}
+
 patch_built_bundle_urls() {
-  [ -n "$PREVIEW_API_HOST_PORT" ] || return 0
-  echo "[preview] patching API URLs → localhost:${PREVIEW_API_HOST_PORT}"
+  API_URL="$(preview_api_bundle_url)"
+  [ -n "$API_URL" ] || return 0
+  echo "[preview] patching API URLs → ${API_URL}"
   for dir in build dist build/web; do
     root="$(pwd)/$dir"
     [ -d "$root" ] || continue
     find "$root" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.map' \) 2>/dev/null | while read -r f; do
-      sed -i "s|http://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|https://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+      sed -i "s|https://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
     done
   done
 }
 
 patch_source_api_urls() {
-  [ -n "$PREVIEW_API_HOST_PORT" ] || return 0
+  API_URL="$(preview_api_bundle_url)"
+  [ -n "$API_URL" ] || return 0
   find . -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.env' -o -name '*.env.local' \) \
     ! -path './node_modules/*' ! -path './dist/*' ! -path './build/*' 2>/dev/null | while read -r f; do
-      sed -i "s|http://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
     done
 }
 
 run_frontend_preview() {
-  if [ -n "$PREVIEW_API_HOST_PORT" ]; then
-    export VITE_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
-    export REACT_APP_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
-    export VITE_API_BASE_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
+  API_URL="$(preview_api_bundle_url)"
+  if [ -n "$API_URL" ]; then
+    export VITE_API_URL="$API_URL"
+    export REACT_APP_API_URL="$API_URL"
+    export VITE_API_BASE_URL="$API_URL"
     {
-      echo "VITE_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
-      echo "REACT_APP_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
-      echo "VITE_API_BASE_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+      echo "VITE_API_URL=$API_URL"
+      echo "REACT_APP_API_URL=$API_URL"
+      echo "VITE_API_BASE_URL=$API_URL"
       echo "GENERATE_SOURCEMAP=false"
     } > .env.local 2>/dev/null || true
   fi
@@ -523,11 +537,14 @@ if [ "$PREVIEW_MERN_MODE" = "1" ] && [ -n "$BACKEND_SUBDIR" ] && [ -n "$FRONTEND
   start_mern_backend "$BACKEND_SUBDIR" || echo "[preview] ERROR: backend start failed — login will not work until API is up"
   cd "$ROOT/$FRONTEND_SUBDIR" || serve_fallback_forever
   echo "[preview] MERN frontend in $(pwd)"
-  {
-    echo "VITE_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
-    echo "REACT_APP_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
-    echo "VITE_API_BASE_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
-  } > .env.local
+  API_URL="$(preview_api_bundle_url)"
+  if [ -n "$API_URL" ]; then
+    {
+      echo "VITE_API_URL=$API_URL"
+      echo "REACT_APP_API_URL=$API_URL"
+      echo "VITE_API_BASE_URL=$API_URL"
+    } > .env.local
+  fi
   run_frontend_preview || serve_fallback_forever
 fi
 

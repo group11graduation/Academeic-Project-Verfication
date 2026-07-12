@@ -403,7 +403,14 @@ const GroupManagement = () => {
                                                     member.name.split(' ').map(n => n[0]).join('')
                                                 )}
                                             </div>
-                                            <span className="text-[15px] font-bold text-slate-500 dark:text-slate-400 group-hover/member:text-blue-600 dark:group-hover/member:text-blue-400">{member.name}</span>
+                                            <span className="text-[15px] font-bold text-slate-500 dark:text-slate-400 group-hover/member:text-blue-600 dark:group-hover/member:text-blue-400">
+                                                {member.isLeader ? (
+                                                    <span className="mr-2 text-[10px] font-black uppercase tracking-wide text-[#1D68E3] dark:text-blue-400">
+                                                        Leader
+                                                    </span>
+                                                ) : null}
+                                                {member.name}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>

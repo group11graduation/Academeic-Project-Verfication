@@ -109,17 +109,18 @@ export async function resolveFlutterNodePair(buildContext) {
   return { flutterSubdir, backendSubdir: backend.rel };
 }
 
-async function walkPatchDartApi(dir, apiHostPort, depth = 0) {
+async function walkPatchDartApi(dir, targetApiUrl, depth = 0) {
   if (depth > 10) return { files: 0 };
   let files = 0;
-  const toUrl = `http://localhost:${apiHostPort}`;
+  const toUrl = String(targetApiUrl || '').replace(/\/$/, '');
+  if (!toUrl) return { files: 0 };
   const entries = await fs.readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name === '.git' || entry.name === 'build' || entry.name === '.dart_tool') continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       // eslint-disable-next-line no-await-in-loop
-      const sub = await walkPatchDartApi(full, apiHostPort, depth + 1);
+      const sub = await walkPatchDartApi(full, targetApiUrl, depth + 1);
       files += sub.files;
       continue;
     }
@@ -144,9 +145,10 @@ async function walkPatchDartApi(dir, apiHostPort, depth = 0) {
   return { files };
 }
 
-/** Point Flutter API constants at the mapped preview API port on the host. */
-export async function patchFlutterApiPort(buildContext, flutterSubdir, apiHostPort) {
+/** Point Flutter API constants at the mapped preview API URL on the host. */
+export async function patchFlutterApiPort(buildContext, flutterSubdir, apiHostPort, { publicApiUrl } = {}) {
   const root = path.join(buildContext, flutterSubdir);
   if (!(await pathExists(root))) return { files: 0 };
-  return walkPatchDartApi(root, apiHostPort);
+  const targetApiUrl = publicApiUrl || `http://localhost:${apiHostPort}`;
+  return walkPatchDartApi(root, targetApiUrl);
 }

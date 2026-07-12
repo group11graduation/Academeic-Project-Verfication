@@ -50,8 +50,9 @@ const API_URL_LITERALS = [
 /** Any localhost/127.0.0.1 dev API port baked into student source or bundles */
 const LOCALHOST_DEV_ORIGIN_RE = /https?:\/\/(localhost|127\.0\.0\.1):\d+/gi;
 
-function replaceDevApiOrigins(content, apiHostPort) {
-  const toUrl = `http://localhost:${apiHostPort}`;
+function replaceDevApiOrigins(content, targetApiUrl) {
+  const toUrl = String(targetApiUrl || '').replace(/\/$/, '');
+  if (!toUrl) return { content, changed: false };
   let next = content;
   let changed = false;
   for (const from of API_URL_LITERALS) {
@@ -336,7 +337,7 @@ export async function resolveMernPair(buildContext) {
   return null;
 }
 
-async function walkReplaceApiUrl(dir, apiHostPort, depth = 0) {
+async function walkReplaceApiUrl(dir, targetApiUrl, depth = 0) {
   if (depth > 8) return { files: 0 };
   let files = 0;
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -347,7 +348,7 @@ async function walkReplaceApiUrl(dir, apiHostPort, depth = 0) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       // eslint-disable-next-line no-await-in-loop
-      const sub = await walkReplaceApiUrl(full, apiHostPort, depth + 1);
+      const sub = await walkReplaceApiUrl(full, targetApiUrl, depth + 1);
       files += sub.files;
       continue;
     }
@@ -356,11 +357,9 @@ async function walkReplaceApiUrl(dir, apiHostPort, depth = 0) {
     // eslint-disable-next-line no-await-in-loop
     let content = await fs.readFile(full, 'utf8').catch(() => null);
     if (content == null) continue;
-    let changed = false;
-    const replaced = replaceDevApiOrigins(content, apiHostPort);
+    const replaced = replaceDevApiOrigins(content, targetApiUrl);
     content = replaced.content;
-    changed = replaced.changed;
-    if (changed) {
+    if (replaced.changed) {
       // eslint-disable-next-line no-await-in-loop
       await fs.writeFile(full, content, 'utf8');
       files += 1;
@@ -381,7 +380,7 @@ const LOCAL_MONGO_PATTERNS = [
 export async function patchBackendForPreview(
   extractDir,
   backendSubdir,
-  { mongoUri, hostPort, jwtSecret = 'preview-sandbox-jwt-secret-change-me' }
+  { mongoUri, hostPort, publicUiUrl, jwtSecret = 'preview-sandbox-jwt-secret-change-me' }
 ) {
   const backendRoot = path.join(extractDir, backendSubdir);
   if (!(await pathExists(backendRoot))) return { files: 0 };
@@ -411,9 +410,10 @@ export async function patchBackendForPreview(
     'NODE_ENV=development',
     'PREVIEW_SANDBOX=1',
   ];
-  if (hostPort) {
-    previewEnv.push(`CORS_ORIGIN=http://localhost:${hostPort}`);
-    previewEnv.push(`FRONTEND_URL=http://localhost:${hostPort}`);
+  if (publicUiUrl || hostPort) {
+    const corsOrigin = publicUiUrl || `http://localhost:${hostPort}`;
+    previewEnv.push(`CORS_ORIGIN=${corsOrigin}`);
+    previewEnv.push(`FRONTEND_URL=${corsOrigin}`);
   }
   previewEnv.push('');
 
@@ -484,7 +484,7 @@ async function walkRelaxCors(dir, depth = 0) {
   return files;
 }
 
-async function walkReplaceApiUrlInArtifacts(dir, apiHostPort, depth = 0) {
+async function walkReplaceApiUrlInArtifacts(dir, targetApiUrl, depth = 0) {
   if (depth > 10) return { files: 0 };
   let files = 0;
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -492,7 +492,7 @@ async function walkReplaceApiUrlInArtifacts(dir, apiHostPort, depth = 0) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       // eslint-disable-next-line no-await-in-loop
-      const sub = await walkReplaceApiUrlInArtifacts(full, apiHostPort, depth + 1);
+      const sub = await walkReplaceApiUrlInArtifacts(full, targetApiUrl, depth + 1);
       files += sub.files;
       continue;
     }
@@ -501,7 +501,7 @@ async function walkReplaceApiUrlInArtifacts(dir, apiHostPort, depth = 0) {
     // eslint-disable-next-line no-await-in-loop
     let content = await fs.readFile(full, 'utf8').catch(() => null);
     if (content == null) continue;
-    const replaced = replaceDevApiOrigins(content, apiHostPort);
+    const replaced = replaceDevApiOrigins(content, targetApiUrl);
     if (replaced.changed) {
       // eslint-disable-next-line no-await-in-loop
       await fs.writeFile(full, replaced.content, 'utf8');
@@ -511,32 +511,34 @@ async function walkReplaceApiUrlInArtifacts(dir, apiHostPort, depth = 0) {
   return { files };
 }
 
-export async function patchFrontendApiPort(extractDir, frontendSubdir, apiHostPort) {
+export async function patchFrontendApiPort(extractDir, frontendSubdir, apiHostPort, { publicApiUrl } = {}) {
   const frontendRoot = path.join(extractDir, frontendSubdir);
   if (!(await pathExists(frontendRoot))) return { files: 0 };
 
+  const targetApiUrl = publicApiUrl || `http://localhost:${apiHostPort}`;
+
   const envLocal = path.join(frontendRoot, '.env.local');
   const envBlock = [
-    '# ScholarVerify preview — API on dedicated host port',
-    `VITE_API_URL=http://localhost:${apiHostPort}`,
-    `REACT_APP_API_URL=http://localhost:${apiHostPort}`,
-    `VITE_API_BASE_URL=http://localhost:${apiHostPort}`,
-    `NEXT_PUBLIC_API_URL=http://localhost:${apiHostPort}`,
-    `NUXT_PUBLIC_API_URL=http://localhost:${apiHostPort}`,
+    '# ScholarVerify preview — API reachable from teacher browser',
+    `VITE_API_URL=${targetApiUrl}`,
+    `REACT_APP_API_URL=${targetApiUrl}`,
+    `VITE_API_BASE_URL=${targetApiUrl}`,
+    `NEXT_PUBLIC_API_URL=${targetApiUrl}`,
+    `NUXT_PUBLIC_API_URL=${targetApiUrl}`,
     '',
   ].join('\n');
   if (await pathExists(path.join(frontendRoot, 'package.json'))) {
     await fs.writeFile(envLocal, envBlock, 'utf8');
   }
 
-  const replaced = await walkReplaceApiUrl(frontendRoot, apiHostPort);
+  const replaced = await walkReplaceApiUrl(frontendRoot, targetApiUrl);
   let artifactFiles = 0;
   for (const artifactDir of ['build', 'dist']) {
     const abs = path.join(frontendRoot, artifactDir);
     // eslint-disable-next-line no-await-in-loop
     if (await pathExists(abs)) {
       // eslint-disable-next-line no-await-in-loop
-      const patched = await walkReplaceApiUrlInArtifacts(abs, apiHostPort);
+      const patched = await walkReplaceApiUrlInArtifacts(abs, targetApiUrl);
       artifactFiles += patched.files;
     }
   }

@@ -635,7 +635,14 @@ const ProjectsOverview = () => {
                                                                     <img src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)} className="w-full h-full object-cover" alt="" />
                                                                 ) : member.name[0]}
                                                             </div>
-                                                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{member.name}</span>
+                                                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                                                                {member.isLeader ? (
+                                                                    <span className="mr-1.5 text-[10px] font-black uppercase tracking-wide text-[#1D68E3] dark:text-blue-400">
+                                                                        Leader
+                                                                    </span>
+                                                                ) : null}
+                                                                {member.name}
+                                                            </span>
                                                         </div>
                                                     ))}
                                                     {group.members.length > 3 && (

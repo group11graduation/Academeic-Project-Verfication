@@ -9,7 +9,7 @@ import { Proposal } from '../models/Proposal.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { LegacyProject } from '../models/LegacyProject.js';
 import { toProjectSubmissionClient } from './projectSubmissionSummary.service.js';
-import { countClassRosterStudents, syncAssignmentGroupsFromClassTemplates, memberSetKeyFromGroupLean, classTemplateDuplicatesAssignmentGroup } from './teacherClassGroups.service.js';
+import { countClassRosterStudents, syncAssignmentGroupsFromClassTemplates, memberSetKeyFromGroupLean, classTemplateDuplicatesAssignmentGroup, mapGroupMembersForTeacherCard } from './teacherClassGroups.service.js';
 import {
   distinctAssignmentIdsForTeacher,
   findAssignmentVisibleToTeacher,
@@ -768,17 +768,7 @@ export async function listAllGroupsForTeacher(teacherId) {
 
     const classCode = clsMeta.code || clsMeta.name || 'CLASS';
     const bucket = ensureBucket(classCode, clsMeta.name || classCode);
-    const members = [
-      group.leader ? { ...group.leader, user: group.leader } : null,
-      ...(group.members || []).map((m) => ({ ...(m.user || {}), user: m.user })),
-    ]
-      .filter(Boolean)
-      .map((member) => ({
-        _id: member._id || member.user?._id || member.user,
-        name: member.name || 'Student',
-        photo: member.photo || '',
-        studentId: studentIdByUser.get(String(member._id || member.user?._id || member.user)) || '',
-      }));
+    const members = mapGroupMembersForTeacherCard(group, studentIdByUser);
     bucket.projects.push({
       _id: group._id,
       title: group.name || 'Class team',
@@ -807,15 +797,7 @@ export async function listAllGroupsForTeacher(teacherId) {
     }
     const bucket = ensureBucket(classCode, assignment.class?.name || classCode);
     const proposal = proposalByGroup.get(String(group._id));
-    const members = [
-      group.leader ? { ...group.leader, user: group.leader } : null,
-      ...(group.members || []).map((m) => ({ ...(m.user || {}), user: m.user })),
-    ].filter(Boolean).map((member) => ({
-      _id: member._id || member.user?._id || member.user,
-      name: member.name || 'Student',
-      photo: member.photo || '',
-      studentId: studentIdByUser.get(String(member._id || member.user?._id || member.user)) || '',
-    }));
+    const members = mapGroupMembersForTeacherCard(group, studentIdByUser);
     const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
     bucket.projects.push({
       _id: group._id,
@@ -1001,15 +983,7 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
     ? await StudentProfile.find({ user: { $in: memberUserIds } }).select('user studentId').lean()
     : [];
   const studentIdByUser = new Map(profiles.map((p) => [String(p.user), p.studentId || '']));
-  const members = [
-    group.leader ? { ...(group.leader.toObject ? group.leader.toObject() : group.leader) } : null,
-    ...(group.members || []).map((m) => (m.user?.toObject ? m.user.toObject() : m.user)),
-  ].filter(Boolean).map((member) => ({
-    _id: member._id,
-    name: member.name || 'Student',
-    photo: member.photo || '',
-    studentId: studentIdByUser.get(String(member._id)) || '',
-  }));
+  const members = mapGroupMembersForTeacherCard(group, studentIdByUser);
 
   if (group.assignment) {
     if (!group.assignment?.teacher?.equals?.(teacherId) && String(group.assignment?.teacher) !== String(teacherId)) {

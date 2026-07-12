@@ -58,6 +58,125 @@ function normalizeFeatures(features) {
     .sort();
 }
 
+function collectRequirementIssueLabels(requirementCheck) {
+  if (!requirementCheck || requirementCheck.passed) return [];
+  const labels = [];
+  for (const term of requirementCheck.missingImplicitTerms || []) {
+    labels.push(`Missing from teacher text: ${term}`);
+  }
+  for (const term of requirementCheck.missingAllowedTech || []) {
+    labels.push(`Missing required technology: ${term}`);
+  }
+  for (const term of requirementCheck.missingKeywords || []) {
+    labels.push(`Missing keyword: ${term}`);
+  }
+  for (const term of requirementCheck.disallowedMentionedTech || []) {
+    labels.push(`Disallowed technology: ${term}`);
+  }
+  if (!labels.length && requirementCheck.summary) {
+    labels.push(requirementCheck.summary);
+  }
+  return labels;
+}
+
+function buildSubmissionHistoryEntry(proposal, { outcome, requirementCheck, aiResult = null, contentChanged = true }) {
+  const previous = Array.isArray(proposal?.submissionHistory)
+    ? proposal.submissionHistory[proposal.submissionHistory.length - 1]
+    : null;
+  const resolvedRequirementIssues = [];
+  if (previous && previous.requirementCheckPassed === false && requirementCheck?.passed) {
+    const prevIssues = [
+      ...(previous.requirementMissingImplicitTerms || []),
+      ...(previous.requirementMissingAllowedTech || []),
+      ...(previous.requirementMissingKeywords || []),
+    ].map((x) => String(x || '').trim()).filter(Boolean);
+    resolvedRequirementIssues.push(...prevIssues);
+  }
+
+  return {
+    attemptedAt: new Date(),
+    outcome: String(outcome || ''),
+    contentChanged: contentChanged !== false,
+    requirementCheckPassed: requirementCheck?.passed !== false,
+    requirementCheckSummary: requirementCheck?.summary || '',
+    requirementMissingKeywords: requirementCheck?.missingKeywords || [],
+    requirementMissingAllowedTech: requirementCheck?.missingAllowedTech || [],
+    requirementMissingImplicitTerms: requirementCheck?.missingImplicitTerms || [],
+    requirementDisallowedTech: requirementCheck?.disallowedMentionedTech || [],
+    resolvedRequirementIssues,
+    aiSameSemesterMaxScore:
+      aiResult?.same_semester_max != null ? Number(aiResult.same_semester_max) : undefined,
+    aiPreviousSemesterMaxScore:
+      aiResult?.legacy_max != null ? Number(aiResult.legacy_max) : undefined,
+    aiVerdict: aiResult?.verdict ? String(aiResult.verdict) : '',
+  };
+}
+
+function appendSubmissionHistory(proposal, entry, maxEntries = 24) {
+  if (!Array.isArray(proposal.submissionHistory)) proposal.submissionHistory = [];
+  proposal.submissionHistory.push(entry);
+  if (proposal.submissionHistory.length > maxEntries) {
+    proposal.submissionHistory = proposal.submissionHistory.slice(-maxEntries);
+  }
+}
+
+export function bootstrapSubmissionHistoryFromProposal(proposal) {
+  const stored = Array.isArray(proposal?.submissionHistory) ? [...proposal.submissionHistory] : [];
+  if (stored.length) {
+    return stored.sort((a, b) => new Date(a.attemptedAt) - new Date(b.attemptedAt));
+  }
+  const status = String(proposal?.status || '');
+  if (!status || status === 'draft') return [];
+  return [
+    {
+      attemptedAt: proposal.submittedAt || proposal.updatedAt || new Date(),
+      outcome: status,
+      contentChanged: true,
+      requirementCheckPassed: proposal.requirementCheckPassed !== false,
+      requirementCheckSummary: proposal.requirementCheckSummary || '',
+      requirementMissingKeywords: proposal.requirementMissingKeywords || [],
+      requirementMissingAllowedTech: [],
+      requirementMissingImplicitTerms: [],
+      requirementDisallowedTech: [],
+      resolvedRequirementIssues: [],
+      aiSameSemesterMaxScore: proposal.aiSameSemesterMaxScore,
+      aiPreviousSemesterMaxScore: proposal.aiPreviousSemesterMaxScore,
+      aiVerdict: '',
+    },
+  ];
+}
+
+export function summarizeSubmissionHistoryForTeacher(proposal) {
+  const history = bootstrapSubmissionHistoryFromProposal(proposal);
+  const latest = history[history.length - 1] || null;
+  const requirementFailures = history.filter((h) => h.requirementCheckPassed === false);
+  const hadRequirementFailure = requirementFailures.length > 0;
+  const latestRequirementPassed = latest?.requirementCheckPassed !== false;
+  const resolvedAfterFailure =
+    hadRequirementFailure && latestRequirementPassed && latest?.outcome === 'pending_teacher_approval';
+  const latestIssues = latest ? collectRequirementIssueLabels({
+    passed: latest.requirementCheckPassed !== false,
+    summary: latest.requirementCheckSummary,
+    missingKeywords: latest.requirementMissingKeywords,
+    missingAllowedTech: latest.requirementMissingAllowedTech,
+    missingImplicitTerms: latest.requirementMissingImplicitTerms,
+    disallowedMentionedTech: latest.requirementDisallowedTech,
+  }) : [];
+  const lastResolved = latest?.resolvedRequirementIssues || [];
+
+  return {
+    history,
+    attemptCount: history.length,
+    latest,
+    hadRequirementFailure,
+    latestRequirementPassed,
+    resolvedAfterFailure,
+    latestIssues,
+    lastResolved,
+    firstRequirementFailure: requirementFailures[0] || null,
+  };
+}
+
 function coerceFeatureList(features) {
   return (Array.isArray(features) ? features : [])
     .map((f) => String(f || '').trim())
@@ -552,6 +671,14 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   if (!requirementCheck.passed) {
     proposal.status = 'requirements_rejected';
     proposal.submittedAt = new Date();
+    appendSubmissionHistory(
+      proposal,
+      buildSubmissionHistoryEntry(proposal, {
+        outcome: 'requirements_rejected',
+        requirementCheck,
+        contentChanged: true,
+      })
+    );
     await proposal.save();
     return {
       proposal,
@@ -734,6 +861,16 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     proposal.aiRecommendationText = '';
     proposal.aiSuggestedFeatures = [];
   }
+
+  appendSubmissionHistory(
+    proposal,
+    buildSubmissionHistoryEntry(proposal, {
+      outcome: proposal.status,
+      requirementCheck,
+      aiResult,
+      contentChanged: true,
+    })
+  );
 
   await proposal.save();
 
@@ -1177,6 +1314,8 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
           implicitRequiredTerms: requirementReview.implicitRequiredTerms || [],
         }
       : null,
+    submissionHistory: bootstrapSubmissionHistoryFromProposal(p),
+    submissionHistorySummary: summarizeSubmissionHistoryForTeacher(p),
   };
     return mapProposalCollaborativeMeta(row, p.assignment);
   });

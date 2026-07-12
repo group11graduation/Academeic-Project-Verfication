@@ -59,6 +59,24 @@ const proposalSchema = new mongoose.Schema(
     requirementCheckSummary: { type: String, default: '' },
     requirementMissingKeywords: [{ type: String }],
     requirementAllowedTechMatched: [{ type: String }],
+    /** Chronological log of each finalize attempt (requirements, AI, outcome) */
+    submissionHistory: [
+      {
+        attemptedAt: { type: Date, required: true },
+        outcome: { type: String, default: '' },
+        contentChanged: { type: Boolean, default: true },
+        requirementCheckPassed: { type: Boolean, default: true },
+        requirementCheckSummary: { type: String, default: '' },
+        requirementMissingKeywords: [{ type: String }],
+        requirementMissingAllowedTech: [{ type: String }],
+        requirementMissingImplicitTerms: [{ type: String }],
+        requirementDisallowedTech: [{ type: String }],
+        resolvedRequirementIssues: [{ type: String }],
+        aiSameSemesterMaxScore: { type: Number },
+        aiPreviousSemesterMaxScore: { type: Number },
+        aiVerdict: { type: String, default: '' },
+      },
+    ],
     /** After previous-semester warning: student must add features before resubmit */
     requiredNewFeaturesCount: { type: Number, default: 0 },
     /** Snapshot when AI flagged previous-semester match (for diff on resubmit) */

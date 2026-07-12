@@ -25,10 +25,10 @@ const projectSubmissionSchema = new mongoose.Schema(
     mimeType: { type: String, default: 'application/zip' },
     /** Increments when the student replaces the ZIP before the deadline */
     version: { type: Number, default: 1 },
-    /** Optional hint for preview auto-detect: static-html | static-html-js */
+    /** Optional hint for preview auto-detect */
     projectStackHint: {
       type: String,
-      enum: ['', 'static-html', 'static-html-js'],
+      enum: ['', 'static-html', 'static-html-js', 'node-js', 'java-spring-react', 'php-apache'],
       default: '',
     },
     /** ZIP extract + tech-audit pipeline state for teacher preview / upload validation */

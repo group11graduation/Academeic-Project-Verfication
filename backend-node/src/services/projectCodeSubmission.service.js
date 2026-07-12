@@ -17,6 +17,7 @@ import {
 } from './submissionErrorHandler.service.js';
 import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { getUploadDir } from '../config/env.js';
+import { normalizeProjectStackHint } from '../constants/projectStackHints.js';
 
 export function isProjectDeadlineOpen(assignment) {
   if (!assignment?.projectDeadline) return true;
@@ -152,8 +153,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
   }
 
   const stat = await fs.stat(destPath);
-  const hint =
-    projectStackHint && ['static-html', 'static-html-js'].includes(projectStackHint) ? projectStackHint : '';
+  const hint = normalizeProjectStackHint(projectStackHint);
 
   let screenshotRelativePath = primary?.screenshotRelativePath || '';
   if (screenshotFile) {

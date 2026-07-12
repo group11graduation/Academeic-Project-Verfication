@@ -26,6 +26,11 @@ import { getApiOrigin, getApiErrorMessage } from '../../../lib/api';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
 import { getProposalAiSimilarityContext } from '../../../shared/utils/proposalSimilarityUi';
+import {
+    formatSubmissionHistoryEntry,
+    getProposalSubmissionHistoryContext,
+    getTeacherSubmissionJourneyHeadline,
+} from '../../../shared/utils/proposalSubmissionHistoryUi';
 
 const PREVIEW_STACK_LABELS = {
     'static-html': 'HTML + CSS',
@@ -170,6 +175,43 @@ function buildProposalPlainText(p) {
         parts.push(`\n\nAI SUMMARY (ADVISORY)\n${p.aiSummary}`);
     }
     return parts.join('');
+}
+
+function SubmissionAttemptTimeline({ history, emptyMessage = 'No submission attempts recorded yet.' }) {
+    const items = (Array.isArray(history) ? history : []).map((entry, index) =>
+        formatSubmissionHistoryEntry(entry, index)
+    );
+    if (!items.length) {
+        return <p className="text-sm text-slate-500">{emptyMessage}</p>;
+    }
+    const toneClass = (tone) => {
+        if (tone === 'error') return 'border-rose-200 bg-rose-50 text-rose-950';
+        if (tone === 'warn') return 'border-amber-200 bg-amber-50 text-amber-950';
+        if (tone === 'success') return 'border-emerald-200 bg-emerald-50 text-emerald-950';
+        if (tone === 'info') return 'border-blue-200 bg-blue-50 text-blue-950';
+        return 'border-slate-200 bg-slate-50 text-slate-800';
+    };
+    return (
+        <ul className="space-y-3">
+            {items.map((item) => (
+                <li key={item.key} className={`rounded-lg border p-3 text-sm ${toneClass(item.tone)}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-bold">{item.headline}</p>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide opacity-70">
+                            {item.attemptLabel}
+                        </span>
+                    </div>
+                    <p className="mt-1 text-[11px] font-semibold opacity-80">{item.when}</p>
+                    {item.detail ? <p className="mt-2 text-xs leading-relaxed">{item.detail}</p> : null}
+                    {item.resolved?.length ? (
+                        <p className="mt-2 text-xs font-semibold text-emerald-800">
+                            Fixed: {item.resolved.join(', ')}
+                        </p>
+                    ) : null}
+                </li>
+            ))}
+        </ul>
+    );
 }
 
 function DocumentPane({ title, subtitle, onCopy, text }) {
@@ -322,6 +364,14 @@ const TeacherProposalStudentDetail = () => {
     const proposal = useMemo(() => proposals.find((p) => String(p._id) === String(proposalId)) || null, [proposals, proposalId]);
     const requirementIssue = useMemo(() => getProposalRequirementIssue(proposal), [proposal]);
     const aiSimilarity = useMemo(() => getProposalAiSimilarityContext(proposal), [proposal]);
+    const submissionHistoryCtx = useMemo(
+        () => getProposalSubmissionHistoryContext(proposal),
+        [proposal]
+    );
+    const submissionJourney = useMemo(
+        () => getTeacherSubmissionJourneyHeadline(submissionHistoryCtx, proposal?.status),
+        [submissionHistoryCtx, proposal?.status]
+    );
 
     const isCollaborative = Boolean(assignment?.isCollaborative);
     const myReviewRole = assignment?.collaborationReviewRole || null;
@@ -740,24 +790,55 @@ const TeacherProposalStudentDetail = () => {
                             <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[#1e56e3]">
                                 {statusLabel(proposal.status, proposal)}
                             </p>
-                            <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2">
-                                {requirementIssue.failed ? (
-                                    <>
-                                        <div className="col-span-2 rounded-lg bg-rose-50 py-3 px-2 text-center">
-                                            <p className="text-sm font-bold text-rose-800">Requirements issue</p>
-                                            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600">
-                                                Not an AI similarity flag
-                                            </p>
-                                        </div>
-                                    </>
-                                ) : aiSimilarity.level === 'ok' ? (
-                                    <div className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 py-3 px-2 text-center">
-                                        <p className="text-sm font-bold text-emerald-800">AI cleared</p>
-                                        <p className="mt-1 text-[11px] font-semibold text-emerald-700">
-                                            {sameSemPct} same-term overlap · advisory only
+                            <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-slate-100 pt-5">
+                                <div
+                                    className={`col-span-2 rounded-lg border py-3 px-2 text-center ${
+                                        submissionJourney.tone === 'success'
+                                            ? 'border-emerald-200 bg-emerald-50'
+                                            : submissionJourney.tone === 'error'
+                                              ? 'border-rose-200 bg-rose-50'
+                                              : 'border-blue-200 bg-blue-50'
+                                    }`}
+                                >
+                                    <p
+                                        className={`text-sm font-bold ${
+                                            submissionJourney.tone === 'success'
+                                                ? 'text-emerald-800'
+                                                : submissionJourney.tone === 'error'
+                                                  ? 'text-rose-800'
+                                                  : 'text-blue-900'
+                                        }`}
+                                    >
+                                        {submissionJourney.title}
+                                    </p>
+                                    <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-700">
+                                        {submissionJourney.subtitle}
+                                    </p>
+                                    {submissionHistoryCtx.attemptCount > 1 ? (
+                                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                            {submissionHistoryCtx.attemptCount} submission attempts
                                         </p>
-                                        <p className="mt-1 text-[10px] font-medium text-emerald-600">
-                                            Student was not rejected for similarity
+                                    ) : null}
+                                </div>
+                                {requirementIssue.failed ? (
+                                    <div className="col-span-2 rounded-lg bg-rose-50 py-3 px-2 text-center">
+                                        <p className="text-sm font-bold text-rose-800">Current issue</p>
+                                        <p className="mt-1 text-[10px] font-semibold text-rose-700">
+                                            Requirements — not AI similarity
+                                        </p>
+                                    </div>
+                                ) : submissionHistoryCtx.resolvedAfterFailure ? (
+                                    <div className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/80 py-3 px-2 text-center">
+                                        <p className="text-sm font-bold text-emerald-800">Earlier issue resolved</p>
+                                        <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                                            {submissionHistoryCtx.lastResolved.join(', ') || 'Requirements now pass'}
+                                        </p>
+                                    </div>
+                                ) : aiSimilarity.level === 'ok' ? (
+                                    <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 py-3 px-2 text-center">
+                                        <p className="text-sm font-bold text-slate-800">AI similarity (advisory)</p>
+                                        <p className="mt-1 text-[11px] font-semibold text-slate-600">
+                                            {sameSemPct} same-term · did not block student
                                         </p>
                                     </div>
                                 ) : aiSimilarity.level === 'warn' ? (
@@ -848,82 +929,70 @@ const TeacherProposalStudentDetail = () => {
 
                     <div className={`${Z_CARD} flex flex-col p-5`}>
                         <div className="mb-3 flex items-start justify-between gap-2">
-                            <h2 className="text-sm font-bold text-slate-900">
-                                {requirementIssue.failed ? 'Requirement check' : 'AI similarity'}
-                            </h2>
+                            <h2 className="text-sm font-bold text-slate-900">Submission checks & history</h2>
                             {requirementIssue.failed ? (
                                 <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
                             ) : (
                                 <BarChart2 className="h-4 w-4 shrink-0 text-[#1e56e3]" />
                             )}
                         </div>
+                        <p className="text-xs leading-relaxed text-slate-500">
+                            Each student resubmit is logged here. Requirement failures are the real blockers; same-term
+                            overlap is advisory unless it auto-rejects.
+                        </p>
+
+                        {submissionHistoryCtx.firstFailureIssues.length > 0 &&
+                        submissionHistoryCtx.resolvedAfterFailure ? (
+                            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+                                <p className="font-bold">Student fixed earlier requirement errors</p>
+                                <p className="mt-1 text-xs">
+                                    Was missing:{' '}
+                                    <strong>{submissionHistoryCtx.firstFailureIssues.join(' · ')}</strong>
+                                </p>
+                                {submissionHistoryCtx.lastResolved.length ? (
+                                    <p className="mt-2 text-xs font-semibold">
+                                        Now includes: {submissionHistoryCtx.lastResolved.join(', ')}
+                                    </p>
+                                ) : null}
+                            </div>
+                        ) : null}
+
                         {requirementIssue.failed ? (
-                            <>
-                                <p className="text-xs leading-relaxed text-rose-800">
-                                    The student proposal does not match what this assignment requires (for example PHP/MySQL
-                                    for a PHP class). This is separate from plagiarism or same-semester similarity.
-                                </p>
-                                <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50/80 p-3 text-sm font-semibold text-rose-900">
-                                    {requirementIssue.summary}
-                                </p>
-                                {requirementIssue.review?.implicitRequiredTerms?.length > 0 ? (
-                                    <p className="mt-3 text-xs text-slate-600">
-                                        Assignment expects:{' '}
-                                        <strong>{requirementIssue.review.implicitRequiredTerms.join(', ')}</strong>
-                                    </p>
-                                ) : null}
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-xs leading-relaxed text-slate-500">
-                                    Advisory signals only — not a grade. You decide approve, revision, or reject.
-                                </p>
-                                <div
-                                    className={`mt-3 rounded-lg border p-3 text-sm ${
-                                        aiSimilarity.level === 'reject'
-                                            ? 'border-rose-200 bg-rose-50 text-rose-900'
-                                            : aiSimilarity.level === 'warn'
-                                              ? 'border-amber-200 bg-amber-50 text-amber-950'
-                                              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
-                                    }`}
-                                >
-                                    <p className="font-bold">{aiSimilarity.headline}</p>
-                                    <p className="mt-1.5 text-xs leading-relaxed">{aiSimilarity.detail}</p>
-                                    {aiSimilarity.legacyNote ? (
-                                        <p className="mt-2 text-xs font-semibold">{aiSimilarity.legacyNote}</p>
-                                    ) : null}
-                                </div>
-                                {proposal.aiSummary ? (
-                                    <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2 text-[11px] font-mono text-slate-600">
-                                        {proposal.aiSummary}
-                                    </p>
-                                ) : null}
-                                <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
-                                    <li className="flex gap-2">
-                                        <span
-                                            className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                                                aiSimilarity.level === 'reject' ? 'bg-rose-500' : 'bg-slate-300'
-                                            }`}
-                                        />
-                                        <span>
-                                            Same-semester overlap (max): <strong>{sameSemPct}</strong>
-                                            {aiSimilarity.level === 'ok' ? (
-                                                <span className="text-xs font-semibold text-emerald-700">
-                                                    {' '}
-                                                    — did not block student
-                                                </span>
-                                            ) : null}
-                                        </span>
+                            <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50/80 p-3 text-sm font-semibold text-rose-900">
+                                {requirementIssue.summary}
+                            </p>
+                        ) : null}
+
+                        <div className="mt-4">
+                            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                                Attempt timeline
+                            </p>
+                            <SubmissionAttemptTimeline
+                                history={submissionHistoryCtx.history}
+                                emptyMessage="No finalize attempts yet. History starts from the next student submit."
+                            />
+                        </div>
+
+                        {!requirementIssue.failed && aiSimilarity.level === 'ok' ? (
+                            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                                <p className="font-bold text-slate-800">Latest AI similarity (advisory)</p>
+                                <p className="mt-1">{aiSimilarity.detail}</p>
+                                <ul className="mt-2 space-y-1">
+                                    <li>
+                                        Same-semester overlap: <strong>{sameSemPct}</strong>
                                     </li>
-                                    <li className="flex gap-2">
-                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
-                                        <span>
-                                            Legacy / other term (max): <strong>{legacyPct}</strong>
-                                        </span>
+                                    <li>
+                                        Legacy / other term: <strong>{legacyPct}</strong>
                                     </li>
                                 </ul>
-                            </>
-                        )}
+                            </div>
+                        ) : null}
+
+                        {proposal.aiSummary ? (
+                            <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2 text-[11px] font-mono text-slate-600">
+                                {proposal.aiSummary}
+                            </p>
+                        ) : null}
                         {proposal.teacherComment ? (
                             <div className="mt-4 border-t border-slate-100 pt-3 text-xs font-semibold text-amber-800">
                                 <span className="flex items-start gap-2">
@@ -967,39 +1036,27 @@ const TeacherProposalStudentDetail = () => {
                                     />
                                 )}
                                 {tab === 'activity' && (
-                                    <div className="relative pl-6">
-                                        <div className="absolute bottom-2 left-[11px] top-2 w-0.5 bg-[#1e56e3]/25" />
-                                        <ul className="space-y-6">
-                                            <li className="relative">
-                                                <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
-                                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Record</p>
-                                                <p className="mt-1 font-bold text-slate-900">Proposal received</p>
-                                                <p className="mt-1 text-sm text-slate-600">
-                                                    {proposal.submittedAt
-                                                        ? `Recorded at ${submittedAt}.`
-                                                        : 'No submission timestamp on file.'}
+                                    <div>
+                                        <p className="mb-4 text-sm text-slate-600">
+                                            Full log of requirement checks, fixes, and AI similarity on each finalize
+                                            attempt.
+                                        </p>
+                                        <SubmissionAttemptTimeline
+                                            history={submissionHistoryCtx.history}
+                                            emptyMessage="No submission attempts recorded yet."
+                                        />
+                                        {zipUrl ? (
+                                            <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+                                                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                                                    Project code
                                                 </p>
-                                            </li>
-                                            <li className="relative">
-                                                <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
-                                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Workflow</p>
-                                                <p className="mt-1 font-bold text-slate-900">{statusLabel(proposal.status, proposal)}</p>
+                                                <p className="mt-1 font-bold text-slate-900">ZIP uploaded</p>
                                                 <p className="mt-1 text-sm text-slate-600">
-                                                    Current proposal state in the assignment pipeline.
+                                                    {zip?.originalFilename || 'project.zip'} ({zipSizeLabel}) at{' '}
+                                                    {zipUploadedAt}.
                                                 </p>
-                                            </li>
-                                            {zipUrl ? (
-                                                <li className="relative">
-                                                    <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-emerald-600 shadow" />
-                                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Project code</p>
-                                                    <p className="mt-1 font-bold text-slate-900">ZIP uploaded</p>
-                                                    <p className="mt-1 text-sm text-slate-600">
-                                                        {zip?.originalFilename || 'project.zip'} ({zipSizeLabel}) at {zipUploadedAt}. Use
-                                                        Download ZIP on the right or sandbox preview to inspect.
-                                                    </p>
-                                                </li>
-                                            ) : null}
-                                        </ul>
+                                            </div>
+                                        ) : null}
                                     </div>
                                 )}
                             </div>

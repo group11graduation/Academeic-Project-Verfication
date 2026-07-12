@@ -25,6 +25,7 @@ import { useAuth } from '../../../context/authContext';
 import studentService from '../../../services/studentService';
 import { getApiOrigin } from '../../../lib/api';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY } from '../../../shared/ui/zendentaLayout';
+import { PROJECT_STACK_OPTIONS, PROJECT_STACK_HINT_HELP } from '../../../shared/constants/projectStackHints';
 
 const StudentMyProjectDetail = () => {
     const { user } = useAuth();
@@ -48,7 +49,7 @@ const StudentMyProjectDetail = () => {
     const [selectedZipFile, setSelectedZipFile] = useState(null);
     const [selectedScreenshotFile, setSelectedScreenshotFile] = useState(null);
     const [screenshotBusy, setScreenshotBusy] = useState(false);
-    /** '' | static-html | static-html-js */
+    /** '' | static-html | static-html-js | node-js | java-spring-react | php-apache */
     const [projectStackHint, setProjectStackHint] = useState('');
 
     const project = useMemo(() => {
@@ -162,6 +163,13 @@ const StudentMyProjectDetail = () => {
         })();
         return () => { cancelled = true; };
     }, [assignmentId]);
+
+    useEffect(() => {
+        const saved = row?.latestProjectSubmission?.projectStackHint;
+        if (saved != null && saved !== undefined) {
+            setProjectStackHint(saved);
+        }
+    }, [row?.latestProjectSubmission?._id, row?.latestProjectSubmission?.projectStackHint]);
 
     const handleFileUpload = async (file) => {
         if (!file) return;
@@ -499,22 +507,17 @@ const StudentMyProjectDetail = () => {
                                         disabled={codeZipBusy}
                                         className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800"
                                     >
-                                        <option value="">General project (auto-detect on preview)</option>
-                                        <option value="static-html">HTML + CSS only</option>
-                                        <option value="static-html-js">HTML + CSS + JavaScript</option>
+                                        {PROJECT_STACK_OPTIONS.map((opt) => (
+                                            <option key={opt.value || 'auto'} value={opt.value}>
+                                                {opt.label}
+                                            </option>
+                                        ))}
                                     </select>
-                                    {projectStackHint === 'static-html' && (
+                                    {PROJECT_STACK_HINT_HELP[projectStackHint] ? (
                                         <p className="mb-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-900">
-                                            ZIP must include <strong>index.html</strong> and <strong>.css</strong> files (no{' '}
-                                            <strong>.js</strong>). Example: index.html, styles.css, about.html
+                                            {PROJECT_STACK_HINT_HELP[projectStackHint]}
                                         </p>
-                                    )}
-                                    {projectStackHint === 'static-html-js' && (
-                                        <p className="mb-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-900">
-                                            ZIP must include <strong>index.html</strong>, <strong>.css</strong>, and{' '}
-                                            <strong>.js</strong> files. Example: index.html, style.css, script.js
-                                        </p>
-                                    )}
+                                    ) : null}
                                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
                                         Step 1 — Choose ZIP
                                     </p>

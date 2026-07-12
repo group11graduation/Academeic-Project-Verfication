@@ -116,6 +116,10 @@ function getPublicPreviewBase() {
   return (process.env.PREVIEW_PUBLIC_HOST || 'http://localhost').replace(/\/$/, '').replace('127.0.0.1', 'localhost');
 }
 
+function buildPublicPreviewOrigin(hostPort) {
+  return `${getPublicPreviewBase()}:${hostPort}`;
+}
+
 /** Host path for docker -v (resolves container paths when API runs in Docker). */
 function dockerVolumePath(hostPath) {
   return resolveDockerHostPath(hostPath);
@@ -1165,23 +1169,33 @@ async function runPreviewContainer({
   }
 
   if (apiHostPort && springPair) {
+    const publicApiUrl = buildPublicPreviewOrigin(apiHostPort);
+    const publicUiUrl = buildPublicPreviewOrigin(hostPort);
     args.push('-p', `${apiHostPort}:8080`);
     args.push('-e', 'API_PORT=8080');
     args.push('-e', `PORT=${internalPort}`);
     args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
-    args.push('-e', `VITE_API_URL=http://localhost:${apiHostPort}`);
-    args.push('-e', `REACT_APP_API_URL=http://localhost:${apiHostPort}`);
+    args.push('-e', `PREVIEW_PUBLIC_API_URL=${publicApiUrl}`);
+    args.push('-e', `PREVIEW_PUBLIC_UI_URL=${publicUiUrl}`);
+    args.push('-e', `CORS_ORIGIN=${publicUiUrl}`);
+    args.push('-e', `VITE_API_URL=${publicApiUrl}`);
+    args.push('-e', `REACT_APP_API_URL=${publicApiUrl}`);
     args.push('-e', `SPRING_SUBDIR=${springPair.springSubdir}`);
     args.push('-e', `FRONTEND_SUBDIR=${springPair.frontendSubdir}`);
     args.push('-e', 'PREVIEW_SPRING_MODE=1');
   } else if (apiHostPort) {
+    const publicApiUrl = buildPublicPreviewOrigin(apiHostPort);
+    const publicUiUrl = buildPublicPreviewOrigin(hostPort);
     args.push('-p', `${apiHostPort}:5000`);
     args.push('-e', 'API_PORT=5000');
     args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
     args.push('-e', `PREVIEW_UI_HOST_PORT=${hostPort}`);
-    args.push('-e', `CORS_ORIGIN=http://localhost:${hostPort}`);
-    args.push('-e', `VITE_API_URL=http://localhost:${apiHostPort}`);
-    args.push('-e', `REACT_APP_API_URL=http://localhost:${apiHostPort}`);
+    args.push('-e', `PREVIEW_PUBLIC_API_URL=${publicApiUrl}`);
+    args.push('-e', `PREVIEW_PUBLIC_UI_URL=${publicUiUrl}`);
+    args.push('-e', `CORS_ORIGIN=${publicUiUrl}`);
+    args.push('-e', `VITE_API_URL=${publicApiUrl}`);
+    args.push('-e', `REACT_APP_API_URL=${publicApiUrl}`);
+    args.push('-e', `VITE_API_BASE_URL=${publicApiUrl}`);
     if (mernPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${mernPair.backendSubdir}`);
     if (mernPair?.frontendSubdir) args.push('-e', `FRONTEND_SUBDIR=${mernPair.frontendSubdir}`);
     if (flutterPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${flutterPair.backendSubdir}`);
@@ -1625,12 +1639,15 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
         err.status = 400;
         throw err;
       }
+      const publicApiUrl = buildPublicPreviewOrigin(apiHostPort);
+      const publicUiUrl = buildPublicPreviewOrigin(hostPort);
       const [springPatch] = await Promise.all([
         patchSpringForPreview(buildContext, springPair.springSubdir, {
           apiHostPort,
           uiHostPort: hostPort,
+          publicUiUrl,
         }),
-        patchFrontendApiPort(buildContext, springPair.frontendSubdir, apiHostPort),
+        patchFrontendApiPort(buildContext, springPair.frontendSubdir, apiHostPort, { publicApiUrl }),
       ]);
       springPatchMeta = springPatch;
       if (springPatch?.seedCredentials?.username) {
@@ -1699,10 +1716,12 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   }
 
   if (splitStackPair && !springPair) {
+    const publicApiUrl = apiHostPort ? buildPublicPreviewOrigin(apiHostPort) : '';
+    const publicUiUrl = buildPublicPreviewOrigin(hostPort);
     if (flutterPair) {
-      await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort);
+      await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort, { publicApiUrl });
     } else if (mernPair) {
-      await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort);
+      await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort, { publicApiUrl });
     }
     const mongoUri =
       mergedCredentialEnv.MONGO_URI ||
@@ -1711,6 +1730,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     await patchBackendForPreview(buildContext, splitStackPair.backendSubdir, {
       mongoUri,
       hostPort,
+      publicUiUrl,
       jwtSecret: mergedCredentialEnv.JWT_SECRET,
     });
   }

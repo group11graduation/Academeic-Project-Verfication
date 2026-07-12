@@ -35,6 +35,35 @@ function shuffleInPlace(arr) {
   return arr;
 }
 
+export function mapGroupMembersForTeacherCard(group, studentIdByUser) {
+  const leaderId = String(group.leader?._id || group.leader || '');
+  const rawMembers = [
+    group.leader
+      ? { ...(group.leader.toObject ? group.leader.toObject() : group.leader), user: group.leader }
+      : null,
+    ...(group.members || []).map((m) => {
+      const user = m.user?.toObject ? m.user.toObject() : m.user;
+      return user ? { ...user, user } : { ...(m || {}), user: m?.user };
+    }),
+  ].filter(Boolean);
+
+  const seen = new Set();
+  const members = [];
+  for (const member of rawMembers) {
+    const id = String(member._id || member.user?._id || member.user || '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    members.push({
+      _id: member._id || member.user?._id || member.user,
+      name: member.name || 'Student',
+      photo: member.photo || '',
+      studentId: studentIdByUser.get(id) || '',
+      isLeader: Boolean(leaderId && id === leaderId),
+    });
+  }
+  return members;
+}
+
 function memberUserIdsFromGroupLean(group) {
   const ids = [
     String(group.leader?._id || group.leader || ''),
@@ -1239,17 +1268,7 @@ export async function listGroupsDisplayForClass(teacherId, classRef) {
   const seenAssignmentMemberKeys = new Set();
 
   function pushFromTemplate(group) {
-    const members = [
-      group.leader ? { ...group.leader, user: group.leader } : null,
-      ...(group.members || []).map((m) => ({ ...(m.user || {}), user: m.user })),
-    ]
-      .filter(Boolean)
-      .map((member) => ({
-        _id: member._id || member.user?._id || member.user,
-        name: member.name || 'Student',
-        photo: member.photo || '',
-        studentId: studentIdByUser.get(String(member._id || member.user?._id || member.user)) || '',
-      }));
+    const members = mapGroupMembersForTeacherCard(group, studentIdByUser);
     projects.push({
       _id: group._id,
       title: group.name || 'Class team',
@@ -1276,17 +1295,7 @@ export async function listGroupsDisplayForClass(teacherId, classRef) {
     if (memberKey && seenAssignmentMemberKeys.has(memberKey)) continue;
     if (memberKey) seenAssignmentMemberKeys.add(memberKey);
     const proposal = proposalByGroup.get(String(group._id));
-    const members = [
-      group.leader ? { ...group.leader, user: group.leader } : null,
-      ...(group.members || []).map((m) => ({ ...(m.user || {}), user: m.user })),
-    ]
-      .filter(Boolean)
-      .map((member) => ({
-        _id: member._id || member.user?._id || member.user,
-        name: member.name || 'Student',
-        photo: member.photo || '',
-        studentId: studentIdByUser.get(String(member._id || member.user?._id || member.user)) || '',
-      }));
+    const members = mapGroupMembersForTeacherCard(group, studentIdByUser);
     const similarity = Math.round(Number(proposal?.aiPreviousSemesterMaxScore || proposal?.aiSameSemesterMaxScore || 0) * 100);
     projects.push({
       _id: group._id,

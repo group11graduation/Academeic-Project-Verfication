@@ -48,6 +48,7 @@ export function toProjectSubmissionClient(doc) {
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     version: doc.version ?? 1,
+    projectStackHint: doc.projectStackHint || '',
     downloadPath: rel ? `/uploads/${rel}` : '',
     teacherComment: doc.teacherComment || '',
     teacherScore: doc.teacherScore ?? null,
