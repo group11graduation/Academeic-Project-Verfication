@@ -58,6 +58,54 @@ function normalizeFeatures(features) {
     .sort();
 }
 
+function coerceFeatureList(features) {
+  return (Array.isArray(features) ? features : [])
+    .map((f) => String(f || '').trim())
+    .filter(Boolean);
+}
+
+function parseProposalBodyFields(body = {}) {
+  let { title, description, features, groupId, finalize, contentSource } = body;
+  finalize = finalize === true || String(finalize || '').toLowerCase() === 'true';
+
+  const rawFeatures = features ?? body['features[]'] ?? [];
+  let featureList = [];
+  if (Array.isArray(rawFeatures)) {
+    featureList = rawFeatures;
+  } else if (typeof rawFeatures === 'string' && rawFeatures.trim()) {
+    featureList = rawFeatures.split(',').map((x) => x.trim()).filter(Boolean);
+  }
+
+  return {
+    title: String(title || '').trim(),
+    description: String(description || '').trim(),
+    features: coerceFeatureList(featureList),
+    groupId,
+    finalize,
+    contentSource: String(contentSource || 'form').toLowerCase(),
+  };
+}
+
+function mergeProposalContentWithFile({ title, description, features }, parsed, { preferForm = true } = {}) {
+  if (!parsed) {
+    return { title, description, features };
+  }
+  if (preferForm) {
+    return {
+      title: title || parsed.title || '',
+      description: description || parsed.description || '',
+      features: features.length ? features : coerceFeatureList(parsed.features),
+    };
+  }
+  return {
+    title: parsed.title || title || '',
+    description: parsed.description || description || '',
+    features: coerceFeatureList(parsed.features).length
+      ? coerceFeatureList(parsed.features)
+      : features,
+  };
+}
+
 function uniqueFeatureList(features) {
   const seen = new Set();
   const out = [];
@@ -369,19 +417,19 @@ async function assertLeaderOrSingle(userId, assignment, groupId) {
  * Create or update draft / submit with AI + status rules.
  */
 export async function upsertAndSubmitProposal(userId, assignmentId, body, proposalFile = null) {
-  let { title, description, features, groupId, finalize } = body;
+  const parsedBody = parseProposalBodyFields(body);
+  let { title, description, features, groupId, finalize, contentSource } = parsedBody;
   let parsedFromFile = null;
-  if (proposalFile) {
+  const useUploadedFile = Boolean(proposalFile) && contentSource === 'file';
+  if (useUploadedFile) {
     const extractedText = await readProposalFileText(proposalFile);
     const parsed = parseStructuredProposalText(extractedText);
     parsedFromFile = parsed;
-    // Always attempt extraction when a file is uploaded.
-    // Prefer parsed file values; fallback to request body when a section is missing.
-    title = parsed.title || String(title || '').trim();
-    description = parsed.description || String(description || '').trim();
-    features = (Array.isArray(parsed.features) && parsed.features.length)
-      ? parsed.features
-      : (Array.isArray(features) ? features : []);
+    ({ title, description, features } = mergeProposalContentWithFile(
+      { title, description, features },
+      parsed,
+      { preferForm: false }
+    ));
   }
   if (!title?.trim()) {
     const err = new Error('Title is required (or upload a structured proposal file).');
@@ -455,6 +503,13 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     });
 
     if (finalize && previousSnapshot.status !== 'draft' && unchangedComparedToPrevious) {
+      if (previousSnapshot.status === 'requirements_rejected') {
+        const err = new Error(
+          'Your updated proposal still does not meet teacher requirements. Add the missing technologies (for example React) in the title, description, or features, then submit again.'
+        );
+        err.status = 400;
+        throw err;
+      }
       return {
         proposal,
         ai: null,
@@ -467,11 +522,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
 
     if (
       finalize &&
-      ['teacher_rejected', 'revision_required'].includes(previousSnapshot.status) &&
+      ['teacher_rejected', 'revision_required', 'requirements_rejected'].includes(previousSnapshot.status) &&
       unchangedComparedToPrevious
     ) {
       const err = new Error(
-        'Your last proposal was rejected/revision-required. Update title, description, or features before resubmitting.'
+        'Your last proposal was rejected or needs changes. Update title, description, or features before resubmitting.'
       );
       err.status = 400;
       throw err;

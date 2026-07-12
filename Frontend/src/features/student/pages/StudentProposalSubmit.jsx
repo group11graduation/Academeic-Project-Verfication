@@ -60,12 +60,24 @@ const StudentProposalSubmit = () => {
         load();
     }, [assignmentId]);
 
-    const addFeature = () => setFeatures([...features, '']);
-    const removeFeature = (i) => setFeatures(features.filter((_, j) => j !== i));
+    const clearAttachedProposalFile = () => {
+        setProposalFile(null);
+        setFileParseError(null);
+    };
+
+    const addFeature = () => {
+        setFeatures([...features, '']);
+        if (proposalFile) clearAttachedProposalFile();
+    };
+    const removeFeature = (i) => {
+        setFeatures(features.filter((_, j) => j !== i));
+        if (proposalFile) clearAttachedProposalFile();
+    };
     const setFeature = (i, v) => {
         const next = [...features];
         next[i] = v;
         setFeatures(next);
+        if (proposalFile) clearAttachedProposalFile();
     };
 
     const addSuggestedFeature = (featureText) => {
@@ -75,6 +87,7 @@ const StudentProposalSubmit = () => {
         if (existing.includes(value.toLowerCase())) return;
         const cleaned = features.map((f) => String(f || '').trim()).filter(Boolean);
         setFeatures([...cleaned, value]);
+        if (proposalFile) clearAttachedProposalFile();
     };
 
     const applyParsedProposalToForm = (parsed) => {
@@ -83,6 +96,27 @@ const StudentProposalSubmit = () => {
         if (parsed.description) setDescription(parsed.description);
         if (Array.isArray(parsed.features) && parsed.features.length) {
             setFeatures(parsed.features);
+        }
+    };
+
+    const buildSubmitPayload = (finalize) => ({
+        title,
+        description,
+        features: features.map((f) => f.trim()).filter(Boolean),
+        groupId: row?.group?._id || undefined,
+        finalize,
+        contentSource: inputMode === 'file' && proposalFile ? 'file' : 'form',
+        file: inputMode === 'file' && proposalFile ? proposalFile : undefined,
+    });
+
+    const syncProposalFromResponse = (data) => {
+        applyParsedProposalToForm(data?.parsed);
+        const p = data?.proposal;
+        if (p) {
+            setRow((prev) => ({ ...prev, proposal: p }));
+            setTitle(p.title || '');
+            setDescription(p.description || '');
+            setFeatures(p.features?.length ? p.features : ['']);
         }
     };
 
@@ -114,29 +148,13 @@ const StudentProposalSubmit = () => {
         setSuggestedFeatures([]);
         setSubmitting(true);
         try {
-            const payload = {
-                title,
-                description,
-                features: features.map((f) => f.trim()).filter(Boolean),
-                groupId: row?.group?._id || undefined,
-                finalize: false,
-                file: proposalFile || undefined,
-            };
-            const res = proposalFile
+            const payload = buildSubmitPayload(false);
+            const res = payload.file
                 ? await studentService.submitProposalWithFile(assignmentId, payload)
                 : await studentService.submitProposal(assignmentId, payload);
             if (res.success) {
                 setMessage('Draft saved.');
-                applyParsedProposalToForm(res.data?.parsed);
-                const p = res.data?.proposal;
-                if (p) {
-                    setRow((prev) => ({ ...prev, proposal: p }));
-                    applyParsedProposalToForm({
-                        title: p.title,
-                        description: p.description,
-                        features: p.features,
-                    });
-                }
+                syncProposalFromResponse(res.data);
             }
         } catch (e) {
             setError(e.response?.data?.message || 'Failed to save');
@@ -154,20 +172,21 @@ const StudentProposalSubmit = () => {
         }
         setSubmitting(true);
         try {
-            const payload = {
-                title,
-                description,
-                features: features.map((f) => f.trim()).filter(Boolean),
-                groupId: row?.group?._id || undefined,
-                finalize: true,
-                file: proposalFile || undefined,
-            };
-            const res = proposalFile
+            const payload = buildSubmitPayload(true);
+            const res = payload.file
                 ? await studentService.submitProposalWithFile(assignmentId, payload)
                 : await studentService.submitProposal(assignmentId, payload);
             if (res.success) {
-                setMessage(res.data?.message || 'Submitted.');
-                applyParsedProposalToForm(res.data?.parsed);
+                const unchangedMessage = 'This same proposal was already submitted before.';
+                const responseMessage = res.data?.message || '';
+                const proposalStatus = res.data?.proposal?.status || '';
+                const isRejection =
+                    responseMessage === unchangedMessage ||
+                    proposalStatus === 'requirements_rejected' ||
+                    proposalStatus === 'ai_rejected_same_semester' ||
+                    /^rejected automatically:/i.test(responseMessage);
+
+                syncProposalFromResponse(res.data);
                 setRecommendation(res.data?.recommendation || res.data?.proposal?.aiRecommendationText || null);
                 setSuggestedFeatures(
                     Array.isArray(res.data?.suggestedFeatures) && res.data.suggestedFeatures.length
@@ -177,14 +196,17 @@ const StudentProposalSubmit = () => {
                           : []
                 );
                 setMatchedSimilarProject(res.data?.matchedSimilarProject || res.data?.proposal?.matchedSimilarProject || null);
-                const p = res.data?.proposal;
-                if (p) {
-                    setRow((prev) => ({ ...prev, proposal: p }));
-                    applyParsedProposalToForm({
-                        title: p.title,
-                        description: p.description,
-                        features: p.features,
-                    });
+
+                if (isRejection) {
+                    setMessage(null);
+                    setError(
+                        res.data?.recommendation ||
+                            responseMessage ||
+                            'Your proposal was not accepted. Update title, description, or features and try again.'
+                    );
+                } else {
+                    setMessage(responseMessage || 'Submitted.');
+                    setError(null);
                 }
                 await load();
             } else {
@@ -398,7 +420,10 @@ const StudentProposalSubmit = () => {
                 <div className="mb-4 inline-flex rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900">
                     <button
                         type="button"
-                        onClick={() => setInputMode('text')}
+                        onClick={() => {
+                            setInputMode('text');
+                            clearAttachedProposalFile();
+                        }}
                         className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg ${inputMode === 'text' ? 'bg-[#1D68E3] text-white' : 'text-slate-600 dark:text-slate-300'}`}
                     >
                         Fill form
@@ -560,7 +585,10 @@ const StudentProposalSubmit = () => {
                         <label className="block text-[12px] font-bold text-slate-700 dark:text-slate-200 mb-1.5">Title</label>
                         <input
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                if (proposalFile) clearAttachedProposalFile();
+                            }}
                             className={`${Z_INPUT} text-slate-900 dark:text-slate-900 placeholder:text-slate-400`}
                             placeholder="Project title"
                             disabled={lockedByApproval}
@@ -572,7 +600,10 @@ const StudentProposalSubmit = () => {
                         </label>
                         <textarea
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            onChange={(e) => {
+                                setDescription(e.target.value);
+                                if (proposalFile) clearAttachedProposalFile();
+                            }}
                             rows={5}
                             className={`${Z_INPUT} text-slate-900 dark:text-slate-900 placeholder:text-slate-400 resize-y`}
                             placeholder="Describe the project scope"
