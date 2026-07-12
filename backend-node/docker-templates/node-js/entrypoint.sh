@@ -101,6 +101,44 @@ serve_fallback_forever() {
   run_serve /preview-fallback "${LISTEN}"
 }
 
+node_modules_incomplete() {
+  [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null)" ] || [ ! -d node_modules/.bin ]
+}
+
+ensure_node_modules() {
+  label="${1:-npm}"
+  if node_modules_incomplete; then
+    echo "[preview] ${label} install (may take several minutes)…"
+    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+  elif [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
+    echo "[preview] cached workspace: reusing node_modules"
+  else
+    echo "[preview] reusing node_modules/"
+  fi
+}
+
+is_vite_project() {
+  [ -f vite.config.js ] || [ -f vite.config.ts ] || grep -q '"vite"' package.json 2>/dev/null
+}
+
+ensure_vite_binary() {
+  if ! is_vite_project; then
+    return 0
+  fi
+  if [ ! -x node_modules/.bin/vite ]; then
+    echo "[preview] vite binary missing after install — forcing clean reinstall"
+    rm -rf node_modules
+    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+  fi
+}
+
+log_build_tail() {
+  log="$1"
+  lines="${2:-50}"
+  echo "[preview] last ${lines} lines from ${log}:"
+  tail -"${lines}" "$log" 2>/dev/null || true
+}
+
 write_preview_env_files() {
   if [ -z "$PREVIEW_ADMIN_EMAIL" ]; then
     return 0
@@ -170,14 +208,7 @@ start_mern_backend() {
   echo "[preview] MERN backend in $(pwd)"
   write_mern_backend_env
 
-  if [ -d node_modules ]; then
-    if [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
-      echo "[preview] cached workspace: reusing backend node_modules"
-    fi
-  else
-    echo "[preview] backend npm install…"
-    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
-  fi
+  ensure_node_modules "backend npm"
   : > /tmp/preview-backend.log
   if grep -q '"seed"' package.json 2>/dev/null; then
     echo "[preview] backend npm run seed…"
@@ -440,19 +471,23 @@ if [ ! -f package.json ]; then
     fi
     return 1
   fi
-if [ ! -d node_modules ]; then
-    echo "[preview] npm install (may take several minutes)…"
-  npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
-  else
-    echo "[preview] reusing cached node_modules/"
-  fi
+  ensure_node_modules "npm"
+  ensure_vite_binary
   if grep -q '"seed"' package.json 2>/dev/null; then
     echo "[preview] npm run seed…"
     npm run seed 2>&1 || true
   fi
-  if [ -f vite.config.js ] || [ -f vite.config.ts ] || grep -q '"vite"' package.json 2>/dev/null; then
+  if is_vite_project; then
     echo "[preview] Vite build + static serve (API=${VITE_API_URL:-n/a})"
-    if npm run build 2>&1; then
+    : > /tmp/preview-frontend-build.log
+    build_ok=0
+    if npm run build >> /tmp/preview-frontend-build.log 2>&1; then
+      build_ok=1
+    fi
+    if [ "$build_ok" != "1" ] || [ ! -x node_modules/.bin/vite ]; then
+      echo "[preview] ERROR: Vite build failed (vite binary missing or build error) — serving raw unbuilt source as last resort. Check /tmp/preview-frontend-build.log. This will likely produce a blank page / MIME-type errors in the browser."
+      log_build_tail /tmp/preview-frontend-build.log 50
+    else
       patch_built_bundle_urls
       if [ -d dist ] && [ -f dist/index.html ]; then
         serve_dir "$(pwd)/dist"
