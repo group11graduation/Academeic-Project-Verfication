@@ -6,9 +6,10 @@ import { Assignment } from '../models/Assignment.js';
 const WEB_DEVELOPMENT_CATEGORY = 'WEB DEVELOPMENT';
 const HTML_CSS_CATEGORY = 'HTML & CSS';
 const HTML_CSS_JS_CATEGORY = 'HTML & CSS WITH JAVASCRIPT';
+const REACT_CATEGORY = 'REACT';
+const PHP_CATEGORY = 'PHP';
 
 const WEB_DEVELOPMENT_KEYS = [
-  'react',
   'vue',
   'angular',
   'html',
@@ -16,8 +17,6 @@ const WEB_DEVELOPMENT_KEYS = [
   'javascript',
   'node',
   'express',
-  'laravel',
-  'php',
   'next',
   'django',
   'flask',
@@ -48,9 +47,23 @@ const CATEGORY_RULES = [
 export const GALLERY_FILTER_CATEGORIES = [
   'ALL CATEGORIES',
   WEB_DEVELOPMENT_CATEGORY,
+  REACT_CATEGORY,
+  PHP_CATEGORY,
   HTML_CSS_CATEGORY,
   HTML_CSS_JS_CATEGORY,
 ];
+
+function inferStackCategory(text) {
+  const t = String(text || '').toLowerCase();
+  const hasReact =
+    /\breact\b|reactjs|react\.js|react native|next\.js|nextjs|\bjsx\b|\bredux\b/.test(t) ||
+    (/\bvite\b/.test(t) && /\breact\b/.test(t));
+  const hasPhp = /\bphp\b|laravel|codeigniter|symfony|cakephp|wordpress/.test(t);
+
+  if (hasReact) return REACT_CATEGORY;
+  if (hasPhp) return PHP_CATEGORY;
+  return null;
+}
 
 function inferWebSubcategory(text) {
   const t = String(text || '').toLowerCase();
@@ -71,7 +84,13 @@ function inferWebSubcategory(text) {
 function categoryMatchesFilter(projectCategory, filterCategory) {
   if (!filterCategory || filterCategory === 'ALL CATEGORIES' || filterCategory === 'ALL') return true;
   if (filterCategory === WEB_DEVELOPMENT_CATEGORY) {
-    return [WEB_DEVELOPMENT_CATEGORY, HTML_CSS_CATEGORY, HTML_CSS_JS_CATEGORY].includes(projectCategory);
+    return [
+      WEB_DEVELOPMENT_CATEGORY,
+      REACT_CATEGORY,
+      PHP_CATEGORY,
+      HTML_CSS_CATEGORY,
+      HTML_CSS_JS_CATEGORY,
+    ].includes(projectCategory);
   }
   return projectCategory === filterCategory;
 }
@@ -89,6 +108,9 @@ function inferCategory(assignment, proposal) {
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
+
+  const stackCategory = inferStackCategory(parts);
+  if (stackCategory) return stackCategory;
 
   const webSubcategory = inferWebSubcategory(parts);
   if (webSubcategory) return webSubcategory;

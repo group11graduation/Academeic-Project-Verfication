@@ -12,6 +12,8 @@ import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 const GALLERY_CATEGORIES = [
     'ALL CATEGORIES',
     'WEB DEVELOPMENT',
+    'REACT',
+    'PHP',
     'HTML & CSS',
     'HTML & CSS WITH JAVASCRIPT',
 ];
