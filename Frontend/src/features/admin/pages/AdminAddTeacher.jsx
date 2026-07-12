@@ -264,7 +264,7 @@ const AdminAddTeacher = () => {
                                     </span>
                                 ))}
                                 <select
-                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-slate-700 dark:text-slate-200 outline-none w-[120px] min-w-[200px]"
+                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-slate-700 dark:text-slate-200 outline-none w-full min-w-0 sm:w-[120px] sm:min-w-[200px]"
                                     onChange={(e) => {
                                         handleAddSkill(e.target.value);
                                         e.target.value = ""; // Reset select after choosing

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 
-import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK, Z_EMPTY_PAD } from '../../../shared/ui/zendentaLayout';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
@@ -155,11 +155,11 @@ const NormalAssignmentStudents = () => {
             </div>
 
             {students.length === 0 ? (
-                <div className={`${Z_CARD} p-10 text-center text-sm font-semibold text-slate-500`}>
+                <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>
                     No students found for this assignment’s classes.
                 </div>
             ) : filteredStudents.length === 0 ? (
-                <div className={`${Z_CARD} p-10 text-center text-sm font-semibold text-slate-500`}>
+                <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>
                     No students match “{query.trim()}”.
                 </div>
             ) : (

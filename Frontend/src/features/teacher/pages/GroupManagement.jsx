@@ -182,7 +182,7 @@ const GroupManagement = () => {
     }
 
     return (
-        <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-screen bg-white dark:bg-[#0B1120] transition-colors">
+        <div className="p-3 sm:p-4 md:p-6 lg:p-10 max-w-[1600px] mx-auto min-h-screen bg-white dark:bg-[#0B1120] transition-colors safe-area-px">
             {/* Breadcrumbs & Utility Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div className="space-y-2">
@@ -272,7 +272,7 @@ const GroupManagement = () => {
             )}
 
             <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-4 mb-10">
-                <div className="flex-1 min-w-[220px]">
+                <div className="w-full min-w-0 flex-1 sm:min-w-[220px]">
                     <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-2 block">
                         Group assignment (export / import / generate)
                     </label>
@@ -436,7 +436,7 @@ const GroupManagement = () => {
                 ))}
 
                 {filteredGroups.length === 0 && (
-                    <div className="col-span-full py-24 bg-white dark:bg-[#0F172A] rounded-[40px] border-4 border-dashed border-slate-100 dark:border-white/5 flex flex-col items-center justify-center text-center transition-colors">
+                    <div className="col-span-full py-24 bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border-4 border-dashed border-slate-100 dark:border-white/5 flex flex-col items-center justify-center text-center transition-colors">
                         <div className="p-6 bg-slate-50 dark:bg-[#0B1120] rounded-[32px] mb-6 shadow-xl border border-slate-100 dark:border-white/5">
                             <Plus className="h-12 w-12 text-slate-300 dark:text-slate-600" />
                         </div>
@@ -456,8 +456,8 @@ const GroupManagement = () => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => !generating && setIsModalOpen(false)}></div>
-                    <div className="bg-white dark:bg-[#0F172A] rounded-[40px] w-full max-w-[540px] relative z-10 shadow-2xl border border-slate-100 dark:border-white/5 transition-colors overflow-hidden animate-in fade-in zoom-in duration-300">
-                        <div className="p-10 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-[#0B1120]/50">
+                    <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] w-full max-w-[540px] relative z-10 shadow-2xl border border-slate-100 dark:border-white/5 transition-colors overflow-hidden animate-in fade-in zoom-in duration-300">
+                        <div className="p-4 sm:p-6 lg:p-10 border-b border-slate-100 dark:border-white/5 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center bg-slate-50/50 dark:bg-[#0B1120]/50">
                             <div>
                                 <h3 className="text-2xl font-black text-[#0F172A] dark:text-white transition-colors tracking-tight">Regenerate Assignments</h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-400 font-bold mt-1">Configure your project workflow</p>
@@ -466,7 +466,7 @@ const GroupManagement = () => {
                                 <X className="h-6 w-6" />
                             </button>
                         </div>
-                        <div className="p-10 space-y-10">
+                        <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-10">
                             {groupAssignments.length > 0 && (
                                 <div>
                                     <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3 block transition-colors">
@@ -490,7 +490,7 @@ const GroupManagement = () => {
                             )}
                             <div>
                                 <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 block transition-colors">Project Type</label>
-                                <div className="grid grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
                                     <button
                                         onClick={() => setGenType('group')}
                                         className={`p-8 rounded-[32px] border-2 font-black transition-all group relative overflow-hidden ${genType === 'group' ? 'border-[#1D68E3] bg-[#1D68E3] text-white shadow-xl shadow-blue-500/30' : 'border-slate-100 dark:border-white/5 text-slate-500 hover:border-slate-200 dark:hover:border-white/10 bg-white dark:bg-[#0B1120]'}`}

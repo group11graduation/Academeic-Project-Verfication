@@ -115,7 +115,7 @@ const AdminSetupWorkflow = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4 mb-4">
                 <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#111827]">
                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Semesters</p>
                     <p className="text-lg font-black leading-tight text-slate-900 dark:text-slate-100">{semestersCount}</p>

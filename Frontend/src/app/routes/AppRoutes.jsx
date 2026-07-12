@@ -129,13 +129,13 @@ const AppRoutes = () => {
                 <Route
                     path="chat"
                     element={
-                        <div className="p-10 text-2xl font-bold text-slate-400">Group Chat (Coming Soon)</div>
+                        <div className="p-6 sm:p-8 md:p-10 text-xl sm:text-2xl font-bold text-slate-400">Group Chat (Coming Soon)</div>
                     }
                 />
                 <Route
                     path="submissions"
                     element={
-                        <div className="p-10 text-2xl font-bold text-slate-400">Submissions (Coming Soon)</div>
+                        <div className="p-6 sm:p-8 md:p-10 text-xl sm:text-2xl font-bold text-slate-400">Submissions (Coming Soon)</div>
                     }
                 />
             </Route>

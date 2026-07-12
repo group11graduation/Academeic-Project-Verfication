@@ -16,11 +16,13 @@ import {
     FileSpreadsheet,
     Activity,
     Workflow,
+    Menu,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
+import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
 
 const ADMIN_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
@@ -103,6 +105,7 @@ const AdminLayoutInner = () => {
     const [activeSectionKey, setActiveSectionKey] = React.useState(() => inferSectionKeyByPath(location.pathname));
     const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
+    const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
     React.useEffect(() => {
         setActiveSectionKey(inferSectionKeyByPath(location.pathname));
     }, [location.pathname, inferSectionKeyByPath]);
@@ -148,21 +151,31 @@ const AdminLayoutInner = () => {
     return (
         <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-[#f8fafc] font-sans antialiased dark:bg-[#020617] dark:text-slate-100">
             <header
-                className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220] lg:hidden"
+                className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px dark:border-white/10 dark:bg-[#0b1220] lg:hidden"
             >
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
                     <ProjectVerifyLogo size="sm" tagline="Admin console" />
                 </button>
                 <div className="flex items-center gap-2">
                     <ThemeToggle compact />
-                    <NavLink
-                        to="/admin"
-                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:hover:bg-[#1f2937]"
+                    <button
+                        type="button"
+                        onClick={() => setMobileNavOpen(true)}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
+                        aria-label="Open navigation menu"
                     >
-                        Home
-                    </NavLink>
+                        <Menu className="h-5 w-5" />
+                    </button>
                 </div>
             </header>
+
+            <ShellMobileDrawer
+                open={mobileNavOpen}
+                onClose={() => setMobileNavOpen(false)}
+                navSections={navSections}
+                onLogout={requestLogout}
+                panelTitle="Admin menu"
+            />
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
                 <aside
@@ -303,8 +316,8 @@ const AdminLayoutInner = () => {
                 </aside>
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f8fafc] dark:bg-[#020617]">
-                    <header className="flex h-[52px] shrink-0 items-center justify-between gap-2 border-b border-slate-200/70 bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-3 sm:px-4 lg:px-5 dark:border-white/10 dark:from-[#0b1220] dark:via-[#0f172a] dark:to-[#111827]">
-                        <div className="min-w-0">
+                    <header className="flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-3 py-2 sm:px-4 lg:px-5 dark:border-white/10 dark:from-[#0b1220] dark:via-[#0f172a] dark:to-[#111827]">
+                        <div className="min-w-0 flex-1">
                             <div className="text-[12px] font-extrabold leading-tight text-[#1d2f82] dark:text-blue-300">Welcome back</div>
                             <div className="text-[10px] font-semibold text-[#51628f] dark:text-slate-400">Admin Dashboard</div>
                         </div>

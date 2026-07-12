@@ -146,7 +146,7 @@ const AdminEditTeacher = () => {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] flex flex-col items-center justify-center p-10 text-center">
+            <div className="min-h-screen bg-[#F8FAFB] flex flex-col items-center justify-center p-4 sm:p-6 md:p-10 text-center safe-area-px">
                 <div className="bg-white p-8 rounded-2xl border border-red-100 shadow-sm max-w-md w-full">
                     <X className="h-12 w-12 text-red-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-[#0F172A] mb-2">Error</h2>
@@ -163,7 +163,7 @@ const AdminEditTeacher = () => {
     }
 
     return (
-        <div className="p-10 max-w-[1200px] mx-auto font-sans bg-[#F8FAFB] min-h-screen">
+        <div className="p-4 sm:p-6 md:p-8 lg:p-10 max-w-[1200px] mx-auto font-sans bg-[#F8FAFB] min-h-screen safe-area-px">
 
             {/* Top Bar Area */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-8 mb-8">
@@ -313,7 +313,7 @@ const AdminEditTeacher = () => {
                                     </span>
                                 ))}
                                 <select
-                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-slate-700 outline-none w-[120px] min-w-[200px]"
+                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-slate-700 outline-none w-full min-w-0 sm:w-[120px] sm:min-w-[200px]"
                                     onChange={(e) => {
                                         handleAddSkill(e.target.value);
                                         e.target.value = ""; // Reset select after choosing

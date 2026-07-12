@@ -55,11 +55,11 @@ const VerifiedProjectDetail = () => {
                         <Loader2 className="h-10 w-10 animate-spin text-[#2a3fa4]" />
                     </div>
                 ) : error || !project ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-white/10 dark:bg-[#111827]">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 lg:p-10 text-center dark:border-white/10 dark:bg-[#111827]">
                         <p className="font-semibold text-slate-600 dark:text-slate-300">{error || 'Project not found'}</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10 items-start">
                         <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-lg dark:border-white/10 dark:bg-[#111827]">
                             {heroSrc ? (
                                 <button

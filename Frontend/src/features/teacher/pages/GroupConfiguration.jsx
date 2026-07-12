@@ -159,7 +159,7 @@ const GroupConfiguration = () => {
     };
 
     return (
-        <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors bg-white dark:bg-[#0B1120]">
+        <div className="p-3 sm:p-4 md:p-6 lg:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors bg-white dark:bg-[#0B1120] safe-area-px">
             {/* Hidden File Input */}
             <input
                 type="file"
@@ -210,7 +210,7 @@ const GroupConfiguration = () => {
                                 ` ${importSummary.rejectedStudentRows.length} row(s) rejected (ID not on roster or duplicate).`}
                         </div>
                     )}
-                    <div className="p-6 md:p-10 space-y-10 md:space-y-12">
+                    <div className="p-4 sm:p-6 md:p-8 lg:p-10 space-y-6 sm:space-y-8 md:space-y-12">
                         {/* Project Type Section */}
                         <section>
                             <h2 className="text-lg md:text-xl font-black text-slate-800 dark:text-slate-100 mb-6 uppercase tracking-wider">Project Type</h2>

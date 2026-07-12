@@ -124,10 +124,10 @@ const StudentGallery = () => {
         <StudentPublicShell>
         <div className="min-h-screen overflow-x-hidden bg-[#f8faff] font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900 dark:bg-[#020617] dark:text-slate-100">
 
-            <main className="pt-32 pb-12 px-6 max-w-[1536px] mx-auto">
+            <main className="pt-24 pb-12 px-4 sm:pt-28 sm:px-6 max-w-[1536px] mx-auto safe-area-px safe-area-pb">
                 <div className="mb-16">
                     <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#2a3fa4] mb-3">Verified projects</p>
-                    <h1 className="mb-6 text-4xl font-black leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 md:text-5xl">
+                    <h1 className="mb-6 text-3xl font-black leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl md:text-5xl">
                         Approved student <span className="text-[#1D68E3]">submissions</span>
                     </h1>
                     <p className="max-w-2xl text-lg font-medium leading-relaxed text-slate-500 dark:text-slate-300">
@@ -136,14 +136,14 @@ const StudentGallery = () => {
                     </p>
                 </div>
 
-                <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-wrap gap-3">
+                <div className="mb-6 flex flex-col gap-4">
+                    <div className="app-chip-scroll -mx-1 px-1">
                         {GALLERY_CATEGORIES.map((cat) => (
                             <button
                                 key={cat}
                                 type="button"
                                 onClick={() => setActiveCategory(cat)}
-                                className={`px-5 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                                className={`shrink-0 px-4 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 sm:px-5 ${
                                     activeCategory === cat
                                         ? 'bg-[#1D68E3] text-white shadow-md shadow-blue-200'
                                         : 'bg-slate-100/80 text-slate-500 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15'

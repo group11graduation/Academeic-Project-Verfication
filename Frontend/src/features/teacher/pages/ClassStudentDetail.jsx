@@ -93,7 +93,7 @@ const ClassStudentDetail = () => {
 
     if (error || !detail) {
         return (
-            <div className="p-10 text-center bg-white dark:bg-[#0B1120] min-h-screen">
+            <div className="p-4 sm:p-6 md:p-10 text-center bg-white dark:bg-[#0B1120] min-h-screen safe-area-px">
                 <AlertCircle className="h-10 w-10 text-rose-500 mx-auto mb-4" />
                 <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">
                     {error || 'Student not found'}
@@ -118,7 +118,7 @@ const ClassStudentDetail = () => {
 
     return (
         <div className="min-h-screen bg-white dark:bg-[#0B1120]">
-            <main className="p-4 md:p-10 max-w-[1200px] mx-auto">
+            <main className="p-3 sm:p-4 md:p-6 lg:p-10 max-w-[1200px] mx-auto safe-area-px">
                 <Link
                     to={`/teacher/classes/${classRef}/students`}
                     className="flex items-center gap-2 text-slate-400 hover:text-[#1D68E3] transition-colors mb-8 group w-fit"

@@ -60,6 +60,17 @@
     margin: 0;
     width: 100%;
     max-width: 100%;
+    overflow-x: clip;
+  }
+
+  /* Notched phones & home-indicator safe areas */
+  .safe-area-px {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  .safe-area-pb {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
   }
 
   /* Content images only — do not apply to inline SVG icons (Lucide) */
@@ -131,11 +142,37 @@
   }
 
   .app-table-wrap {
-    @apply overflow-x-auto;
+    @apply overflow-x-auto overscroll-x-contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .app-table {
-    @apply w-full min-w-[900px] text-left border-collapse;
+    @apply w-full min-w-[520px] text-left border-collapse sm:min-w-[640px] md:min-w-[760px] lg:min-w-[900px];
+  }
+
+  /** Horizontally scrollable chip / tab rows on small screens */
+  .app-chip-scroll {
+    @apply flex gap-2 overflow-x-auto overscroll-x-contain pb-1;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .app-chip-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /** Touch-friendly minimum tap target */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /** Responsive filter toolbars — stack on mobile, wrap on tablet */
+  .app-toolbar {
+    @apply flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center;
+  }
+
+  .app-toolbar > * {
+    @apply w-full min-w-0 sm:w-auto;
   }
 
   .app-table-headrow {
@@ -166,5 +203,47 @@
   .app-table-empty {
     @apply py-8 text-center text-[12px] font-semibold;
     color: var(--sv-muted);
+  }
+
+  /** Large content panels — scales padding & radius on phone/tablet */
+  .app-panel {
+    @apply min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6 lg:rounded-[2rem] lg:p-8 dark:border-white/5 dark:bg-[#0f172a];
+  }
+
+  /** Stat / metric card grids */
+  .app-stat-grid {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .app-stat-grid-3 {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .app-stat-grid-6 {
+    @apply grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6;
+  }
+
+  /** Empty states & placeholders */
+  .app-empty-pad {
+    @apply p-6 text-center sm:p-8 md:p-10;
+  }
+
+  /** Filter inputs — full width on mobile */
+  .app-field-sm {
+    @apply w-full min-w-0 sm:w-auto sm:min-w-[10rem];
+  }
+
+  .app-field-md {
+    @apply w-full min-w-0 sm:w-auto sm:min-w-[12.5rem];
+  }
+
+  /** Page outer padding for standalone routes */
+  .app-page-pad {
+    @apply px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 lg:px-8 safe-area-px safe-area-pb;
+  }
+
+  /** Two-column layouts that stack on mobile */
+  .app-split-grid {
+    @apply grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6 xl:gap-10;
   }
 }

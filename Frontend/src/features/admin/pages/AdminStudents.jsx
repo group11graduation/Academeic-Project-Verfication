@@ -457,7 +457,7 @@ const AdminStudents = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
-                    <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
+                    <div className="relative w-full min-w-0 flex-1 sm:max-w-xs">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <input
                             type="text"
@@ -670,7 +670,8 @@ const AdminStudents = () => {
 
             <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden min-w-0">
                 <div className="overflow-x-auto max-w-full">
-                <table className="w-full min-w-[720px] text-left">
+                <div className="app-table-wrap">
+                <table className="app-table text-left">
                     <thead>
                         <tr className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>

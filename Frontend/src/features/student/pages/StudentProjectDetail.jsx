@@ -150,7 +150,7 @@ const StudentProjectDetail = () => {
                 </Link>
 
                 {/* Hero Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-16">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center mb-10 sm:mb-16">
                     <div className="space-y-8">
                         <div className="flex items-center gap-4">
                             <div className="inline-flex items-center gap-2 bg-[#E1EDF7] text-[#4F6C8A] px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border border-[#CFDFEF]">
@@ -184,7 +184,7 @@ const StudentProjectDetail = () => {
 
                     {/* Proposal Submit Block */}
                     <div className="relative">
-                        <div className="w-full bg-white rounded-[32px] shadow-xl border border-slate-100 p-10 flex flex-col z-10 relative">
+                        <div className="w-full bg-white rounded-2xl sm:rounded-[32px] shadow-xl border border-slate-100 p-4 sm:p-6 lg:p-10 flex flex-col z-10 relative min-w-0">
                             <h2 className="text-[28px] font-black text-[#0F172A] tracking-tight mb-6">
                                 {project.documentUrl ? 'Your Document' : 'Submit Project Document'}
                             </h2>
@@ -280,9 +280,9 @@ const StudentProjectDetail = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 mb-20">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 mt-8 sm:mt-12 mb-12 sm:mb-20">
                     {/* Similarity Score */}
-                    <div className="bg-[#E4ECF5] rounded-[40px] p-10 relative overflow-hidden">
+                    <div className="bg-[#E4ECF5] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] p-4 sm:p-6 lg:p-10 relative overflow-hidden min-w-0">
                         <div className="relative z-10 space-y-4">
                             <div className="inline-flex items-center gap-2 bg-[#8C5221] text-white px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest">
                                 <Cpu className="h-3 w-3" /> ML DIAGNOSTICS
@@ -298,7 +298,7 @@ const StudentProjectDetail = () => {
                     </div>
 
                     {/* Team Members */}
-                    <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-sm">
+                    <div className="bg-white rounded-2xl sm:rounded-3xl lg:rounded-[2rem] p-4 sm:p-6 lg:p-10 border border-slate-100 shadow-sm min-w-0">
                         <h2 className="text-2xl font-black text-slate-900 mb-6 font-mono uppercase tracking-tight">Project Team Members</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {project.members && project.members.map((member, idx) => (

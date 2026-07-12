@@ -219,7 +219,7 @@ const NormalAssignmentStudentDetail = () => {
                         </div>
                         <h1 className="mt-4 text-lg font-bold text-slate-900">{student.name || 'Student'}</h1>
                         <p className="mt-1 max-w-full break-all text-sm text-slate-500">{student.email || '—'}</p>
-                        <div className="mt-5 grid w-full grid-cols-2 gap-3 border-t border-slate-100 pt-5">
+                        <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2">
                             <div className="rounded-lg bg-slate-50 py-2 text-center">
                                 <p className="text-xl font-bold text-slate-900">{submitted ? 1 : 0}</p>
                                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">File uploaded</p>
@@ -336,7 +336,7 @@ const NormalAssignmentStudentDetail = () => {
             {/* Bottom: tabs + files */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
                 <div className="lg:col-span-3">
-                    <div className={`${Z_CARD} flex min-h-[420px] flex-col overflow-hidden`}>
+                    <div className={`${Z_CARD} flex min-h-0 flex-col overflow-hidden lg:min-h-[320px]`}>
                         <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 pt-2">
                             {[
                                 { id: 'document', label: 'Extracted document' },

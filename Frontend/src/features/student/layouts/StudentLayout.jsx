@@ -74,9 +74,20 @@ const StudentLayoutInner = () => {
 
                     {mobileOpen && (
                         <div
-                            className="lg:hidden border-b border-white/10 p-3 space-y-1"
+                            className="lg:hidden border-b border-white/10 p-3 space-y-1 safe-area-px"
                             style={{ background: 'linear-gradient(180deg, #2a3fa4 0%, #223688 100%)' }}
                         >
+                            <div className="relative mb-2 px-1">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
+                                <input
+                                    type="search"
+                                    value={shellSearchQuery}
+                                    onChange={(e) => setShellSearchQuery(e.target.value)}
+                                    placeholder={shellSearchPlaceholder}
+                                    aria-label={shellSearchPlaceholder}
+                                    className="w-full rounded-xl border border-white/20 bg-white/10 py-2.5 pl-10 pr-3 text-sm font-medium text-white placeholder:text-white/45 outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20"
+                                />
+                            </div>
                             {mobileNav.map(({ label, to, icon: Icon, end }) => (
                                 <NavLink
                                     key={to}

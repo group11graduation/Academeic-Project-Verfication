@@ -12,11 +12,13 @@ import {
     ChevronDown,
     Bell,
     Activity,
+    Menu,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
 import { FACULTY_SIDEBAR_SUBTITLE, FACULTY_SIDEBAR_TITLE } from '../ui/brandTheme';
 import { ShellSearchProvider, useShellSearch } from '../../context/shellSearchContext';
 import ThemeToggle from '../components/ThemeToggle';
+import ShellMobileDrawer from '../components/ShellMobileDrawer';
 
 const TEACHER_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
@@ -76,6 +78,7 @@ const DashboardLayoutInner = ({ children }) => {
     const [activeSectionKey, setActiveSectionKey] = React.useState(() => inferSectionKeyByPath(location.pathname));
     const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
+    const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
     React.useEffect(() => {
         setActiveSectionKey(inferSectionKeyByPath(location.pathname));
     }, [location.pathname, inferSectionKeyByPath]);
@@ -120,28 +123,38 @@ const DashboardLayoutInner = ({ children }) => {
 
     return (
         <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-[#f8fafc] font-sans antialiased dark:bg-[#020617] dark:text-slate-100">
-            <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-white/10 dark:bg-[#0b1220] lg:hidden">
+            <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px dark:border-white/10 dark:bg-[#0b1220] lg:hidden">
                 <button type="button" onClick={() => navigate('/teacher')} className="flex min-w-0 flex-col gap-0.5 text-left">
                     <div className="flex min-w-0 items-center gap-2">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e56e3] text-white shadow-sm">
                             <Shield className="h-5 w-5" strokeWidth={2} />
                         </div>
                         <div className="min-w-0">
-                            <span className="block truncate text-[13px] font-extrabold tracking-tight text-slate-900">{FACULTY_SIDEBAR_TITLE}</span>
-                            <span className="block truncate text-[9px] font-semibold text-slate-500">{FACULTY_SIDEBAR_SUBTITLE}</span>
+                            <span className="block truncate text-[13px] font-extrabold tracking-tight text-slate-900 dark:text-slate-100">{FACULTY_SIDEBAR_TITLE}</span>
+                            <span className="block truncate text-[9px] font-semibold text-slate-500 dark:text-slate-400">{FACULTY_SIDEBAR_SUBTITLE}</span>
                         </div>
                     </div>
                 </button>
                 <div className="flex items-center gap-2">
                     <ThemeToggle compact />
-                    <NavLink
-                        to="/teacher"
-                        className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:hover:bg-[#1f2937]"
+                    <button
+                        type="button"
+                        onClick={() => setMobileNavOpen(true)}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
+                        aria-label="Open navigation menu"
                     >
-                        Home
-                    </NavLink>
+                        <Menu className="h-5 w-5" />
+                    </button>
                 </div>
             </header>
+
+            <ShellMobileDrawer
+                open={mobileNavOpen}
+                onClose={() => setMobileNavOpen(false)}
+                navSections={navSections}
+                onLogout={requestLogout}
+                panelTitle="Teacher menu"
+            />
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
                 <aside
@@ -300,13 +313,13 @@ const DashboardLayoutInner = ({ children }) => {
                 </aside>
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f8fafc] dark:bg-[#020617]">
-                    <header className="flex h-[48px] shrink-0 items-center justify-between gap-2 border-b border-slate-200/70 bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-3 sm:px-4 lg:px-4 dark:border-white/10 dark:from-[#0b1220] dark:via-[#0f172a] dark:to-[#111827]">
-                        <div className="min-w-0">
+                    <header className="hidden min-h-[48px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-3 py-2 sm:px-4 lg:flex lg:px-4 dark:border-white/10 dark:from-[#0b1220] dark:via-[#0f172a] dark:to-[#111827]">
+                        <div className="min-w-0 flex-1">
                             <div className="text-[12px] font-extrabold leading-tight text-[#1d2f82] dark:text-blue-300">Welcome back</div>
                             <div className="text-[10px] font-semibold text-[#51628f] dark:text-slate-400">Teacher Dashboard</div>
                         </div>
 
-                        <div className="mx-2 hidden min-w-0 max-w-xl flex-1 md:block">
+                        <div className="order-3 hidden w-full min-w-0 md:order-none md:mx-2 md:block md:max-w-xl md:flex-1">
                             <div className="relative">
                                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                                 <input

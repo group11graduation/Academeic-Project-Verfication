@@ -97,10 +97,10 @@ const GroupDetailPage = () => {
     }
 
     const DocumentationView = () => (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6 xl:gap-10">
             {/* Content Left: Document Viewer */}
             <div className="lg:col-span-8 space-y-8">
-                <div className="bg-white dark:bg-[#0F172A] rounded-[40px] shadow-2xl border border-slate-100 dark:border-white/5 overflow-hidden min-h-[800px] flex flex-col">
+                <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] shadow-2xl border border-slate-100 dark:border-white/5 overflow-hidden min-h-[50vh] lg:min-h-[640px] flex flex-col">
                     <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-slate-50 dark:bg-white/5">
                         <div className="flex items-center gap-4">
                             <div className="p-2 bg-rose-500/10 rounded-lg">
@@ -146,7 +146,7 @@ const GroupDetailPage = () => {
                             <iframe
                                 src={docUrl}
                                 title="Project Document"
-                                className="w-full h-full min-h-[750px] rounded-lg border-0"
+                                className="w-full h-full min-h-[50vh] sm:min-h-[480px] lg:min-h-[620px] rounded-lg border-0"
                             />
                         ) : docUrl ? (
                             <div className="flex flex-col items-center justify-center text-center space-y-8 py-20">
@@ -166,7 +166,7 @@ const GroupDetailPage = () => {
                                     download
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="bg-[#1D68E3] text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-blue-500/20 flex items-center gap-3"
+                                    className="bg-[#1D68E3] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-blue-500/20 flex items-center gap-3"
                                 >
                                     <Download className="h-5 w-5" /> Download project ZIP
                                 </a>
@@ -208,7 +208,7 @@ const GroupDetailPage = () => {
 
             {/* Content Right: Sidebar */}
             <div className="lg:col-span-4 space-y-8 min-w-0">
-                <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl p-8 space-y-6 min-w-0 overflow-hidden">
+                <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-6 min-w-0 overflow-hidden">
                     <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Review Checklist</h3>
                     <div className="space-y-4">
                         {checklist.map((item, i) => (
@@ -227,7 +227,7 @@ const GroupDetailPage = () => {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl p-8 space-y-6">
+                <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-6">
                     <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Reviewer Feedback</h3>
                     <textarea
                         readOnly
@@ -245,7 +245,7 @@ const GroupDetailPage = () => {
                     )}
                 </div>
 
-                <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl p-8 space-y-6 min-w-0 overflow-hidden">
+                <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-6 min-w-0 overflow-hidden">
                     <div className="flex items-center gap-3 text-[#1D68E3]">
                         <BarChart3 className="h-5 w-5 shrink-0" />
                         <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-700 dark:text-[#1D68E3]">Submission Info</h3>
@@ -299,7 +299,7 @@ const GroupDetailPage = () => {
 
         if (!hasProposal) {
             return (
-                <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl p-10 text-center">
+                <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-10 text-center">
                     <p className="text-slate-500 font-bold">No proposal submitted yet — similarity checks run after students submit.</p>
                 </div>
             );
@@ -344,7 +344,7 @@ const GroupDetailPage = () => {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl p-8 space-y-3">
+                <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-3">
                     <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">What the AI found</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                         {sim.humanExplanation || 'No similarity explanation available for this proposal.'}
@@ -359,7 +359,7 @@ const GroupDetailPage = () => {
                 {(legacy?.title || peer?.title) && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         {legacy?.title && (
-                            <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-amber-200 dark:border-amber-900/30 shadow-2xl p-8 space-y-4">
+                            <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-amber-200 dark:border-amber-900/30 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-4">
                                 <h3 className="text-lg font-black text-amber-700 dark:text-amber-400">
                                     Matched legacy project ({sim.previousSemesterPercent ?? 0}%)
                                 </h3>
@@ -382,7 +382,7 @@ const GroupDetailPage = () => {
                             </div>
                         )}
                         {peer?.title && (
-                            <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-rose-200 dark:border-rose-900/30 shadow-2xl p-8 space-y-4">
+                            <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-rose-200 dark:border-rose-900/30 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-4">
                                 <h3 className="text-lg font-black text-rose-600">
                                     Matched same-semester project ({sim.sameSemesterPercent ?? 0}%)
                                 </h3>
@@ -401,7 +401,7 @@ const GroupDetailPage = () => {
                 )}
 
                 {(sim.recommendationText || (sim.suggestedFeatures?.length ?? 0) > 0) && (
-                    <div className="bg-blue-50 dark:bg-blue-950/20 rounded-[40px] border border-blue-200 dark:border-blue-900/30 p-8 space-y-4">
+                    <div className="bg-blue-50 dark:bg-blue-950/20 rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-blue-200 dark:border-blue-900/30 p-8 space-y-4">
                         <h3 className="text-lg font-black text-[#1D68E3]">Suggested differentiation</h3>
                         {sim.recommendationText && (
                             <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{sim.recommendationText}</p>
@@ -422,7 +422,7 @@ const GroupDetailPage = () => {
                 )}
 
                 {proposalText && (
-                    <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl p-8">
+                    <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8">
                         <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-4">
                             This group&apos;s proposal (compared above)
                         </h3>
@@ -444,7 +444,7 @@ const GroupDetailPage = () => {
     };
 
     const SourceCodeView = () => (
-        <div className="bg-white dark:bg-[#0F172A] rounded-[40px] border border-slate-100 dark:border-white/5 shadow-2xl p-12 text-center space-y-6">
+        <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-6 sm:p-8 lg:p-12 text-center space-y-6">
             <Code className="h-12 w-12 text-[#1D68E3] mx-auto" />
             <h3 className="text-xl font-black text-slate-800 dark:text-slate-100">Source code &amp; live preview</h3>
             <p className="text-slate-500 font-bold max-w-lg mx-auto">
@@ -484,7 +484,7 @@ const GroupDetailPage = () => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0B1120] pb-20 text-slate-600 dark:text-slate-300">
             {/* Top Navigation / Header */}
-            <div className="max-w-[1600px] mx-auto px-6 md:px-10 py-8">
+            <div className="max-w-[1600px] mx-auto px-3 py-6 sm:px-4 md:px-6 lg:px-10 safe-area-px">
                 <button 
                     onClick={() => navigate(-1)}
                     className="flex items-center gap-2 text-slate-500 hover:text-[#1D68E3] font-bold text-sm mb-6 transition-colors group"
@@ -567,7 +567,7 @@ const GroupDetailPage = () => {
             </div>
 
             {/* Main Content Area */}
-            <div className="max-w-[1600px] mx-auto px-6 md:px-10">
+            <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 lg:px-10 safe-area-px">
                 {/* Tabs */}
                 <div className="flex items-center gap-8 border-b border-slate-100 dark:border-white/5 mb-8">
                     {[

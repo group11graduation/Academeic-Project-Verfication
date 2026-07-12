@@ -740,7 +740,7 @@ const TeacherProposalStudentDetail = () => {
                             <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[#1e56e3]">
                                 {statusLabel(proposal.status, proposal)}
                             </p>
-                            <div className="mt-5 grid w-full grid-cols-2 gap-3 border-t border-slate-100 pt-5">
+                            <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2">
                                 {requirementIssue.failed ? (
                                     <>
                                         <div className="col-span-2 rounded-lg bg-rose-50 py-3 px-2 text-center">
@@ -937,7 +937,7 @@ const TeacherProposalStudentDetail = () => {
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
                     <div className="lg:col-span-3">
-                        <div className={`${Z_CARD} flex min-h-[420px] flex-col overflow-hidden`}>
+                        <div className={`${Z_CARD} flex min-h-0 flex-col overflow-hidden lg:min-h-[320px]`}>
                             <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 pt-2">
                                 {[
                                     { id: 'proposal', label: 'Proposal content' },

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Loader2, Search, Users, ClipboardList, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
-import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK, Z_EMPTY_PAD } from '../../../shared/ui/zendentaLayout';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import { getProposalAiSimilarityContext } from '../../../shared/utils/proposalSimilarityUi';
@@ -190,9 +190,9 @@ const TeacherAssignmentProposals = () => {
                 </div>
 
                 {proposals.length === 0 ? (
-                    <div className={`${Z_CARD} p-10 text-center text-sm font-semibold text-slate-500`}>No proposals submitted yet.</div>
+                    <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>No proposals submitted yet.</div>
                 ) : filteredProposals.length === 0 ? (
-                    <div className={`${Z_CARD} p-10 text-center text-sm font-semibold text-slate-500`}>
+                    <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>
                         No proposals match “{query.trim()}”.
                     </div>
                 ) : (

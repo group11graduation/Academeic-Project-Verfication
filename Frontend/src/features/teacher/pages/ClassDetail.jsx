@@ -146,7 +146,7 @@ const ClassDetail = () => {
                         </div>
                         <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Class information</h2>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                         <InfoItem icon={<Layers className="h-4 w-4" />} label="Category" value={classData.category || '—'} />
                         <InfoItem
                             icon={<GraduationCap className="h-4 w-4" />}
@@ -178,7 +178,7 @@ const ClassDetail = () => {
                 </section>
 
                 {/* Metrics */}
-                <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-4">
                     <MetricCard
                         icon={<Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
                         label="Students enrolled"

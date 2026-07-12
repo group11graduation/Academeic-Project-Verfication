@@ -170,9 +170,9 @@ const AdminAdmins = () => {
                 </div>
             </div>
 
-            <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                <table className="w-full min-w-[920px] text-left">
+            <div className="app-table-shell">
+                <div className="app-table-wrap">
+                <table className="app-table">
                     <thead>
                         <tr className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
                             <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>

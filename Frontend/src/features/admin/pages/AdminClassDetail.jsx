@@ -485,7 +485,7 @@ const AdminClassDetail = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 mb-4">
                 {[
                     { label: 'Total Students', value: students.length },
                     { label: 'Faculty', value: classInfo.faculty },
@@ -599,7 +599,7 @@ const AdminClassDetail = () => {
                                 <select
                                     value={selectedTeacherId}
                                     onChange={(e) => handleTeacherSelect(e.target.value)}
-                                    className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg py-2 px-3 text-[12px] text-slate-900 dark:text-white w-[200px] border border-slate-200 dark:border-slate-700 outline-none"
+                                    className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg py-2 px-3 text-[12px] text-slate-900 dark:text-white w-full sm:w-[200px] border border-slate-200 dark:border-slate-700 outline-none"
                                 >
                                     <option value="">Select teacher...</option>
                                     {(allTeachers || []).map((t) => {
@@ -616,7 +616,7 @@ const AdminClassDetail = () => {
                                 {(allTeachers || []).length === 0 && (
                                     <p className="text-[12px] text-slate-500">No teachers in the system yet.</p>
                                 )}
-                                <div className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1.5 max-h-28 overflow-y-auto min-w-[200px] text-slate-900 dark:text-white">
+                                <div className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1.5 max-h-28 overflow-y-auto w-full sm:min-w-[200px] text-slate-900 dark:text-white">
                                     {(classInfo?.subjects || []).length === 0 ? (
                                         <p className="text-[12px] text-slate-500">
                                             Add subjects under Class Information above, save, then assign teachers here.
@@ -672,7 +672,7 @@ const AdminClassDetail = () => {
                                 placeholder={`Filter ${activeTab}...`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="bg-[#F8FAFB] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] w-[180px] outline-none focus:ring-2 focus:ring-blue-500/10 dark:text-white transition-all"
+                                className="bg-[#F8FAFB] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] w-full sm:w-[180px] outline-none focus:ring-2 focus:ring-blue-500/10 dark:text-white transition-all"
                             />
                         </div>
                     </div>

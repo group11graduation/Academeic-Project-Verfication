@@ -259,7 +259,7 @@ const StudentHomeDashboard = () => {
                     </Link>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
                         <div className="mb-2 flex items-center justify-between">
                             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500">Submitted</p>

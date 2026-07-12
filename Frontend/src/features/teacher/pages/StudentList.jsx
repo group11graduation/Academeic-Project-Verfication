@@ -97,7 +97,7 @@ const StudentList = () => {
     }
 
     return (
-        <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors bg-white dark:bg-[#0B1120]">
+        <div className="p-4 sm:p-6 md:p-8 lg:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors bg-white dark:bg-[#0B1120] safe-area-px">
             <div className="mb-8 md:mb-12">
                 <nav className="flex items-center gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6">
                     <Link to="/teacher/classes" className="hover:text-blue-400 transition-colors">
@@ -173,7 +173,7 @@ const StudentList = () => {
                 <div className="rounded-[28px] border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] shadow-lg overflow-hidden">
                     <div className="app-table-shell border-0 rounded-none shadow-none">
                         <div className="app-table-wrap custom-scrollbar overflow-x-auto">
-                            <table className="app-table w-full min-w-[640px]">
+                            <table className="app-table w-full">
                                 <thead>
                                     <tr className="app-table-headrow bg-slate-50/80 dark:bg-[#0B1120]">
                                         <th className="app-table-th w-12 text-center">#</th>

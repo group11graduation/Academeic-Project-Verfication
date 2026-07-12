@@ -240,7 +240,7 @@ const StudentAssignmentDetail = () => {
                             </div>
                             <h2 className="mt-3 text-base font-bold leading-snug text-slate-900">{displayTitle}</h2>
                             <p className="mt-0.5 text-[12px] text-slate-500">{subjectLabel}</p>
-                            <div className="mt-4 grid w-full grid-cols-2 gap-2 border-t border-slate-100 pt-4">
+                            <div className="mt-4 grid w-full grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
                                 <div className="rounded-lg bg-slate-50 py-1.5 text-center">
                                     <p className="text-base font-bold text-slate-900">
                                         {isNormalAssignment

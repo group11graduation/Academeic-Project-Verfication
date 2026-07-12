@@ -160,7 +160,7 @@ const LandingPage = () => {
                             )}
                         </div>
 
-                        <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+                        <div className="lg:col-span-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                             {[
                                 { label: 'Proposal → project pipeline', icon: Workflow },
                                 { label: 'AI similarity screening', icon: BrainCircuit },

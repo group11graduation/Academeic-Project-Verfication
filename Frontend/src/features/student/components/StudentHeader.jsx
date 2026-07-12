@@ -237,8 +237,21 @@ const StudentHeader = ({ forcePublic = false }) => {
             </div>
 
             {mobileOpen && (
-                <div className="lg:hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#0b1220]">
+                <div className="lg:hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#0b1220] safe-area-px">
                     <nav className="max-w-[1400px] mx-auto px-4 py-4 space-y-1">
+                        {user && !showPublicShell ? (
+                            <div className="relative mb-3">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="search"
+                                    value={shellSearchQuery}
+                                    onChange={(e) => setShellSearchQuery(e.target.value)}
+                                    placeholder={shellSearchPlaceholder}
+                                    aria-label={shellSearchPlaceholder}
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 outline-none focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
+                                />
+                            </div>
+                        ) : null}
                         <ThemeToggle className="mb-2 w-full justify-center" />
                         {navItems.map((item) => {
                             const Icon = mobileIcon(item.path) || LayoutDashboard;

@@ -170,7 +170,7 @@ const AssignmentDetail = () => {
     };
 
     return (
-        <div className="p-4 md:p-10 max-w-[1400px] mx-auto min-h-screen">
+        <div className="p-3 sm:p-4 md:p-6 lg:p-10 max-w-[1400px] mx-auto min-h-screen safe-area-px">
             {/* Back */}
             <button
                 onClick={() => navigate('/teacher/assignments')}
@@ -342,7 +342,7 @@ const AssignmentDetail = () => {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 lg:grid-cols-3">
                 {[
                     { label: 'Total Students', value: total, icon: <Users className="h-5 w-5" />, color: 'blue' },
                     { label: 'Submitted', value: submittedCount, icon: <CheckCircle2 className="h-5 w-5" />, color: 'emerald' },
@@ -359,12 +359,12 @@ const AssignmentDetail = () => {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-2 mb-5">
+            <div className="app-chip-scroll mb-5">
                 {['all', 'submitted', 'pending'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setFilter(tab)}
-                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${filter === tab ? 'bg-[#1D68E3] text-white shadow-lg shadow-blue-500/20' : 'bg-white dark:bg-[#0F172A] text-slate-500 border border-slate-100 dark:border-white/5 hover:border-blue-400'}`}
+                        className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${filter === tab ? 'bg-[#1D68E3] text-white shadow-lg shadow-blue-500/20' : 'bg-white dark:bg-[#0F172A] text-slate-500 border border-slate-100 dark:border-white/5 hover:border-blue-400'}`}
                     >
                         {tab === 'all' ? `All (${total})` : tab === 'submitted' ? `Submitted (${submittedCount})` : `Pending (${pending.length})`}
                     </button>

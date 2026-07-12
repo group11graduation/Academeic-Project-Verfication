@@ -61,7 +61,7 @@ const AdminDashboard = () => {
                 </p>
             </section>
 
-            <section className="grid grid-cols-2 xl:grid-cols-4 gap-2">
+            <section className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 {statCards.map((card) => {
                     const Icon = card.icon;
                     return (
