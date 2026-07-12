@@ -1,13 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, Loader2, ShieldCheck, TrendingUp, ImageIcon } from 'lucide-react';
+import { ArrowRight, Heart, Loader2, Search, ShieldCheck, TrendingUp, ImageIcon } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
 import ProjectScreenshotLightbox from '../components/ProjectScreenshotLightbox';
 import { BRAND } from '../../../shared/ui/brandTheme';
-import { useShellSearchFilter } from '../../../context/shellSearchContext';
+import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+
+const GALLERY_CATEGORIES = [
+    'ALL CATEGORIES',
+    'WEB DEVELOPMENT',
+    'HTML & CSS',
+    'HTML & CSS WITH JAVASCRIPT',
+];
 
 const getLikes = () => {
     try {
@@ -46,11 +53,10 @@ const StudentGallery = () => {
     const [sortBest, setSortBest] = useState(true);
     const [likesData, setLikesData] = useState(getLikes());
     const [projects, setProjects] = useState([]);
-    const [categories, setCategories] = useState(['ALL CATEGORIES']);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [lightbox, setLightbox] = useState(null);
-    const searchQuery = useShellSearchFilter('Search verified projects…');
+    const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search verified projects…');
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -68,9 +74,6 @@ const StudentGallery = () => {
                 });
                 if (res.success) {
                     setProjects(res.data?.projects || []);
-                    if (Array.isArray(res.data?.categories) && res.data.categories.length) {
-                        setCategories(res.data.categories);
-                    }
                 } else {
                     setError(res.message || 'Could not load verified projects.');
                 }
@@ -105,8 +108,10 @@ const StudentGallery = () => {
                 proj.title,
                 proj.description,
                 proj.category,
-                proj.studentName,
-                proj.classCode
+                proj.author,
+                proj.subject,
+                proj.subjectCode,
+                ...(Array.isArray(proj.tags) ? proj.tags : [])
             )
         );
         if (!sortBest) return list;
@@ -129,21 +134,35 @@ const StudentGallery = () => {
                     </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3 mb-6">
-                    {categories.map((cat) => (
-                        <button
-                            key={cat}
-                            type="button"
-                            onClick={() => setActiveCategory(cat)}
-                            className={`px-5 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 ${
-                                activeCategory === cat && sortBest
-                                    ? 'bg-[#1D68E3] text-white shadow-md shadow-blue-200'
-                                    : 'bg-slate-100/80 text-slate-500 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15'
-                            }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
+                <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-wrap gap-3">
+                        {GALLERY_CATEGORIES.map((cat) => (
+                            <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setActiveCategory(cat)}
+                                className={`px-5 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                                    activeCategory === cat
+                                        ? 'bg-[#1D68E3] text-white shadow-md shadow-blue-200'
+                                        : 'bg-slate-100/80 text-slate-500 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15'
+                                }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="relative w-full lg:max-w-md">
+                        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search projects by title, author, description…"
+                            className="w-full rounded-full border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition focus:border-[#1D68E3] focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:focus:ring-blue-500/20"
+                            aria-label="Search verified projects"
+                        />
+                    </div>
                 </div>
 
                 <div className="flex gap-3 mb-12">
@@ -172,10 +191,13 @@ const StudentGallery = () => {
                 ) : sortedProjects.length === 0 ? (
                     <div className="mx-auto max-w-xl rounded-[24px] border border-slate-200 bg-white px-8 py-16 text-center dark:border-white/10 dark:bg-[#111827]">
                         <ShieldCheck className="h-12 w-12 text-[#2a3fa4] mx-auto mb-4" />
-                        <h2 className="mb-2 text-xl font-black text-slate-900 dark:text-slate-100">No verified projects yet</h2>
+                        <h2 className="mb-2 text-xl font-black text-slate-900 dark:text-slate-100">
+                            {searchQuery.trim() ? 'No matching projects' : 'No verified projects yet'}
+                        </h2>
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-300">
-                            When teachers approve final projects and students upload a UI screenshot, they appear here
-                            automatically.
+                            {searchQuery.trim()
+                                ? 'Try a different search term or switch back to All Categories.'
+                                : 'When teachers approve final projects and students upload a UI screenshot, they appear here automatically.'}
                         </p>
                     </div>
                 ) : (

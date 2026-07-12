@@ -3,8 +3,40 @@ import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { LegacyProject } from '../models/LegacyProject.js';
 import { Assignment } from '../models/Assignment.js';
 
+const WEB_DEVELOPMENT_CATEGORY = 'WEB DEVELOPMENT';
+const HTML_CSS_CATEGORY = 'HTML & CSS';
+const HTML_CSS_JS_CATEGORY = 'HTML & CSS WITH JAVASCRIPT';
+
+const WEB_DEVELOPMENT_KEYS = [
+  'react',
+  'vue',
+  'angular',
+  'html',
+  'css',
+  'javascript',
+  'node',
+  'express',
+  'laravel',
+  'php',
+  'next',
+  'django',
+  'flask',
+  'web',
+  'bootstrap',
+  'tailwind',
+  'sass',
+  'scss',
+  'typescript',
+  'vite',
+  'webpack',
+  'jquery',
+  'frontend',
+  'fullstack',
+  'full-stack',
+];
+
 const CATEGORY_RULES = [
-  { id: 'WEB DEVELOPMENT', keys: ['react', 'vue', 'angular', 'html', 'css', 'javascript', 'node', 'express', 'laravel', 'php', 'next', 'django', 'flask', 'web'] },
+  { id: WEB_DEVELOPMENT_CATEGORY, keys: WEB_DEVELOPMENT_KEYS },
   { id: 'ARTIFICIAL INTELLIGENCE', keys: ['ai', 'ml', 'tensorflow', 'pytorch', 'neural', 'deep learning', 'opencv', 'nlp', 'machine learning'] },
   { id: 'DATA SCIENCE', keys: ['data', 'analytics', 'pandas', 'numpy', 'r ', 'statistics', 'visualization', 'd3'] },
   { id: 'MOBILE APPS', keys: ['flutter', 'android', 'ios', 'react native', 'kotlin', 'swift', 'mobile'] },
@@ -13,10 +45,42 @@ const CATEGORY_RULES = [
   { id: 'IOT', keys: ['iot', 'sensor', 'arduino', 'esp32', 'mqtt', 'embedded', 'raspberry'] },
 ];
 
+export const GALLERY_FILTER_CATEGORIES = [
+  'ALL CATEGORIES',
+  WEB_DEVELOPMENT_CATEGORY,
+  HTML_CSS_CATEGORY,
+  HTML_CSS_JS_CATEGORY,
+];
+
+function inferWebSubcategory(text) {
+  const t = String(text || '').toLowerCase();
+  const hasHtml = /\bhtml\b|html5|html\s*&\s*css/.test(t);
+  const hasCss = /\bcss\b|css3|html\s*&\s*css/.test(t);
+  const hasJs =
+    /\bjavascript\b/.test(t) ||
+    /\bjs\b/.test(t) ||
+    /vanilla\s+(js|javascript)/.test(t) ||
+    /\becmascript\b/.test(t) ||
+    /html\s*&\s*css\s+with\s+javascript/.test(t);
+
+  if (hasHtml && hasCss && hasJs) return HTML_CSS_JS_CATEGORY;
+  if (hasHtml && hasCss) return HTML_CSS_CATEGORY;
+  return null;
+}
+
+function categoryMatchesFilter(projectCategory, filterCategory) {
+  if (!filterCategory || filterCategory === 'ALL CATEGORIES' || filterCategory === 'ALL') return true;
+  if (filterCategory === WEB_DEVELOPMENT_CATEGORY) {
+    return [WEB_DEVELOPMENT_CATEGORY, HTML_CSS_CATEGORY, HTML_CSS_JS_CATEGORY].includes(projectCategory);
+  }
+  return projectCategory === filterCategory;
+}
+
 function inferCategory(assignment, proposal) {
   const parts = [
     assignment?.title,
     assignment?.description,
+    assignment?.requirementText,
     proposal?.title,
     proposal?.description,
     ...(proposal?.features || []),
@@ -25,6 +89,9 @@ function inferCategory(assignment, proposal) {
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
+
+  const webSubcategory = inferWebSubcategory(parts);
+  if (webSubcategory) return webSubcategory;
 
   for (const rule of CATEGORY_RULES) {
     if (rule.keys.some((k) => parts.includes(k))) return rule.id;
@@ -146,7 +213,7 @@ export async function listVerifiedProjects({ category, sort = 'best', limit = 48
     .filter((r) => r.description || r.hasProjectSubmission);
 
   if (category && category !== 'ALL CATEGORIES' && category !== 'ALL') {
-    rows = rows.filter((r) => r.category === category);
+    rows = rows.filter((r) => categoryMatchesFilter(r.category, category));
   }
 
   if (sort === 'recent') {
@@ -394,5 +461,5 @@ export async function resolveSimilarMatchedProject(proposal) {
 }
 
 export function listGalleryCategories() {
-  return ['ALL CATEGORIES', ...CATEGORY_RULES.map((r) => r.id), 'GENERAL'];
+  return [...GALLERY_FILTER_CATEGORIES];
 }
