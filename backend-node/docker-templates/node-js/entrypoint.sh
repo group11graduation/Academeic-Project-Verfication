@@ -409,6 +409,18 @@ preview_api_bundle_url() {
 patch_built_bundle_urls() {
   API_URL="$(preview_api_bundle_url)"
   [ -n "$API_URL" ] || return 0
+  PUBLIC_HOST_RAW="${PREVIEW_PUBLIC_HOST:-}"
+  if [ -z "$PUBLIC_HOST_RAW" ] && [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
+    PUBLIC_HOST_RAW="$(printf '%s' "$PREVIEW_PUBLIC_API_URL" | sed 's|:[0-9][0-9]*$||')"
+  fi
+  PUBLIC_HOST=""
+  if [ -n "$PUBLIC_HOST_RAW" ]; then
+    PUBLIC_HOST="$(printf '%s' "$PUBLIC_HOST_RAW" | sed -e 's|^https\?://||' -e 's|/.*$||' -e 's|:.*$||')"
+  fi
+  PUBLIC_HOST_ESC=""
+  if [ -n "$PUBLIC_HOST" ]; then
+    PUBLIC_HOST_ESC="$(printf '%s' "$PUBLIC_HOST" | sed 's/[.]/\\./g')"
+  fi
   echo "[preview] patching API URLs → ${API_URL}"
   for dir in build dist build/web; do
     root="$(pwd)/$dir"
@@ -417,6 +429,10 @@ patch_built_bundle_urls() {
       sed -i "s|http://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
       sed -i "s|http://127.0.0.1:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
       sed -i "s|https://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+      if [ -n "$PUBLIC_HOST_ESC" ]; then
+        sed -i "s|http://${PUBLIC_HOST_ESC}:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+        sed -i "s|https://${PUBLIC_HOST_ESC}:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+      fi
     done
   done
 }

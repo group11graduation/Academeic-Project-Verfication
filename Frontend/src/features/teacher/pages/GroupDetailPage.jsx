@@ -143,34 +143,34 @@ const GroupDetailPage = () => {
                                 </div>
                             </div>
                         ) : docUrl && isPdf ? (
-                            <iframe
-                                src={docUrl}
-                                title="Project Document"
+                                <iframe 
+                                    src={docUrl} 
+                                    title="Project Document" 
                                 className="w-full h-full min-h-[50vh] sm:min-h-[480px] lg:min-h-[620px] rounded-lg border-0"
-                            />
+                                />
                         ) : docUrl ? (
-                            <div className="flex flex-col items-center justify-center text-center space-y-8 py-20">
-                                <div className="w-28 h-28 bg-white dark:bg-[#0F172A] rounded-3xl flex items-center justify-center shadow-xl border border-slate-100 dark:border-white/5">
-                                    <FileText className="h-14 w-14 text-[#1D68E3]" />
-                                </div>
-                                <div className="space-y-2">
-                                    <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                                <div className="flex flex-col items-center justify-center text-center space-y-8 py-20">
+                                    <div className="w-28 h-28 bg-white dark:bg-[#0F172A] rounded-3xl flex items-center justify-center shadow-xl border border-slate-100 dark:border-white/5">
+                                        <FileText className="h-14 w-14 text-[#1D68E3]" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
                                         {projectFileName}
-                                    </h3>
-                                    <p className="text-slate-500 font-bold text-sm">
+                                        </h3>
+                                        <p className="text-slate-500 font-bold text-sm">
                                         Project archive • Status: <span className="text-emerald-500">{group.status}</span>
-                                    </p>
-                                </div>
-                                <a
-                                    href={docUrl}
-                                    download
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                        </p>
+                                    </div>
+                                    <a 
+                                        href={docUrl} 
+                                        download 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
                                     className="bg-[#1D68E3] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-blue-500/20 flex items-center gap-3"
-                                >
+                                    >
                                     <Download className="h-5 w-5" /> Download project ZIP
-                                </a>
-                            </div>
+                                    </a>
+                                </div>
                         ) : screenshotUrl ? (
                             <img src={screenshotUrl} alt="Project screenshot" className="max-w-full rounded-lg shadow-lg" />
                         ) : (
@@ -229,7 +229,7 @@ const GroupDetailPage = () => {
 
                 <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-6">
                     <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Reviewer Feedback</h3>
-                    <textarea
+                    <textarea 
                         readOnly
                         value={group.reviewerFeedback || ''}
                         placeholder="No teacher feedback yet."
@@ -354,7 +354,7 @@ const GroupDetailPage = () => {
                             Technical: {sim.aiSummary}
                         </p>
                     )}
-                </div>
+                    </div>
 
                 {(legacy?.title || peer?.title) && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -418,7 +418,7 @@ const GroupDetailPage = () => {
                                 ))}
                             </div>
                         )}
-                    </div>
+                        </div>
                 )}
 
                 {proposalText && (
