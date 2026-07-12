@@ -7,7 +7,7 @@ import { getPreviewProbeHost } from '../config/previewProbe.js';
 import * as previewCredentials from './previewCredentials.service.js';
 import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as previewMern from './previewMern.service.js';
-import { buildPhpPreviewLoginHint } from './previewPhp.service.js';
+import { buildPhpPreviewLoginHint, parsePhpBootstrapCredentialsFromLog } from './previewPhp.service.js';
 import {
   executeZipExtractionBarrier,
   executeTechAuditBarrier,
@@ -289,6 +289,37 @@ async function cleanupSessionResources(session, docker, finalStatus, logMessage)
   await session.save();
 }
 
+async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
+  if (!session || session.previewStack !== 'php-apache') return;
+
+  const containerName =
+    deployResult.containerName || dockerOrchestrator.containerNameFor(session._id.toString());
+  const bootstrapLog = await dockerOrchestrator.readPreviewMysqlBootstrapLog(containerName);
+  const bootstrapCredentials = parsePhpBootstrapCredentialsFromLog(bootstrapLog);
+  const phpMeta = deployResult.phpPatchMeta || {};
+
+  session.previewLoginHint = buildPhpPreviewLoginHint({
+    previewLoginUrl: session.previewLoginUrl,
+    hostPort: deployResult.hostPort || session.hostPort,
+    dbName: phpMeta.dbName || deployResult.dbName,
+    adminCredentials: phpMeta.adminCredentials || {},
+    projectCredentials: {
+      username: session.previewLoginEmail,
+      password: session.previewLoginPassword,
+    },
+    bootstrapCredentials,
+  });
+
+  if (bootstrapCredentials?.username && bootstrapCredentials.password) {
+    session.previewLoginEmail = bootstrapCredentials.username;
+    session.previewLoginPassword = bootstrapCredentials.password;
+    session.previewLoginIdentifierType = bootstrapCredentials.identifierType || 'username';
+    session.previewLoginIdentifierLabel =
+      bootstrapCredentials.identifierType === 'email' ? 'Email' : 'Username';
+    session.previewLoginSource = 'bootstrap_log';
+  }
+}
+
 async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
   const jobKey = sessionId.toString();
   if (readinessJobs.has(jobKey)) return;
@@ -315,6 +346,9 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (wait.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
+      if (deployResult.stack === 'php-apache') {
+        await refreshPhpPreviewLoginHint(session, deployResult);
+      }
       appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}.`);
       if (session.extractDirPath) {
         await previewWorkspaceCache.markWorkspacePreviewReady(session.extractDirPath).catch(() => {});
@@ -402,6 +436,9 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (lastProbe.ready || logReady?.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
+      if (deployResult.stack === 'php-apache') {
+        await refreshPhpPreviewLoginHint(session, deployResult);
+      }
       const reason = lastProbe.reason || logReady?.reason || 'ready';
       appendLog(session, 'info', `Preview ready (${reason}) at ${session.previewUrl}.`);
       if (lastProbe.apiReady === false && deployResult.apiHostPort) {
@@ -427,6 +464,9 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (!diagnosis.failed && diagnosis.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
+      if (deployResult.stack === 'php-apache') {
+        await refreshPhpPreviewLoginHint(session, deployResult);
+      }
       appendLog(session, 'info', `Preview ready (${diagnosis.reason || 'log'}) at ${session.previewUrl}.`);
       if (session.extractDirPath) {
         await previewWorkspaceCache.markWorkspacePreviewReady(session.extractDirPath).catch(() => {});
@@ -1029,6 +1069,12 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
         session.previewAppReadyReason = 'port_closed';
         session.previewApiReady = false;
       }
+    }
+
+    if (session.previewStack === 'php-apache') {
+      await refreshPhpPreviewLoginHint(session, {
+        hostPort: session.hostPort,
+      });
     }
   }
 

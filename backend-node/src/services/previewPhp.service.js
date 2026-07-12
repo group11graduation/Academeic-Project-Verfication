@@ -469,12 +469,93 @@ async function patchPhpFile(filePath, options, { bootstrap = false, injectOverri
   return changed ? 1 : 0;
 }
 
+function platformDefaultPhpCredentials() {
+  return {
+    email: process.env.PREVIEW_DEFAULT_ADMIN_EMAIL || 'admin@preview.demo',
+    username: process.env.PREVIEW_DEFAULT_ADMIN_USERNAME || 'previewadmin',
+    password: process.env.PREVIEW_DEFAULT_ADMIN_PASSWORD || 'Preview123!',
+  };
+}
+
+function phpCredentialsLookLikePlatformDefault(user, pass) {
+  const defaults = platformDefaultPhpCredentials();
+  return pass === defaults.password && (user === defaults.email || user === defaults.username);
+}
+
+/**
+ * Parse admin credentials echoed by student bootstrap scripts inside the preview container.
+ * Bootstrap output is appended to /tmp/preview-mysql.log by the PHP entrypoint.
+ */
+export function parsePhpBootstrapCredentialsFromLog(logText = '') {
+  if (!logText?.trim()) return null;
+
+  let username = '';
+  let email = '';
+  let password = '';
+
+  const lines = logText.split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    const passReset =
+      line.match(/password\s+(?:reset|changed|is|set|updated)[^:\n]*(?:to|:)\s*['"]?([^\s'"\n<]+)/i) ||
+      line.match(/reset\s+successfully\s+to\s*:\s*['"]?([^\s'"\n<]+)/i) ||
+      line.match(/admin\s+password[^:\n]*(?:to|:)\s*['"]?([^\s'"\n<]+)/i);
+    if (passReset) {
+      password = passReset[1];
+    }
+
+    if (!/password_hash|password_verify|password_reset_token/i.test(line)) {
+      const passKv = line.match(/(?:^|[^\w])(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"\n,<]+)/i);
+      if (passKv && passKv[1].length >= 3) {
+        password = passKv[1];
+      }
+    }
+
+    const emailKv = line.match(/(?:admin\s+)?e-?mail\s*(?:is\s*)?[:=]\s*['"]?([^\s'"\n,<]+)/i);
+    if (emailKv && emailKv[1].includes('@')) {
+      email = emailKv[1];
+    }
+
+    const userKv = line.match(
+      /(?:default\s+)?(?:admin\s+)?(?:user(?:name)?|login\s+id)\s*(?:is\s*)?[:=]\s*['"]?([^\s'"\n,<]+)/i
+    );
+    if (userKv && !userKv[1].includes('@')) {
+      username = userKv[1];
+    }
+
+    const pair =
+      line.match(/(?:credentials?|login)\s*[:=]\s*['"]?([^/'"\s]+)\s*\/\s*([^\s'"\n]+)/i) ||
+      line.match(
+        /(?:user(?:name)?|login)\s*[:=]\s*['"]?([^'"\n]+)['"]?\s*[,;]\s*(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"\n]+)/i
+      );
+    if (pair) {
+      const id = pair[1].trim();
+      if (id.includes('@')) email = id;
+      else username = id;
+      password = pair[2].trim();
+    }
+  }
+
+  const identifier = email || username;
+  if (!identifier || !password) return null;
+
+  return {
+    username: identifier,
+    password,
+    identifierType: email ? 'email' : 'username',
+    source: 'bootstrap_log',
+  };
+}
+
 export function buildPhpPreviewLoginHint({
   previewLoginUrl = '',
   hostPort = '',
   dbName = '',
   adminCredentials = {},
   projectCredentials = {},
+  bootstrapCredentials = null,
 } = {}) {
   const parts = [];
   if (previewLoginUrl) {
@@ -484,10 +565,26 @@ export function buildPhpPreviewLoginHint({
     parts.push(`Preview database: ${dbName} (MariaDB sidecar).`);
   }
 
+  const bootstrapUser = bootstrapCredentials?.username;
+  const bootstrapPass = bootstrapCredentials?.password;
+  if (bootstrapUser && bootstrapPass) {
+    const idLabel = bootstrapCredentials.identifierType === 'email' ? 'Email' : 'Username';
+    parts.push(
+      `Login from bootstrap script output (${idLabel}: ${bootstrapUser}, password: ${bootstrapPass}).`
+    );
+    return parts.join(' ');
+  }
+
   const user = projectCredentials.username || adminCredentials.username;
   const pass = projectCredentials.password || adminCredentials.password;
   if (user && pass) {
-    parts.push(`Try project login: ${user} / ${pass}.`);
+    if (phpCredentialsLookLikePlatformDefault(user, pass)) {
+      parts.push(
+        `Default guess (may not match this project): ${user} / ${pass}. If login fails, check the preview log for credentials printed by setup/reset scripts.`
+      );
+    } else {
+      parts.push(`Try project login: ${user} / ${pass}.`);
+    }
   } else if (user) {
     parts.push(`Try username: ${user} (check README or setup script for password).`);
   } else {

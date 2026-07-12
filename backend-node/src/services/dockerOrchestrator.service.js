@@ -2353,6 +2353,27 @@ export async function getContainerLogs(containerName, tail = 80) {
   }
 }
 
+/** Read a file from a running preview container (e.g. PHP bootstrap output log). */
+export async function readFileFromPreviewContainer(containerName, filePath, maxBytes = 64_000) {
+  if (!containerName || !filePath) return '';
+  const safeName = String(containerName).replace(/[^a-zA-Z0-9_.-]/g, '');
+  const safePath = String(filePath).replace(/[^a-zA-Z0-9_./-]/g, '');
+  if (!safeName || !safePath) return '';
+  try {
+    const { stdout } = await runCommand(
+      `docker exec ${safeName} sh -c "if [ -f '${safePath}' ]; then head -c ${maxBytes} '${safePath}'; fi"`,
+      { timeoutMs: 15_000 }
+    );
+    return stdout || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function readPreviewMysqlBootstrapLog(containerName) {
+  return readFileFromPreviewContainer(containerName, '/tmp/preview-mysql.log');
+}
+
 const PREVIEW_LOG_ERROR_PATTERNS = [
   /\[preview\]\s*ERROR:\s*(.+)/i,
   /index\.html not found/i,
