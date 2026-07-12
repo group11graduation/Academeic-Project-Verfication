@@ -25,6 +25,7 @@ import { useAuth } from '../../../context/authContext';
 import { getApiOrigin, getApiErrorMessage } from '../../../lib/api';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { getProposalAiSimilarityContext } from '../../../shared/utils/proposalSimilarityUi';
 
 const PREVIEW_STACK_LABELS = {
     'static-html': 'HTML + CSS',
@@ -320,6 +321,7 @@ const TeacherProposalStudentDetail = () => {
 
     const proposal = useMemo(() => proposals.find((p) => String(p._id) === String(proposalId)) || null, [proposals, proposalId]);
     const requirementIssue = useMemo(() => getProposalRequirementIssue(proposal), [proposal]);
+    const aiSimilarity = useMemo(() => getProposalAiSimilarityContext(proposal), [proposal]);
 
     const isCollaborative = Boolean(assignment?.isCollaborative);
     const myReviewRole = assignment?.collaborationReviewRole || null;
@@ -588,12 +590,8 @@ const TeacherProposalStudentDetail = () => {
         );
     }
 
-    const sameSemPct = Number.isFinite(proposal.aiSameSemesterMaxScore)
-        ? `${Math.round(Number(proposal.aiSameSemesterMaxScore) * 100)}%`
-        : '—';
-    const legacyPct = Number.isFinite(proposal.aiPreviousSemesterMaxScore)
-        ? `${Math.round(Number(proposal.aiPreviousSemesterMaxScore) * 100)}%`
-        : '—';
+    const sameSemPct = aiSimilarity.samePct;
+    const legacyPct = aiSimilarity.legacyPct;
 
     const zip = proposal.latestProjectSubmission;
     const isProjectReviewPhase = Boolean(zip);
@@ -752,12 +750,29 @@ const TeacherProposalStudentDetail = () => {
                                             </p>
                                         </div>
                                     </>
+                                ) : aiSimilarity.level === 'ok' ? (
+                                    <div className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 py-3 px-2 text-center">
+                                        <p className="text-sm font-bold text-emerald-800">AI cleared</p>
+                                        <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                                            {sameSemPct} same-term overlap · advisory only
+                                        </p>
+                                        <p className="mt-1 text-[10px] font-medium text-emerald-600">
+                                            Student was not rejected for similarity
+                                        </p>
+                                    </div>
+                                ) : aiSimilarity.level === 'warn' ? (
+                                    <div className="col-span-2 rounded-lg border border-amber-200 bg-amber-50 py-3 px-2 text-center">
+                                        <p className="text-sm font-bold text-amber-900">Legacy similarity flag</p>
+                                        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                            {legacyPct} legacy · {sameSemPct} same-term
+                                        </p>
+                                    </div>
                                 ) : (
                                     <>
-                                        <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                            <p className="text-xl font-bold text-slate-900">{sameSemPct}</p>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                                Same term (max)
+                                        <div className="rounded-lg bg-rose-50 py-2 text-center">
+                                            <p className="text-xl font-bold text-rose-800">{sameSemPct}</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-rose-600">
+                                                Same term (blocked)
                                             </p>
                                         </div>
                                         <div className="rounded-lg bg-slate-50 py-2 text-center">
@@ -863,6 +878,21 @@ const TeacherProposalStudentDetail = () => {
                                 <p className="text-xs leading-relaxed text-slate-500">
                                     Advisory signals only — not a grade. You decide approve, revision, or reject.
                                 </p>
+                                <div
+                                    className={`mt-3 rounded-lg border p-3 text-sm ${
+                                        aiSimilarity.level === 'reject'
+                                            ? 'border-rose-200 bg-rose-50 text-rose-900'
+                                            : aiSimilarity.level === 'warn'
+                                              ? 'border-amber-200 bg-amber-50 text-amber-950'
+                                              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                                    }`}
+                                >
+                                    <p className="font-bold">{aiSimilarity.headline}</p>
+                                    <p className="mt-1.5 text-xs leading-relaxed">{aiSimilarity.detail}</p>
+                                    {aiSimilarity.legacyNote ? (
+                                        <p className="mt-2 text-xs font-semibold">{aiSimilarity.legacyNote}</p>
+                                    ) : null}
+                                </div>
                                 {proposal.aiSummary ? (
                                     <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2 text-[11px] font-mono text-slate-600">
                                         {proposal.aiSummary}
@@ -870,13 +900,23 @@ const TeacherProposalStudentDetail = () => {
                                 ) : null}
                                 <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
                                     <li className="flex gap-2">
-                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
+                                        <span
+                                            className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                                                aiSimilarity.level === 'reject' ? 'bg-rose-500' : 'bg-slate-300'
+                                            }`}
+                                        />
                                         <span>
                                             Same-semester overlap (max): <strong>{sameSemPct}</strong>
+                                            {aiSimilarity.level === 'ok' ? (
+                                                <span className="text-xs font-semibold text-emerald-700">
+                                                    {' '}
+                                                    — did not block student
+                                                </span>
+                                            ) : null}
                                         </span>
                                     </li>
                                     <li className="flex gap-2">
-                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
+                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
                                         <span>
                                             Legacy / other term (max): <strong>{legacyPct}</strong>
                                         </span>

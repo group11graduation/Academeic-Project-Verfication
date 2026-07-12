@@ -5,6 +5,7 @@ import teacherService from '../../../services/teacherService';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import { getProposalAiSimilarityContext } from '../../../shared/utils/proposalSimilarityUi';
 
 const statusLabel = (s, proposal) => {
     const status = proposal?.displayStatus || s;
@@ -224,9 +225,17 @@ const TeacherAssignmentProposals = () => {
                                                 <span className="text-[10px] font-semibold text-rose-600">
                                                     Requirements not met
                                                 </span>
+                                            ) : p.status === 'ai_rejected_same_semester' ? (
+                                                <span className="text-[10px] font-semibold text-rose-600">
+                                                    AI blocked ({getProposalAiSimilarityContext(p).samePct} same-term)
+                                                </span>
+                                            ) : p.status === 'ai_flagged_previous_semester' ? (
+                                                <span className="text-[10px] font-semibold text-amber-700">
+                                                    Legacy similarity warning
+                                                </span>
                                             ) : Number.isFinite(p.aiSameSemesterMaxScore) ? (
-                                                <span className="text-[10px] font-semibold text-slate-400">
-                                                    Same-term AI: {Math.round(Number(p.aiSameSemesterMaxScore) * 100)}%
+                                                <span className="text-[10px] font-semibold text-emerald-700">
+                                                    AI cleared · {getProposalAiSimilarityContext(p).samePct} advisory
                                                 </span>
                                             ) : null}
                                         </div>
