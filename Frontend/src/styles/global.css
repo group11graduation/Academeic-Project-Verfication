@@ -2,6 +2,15 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@utility safe-area-px {
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
+}
+
+@utility safe-area-pb {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
 @layer base {
   :root {
     --sv-primary: #2a3fa4;
@@ -61,16 +70,6 @@
     width: 100%;
     max-width: 100%;
     overflow-x: clip;
-  }
-
-  /* Notched phones & home-indicator safe areas */
-  .safe-area-px {
-    padding-left: max(0px, env(safe-area-inset-left));
-    padding-right: max(0px, env(safe-area-inset-right));
-  }
-
-  .safe-area-pb {
-    padding-bottom: max(0px, env(safe-area-inset-bottom));
   }
 
   /* Content images only — do not apply to inline SVG icons (Lucide) */

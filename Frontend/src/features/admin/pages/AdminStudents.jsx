@@ -784,6 +784,7 @@ const AdminStudents = () => {
                     </tbody>
                 </table>
                 </div>
+                </div>
             </div>
         </div>
     );
