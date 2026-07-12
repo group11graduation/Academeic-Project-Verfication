@@ -171,6 +171,10 @@ services:
       # Preview workspace + Maven/npm caches
       - ./data:/app/data
 
+    # Linux VPS: PREVIEW_PROBE_HOST defaults to host.docker.internal (works on Docker Desktop only)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     # Optional: run as non-root if your host docker.sock group id is passed in
     # group_add:
     #   - "${DOCKER_GID:-999}"
