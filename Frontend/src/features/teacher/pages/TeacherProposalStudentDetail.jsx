@@ -132,6 +132,25 @@ function DetailRow({ label, value }) {
     );
 }
 
+function getProposalRequirementIssue(proposal) {
+    const liveReview = proposal?.requirementReview || null;
+    const storedFailed = proposal?.requirementCheckPassed === false;
+    const statusFailed =
+        proposal?.status === 'requirements_rejected' || proposal?.displayStatus === 'requirements_rejected';
+    const liveFailed = liveReview?.passed === false;
+    const failed = statusFailed || storedFailed || liveFailed;
+    const summary =
+        proposal?.requirementCheckSummary ||
+        liveReview?.summary ||
+        (failed ? 'This proposal does not match the assignment requirements.' : '');
+    return {
+        failed,
+        isPrimaryIssue: failed && proposal?.status !== 'ai_rejected_same_semester',
+        summary,
+        review: liveReview,
+    };
+}
+
 function buildProposalPlainText(p) {
     if (!p) return '';
     const parts = [];
@@ -143,6 +162,8 @@ function buildProposalPlainText(p) {
     }
     if (p.requirementCheckSummary && p.requirementCheckPassed === false) {
         parts.push(`\n\nREQUIREMENT CHECK\n${p.requirementCheckSummary}`);
+    } else if (p.requirementReview?.passed === false && p.requirementReview?.summary) {
+        parts.push(`\n\nREQUIREMENT CHECK\n${p.requirementReview.summary}`);
     }
     if (p.aiSummary) {
         parts.push(`\n\nAI SUMMARY (ADVISORY)\n${p.aiSummary}`);
@@ -298,6 +319,7 @@ const TeacherProposalStudentDetail = () => {
     }, [load]);
 
     const proposal = useMemo(() => proposals.find((p) => String(p._id) === String(proposalId)) || null, [proposals, proposalId]);
+    const requirementIssue = useMemo(() => getProposalRequirementIssue(proposal), [proposal]);
 
     const isCollaborative = Boolean(assignment?.isCollaborative);
     const myReviewRole = assignment?.collaborationReviewRole || null;
@@ -645,6 +667,46 @@ const TeacherProposalStudentDetail = () => {
                     </div>
                 </div>
 
+                {requirementIssue.failed ? (
+                    <div className="mb-6 rounded-xl border border-rose-300 bg-rose-50 px-4 py-4 text-sm text-rose-950 shadow-sm">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+                            <div className="min-w-0">
+                                <p className="font-bold text-rose-900">
+                                    {proposal?.status === 'requirements_rejected'
+                                        ? 'Proposal rejected — assignment requirements not met'
+                                        : 'Assignment requirements not met'}
+                                </p>
+                                <p className="mt-2 leading-relaxed">{requirementIssue.summary}</p>
+                                {requirementIssue.review?.missingImplicitTerms?.length > 0 ? (
+                                    <p className="mt-2 text-[13px]">
+                                        Expected for this assignment:{' '}
+                                        <strong>{requirementIssue.review.missingImplicitTerms.join(', ')}</strong>
+                                    </p>
+                                ) : null}
+                                {requirementIssue.review?.missingAllowedTech?.length > 0 ? (
+                                    <p className="mt-1 text-[13px]">
+                                        Missing required technologies:{' '}
+                                        <strong>{requirementIssue.review.missingAllowedTech.join(', ')}</strong>
+                                    </p>
+                                ) : null}
+                                {requirementIssue.review?.disallowedMentionedTech?.length > 0 ? (
+                                    <p className="mt-1 text-[13px]">
+                                        Technologies not allowed here:{' '}
+                                        <strong>{requirementIssue.review.disallowedMentionedTech.join(', ')}</strong>
+                                    </p>
+                                ) : null}
+                                {requirementIssue.isPrimaryIssue ? (
+                                    <p className="mt-3 text-[12px] font-semibold text-rose-800">
+                                        This is a requirement mismatch, not a same-semester similarity issue. Low overlap
+                                        scores below do not mean the proposal fits the assignment.
+                                    </p>
+                                ) : null}
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+
                 <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
                     <div className={`${Z_CARD} flex h-full flex-col p-5`}>
                         <div className="flex flex-col items-center text-center">
@@ -681,14 +743,31 @@ const TeacherProposalStudentDetail = () => {
                                 {statusLabel(proposal.status, proposal)}
                             </p>
                             <div className="mt-5 grid w-full grid-cols-2 gap-3 border-t border-slate-100 pt-5">
-                                <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                    <p className="text-xl font-bold text-slate-900">{sameSemPct}</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Same term (max)</p>
-                                </div>
-                                <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                    <p className="text-xl font-bold text-slate-900">{legacyPct}</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Legacy (max)</p>
-                                </div>
+                                {requirementIssue.failed ? (
+                                    <>
+                                        <div className="col-span-2 rounded-lg bg-rose-50 py-3 px-2 text-center">
+                                            <p className="text-sm font-bold text-rose-800">Requirements issue</p>
+                                            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600">
+                                                Not an AI similarity flag
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="rounded-lg bg-slate-50 py-2 text-center">
+                                            <p className="text-xl font-bold text-slate-900">{sameSemPct}</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                                Same term (max)
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg bg-slate-50 py-2 text-center">
+                                            <p className="text-xl font-bold text-slate-900">{legacyPct}</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                                Legacy (max)
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                             {classCodeForStudents ? (
                                 <Link
@@ -754,29 +833,57 @@ const TeacherProposalStudentDetail = () => {
 
                     <div className={`${Z_CARD} flex flex-col p-5`}>
                         <div className="mb-3 flex items-start justify-between gap-2">
-                            <h2 className="text-sm font-bold text-slate-900">AI similarity</h2>
-                            <BarChart2 className="h-4 w-4 shrink-0 text-[#1e56e3]" />
+                            <h2 className="text-sm font-bold text-slate-900">
+                                {requirementIssue.failed ? 'Requirement check' : 'AI similarity'}
+                            </h2>
+                            {requirementIssue.failed ? (
+                                <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                            ) : (
+                                <BarChart2 className="h-4 w-4 shrink-0 text-[#1e56e3]" />
+                            )}
                         </div>
-                        <p className="text-xs leading-relaxed text-slate-500">
-                            Advisory signals only — not a grade. You decide approve, revision, or reject.
-                        </p>
-                        {proposal.aiSummary ? (
-                            <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2 text-[11px] font-mono text-slate-600">{proposal.aiSummary}</p>
-                        ) : null}
-                        <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
-                            <li className="flex gap-2">
-                                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
-                                <span>
-                                    Same-semester overlap (max): <strong>{sameSemPct}</strong>
-                                </span>
-                            </li>
-                            <li className="flex gap-2">
-                                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
-                                <span>
-                                    Legacy / other term (max): <strong>{legacyPct}</strong>
-                                </span>
-                            </li>
-                        </ul>
+                        {requirementIssue.failed ? (
+                            <>
+                                <p className="text-xs leading-relaxed text-rose-800">
+                                    The student proposal does not match what this assignment requires (for example PHP/MySQL
+                                    for a PHP class). This is separate from plagiarism or same-semester similarity.
+                                </p>
+                                <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50/80 p-3 text-sm font-semibold text-rose-900">
+                                    {requirementIssue.summary}
+                                </p>
+                                {requirementIssue.review?.implicitRequiredTerms?.length > 0 ? (
+                                    <p className="mt-3 text-xs text-slate-600">
+                                        Assignment expects:{' '}
+                                        <strong>{requirementIssue.review.implicitRequiredTerms.join(', ')}</strong>
+                                    </p>
+                                ) : null}
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-xs leading-relaxed text-slate-500">
+                                    Advisory signals only — not a grade. You decide approve, revision, or reject.
+                                </p>
+                                {proposal.aiSummary ? (
+                                    <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2 text-[11px] font-mono text-slate-600">
+                                        {proposal.aiSummary}
+                                    </p>
+                                ) : null}
+                                <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
+                                    <li className="flex gap-2">
+                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
+                                        <span>
+                                            Same-semester overlap (max): <strong>{sameSemPct}</strong>
+                                        </span>
+                                    </li>
+                                    <li className="flex gap-2">
+                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
+                                        <span>
+                                            Legacy / other term (max): <strong>{legacyPct}</strong>
+                                        </span>
+                                    </li>
+                                </ul>
+                            </>
+                        )}
                         {proposal.teacherComment ? (
                             <div className="mt-4 border-t border-slate-100 pt-3 text-xs font-semibold text-amber-800">
                                 <span className="flex items-start gap-2">

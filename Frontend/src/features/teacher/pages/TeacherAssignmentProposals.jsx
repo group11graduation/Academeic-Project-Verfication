@@ -220,7 +220,11 @@ const TeacherAssignmentProposals = () => {
                                         </div>
                                         <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
                                             <span className="text-xs font-bold text-slate-700">{statusLabel(p.status, p)}</span>
-                                            {Number.isFinite(p.aiSameSemesterMaxScore) ? (
+                                            {p.requirementReview?.passed === false || p.requirementCheckPassed === false ? (
+                                                <span className="text-[10px] font-semibold text-rose-600">
+                                                    Requirements not met
+                                                </span>
+                                            ) : Number.isFinite(p.aiSameSemesterMaxScore) ? (
                                                 <span className="text-[10px] font-semibold text-slate-400">
                                                     Same-term AI: {Math.round(Number(p.aiSameSemesterMaxScore) * 100)}%
                                                 </span>

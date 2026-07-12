@@ -1022,7 +1022,7 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     .populate({
       path: 'assignment',
       select:
-        'title class subject semester academicYear submissionMode isCollaborative teacher coTeacherId frontendTeacherId backendTeacherId frontendTechRequirements backendTechRequirements',
+        'title description requirementText requiredKeywords allowedTechnologies class subject semester academicYear submissionMode isCollaborative teacher coTeacherId frontendTeacherId backendTeacherId frontendTechRequirements backendTechRequirements',
       populate: [
         { path: 'class', select: 'code name' },
         { path: 'subject', select: 'code name' },
@@ -1099,6 +1099,9 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
 
   return list.map((p) => {
     const latestProjectSubmission = latestZipByProposal.get(String(p._id)) || null;
+    const requirementReview = p.assignment
+      ? evaluateProposalAgainstAssignmentRequirements(p.assignment, p)
+      : null;
     const row = {
     ...p,
     hasProjectSubmission: Boolean(latestProjectSubmission),
@@ -1110,6 +1113,17 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
           studentId: studentIdByUser.get(String(p.submittedBy._id)) || '',
         }
       : p.submittedBy,
+    requirementReview: requirementReview
+      ? {
+          passed: requirementReview.passed,
+          summary: requirementReview.summary,
+          missingKeywords: requirementReview.missingKeywords || [],
+          missingAllowedTech: requirementReview.missingAllowedTech || [],
+          missingImplicitTerms: requirementReview.missingImplicitTerms || [],
+          disallowedMentionedTech: requirementReview.disallowedMentionedTech || [],
+          implicitRequiredTerms: requirementReview.implicitRequiredTerms || [],
+        }
+      : null,
   };
     return mapProposalCollaborativeMeta(row, p.assignment);
   });

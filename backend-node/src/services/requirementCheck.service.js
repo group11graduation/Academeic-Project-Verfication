@@ -62,10 +62,42 @@ function buildImplicitRequiredTerms(requirementText) {
   return detectMentionedTechnologies(text);
 }
 
+/** Infer expected stack from assignment subject/title when teachers did not type requirementText. */
+export function inferRequiredTechFromAssignmentContext(assignment) {
+  if (!assignment || typeof assignment !== 'object') return [];
+
+  const subjectName = String(assignment?.subject?.name || '').toLowerCase();
+  const subjectCode = String(assignment?.subject?.code || '').toLowerCase();
+  const title = String(assignment?.title || '').toLowerCase();
+  const description = String(assignment?.description || '').toLowerCase();
+  const blob = `${subjectName} ${subjectCode} ${title} ${description}`;
+
+  const required = [];
+  if (/\bphp\b/.test(blob)) required.push('php');
+  if (/\bmysql\b/.test(blob) || (/\bsql\b/.test(blob) && /\bphp\b/.test(blob))) required.push('mysql');
+  if (/\bjava\b/.test(blob)) required.push('java');
+  if (/\bspring\b/.test(blob)) required.push('spring boot');
+  if (/\bpython\b/.test(blob)) required.push('python');
+  if (/\bflutter\b/.test(blob)) required.push('flutter');
+  if (/\bnode\.?js\b|\bnodejs\b/.test(blob)) required.push('node.js');
+  if (/\breact\b/.test(blob) && !/\bphp\b/.test(blob)) required.push('react');
+
+  return [...new Set(required)];
+}
+
+function buildImplicitRequiredTermsForAssignment(assignment, requirementText) {
+  return [
+    ...new Set([
+      ...buildImplicitRequiredTerms(requirementText),
+      ...inferRequiredTechFromAssignmentContext(assignment),
+    ]),
+  ];
+}
+
 export function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
   if (assignment?.isCollaborative) {
-    const frontendCheck = evaluateRequirementBlock(assignment?.frontendTechRequirements, proposalLike, 'Frontend');
-    const backendCheck = evaluateRequirementBlock(assignment?.backendTechRequirements, proposalLike, 'Backend');
+    const frontendCheck = evaluateRequirementBlock(assignment?.frontendTechRequirements, proposalLike, 'Frontend', assignment);
+    const backendCheck = evaluateRequirementBlock(assignment?.backendTechRequirements, proposalLike, 'Backend', assignment);
     const passed = frontendCheck.passed && backendCheck.passed;
     return {
       hasAnyRule: frontendCheck.hasAnyRule || backendCheck.hasAnyRule,
@@ -81,14 +113,15 @@ export function evaluateProposalAgainstAssignmentRequirements(assignment, propos
     };
   }
 
-  return evaluateRequirementBlock(assignment, proposalLike);
+  return evaluateRequirementBlock(assignment, proposalLike, '', assignment);
 }
 
-export function evaluateRequirementBlock(block, proposalLike, label = '') {
+export function evaluateRequirementBlock(block, proposalLike, label = '', assignment = null) {
   const requiredKeywords = toList(block?.requiredKeywords);
   const allowedTechnologies = toList(block?.allowedTechnologies);
   const requirementText = String(block?.requirementText || block?.description || '').trim();
-  const implicitRequiredTerms = buildImplicitRequiredTerms(requirementText);
+  const assignmentContext = assignment || block;
+  const implicitRequiredTerms = buildImplicitRequiredTermsForAssignment(assignmentContext, requirementText);
   const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
 
   const proposalText = [
@@ -143,6 +176,7 @@ export function evaluateRequirementBlock(block, proposalLike, label = '') {
     missingImplicitTerms,
     disallowedMentionedTech,
     matchedAllowedTech,
+    implicitRequiredTerms,
     summary: passed
       ? `${label ? `${label}: ` : ''}Proposal satisfies teacher requirement pre-check.`.trim()
       : `${label ? `${label} — ` : ''}Requirement pre-check failed. ${reasons.join(' | ')}`.trim(),

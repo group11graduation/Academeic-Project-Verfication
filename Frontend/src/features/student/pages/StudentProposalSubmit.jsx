@@ -68,11 +68,35 @@ const buildImplicitRequiredTerms = (requirementText) => {
     return detectMentionedTechnologies(text);
 };
 
+const inferRequiredTechFromAssignmentContext = (assignment) => {
+    if (!assignment) return [];
+    const subjectName = String(assignment?.subject?.name || '').toLowerCase();
+    const subjectCode = String(assignment?.subject?.code || '').toLowerCase();
+    const title = String(assignment?.title || '').toLowerCase();
+    const description = String(assignment?.description || '').toLowerCase();
+    const blob = `${subjectName} ${subjectCode} ${title} ${description}`;
+    const required = [];
+    if (/\bphp\b/.test(blob)) required.push('php');
+    if (/\bmysql\b/.test(blob) || (/\bsql\b/.test(blob) && /\bphp\b/.test(blob))) required.push('mysql');
+    if (/\bjava\b/.test(blob)) required.push('java');
+    if (/\bspring\b/.test(blob)) required.push('spring boot');
+    if (/\bpython\b/.test(blob)) required.push('python');
+    if (/\bflutter\b/.test(blob)) required.push('flutter');
+    if (/\bnode\.?js\b|\bnodejs\b/.test(blob)) required.push('node.js');
+    if (/\breact\b/.test(blob) && !/\bphp\b/.test(blob)) required.push('react');
+    return [...new Set(required)];
+};
+
 const evaluateRequirementCoverage = (assignment, payload) => {
     const requiredKeywords = toList(assignment?.requiredKeywords);
     const allowedTechnologies = toList(assignment?.allowedTechnologies);
     const requirementText = String(assignment?.requirementText || '').trim();
-    const implicitRequiredTerms = buildImplicitRequiredTerms(requirementText);
+    const implicitRequiredTerms = [
+        ...new Set([
+            ...buildImplicitRequiredTerms(requirementText),
+            ...inferRequiredTechFromAssignmentContext(assignment),
+        ]),
+    ];
     const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
 
     const proposalText = [
