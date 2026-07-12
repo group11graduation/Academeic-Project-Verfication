@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Plus, X, Send, Save, UploadCloud, ChevronRight } from 'lucide-react';
 import studentService from '../../../services/studentService';
@@ -26,6 +26,8 @@ const StudentProposalSubmit = () => {
     const [inputMode, setInputMode] = useState('text'); // text | file
     const [parsingFile, setParsingFile] = useState(false);
     const [fileParseError, setFileParseError] = useState(null);
+    const [parsedFileLabel, setParsedFileLabel] = useState('');
+    const proposalFileInputRef = useRef(null);
 
     const load = async () => {
         setLoading(true);
@@ -63,6 +65,28 @@ const StudentProposalSubmit = () => {
     const clearAttachedProposalFile = () => {
         setProposalFile(null);
         setFileParseError(null);
+        setParsedFileLabel('');
+        if (proposalFileInputRef.current) {
+            proposalFileInputRef.current.value = '';
+        }
+    };
+
+    const applyParsedProposalToForm = (parsed, { replace = false } = {}) => {
+        if (!parsed) return;
+        if (replace) {
+            setTitle(String(parsed.title || '').trim());
+            setDescription(String(parsed.description || '').trim());
+            const nextFeatures = Array.isArray(parsed.features)
+                ? parsed.features.map((f) => String(f || '').trim()).filter(Boolean)
+                : [];
+            setFeatures(nextFeatures.length ? nextFeatures : ['']);
+            return;
+        }
+        if (parsed.title) setTitle(parsed.title);
+        if (parsed.description) setDescription(parsed.description);
+        if (Array.isArray(parsed.features) && parsed.features.length) {
+            setFeatures(parsed.features);
+        }
     };
 
     const addFeature = () => {
@@ -90,15 +114,6 @@ const StudentProposalSubmit = () => {
         if (proposalFile) clearAttachedProposalFile();
     };
 
-    const applyParsedProposalToForm = (parsed) => {
-        if (!parsed) return;
-        if (parsed.title) setTitle(parsed.title);
-        if (parsed.description) setDescription(parsed.description);
-        if (Array.isArray(parsed.features) && parsed.features.length) {
-            setFeatures(parsed.features);
-        }
-    };
-
     const buildSubmitPayload = (finalize) => ({
         title,
         description,
@@ -110,35 +125,53 @@ const StudentProposalSubmit = () => {
     });
 
     const syncProposalFromResponse = (data) => {
-        applyParsedProposalToForm(data?.parsed);
         const p = data?.proposal;
         if (p) {
             setRow((prev) => ({ ...prev, proposal: p }));
             setTitle(p.title || '');
             setDescription(p.description || '');
             setFeatures(p.features?.length ? p.features : ['']);
+            return;
+        }
+        if (data?.parsed) {
+            applyParsedProposalToForm(data.parsed, { replace: true });
         }
     };
 
     const handleProposalFileChange = async (e) => {
-        const file = e.target.files?.[0] || null;
-        setProposalFile(file);
+        const input = e.target;
+        const file = input.files?.[0] || null;
         setFileParseError(null);
-        if (!file) return;
+        setMessage(null);
 
+        if (!file) {
+            clearAttachedProposalFile();
+            return;
+        }
+
+        setProposalFile(file);
         setParsingFile(true);
         try {
             const res = await studentService.parseProposalFile(assignmentId, file);
             if (res.success && res.data?.parsed) {
-                applyParsedProposalToForm(res.data.parsed);
-                setMessage('File parsed into the form below. Review and edit before submitting.');
+                applyParsedProposalToForm(res.data.parsed, { replace: true });
+                const modified = file.lastModified
+                    ? new Date(file.lastModified).toLocaleString()
+                    : 'just now';
+                setParsedFileLabel(`${file.name} (${modified})`);
+                setMessage(`Loaded content from "${file.name}". Review the fields below, then submit.`);
             } else {
+                setProposalFile(null);
+                setParsedFileLabel('');
                 setFileParseError(res.message || 'Could not parse this file.');
             }
         } catch (err) {
+            setProposalFile(null);
+            setParsedFileLabel('');
             setFileParseError(err.response?.data?.message || 'Could not parse this file.');
         } finally {
             setParsingFile(false);
+            if (input) input.value = '';
         }
     };
 
@@ -443,6 +476,7 @@ const StudentProposalSubmit = () => {
                             Structured proposal file (.txt, .md, .json, .csv, .docx)
                         </label>
                         <input
+                            ref={proposalFileInputRef}
                             type="file"
                             accept=".txt,.md,.json,.csv,.docx,text/plain,text/markdown,application/json,text/csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             onChange={handleProposalFileChange}
@@ -456,13 +490,17 @@ const StudentProposalSubmit = () => {
                         )}
                         {proposalFile && !parsingFile && (
                             <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300 inline-flex items-center gap-2">
-                                <UploadCloud className="h-4 w-4 text-[#1D68E3]" /> {proposalFile.name}
+                                <UploadCloud className="h-4 w-4 text-[#1D68E3]" />
+                                {parsedFileLabel || proposalFile.name}
                             </p>
                         )}
                         {fileParseError && (
                             <p className="mt-2 text-sm font-semibold text-rose-600">{fileParseError}</p>
                         )}
                         <p className="mt-2 text-xs text-slate-500">
+                            Uploading replaces the form below with the new file content. If you edit and save the same filename, choose the file again to reload it.
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
                             Supports structured labels (Title:, Description:, Features:) or sections like Project Overview and Proposed Functionality with bullet points. `.docx` supported.
                         </p>
                     </div>

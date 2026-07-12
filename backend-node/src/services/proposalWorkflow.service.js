@@ -425,11 +425,9 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     const extractedText = await readProposalFileText(proposalFile);
     const parsed = parseStructuredProposalText(extractedText);
     parsedFromFile = parsed;
-    ({ title, description, features } = mergeProposalContentWithFile(
-      { title, description, features },
-      parsed,
-      { preferForm: false }
-    ));
+    title = String(parsed.title || '').trim();
+    description = String(parsed.description || '').trim();
+    features = coerceFeatureList(parsed.features);
   }
   if (!title?.trim()) {
     const err = new Error('Title is required (or upload a structured proposal file).');

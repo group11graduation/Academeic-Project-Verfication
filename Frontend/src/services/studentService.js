@@ -38,22 +38,28 @@ const studentService = {
 
     parseProposalFile: async (assignmentId, file) => {
         const fd = new FormData();
-        fd.append('proposalFile', file);
-        const response = await api.post(`${base}/assignments/${assignmentId}/proposals/parse-file`, fd);
+        fd.append('proposalFile', file, file.name);
+        const response = await api.post(
+            `${base}/assignments/${assignmentId}/proposals/parse-file?t=${Date.now()}`,
+            fd
+        );
         return response.data;
     },
 
     submitProposalWithFile: async (assignmentId, payload) => {
         const fd = new FormData();
-        if (payload?.title) fd.append('title', payload.title);
-        if (payload?.description) fd.append('description', payload.description);
-        if (Array.isArray(payload?.features)) {
-            payload.features.forEach((f) => fd.append('features[]', f));
+        const useFileOnly = payload?.contentSource === 'file' && payload?.file;
+        if (!useFileOnly) {
+            if (payload?.title) fd.append('title', payload.title);
+            if (payload?.description) fd.append('description', payload.description);
+            if (Array.isArray(payload?.features)) {
+                payload.features.forEach((f) => fd.append('features[]', f));
+            }
         }
         if (payload?.groupId) fd.append('groupId', payload.groupId);
         fd.append('finalize', payload?.finalize ? 'true' : 'false');
         fd.append('contentSource', payload?.contentSource || 'form');
-        if (payload?.file) fd.append('proposalFile', payload.file);
+        if (payload?.file) fd.append('proposalFile', payload.file, payload.file.name);
         const timeout = payload?.finalize
             ? Math.max(PROPOSAL_AI_SUBMIT_TIMEOUT_MS, UPLOAD_TIMEOUT_MS)
             : UPLOAD_TIMEOUT_MS;
