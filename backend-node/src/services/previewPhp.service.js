@@ -498,15 +498,18 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
     const line = raw.trim();
     if (!line) continue;
 
+    // Password reset echoes — last match wins (bootstrap scripts may run more than once).
     const passReset =
-      line.match(/password\s+(?:reset|changed|is|set|updated)[^:\n]*(?:to|:)\s*['"]?([^\s'"\n<]+)/i) ||
+      line.match(/(?:admin\s+)?password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"\n<]+)/i) ||
       line.match(/reset\s+successfully\s+to\s*:\s*['"]?([^\s'"\n<]+)/i) ||
-      line.match(/admin\s+password[^:\n]*(?:to|:)\s*['"]?([^\s'"\n<]+)/i);
+      line.match(/password\s+(?:reset|changed|is|set|updated)[^:\n]*:\s*['"]?([^\s'"\n<]+)/i) ||
+      line.match(/admin\s+password[^:\n]*:\s*['"]?([^\s'"\n<]+)/i);
     if (passReset) {
       password = passReset[1];
+      continue;
     }
 
-    if (!/password_hash|password_verify|password_reset_token/i.test(line)) {
+    if (!/password_hash|password_verify|password_reset_token|^hash:/i.test(line)) {
       const passKv = line.match(/(?:^|[^\w])(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"\n,<]+)/i);
       if (passKv && passKv[1].length >= 3) {
         password = passKv[1];
@@ -538,14 +541,26 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
     }
   }
 
+  if (!password) return null;
+
   const identifier = email || username;
-  if (!identifier || !password) return null;
+  if (!identifier) {
+    return {
+      username: 'admin',
+      password,
+      identifierType: 'username',
+      source: 'bootstrap_log',
+      usernameAssumed: true,
+      assumedUsername: 'admin',
+    };
+  }
 
   return {
     username: identifier,
     password,
     identifierType: email ? 'email' : 'username',
     source: 'bootstrap_log',
+    usernameAssumed: false,
   };
 }
 
@@ -567,12 +582,21 @@ export function buildPhpPreviewLoginHint({
 
   const bootstrapUser = bootstrapCredentials?.username;
   const bootstrapPass = bootstrapCredentials?.password;
-  if (bootstrapUser && bootstrapPass) {
-    const idLabel = bootstrapCredentials.identifierType === 'email' ? 'Email' : 'Username';
-    parts.push(
-      `Login from bootstrap script output (${idLabel}: ${bootstrapUser}, password: ${bootstrapPass}).`
-    );
-    return parts.join(' ');
+  if (bootstrapPass) {
+    if (bootstrapCredentials?.usernameAssumed) {
+      const assumed = bootstrapCredentials.assumedUsername || bootstrapUser || 'admin';
+      parts.push(
+        `Login from bootstrap script output (password: ${bootstrapPass}, username assumed to be '${assumed}' — verify on the login page).`
+      );
+      return parts.join(' ');
+    }
+    if (bootstrapUser) {
+      const idLabel = bootstrapCredentials.identifierType === 'email' ? 'Email' : 'Username';
+      parts.push(
+        `Login from bootstrap script output (${idLabel}: ${bootstrapUser}, password: ${bootstrapPass}).`
+      );
+      return parts.join(' ');
+    }
   }
 
   const user = projectCredentials.username || adminCredentials.username;

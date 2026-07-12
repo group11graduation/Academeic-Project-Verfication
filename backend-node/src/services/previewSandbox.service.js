@@ -310,13 +310,15 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
     bootstrapCredentials,
   });
 
-  if (bootstrapCredentials?.username && bootstrapCredentials.password) {
-    session.previewLoginEmail = bootstrapCredentials.username;
+  if (bootstrapCredentials?.password) {
     session.previewLoginPassword = bootstrapCredentials.password;
+    session.previewLoginEmail = bootstrapCredentials.username || 'admin';
     session.previewLoginIdentifierType = bootstrapCredentials.identifierType || 'username';
     session.previewLoginIdentifierLabel =
       bootstrapCredentials.identifierType === 'email' ? 'Email' : 'Username';
-    session.previewLoginSource = 'bootstrap_log';
+    session.previewLoginSource = bootstrapCredentials.usernameAssumed
+      ? 'bootstrap_log_assumed_username'
+      : 'bootstrap_log';
   }
 }
 
