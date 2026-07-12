@@ -1,14 +1,3 @@
-function toList(value) {
-  if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean);
-  }
-  return [];
-}
-
 const TECH_ALIASES = [
   { key: 'php', aliases: ['php'] },
   { key: 'mysql', aliases: ['mysql', 'my sql'] },
@@ -39,6 +28,17 @@ const TECH_COMPATIBILITY = {
   mongodb: ['mongodb'],
 };
 
+function toList(value) {
+  if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -48,7 +48,7 @@ function hasAlias(text, alias) {
   return pattern.test(String(text || ''));
 }
 
-function canonicalizeTechList(techList) {
+export function canonicalizeTechList(techList) {
   const canonical = [];
   for (const raw of techList) {
     const term = String(raw || '').trim().toLowerCase();
@@ -59,7 +59,7 @@ function canonicalizeTechList(techList) {
   return [...new Set(canonical)];
 }
 
-function detectMentionedTechnologies(text) {
+export function detectMentionedTechnologies(text) {
   const mentioned = [];
   const src = String(text || '').toLowerCase();
   for (const item of TECH_ALIASES) {
@@ -70,29 +70,6 @@ function detectMentionedTechnologies(text) {
   return [...new Set(mentioned)];
 }
 
-function expandTechFamily(techList) {
-  const expanded = new Set();
-  for (const tech of canonicalizeTechList(techList)) {
-    expanded.add(tech);
-    const family = TECH_COMPATIBILITY[tech];
-    if (family) {
-      for (const related of family) expanded.add(related);
-    }
-  }
-  return [...expanded];
-}
-
-function techFamiliesOverlap(left, right) {
-  const expandedLeft = expandTechFamily(left);
-  const expandedRight = expandTechFamily(right);
-  return expandedLeft.some((tech) => expandedRight.includes(tech));
-}
-
-function formatTechList(list) {
-  return canonicalizeTechList(list).join(', ');
-}
-
-/** Infer expected stack from the course subject only (not assignment description). */
 export function inferRequiredTechFromSubject(subject) {
   if (!subject || typeof subject !== 'object') return [];
 
@@ -113,12 +90,29 @@ export function inferRequiredTechFromSubject(subject) {
   return [...new Set(required)];
 }
 
-/** @deprecated Use inferRequiredTechFromSubject — kept for callers that still import it. */
-export function inferRequiredTechFromAssignmentContext(assignment) {
-  return inferRequiredTechFromSubject(assignment?.subject);
+function expandTechFamily(techList) {
+  const expanded = new Set();
+  for (const tech of canonicalizeTechList(techList)) {
+    expanded.add(tech);
+    const family = TECH_COMPATIBILITY[tech];
+    if (family) {
+      for (const related of family) expanded.add(related);
+    }
+  }
+  return [...expanded];
 }
 
-/** Teacher-stated stack first; subject inference only when nothing else is specified. */
+export function techFamiliesOverlap(left, right) {
+  const expandedLeft = expandTechFamily(left);
+  const expandedRight = expandTechFamily(right);
+  return expandedLeft.some((tech) => expandedRight.includes(tech));
+}
+
+function formatTechList(list) {
+  return canonicalizeTechList(list).join(', ');
+}
+
+/** What students must mention — teacher-stated stack first, subject only as fallback. */
 export function resolveRequiredTechnologiesForProposal(assignment, block) {
   const allowedTechnologies = toList(block?.allowedTechnologies);
   const requirementText = String(block?.requirementText || '').trim();
@@ -142,12 +136,13 @@ export function validateAssignmentTechnologyConsistency({
   description = '',
   requirementText = '',
   allowedTechnologies,
+  allowedTechnologiesText,
   isCollaborative = false,
 } = {}) {
   if (isCollaborative) return { ok: true };
 
   const subjectTech = inferRequiredTechFromSubject(subject);
-  const allowed = canonicalizeTechList(toList(allowedTechnologies));
+  const allowed = canonicalizeTechList(toList(allowedTechnologies ?? allowedTechnologiesText));
   const textTech = detectMentionedTechnologies(`${title} ${description} ${requirementText}`);
   const statedTech = [...new Set([...allowed, ...textTech])];
 
@@ -173,92 +168,50 @@ export function validateAssignmentTechnologyConsistency({
   return { ok: true };
 }
 
-export function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
-  if (assignment?.isCollaborative) {
-    const frontendCheck = evaluateRequirementBlock(assignment?.frontendTechRequirements, proposalLike, 'Frontend', assignment);
-    const backendCheck = evaluateRequirementBlock(assignment?.backendTechRequirements, proposalLike, 'Backend', assignment);
-    const passed = frontendCheck.passed && backendCheck.passed;
-    return {
-      hasAnyRule: frontendCheck.hasAnyRule || backendCheck.hasAnyRule,
-      passed,
-      missingKeywords: [...frontendCheck.missingKeywords, ...backendCheck.missingKeywords],
-      missingAllowedTech: [...frontendCheck.missingAllowedTech, ...backendCheck.missingAllowedTech],
-      missingImplicitTerms: [...frontendCheck.missingImplicitTerms, ...backendCheck.missingImplicitTerms],
-      disallowedMentionedTech: [...frontendCheck.disallowedMentionedTech, ...backendCheck.disallowedMentionedTech],
-      matchedAllowedTech: [...frontendCheck.matchedAllowedTech, ...backendCheck.matchedAllowedTech],
-      summary: passed
-        ? 'Proposal satisfies collaborative frontend and backend requirement pre-check.'
-        : `Requirement pre-check failed. ${[frontendCheck.summary, backendCheck.summary].filter((s) => !s.includes('satisfies')).join(' | ')}`,
-    };
-  }
-
-  return evaluateRequirementBlock(assignment, proposalLike, '', assignment);
-}
-
-export function evaluateRequirementBlock(block, proposalLike, label = '', assignment = null) {
-  const requiredKeywords = toList(block?.requiredKeywords);
-  const allowedTechnologies = toList(block?.allowedTechnologies);
-  const requirementText = String(block?.requirementText || '').trim();
-  const assignmentContext = assignment || block;
-  const implicitRequiredTerms = resolveRequiredTechnologiesForProposal(assignmentContext, block);
+export function evaluateProposalRequirementCoverage(assignment, payload) {
+  const requiredKeywords = toList(assignment?.requiredKeywords);
+  const allowedTechnologies = toList(assignment?.allowedTechnologies);
+  const requirementText = String(assignment?.requirementText || '').trim();
+  const implicitRequiredTerms = resolveRequiredTechnologiesForProposal(assignment, assignment);
   const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
 
   const proposalText = [
-    proposalLike?.title || '',
-    proposalLike?.description || '',
-    ...(Array.isArray(proposalLike?.features) ? proposalLike.features : []),
+    payload?.title || '',
+    payload?.description || '',
+    ...(Array.isArray(payload?.features) ? payload.features : []),
   ]
     .join(' ')
     .toLowerCase();
 
   const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
-  const matchedAllowedTech = allowedTechnologies.filter((t) => proposalText.includes(t.toLowerCase()));
   const missingAllowedTech = allowedTechnologies.filter((t) => !proposalText.includes(t.toLowerCase()));
   const missingImplicitTerms = implicitRequiredTerms.filter((t) => !proposalText.includes(t.toLowerCase()));
   const mentionedTechnologies = detectMentionedTechnologies(proposalText);
-  const hasAllowedTechRule = allowedTechnologies.length > 0;
-  const allowedTechPassed = !hasAllowedTechRule || missingAllowedTech.length === 0;
-  const disallowedMentionedTech = hasAllowedTechRule
-    ? mentionedTechnologies.filter((t) => !canonicalAllowedTech.includes(t))
-    : [];
-  const noDisallowedTechPassed = disallowedMentionedTech.length === 0;
-  const requiredKeywordsPassed = missingKeywords.length === 0;
-  const implicitTermsPassed = missingImplicitTerms.length === 0;
-
-  const hasAnyRule =
+  const disallowedMentionedTech =
+    allowedTechnologies.length > 0
+      ? mentionedTechnologies.filter((t) => !canonicalAllowedTech.includes(t))
+      : [];
+  const hasRules =
     Boolean(requirementText) ||
-    hasAllowedTechRule ||
     requiredKeywords.length > 0 ||
+    allowedTechnologies.length > 0 ||
     implicitRequiredTerms.length > 0;
-  const passed =
-    !hasAnyRule || (requiredKeywordsPassed && allowedTechPassed && implicitTermsPassed && noDisallowedTechPassed);
-
-  const reasons = [];
-  if (!requiredKeywordsPassed) {
-    reasons.push(`Missing required keywords: ${missingKeywords.join(', ')}`);
-  }
-  if (!allowedTechPassed) {
-    reasons.push(`Missing required technologies: ${missingAllowedTech.join(', ')}`);
-  }
-  if (!implicitTermsPassed) {
-    reasons.push(`Missing required technologies from teacher text: ${missingImplicitTerms.join(', ')}`);
-  }
-  if (!noDisallowedTechPassed) {
-    reasons.push(`Disallowed technologies detected: ${disallowedMentionedTech.join(', ')}`);
-  }
 
   return {
-    hasAnyRule,
-    passed,
+    hasRules,
+    requiredKeywords,
+    allowedTechnologies,
+    requirementText,
+    implicitRequiredTerms,
     missingKeywords,
     missingAllowedTech,
     missingImplicitTerms,
     disallowedMentionedTech,
-    matchedAllowedTech,
-    implicitRequiredTerms,
-    summary: passed
-      ? `${label ? `${label}: ` : ''}Proposal satisfies teacher requirement pre-check.`.trim()
-      : `${label ? `${label} — ` : ''}Requirement pre-check failed. ${reasons.join(' | ')}`.trim(),
+    passed:
+      !hasRules ||
+      (missingKeywords.length === 0 &&
+        missingAllowedTech.length === 0 &&
+        missingImplicitTerms.length === 0 &&
+        disallowedMentionedTech.length === 0),
   };
 }
-

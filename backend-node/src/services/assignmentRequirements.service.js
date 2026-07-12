@@ -1,3 +1,5 @@
+import { validateAssignmentTechnologyConsistency } from './requirementCheck.service.js';
+
 function parseList(value) {
   if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
   if (typeof value === 'string') return value.split(',').map((x) => x.trim()).filter(Boolean);
@@ -57,6 +59,15 @@ export function validateAssignmentRequirementsConfig({
   }
 
   return { ok: true };
+}
+
+export function assertAssignmentTechnologyConsistent(fields) {
+  const result = validateAssignmentTechnologyConsistency(fields);
+  if (!result.ok) {
+    const err = new Error(result.message);
+    err.status = 400;
+    throw err;
+  }
 }
 
 export function assertAssignmentRequirementsConfigured(fields) {

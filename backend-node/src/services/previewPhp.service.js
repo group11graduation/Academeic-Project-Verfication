@@ -482,6 +482,37 @@ function phpCredentialsLookLikePlatformDefault(user, pass) {
   return pass === defaults.password && (user === defaults.email || user === defaults.username);
 }
 
+/** Strip HTML tags and collapse whitespace from bootstrap script echo output. */
+function normalizeBootstrapLogLine(line) {
+  return String(line || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Keep only the credential token — bootstrap logs often append HTML or punctuation after the value. */
+function sanitizeBootstrapCredential(raw, kind = 'password') {
+  let value = normalizeBootstrapLogLine(raw).replace(/^['"]+|['"]+$/g, '');
+  if (!value) return '';
+
+  if (kind === 'email') {
+    const m = value.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    return m ? m[0] : value.split(/[\s<(,;]/)[0];
+  }
+
+  if (kind === 'username') {
+    const m = value.match(/^[A-Za-z0-9._@-]+/);
+    return m ? m[0] : value.split(/[\s<(,;]/)[0];
+  }
+
+  const m = value.match(/^[A-Za-z0-9@#$%^&*!\.\-_/+:=]+/);
+  return m ? m[0] : value.split(/[\s<(,]/)[0].replace(/[),.;:]+$/g, '');
+}
+
 /**
  * Parse admin credentials echoed by student bootstrap scripts inside the preview container.
  * Bootstrap output is appended to /tmp/preview-mysql.log by the PHP entrypoint.
@@ -495,51 +526,65 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
 
   const lines = logText.split(/\r?\n/);
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = normalizeBootstrapLogLine(raw);
     if (!line) continue;
 
     // Password reset echoes — last match wins (bootstrap scripts may run more than once).
     const passReset =
-      line.match(/(?:admin\s+)?password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"\n<]+)/i) ||
-      line.match(/reset\s+successfully\s+to\s*:\s*['"]?([^\s'"\n<]+)/i) ||
-      line.match(/password\s+(?:reset|changed|is|set|updated)[^:\n]*:\s*['"]?([^\s'"\n<]+)/i) ||
-      line.match(/admin\s+password[^:\n]*:\s*['"]?([^\s'"\n<]+)/i);
+      line.match(/(?:admin\s+)?password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<>,;)]+)/i) ||
+      line.match(/reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<>,;)]+)/i) ||
+      line.match(/password\s+(?:reset|changed|is|set|updated)[^:\n]*:\s*['"]?([^\s'"<>,;)]+)/i) ||
+      line.match(/admin\s+password[^:\n]*:\s*['"]?([^\s'"<>,;)]+)/i);
     if (passReset) {
-      password = passReset[1];
+      password = sanitizeBootstrapCredential(passReset[1], 'password');
       continue;
     }
 
     if (!/password_hash|password_verify|password_reset_token|^hash:/i.test(line)) {
-      const passKv = line.match(/(?:^|[^\w])(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"\n,<]+)/i);
-      if (passKv && passKv[1].length >= 3) {
-        password = passKv[1];
+      const passKv = line.match(/(?:^|[^\w])(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"<>,;)]+)/i);
+      if (passKv) {
+        const cleaned = sanitizeBootstrapCredential(passKv[1], 'password');
+        if (cleaned.length >= 3) {
+          password = cleaned;
+        }
       }
     }
 
-    const emailKv = line.match(/(?:admin\s+)?e-?mail\s*(?:is\s*)?[:=]\s*['"]?([^\s'"\n,<]+)/i);
-    if (emailKv && emailKv[1].includes('@')) {
-      email = emailKv[1];
+    const emailKv = line.match(/(?:admin\s+)?e-?mail\s*(?:is\s*)?[:=]\s*['"]?([^\s'"<>,;)]+)/i);
+    if (emailKv) {
+      const cleaned = sanitizeBootstrapCredential(emailKv[1], 'email');
+      if (cleaned.includes('@')) {
+        email = cleaned;
+      }
     }
 
     const userKv = line.match(
-      /(?:default\s+)?(?:admin\s+)?(?:user(?:name)?|login\s+id)\s*(?:is\s*)?[:=]\s*['"]?([^\s'"\n,<]+)/i
+      /(?:default\s+)?(?:admin\s+)?(?:user(?:name)?|login\s+id)\s*(?:is\s*)?[:=]\s*['"]?([^\s'"<>,;)]+)/i
     );
-    if (userKv && !userKv[1].includes('@')) {
-      username = userKv[1];
+    if (userKv) {
+      const cleaned = sanitizeBootstrapCredential(userKv[1], 'username');
+      if (cleaned && !cleaned.includes('@')) {
+        username = cleaned;
+      }
     }
 
     const pair =
-      line.match(/(?:credentials?|login)\s*[:=]\s*['"]?([^/'"\s]+)\s*\/\s*([^\s'"\n]+)/i) ||
+      line.match(/(?:credentials?|login)\s*[:=]\s*['"]?([^/'"\s<>,;)]+)\s*\/\s*([^\s'"<>,;)]+)/i) ||
       line.match(
-        /(?:user(?:name)?|login)\s*[:=]\s*['"]?([^'"\n]+)['"]?\s*[,;]\s*(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"\n]+)/i
+        /(?:user(?:name)?|login)\s*[:=]\s*['"]?([^'"\n<>,;)]+)['"]?\s*[,;]\s*(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"<>,;)]+)/i
       );
     if (pair) {
-      const id = pair[1].trim();
+      const id = sanitizeBootstrapCredential(pair[1].trim(), pair[1].includes('@') ? 'email' : 'username');
       if (id.includes('@')) email = id;
-      else username = id;
-      password = pair[2].trim();
+      else if (id) username = id;
+      const pass = sanitizeBootstrapCredential(pair[2].trim(), 'password');
+      if (pass) password = pass;
     }
   }
+
+  password = sanitizeBootstrapCredential(password, 'password');
+  username = sanitizeBootstrapCredential(username, 'username');
+  email = sanitizeBootstrapCredential(email, 'email');
 
   if (!password) return null;
 

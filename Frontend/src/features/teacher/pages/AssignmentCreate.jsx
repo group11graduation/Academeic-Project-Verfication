@@ -181,6 +181,16 @@ const AssignmentCreate = () => {
 
     const selectedCatalogRow = catalog[catalogIndex] || null;
 
+    const selectedSubject = useMemo(() => {
+        if (!subjectId) return null;
+        const fromCatalog = (selectedCatalogRow?.subjects || []).find((s) => String(s._id) === String(subjectId));
+        if (fromCatalog) return fromCatalog;
+        if (existingAssignment?.subject && String(existingAssignment.subject._id || existingAssignment.subject) === String(subjectId)) {
+            return existingAssignment.subject;
+        }
+        return null;
+    }, [subjectId, selectedCatalogRow, existingAssignment]);
+
     const compatibleClassOptions = useMemo(() => {
         if (!selectedCatalogRow || !subjectId) return [];
         return catalog.filter((row) => {
@@ -232,6 +242,9 @@ const AssignmentCreate = () => {
             allowedTechnologiesText,
             requirementsFile,
             hasExistingFile: hasExistingRequirementsFile,
+            subject: selectedSubject,
+            title: title.trim(),
+            description: description.trim(),
         });
         if (requirementsError) return setFormError(requirementsError);
 

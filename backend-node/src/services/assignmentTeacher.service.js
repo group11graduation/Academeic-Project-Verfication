@@ -4,6 +4,7 @@ import { Group } from '../models/Group.js';
 import { Class } from '../models/Class.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Semester } from '../models/Semester.js';
+import { Subject } from '../models/Subject.js';
 import { Proposal } from '../models/Proposal.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { LegacyProject } from '../models/LegacyProject.js';
@@ -19,6 +20,7 @@ import {
 } from './teacherAssignmentAccess.service.js';
 import {
   assertAssignmentRequirementsConfigured,
+  assertAssignmentTechnologyConsistent,
   validateAssignmentRequirementsConfig,
 } from './assignmentRequirements.service.js';
 import {
@@ -379,6 +381,15 @@ export async function createAssignment(teacherId, payload) {
     assignmentFile: assignmentFileResolved,
   });
 
+  const subjectDoc = await Subject.findById(subjectId).select('name code').lean();
+  assertAssignmentTechnologyConsistent({
+    subject: subjectDoc,
+    title: title?.trim() || '',
+    description: description?.trim() || '',
+    requirementText: requirementTextResolved,
+    allowedTechnologies: allowedTechnologiesResolved,
+  });
+
   validateDeadlinesOnCreate({
     assignmentType: assignmentTypeResolved,
     proposalDeadline,
@@ -533,6 +544,16 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
     requirementText: assignment.requirementText,
     allowedTechnologies: assignment.allowedTechnologies,
     assignmentFile: assignment.assignmentFile,
+    isCollaborative: assignment.isCollaborative,
+  });
+
+  const subjectDoc = await Subject.findById(assignment.subject).select('name code').lean();
+  assertAssignmentTechnologyConsistent({
+    subject: subjectDoc,
+    title: assignment.title || '',
+    description: assignment.description || '',
+    requirementText: assignment.requirementText || '',
+    allowedTechnologies: assignment.allowedTechnologies || [],
     isCollaborative: assignment.isCollaborative,
   });
 

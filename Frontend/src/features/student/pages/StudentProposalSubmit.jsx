@@ -6,138 +6,7 @@ import { getApiErrorMessage } from '../../../shared/utils/apiErrors';
 import MatchedSimilarProjectPanel from '../components/MatchedSimilarProjectPanel';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY, Z_LINK, Z_INPUT } from '../../../shared/ui/zendentaLayout';
 import { DEADLINE_DUE_STUDENT_MESSAGE } from '../../../shared/utils/assignmentDeadlines';
-
-const toList = (value) => {
-    if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
-    if (typeof value === 'string') {
-        return value
-            .split(',')
-            .map((x) => x.trim())
-            .filter(Boolean);
-    }
-    return [];
-};
-
-const TECH_ALIASES = [
-    { key: 'php', aliases: ['php'] },
-    { key: 'mysql', aliases: ['mysql', 'my sql'] },
-    { key: 'postgresql', aliases: ['postgresql', 'postgres', 'postgre sql'] },
-    { key: 'mongodb', aliases: ['mongodb', 'mongo db'] },
-    { key: 'node.js', aliases: ['node.js', 'nodejs', 'node js'] },
-    { key: 'react', aliases: ['react', 'reactjs', 'react.js'] },
-    { key: 'flutter', aliases: ['flutter'] },
-    { key: 'java', aliases: ['java'] },
-    { key: 'python', aliases: ['python'] },
-    { key: 'laravel', aliases: ['laravel'] },
-    { key: 'spring boot', aliases: ['spring boot'] },
-    { key: 'django', aliases: ['django'] },
-];
-
-const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const hasAlias = (text, alias) => {
-    const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(String(alias || '').toLowerCase())}([^a-z0-9]|$)`, 'i');
-    return pattern.test(String(text || ''));
-};
-
-const canonicalizeTechList = (techList) => {
-    const canonical = [];
-    for (const raw of techList) {
-        const term = String(raw || '').trim().toLowerCase();
-        if (!term) continue;
-        const mapped = TECH_ALIASES.find((t) => t.key === term || t.aliases.some((a) => a === term));
-        canonical.push(mapped ? mapped.key : term);
-    }
-    return [...new Set(canonical)];
-};
-
-const detectMentionedTechnologies = (text) => {
-    const src = String(text || '').toLowerCase();
-    const mentioned = [];
-    for (const item of TECH_ALIASES) {
-        if (item.aliases.some((alias) => hasAlias(src, alias))) {
-            mentioned.push(item.key);
-        }
-    }
-    return [...new Set(mentioned)];
-};
-
-const buildImplicitRequiredTerms = (requirementText) => {
-    const text = String(requirementText || '').toLowerCase();
-    if (!text) return [];
-    return detectMentionedTechnologies(text);
-};
-
-const inferRequiredTechFromAssignmentContext = (assignment) => {
-    if (!assignment) return [];
-    const subjectName = String(assignment?.subject?.name || '').toLowerCase();
-    const subjectCode = String(assignment?.subject?.code || '').toLowerCase();
-    const title = String(assignment?.title || '').toLowerCase();
-    const description = String(assignment?.description || '').toLowerCase();
-    const blob = `${subjectName} ${subjectCode} ${title} ${description}`;
-    const required = [];
-    if (/\bphp\b/.test(blob)) required.push('php');
-    if (/\bmysql\b/.test(blob) || (/\bsql\b/.test(blob) && /\bphp\b/.test(blob))) required.push('mysql');
-    if (/\bjava\b/.test(blob)) required.push('java');
-    if (/\bspring\b/.test(blob)) required.push('spring boot');
-    if (/\bpython\b/.test(blob)) required.push('python');
-    if (/\bflutter\b/.test(blob)) required.push('flutter');
-    if (/\bnode\.?js\b|\bnodejs\b/.test(blob)) required.push('node.js');
-    if (/\breact\b/.test(blob) && !/\bphp\b/.test(blob)) required.push('react');
-    return [...new Set(required)];
-};
-
-const evaluateRequirementCoverage = (assignment, payload) => {
-    const requiredKeywords = toList(assignment?.requiredKeywords);
-    const allowedTechnologies = toList(assignment?.allowedTechnologies);
-    const requirementText = String(assignment?.requirementText || '').trim();
-    const implicitRequiredTerms = [
-        ...new Set([
-            ...buildImplicitRequiredTerms(requirementText),
-            ...inferRequiredTechFromAssignmentContext(assignment),
-        ]),
-    ];
-    const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
-
-    const proposalText = [
-        payload?.title || '',
-        payload?.description || '',
-        ...(Array.isArray(payload?.features) ? payload.features : []),
-    ]
-        .join(' ')
-        .toLowerCase();
-
-    const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
-    const missingAllowedTech = allowedTechnologies.filter((t) => !proposalText.includes(t.toLowerCase()));
-    const missingImplicitTerms = implicitRequiredTerms.filter((t) => !proposalText.includes(t.toLowerCase()));
-    const mentionedTechnologies = detectMentionedTechnologies(proposalText);
-    const disallowedMentionedTech =
-        allowedTechnologies.length > 0
-            ? mentionedTechnologies.filter((t) => !canonicalAllowedTech.includes(t))
-            : [];
-    const hasRules =
-        Boolean(requirementText) ||
-        requiredKeywords.length > 0 ||
-        allowedTechnologies.length > 0 ||
-        implicitRequiredTerms.length > 0;
-
-    return {
-        hasRules,
-        requiredKeywords,
-        allowedTechnologies,
-        requirementText,
-        missingKeywords,
-        missingAllowedTech,
-        missingImplicitTerms,
-        disallowedMentionedTech,
-        passed:
-            !hasRules ||
-            (missingKeywords.length === 0 &&
-                missingAllowedTech.length === 0 &&
-                missingImplicitTerms.length === 0 &&
-                disallowedMentionedTech.length === 0),
-    };
-};
+import { evaluateProposalRequirementCoverage } from '../../../shared/utils/techRequirements';
 
 const StudentProposalSubmit = () => {
     const { assignmentId } = useParams();
@@ -368,7 +237,7 @@ const StudentProposalSubmit = () => {
         Boolean(String(title || '').trim()) ||
         Boolean(String(description || '').trim()) ||
         normalizedFeatures.length > 0;
-    const requirementCheck = evaluateRequirementCoverage(assignment, {
+    const requirementCheck = evaluateProposalRequirementCoverage(assignment, {
         title,
         description,
         features: normalizedFeatures,
