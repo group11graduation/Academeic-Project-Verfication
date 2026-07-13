@@ -2400,6 +2400,22 @@ export async function readPreviewMysqlBootstrapLog(containerName) {
   return readFileFromPreviewContainer(containerName, '/tmp/preview-mysql.log');
 }
 
+export async function execInPreviewContainer(containerName, shellCommand, { timeoutMs = 60_000 } = {}) {
+  const safeName = String(containerName || '').replace(/[^a-zA-Z0-9_.-]/g, '');
+  const cmd = String(shellCommand || '').trim();
+  if (!safeName || !cmd) return '';
+  const { stdout, stderr } = await runCommand(`docker exec ${safeName} sh -c ${JSON.stringify(cmd)}`, {
+    timeoutMs,
+  });
+  return `${stdout || ''}${stderr ? `\n${stderr}` : ''}`.trim();
+}
+
+export async function readPreviewBackendLog(containerName, maxLines = 80) {
+  const raw = await readFileFromPreviewContainer(containerName, '/tmp/preview-backend.log', 120_000);
+  if (!raw) return '';
+  return raw.split('\n').slice(-maxLines).join('\n');
+}
+
 const PREVIEW_LOG_ERROR_PATTERNS = [
   /\[preview\]\s*ERROR:\s*(.+)/i,
   /index\.html not found/i,

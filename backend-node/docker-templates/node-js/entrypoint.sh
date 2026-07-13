@@ -195,17 +195,11 @@ write_mern_backend_env() {
       echo "SEED_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
     fi
   } > .env.preview-runtime
-  if [ -f .env ] && [ ! -f .env.student-original ]; then
-    cp .env .env.student-original
+  cat .env.preview-runtime > .env
+  if [ -f .env.project ]; then
+    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|CORS_ORIGIN|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
   fi
-  if [ -f .env.student-original ]; then
-    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|CORS_ORIGIN|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.student-original > .env.student-filtered 2>/dev/null || true
-    cat .env.preview-runtime .env.student-filtered > .env
-    rm -f .env.student-filtered
-  else
-    cat .env.preview-runtime > .env
-  fi
-  rm -f .env.preview-runtime .env.preview-backup
+  rm -f .env.preview-runtime .env.preview-backup .env.student-original .env.student-filtered
   export PORT="$API_PORT"
   export HOST=0.0.0.0
   export MONGO_URI="$mongo"

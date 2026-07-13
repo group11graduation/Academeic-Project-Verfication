@@ -27,12 +27,32 @@
       return;
     }
 
-    const userModelPaths = [
+    const staticPaths = [
       './src/models/User.js',
       './src/models/user.js',
+      './src/models/userModel.js',
+      './src/models/UserModel.js',
       './models/User.js',
+      './models/user.js',
       './model/User.js',
     ];
+    const discovered = [];
+    const fs = require('fs');
+    const path = require('path');
+    for (const dir of ['src/models', 'models', 'model', 'src/model']) {
+      const abs = path.join(process.cwd(), dir);
+      if (!fs.existsSync(abs)) continue;
+      try {
+        for (const file of fs.readdirSync(abs)) {
+          if (/user/i.test(file) && /\.(js|cjs|mjs)$/i.test(file)) {
+            discovered.push(path.join(dir, file).replace(/\\/g, '/'));
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    const userModelPaths = [...new Set([...staticPaths, ...discovered])];
     let User = null;
     for (const p of userModelPaths) {
       try {

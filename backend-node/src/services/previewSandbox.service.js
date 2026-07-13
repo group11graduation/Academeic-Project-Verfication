@@ -8,6 +8,7 @@ import { getPreviewProbeHost } from '../config/previewProbe.js';
 import * as previewCredentials from './previewCredentials.service.js';
 import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as previewMern from './previewMern.service.js';
+import * as previewLoginVerify from './previewLoginVerify.service.js';
 import { buildPhpPreviewLoginHint, parsePhpBootstrapCredentialsFromLog } from './previewPhp.service.js';
 import {
   executeZipExtractionBarrier,
@@ -351,6 +352,32 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
       session.previewStack = deployResult.stack || session.previewStack;
       if (deployResult.stack === 'php-apache') {
         await refreshPhpPreviewLoginHint(session, deployResult);
+      }
+      if (deployResult.apiHostPort && session.previewLoginEmail && session.previewLoginPassword) {
+        const backendLog = await dockerOrchestrator.readPreviewBackendLog(deployResult.containerName, 40);
+        const seedLines = backendLog
+          .split('\n')
+          .filter((l) => l.includes('[preview-seed]') || l.includes('[preview] MONGO_URI'))
+          .slice(-10);
+        for (const line of seedLines) {
+          appendLog(session, 'info', line.trim());
+        }
+        const loginCheck = await previewLoginVerify.verifyAndFixMernPreviewLogin({
+          containerName: deployResult.containerName,
+          apiHostPort: Number(deployResult.apiHostPort || session.previewApiHostPort),
+          backendSubdir: deployResult.mernPair?.backendSubdir || 'backend',
+          email: session.previewLoginEmail,
+          password: session.previewLoginPassword,
+          identifierType: session.previewLoginIdentifierType,
+        });
+        if (loginCheck.ok) {
+          appendLog(session, 'info', loginCheck.message);
+        } else {
+          appendLog(session, 'warn', loginCheck.message);
+          if (loginCheck.seedTail) {
+            appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
+          }
+        }
       }
       appendLog(session, 'info', `Preview ready (${wait.reason}) at ${session.previewUrl}.`);
       if (session.extractDirPath) {

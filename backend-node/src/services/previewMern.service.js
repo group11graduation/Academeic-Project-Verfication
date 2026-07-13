@@ -390,6 +390,13 @@ export async function patchBackendForPreview(
   for (const name of envNames) {
     const envPath = path.join(backendRoot, name);
     if (!(await pathExists(envPath))) continue;
+    if (name === '.env') {
+      const projectEnvPath = path.join(backendRoot, '.env.project');
+      if (!(await pathExists(projectEnvPath))) {
+        // eslint-disable-next-line no-await-in-loop
+        await fs.copyFile(envPath, projectEnvPath);
+      }
+    }
     // eslint-disable-next-line no-await-in-loop
     let content = await fs.readFile(envPath, 'utf8');
     for (const pattern of LOCAL_MONGO_PATTERNS) {
@@ -420,10 +427,46 @@ export async function patchBackendForPreview(
   await fs.writeFile(path.join(backendRoot, '.env'), `${previewEnv.join('\n')}`, 'utf8');
   files += 1;
 
+  files += await patchMongoInBackendSources(backendRoot, mongoUri);
+
   files += await patchDbNoExitOnPreviewFail(backendRoot);
   files += await walkRelaxCors(backendRoot);
 
   return { files };
+}
+
+async function patchMongoInBackendSources(backendRoot, mongoUri, depth = 0) {
+  if (depth > 8) return 0;
+  let files = 0;
+  let entries;
+  try {
+    entries = await fs.readdir(backendRoot, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    const full = path.join(backendRoot, entry.name);
+    if (entry.isDirectory()) {
+      // eslint-disable-next-line no-await-in-loop
+      files += await patchMongoInBackendSources(full, mongoUri, depth + 1);
+      continue;
+    }
+    if (!/\.(js|mjs|cjs|ts|json)$/i.test(entry.name)) continue;
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(full, 'utf8').catch(() => null);
+    if (content == null) continue;
+    const before = content;
+    for (const pattern of LOCAL_MONGO_PATTERNS) {
+      content = content.replace(pattern, mongoUri);
+    }
+    if (content !== before) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(full, content, 'utf8');
+      files += 1;
+    }
+  }
+  return files;
 }
 
 /** Student BMS uses MONGO_URI; keep API process alive if Mongo is slow so login returns JSON not ERR_EMPTY_RESPONSE. */
