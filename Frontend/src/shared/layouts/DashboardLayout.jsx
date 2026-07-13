@@ -6,19 +6,18 @@ import {
     CheckSquare,
     ClipboardList,
     Shield,
-    ShieldCheck,
     LogOut,
     Search,
     ChevronDown,
     Bell,
-    Activity,
     Menu,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
-import { FACULTY_SIDEBAR_SUBTITLE, FACULTY_SIDEBAR_TITLE } from '../ui/brandTheme';
+import { FACULTY_SIDEBAR_SUBTITLE } from '../ui/brandTheme';
 import { ShellSearchProvider, useShellSearch } from '../../context/shellSearchContext';
 import ThemeToggle from '../components/ThemeToggle';
 import ShellMobileDrawer from '../components/ShellMobileDrawer';
+import ProjectVerifyLogo from '../components/ProjectVerifyLogo';
 
 const TEACHER_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
@@ -125,15 +124,7 @@ const DashboardLayoutInner = ({ children }) => {
         <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-[#f8fafc] font-sans antialiased dark:bg-[#020617] dark:text-slate-100">
             <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px dark:border-white/10 dark:bg-[#0b1220] lg:hidden">
                 <button type="button" onClick={() => navigate('/teacher')} className="flex min-w-0 flex-col gap-0.5 text-left">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e56e3] text-white shadow-sm">
-                            <Shield className="h-5 w-5" strokeWidth={2} />
-                        </div>
-                        <div className="min-w-0">
-                            <span className="block truncate text-[13px] font-extrabold tracking-tight text-slate-900 dark:text-slate-100">{FACULTY_SIDEBAR_TITLE}</span>
-                            <span className="block truncate text-[9px] font-semibold text-slate-500 dark:text-slate-400">{FACULTY_SIDEBAR_SUBTITLE}</span>
-                        </div>
-                    </div>
+                    <ProjectVerifyLogo size="sm" tagline={FACULTY_SIDEBAR_SUBTITLE} hideTextOnMobile={false} />
                 </button>
                 <div className="flex items-center gap-2">
                     <ThemeToggle compact />
@@ -166,10 +157,15 @@ const DashboardLayoutInner = ({ children }) => {
                             <button
                                 type="button"
                                 onClick={() => navigate('/teacher')}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/30"
+                                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-white/40 shadow-sm"
                                 title="Teacher home"
+                                aria-label="Project Verify — Teacher home"
                             >
-                                <Activity className="h-[16px] w-[16px]" strokeWidth={2.2} />
+                                <img
+                                    src="/project-verify-logo.svg"
+                                    alt=""
+                                    className="h-7 w-7 object-contain"
+                                />
                             </button>
 
                             <nav
@@ -242,26 +238,16 @@ const DashboardLayoutInner = ({ children }) => {
                             <button
                                 type="button"
                                 onClick={() => navigate('/teacher')}
-                                className="mx-2 mb-2 mt-3 flex items-center gap-2 rounded-xl bg-white p-2 text-left ring-1 ring-slate-200/80 transition hover:bg-slate-50 dark:bg-[#111827] dark:ring-white/10 dark:hover:bg-[#162033]"
+                                className="mx-2 mb-2 mt-3 flex w-[calc(100%-1rem)] flex-col gap-1.5 rounded-xl bg-white p-2 text-left ring-1 ring-slate-200/80 transition hover:bg-slate-50 dark:bg-[#111827] dark:ring-white/10 dark:hover:bg-[#162033]"
                             >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#1e56e3]/10 text-[#1e56e3]">
-                                    <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="truncate text-[10px] font-extrabold leading-tight tracking-tight text-slate-900 dark:text-slate-100">
-                                        {FACULTY_SIDEBAR_TITLE}
-                                    </div>
-                                    <div className="mt-0.5 truncate text-[8px] font-semibold leading-snug text-slate-500 dark:text-slate-400">
-                                        {FACULTY_SIDEBAR_SUBTITLE}
-                                    </div>
-                                    <div
-                                        className={`mt-1 truncate text-[8px] font-bold uppercase tracking-[0.1em] ${
-                                            teacherDepartment ? 'text-[#1e56e3]' : 'text-slate-400'
-                                        }`}
-                                        title={teacherDepartment || 'Department not set'}
-                                    >
-                                        {teacherDepartment || 'Department not set'}
-                                    </div>
+                                <ProjectVerifyLogo size="sm" tagline={FACULTY_SIDEBAR_SUBTITLE} />
+                                <div
+                                    className={`truncate pl-0.5 text-[8px] font-bold uppercase tracking-[0.1em] ${
+                                        teacherDepartment ? 'text-[#1e56e3]' : 'text-slate-400'
+                                    }`}
+                                    title={teacherDepartment || 'Department not set'}
+                                >
+                                    {teacherDepartment || 'Department not set'}
                                 </div>
                             </button>
 
