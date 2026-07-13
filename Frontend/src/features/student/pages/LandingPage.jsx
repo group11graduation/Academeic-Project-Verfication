@@ -76,11 +76,15 @@ const systemModules = [
 ];
 
 const LandingPage = () => {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const role = 'guest';
 
     const workspacePath =
         user?.role === 'student' ? '/student' : user?.role === 'teacher' ? '/teacher' : user?.role === 'admin' ? '/admin' : '/login';
+
+    const handleSignOut = () => {
+        logout();
+    };
 
     const visibleModules = systemModules.filter((m) => m.roles.includes(role));
 
@@ -101,13 +105,22 @@ const LandingPage = () => {
                                     Continue as {user.name || user.email} from your workspace, or browse the public overview below.
                                 </p>
                             </div>
-                            <Link
-                                to={workspacePath}
-                                className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black text-white shrink-0"
-                                style={{ backgroundColor: BRAND.primary }}
-                            >
-                                Go to my workspace <ArrowRight className="h-4 w-4" />
-                            </Link>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center shrink-0">
+                                <Link
+                                    to={workspacePath}
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black text-white"
+                                    style={{ backgroundColor: BRAND.primary }}
+                                >
+                                    Go to my workspace <ArrowRight className="h-4 w-4" />
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={handleSignOut}
+                                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#0b1220] dark:text-slate-200 dark:hover:bg-[#1f2937]"
+                                >
+                                    Sign out
+                                </button>
+                            </div>
                         </div>
                     )}
 

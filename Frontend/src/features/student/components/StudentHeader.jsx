@@ -75,6 +75,13 @@ const StudentHeader = ({ forcePublic = false }) => {
         navigate('/');
     };
 
+    const handleSwitchAccount = () => {
+        setProfileOpen(false);
+        setMobileOpen(false);
+        logout();
+        navigate('/login');
+    };
+
     const desktopNavClass = ({ isActive }) =>
         `relative px-1 py-4 text-sm font-semibold transition-colors ${
             isActive ? 'text-[#2a3fa4] dark:text-blue-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
@@ -212,13 +219,22 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     My workspace
                                 </Link>
                             ) : null}
-                            <Link to="/login" className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-slate-700 hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300">
+                            <Link
+                                to="/login"
+                                onClick={(e) => {
+                                    if (user && showPublicShell) {
+                                        e.preventDefault();
+                                        handleSwitchAccount();
+                                    }
+                                }}
+                                className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-slate-700 hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300"
+                            >
                                 Sign in
                             </Link>
                             <ThemeToggle compact className="hidden sm:inline-flex" />
                             <button
                                 type="button"
-                                onClick={() => navigate('/login')}
+                                onClick={() => (user && showPublicShell ? handleSwitchAccount() : navigate('/login'))}
                                 className="inline-flex px-4 py-2 rounded-lg text-sm font-bold text-white"
                                 style={{ backgroundColor: BRAND.primary }}
                             >

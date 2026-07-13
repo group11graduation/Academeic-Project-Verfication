@@ -30,8 +30,11 @@ const LoginPage = () => {
         defaultValues: { identifier: '', password: '' },
     });
 
-    const { login } = useAuth();
+    const { user, login, logout } = useAuth();
     const navigate = useNavigate();
+
+    const workspacePath =
+        user?.role === 'student' ? '/student' : user?.role === 'teacher' ? '/teacher' : user?.role === 'admin' ? '/admin' : '/';
 
     useEffect(() => {
         const saved = localStorage.getItem(REMEMBER_KEY);
@@ -60,6 +63,57 @@ const LoginPage = () => {
     };
 
     const rootMsg = errors.root?.message;
+
+    if (user) {
+        return (
+            <div className="fixed inset-0 overflow-y-auto">
+                <div
+                    className="fixed inset-0 bg-cover bg-center bg-no-repeat"
+                    style={{ backgroundImage: 'url(/login-background.png)' }}
+                    aria-hidden
+                />
+                <div className="fixed inset-0 bg-[#1d2f82]/75" aria-hidden />
+                <div className="fixed inset-0 bg-gradient-to-br from-[#2a3fa4]/50 via-transparent to-[#0f172a]/80" aria-hidden />
+
+                <div className="relative z-10 flex min-h-full items-center justify-center px-4 py-10 sm:px-6 sm:py-12">
+                    <div className="auth-page-card" style={{ WebkitBackdropFilter: 'blur(20px)' }}>
+                        <div className="flex flex-col items-center text-center mb-7">
+                            <ProjectVerifyLogo onDark size="lg" showText={false} className="mb-5 justify-center" />
+                            <h1 className="text-2xl sm:text-[1.625rem] font-bold tracking-tight text-white">Already signed in</h1>
+                            <p className="mt-2.5 max-w-[360px] text-sm leading-relaxed text-white/70 font-medium">
+                                You are signed in as <span className="text-white font-bold">{user.name || user.email}</span>.
+                                Continue to your workspace or sign out to use a different account.
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <button
+                                type="button"
+                                onClick={() => navigate(workspacePath)}
+                                className="w-full rounded-full bg-white py-3.5 text-sm font-bold shadow-[0_8px_24px_rgba(255,255,255,0.15)] transition hover:bg-white/95"
+                                style={{ color: BRAND.primaryDeep }}
+                            >
+                                Continue to my workspace
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => logout()}
+                                className="w-full rounded-full border border-white/20 bg-white/5 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
+                            >
+                                Sign out and use another account
+                            </button>
+                            <Link
+                                to="/"
+                                className="flex w-full items-center justify-center rounded-full border border-white/10 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/5"
+                            >
+                                Back to overview
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 overflow-y-auto">

@@ -40,7 +40,7 @@ import StudentMessages from '../../features/student/pages/StudentMessages';
 import TeacherStudentMessages from '../../features/teacher/pages/TeacherStudentMessages';
 
 const AppRoutes = () => {
-    const { user, loading } = useAuth();
+    const { loading } = useAuth();
 
     if (loading) {
         return (
@@ -59,12 +59,7 @@ const AppRoutes = () => {
             <Route path="/assignments" element={<StudentAssignments />} />
             <Route path="/assignments/:id" element={<StudentAssignmentDetail />} />
 
-            <Route
-                path="/login"
-                element={
-                    user ? <Navigate to={user.role === 'student' ? '/student' : `/${user.role}`} replace /> : <LoginPage />
-                }
-            />
+            <Route path="/login" element={<LoginPage />} />
 
             {/* Admin — nested layout matches pattern used in AdminRoutes (Outlet inside AdminLayout) */}
             <Route
