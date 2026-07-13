@@ -49,6 +49,14 @@ export function appSuccess(message, options = {}) {
     return wrapVariant('success', message, options);
 }
 
+export function appToast(message, options = {}) {
+    if (api?.toast) {
+        const config = typeof message === 'object' && message !== null ? message : { message, ...options };
+        return api.toast(config);
+    }
+    return wrapVariant('success', message, options);
+}
+
 export function appError(message, options = {}) {
     return wrapVariant('error', message, options);
 }

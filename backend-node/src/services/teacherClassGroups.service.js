@@ -657,7 +657,7 @@ export async function getClassStudentDetailForTeacher(teacherId, classRef, stude
       email: user?.email || '',
       photo: user?.photo || '',
       program: profile?.program || '',
-      faculty: profile?.faculty || '',
+      faculty: cls?.faculty || profile?.faculty || '',
       classCode: profile?.classCode || cls.code,
       currentScore: profile?.currentScore ?? null,
       currentGpa: profile?.currentGpa ?? null,

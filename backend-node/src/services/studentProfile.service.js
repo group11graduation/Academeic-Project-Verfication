@@ -1,4 +1,5 @@
 import { StudentProfile } from '../models/StudentProfile.js';
+import { Class } from '../models/Class.js';
 import * as assignmentStudent from './assignmentStudent.service.js';
 
 function formatPersonalInfo(profile) {
@@ -29,10 +30,10 @@ function formatEducationalBackground(profile) {
   };
 }
 
-function formatAcademicInfo(profile) {
+function formatAcademicInfo(profile, classMeta = null) {
   return {
-    faculty: profile.faculty || '',
-    department: profile.department || '',
+    faculty: classMeta?.faculty || profile.faculty || '',
+    department: classMeta?.department || profile.department || '',
     campus: profile.campus || '',
     studyMode: profile.studyMode || '',
     entryDate: profile.entryDate ? new Date(profile.entryDate).toISOString() : null,
@@ -68,6 +69,17 @@ export async function getProfileForStudent(userId) {
   const overview = await assignmentStudent.getStudentAssignmentsOverview(userId);
   const u = profile.user;
   const projectStats = countProjectStats(overview.assignments || []);
+  const classCode = String(profile.classCode || overview.class?.code || '').trim().toUpperCase();
+  const classDoc = classCode
+    ? await Class.findOne({ code: classCode }).select('code faculty department').lean()
+    : null;
+  const classMeta = classDoc
+    ? {
+        faculty: String(classDoc.faculty || '').trim(),
+        department: String(classDoc.department || '').trim(),
+      }
+    : null;
+  const faculty = classMeta?.faculty || profile.faculty || '';
 
   return {
     _id: profile._id,
@@ -80,11 +92,11 @@ export async function getProfileForStudent(userId) {
     classId: profile.classCode || overview.class?.code || '',
     classCode: profile.classCode || overview.class?.code || '',
     program: profile.program || '',
-    faculty: profile.faculty || '',
+    faculty,
     status: u.isActive === false ? 'INACTIVE' : 'ACTIVE',
     currentScore: profile.currentScore,
     currentGpa: profile.currentGpa,
-    academicInfo: formatAcademicInfo(profile),
+    academicInfo: formatAcademicInfo(profile, classMeta),
     personalInfo: formatPersonalInfo(profile),
     parentDetails: formatParentDetails(profile),
     educationalBackground: formatEducationalBackground(profile),

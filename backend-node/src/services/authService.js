@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 import { TeacherProfile } from '../models/TeacherProfile.js';
 import { StudentProfile } from '../models/StudentProfile.js';
+import { Class } from '../models/Class.js';
 import { getJwtExpiresIn, getJwtSecret } from '../config/auth.js';
 
 function signToken(user) {
@@ -95,9 +96,16 @@ async function enrichUserWithProfile(user) {
   if (roles.includes('student')) {
     const profile = await StudentProfile.findOne({ user: user._id }).lean();
     if (profile) {
-      publicUser.department = profile.faculty || profile.program || '';
+      let faculty = profile.faculty || '';
+      const classCode = String(profile.classCode || '').trim().toUpperCase();
+      if (classCode) {
+        const cls = await Class.findOne({ code: classCode }).select('faculty').lean();
+        if (cls?.faculty) faculty = cls.faculty;
+      }
+      publicUser.department = faculty || profile.program || '';
       publicUser.studentId = profile.studentId || '';
       publicUser.classCode = profile.classCode || '';
+      publicUser.faculty = faculty;
     }
   }
 

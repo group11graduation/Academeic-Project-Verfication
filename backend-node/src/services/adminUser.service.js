@@ -1,6 +1,7 @@
 import { User } from '../models/User.js';
 import { TeacherProfile } from '../models/TeacherProfile.js';
 import { StudentProfile } from '../models/StudentProfile.js';
+import { Class } from '../models/Class.js';
 import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 
@@ -13,6 +14,38 @@ function normalizeStudentClassCodeValue(code) {
   const c = String(code ?? '').trim();
   if (!c) return '';
   return c.toUpperCase();
+}
+
+/** Faculty shown for a student always follows their current class when the class has a faculty. */
+async function loadClassAcademicMeta(classCode) {
+  const code = normalizeStudentClassCodeValue(classCode);
+  if (!code) return null;
+  return Class.findOne({ code }).select('code faculty department').lean();
+}
+
+async function loadClassAcademicMetaMap(classCodes = []) {
+  const codes = [
+    ...new Set(
+      (classCodes || []).map((c) => normalizeStudentClassCodeValue(c)).filter(Boolean)
+    ),
+  ];
+  if (!codes.length) return new Map();
+  const rows = await Class.find({ code: { $in: codes } }).select('code faculty department').lean();
+  return new Map(
+    rows.map((row) => [
+      normalizeStudentClassCodeValue(row.code),
+      {
+        faculty: String(row.faculty || '').trim(),
+        department: String(row.department || '').trim(),
+      },
+    ])
+  );
+}
+
+function applyClassAcademicMetaToProfile(profile, classMeta) {
+  if (!profile || !classMeta) return;
+  if (classMeta.faculty) profile.faculty = classMeta.faculty;
+  if (classMeta.department) profile.department = classMeta.department;
 }
 
 function makeNumericId(prefix = '', serial = 1, width = 4) {
@@ -246,7 +279,11 @@ export async function toggleTeacherAdmin(profileId) {
 
 export async function listStudents() {
   const profiles = await StudentProfile.find().populate('user');
-  return profiles.map(formatStudent);
+  const classMetaMap = await loadClassAcademicMetaMap(profiles.map((p) => p.classCode));
+  return profiles.map((profile) => {
+    const classMeta = classMetaMap.get(normalizeStudentClassCodeValue(profile.classCode));
+    return formatStudent(profile, classMeta);
+  });
 }
 
 async function resolveStudentProfile(id) {
@@ -265,7 +302,8 @@ async function resolveStudentProfile(id) {
 export async function getStudentById(id) {
   const profile = await resolveStudentProfile(id);
   if (!profile) return null;
-  return formatStudent(profile);
+  const classMeta = await loadClassAcademicMeta(profile.classCode);
+  return formatStudent(profile, classMeta);
 }
 
 function parseOptionalDate(value) {
@@ -327,10 +365,10 @@ function formatEducationalBackground(profile) {
   };
 }
 
-function formatAcademicInfo(profile) {
+function formatAcademicInfo(profile, classMeta = null) {
   return {
-    faculty: profile.faculty || '',
-    department: profile.department || '',
+    faculty: classMeta?.faculty || profile.faculty || '',
+    department: classMeta?.department || profile.department || '',
     campus: profile.campus || '',
     studyMode: profile.studyMode || '',
     entryDate: profile.entryDate ? new Date(profile.entryDate).toISOString() : null,
@@ -387,10 +425,12 @@ function applyStudentExtendedFields(profile, body) {
   if (body.educationalBackground) profile.markModified('educationalBackground');
 }
 
-function formatStudent(profile) {
+function formatStudent(profile, classMeta = null) {
   const u = profile.user;
   if (!u) return null;
   const handoff = profile.handoffPasscode || '';
+  const faculty = classMeta?.faculty || profile.faculty || '';
+  const academicInfo = formatAcademicInfo(profile, classMeta);
   return {
     _id: profile._id,
     userId: u._id,
@@ -401,8 +441,8 @@ function formatStudent(profile) {
     program: profile.program,
     classId: profile.classCode || '',
     classCode: profile.classCode || '',
-    faculty: profile.faculty || '',
-    academicInfo: formatAcademicInfo(profile),
+    faculty,
+    academicInfo,
     personalInfo: formatPersonalInfo(profile),
     parentDetails: formatParentDetails(profile),
     educationalBackground: formatEducationalBackground(profile),
@@ -441,7 +481,11 @@ export async function createStudent(body) {
   }
   const sid = (studentId || '').trim() || (await generateUniqueStudentId());
   const cc = normalizeStudentClassCodeValue(classCode || classId || '');
-  const fac = (faculty || body.academicInfo?.faculty || '').trim();
+  let fac = (faculty || body.academicInfo?.faculty || '').trim();
+  let department = String(body.academicInfo?.department || body.department || '').trim();
+  const classMeta = await loadClassAcademicMeta(cc);
+  if (classMeta?.faculty) fac = classMeta.faculty;
+  if (classMeta?.department) department = classMeta.department;
   const user = new User({
     email: email?.toLowerCase()?.trim(),
     username: username?.trim() || sid || email?.split('@')[0],
@@ -458,7 +502,7 @@ export async function createStudent(body) {
     program: program?.trim() || '',
     classCode: cc,
     faculty: fac,
-    department: String(body.academicInfo?.department || body.department || '').trim(),
+    department,
     campus: String(body.academicInfo?.campus || body.campus || '').trim(),
     studyMode: String(body.academicInfo?.studyMode || body.studyMode || '').trim(),
     entryDate: parseOptionalDate(body.academicInfo?.entryDate ?? body.entryDate),
@@ -469,7 +513,7 @@ export async function createStudent(body) {
   applyStudentExtendedFields(profile, body);
   await profile.save();
   await profile.populate('user');
-  return formatStudent(profile);
+  return formatStudent(profile, classMeta);
 }
 
 export async function updateStudent(profileId, body) {
@@ -487,6 +531,7 @@ export async function updateStudent(profileId, body) {
   if (body.isActive !== undefined) u.isActive = body.isActive;
   if (body.studentId !== undefined) profile.studentId = body.studentId?.trim();
   if (body.program !== undefined) profile.program = body.program;
+  const previousClassCode = normalizeStudentClassCodeValue(profile.classCode);
   if (body.classCode !== undefined || body.classId !== undefined) {
     profile.classCode = normalizeStudentClassCodeValue(body.classCode ?? body.classId ?? '');
   }
@@ -495,6 +540,17 @@ export async function updateStudent(profileId, body) {
     profile.faculty = String(body.academicInfo.faculty).trim();
   }
   applyStudentExtendedFields(profile, body);
+  // Class faculty always wins when the student belongs to a real class.
+  const classMeta = await loadClassAcademicMeta(profile.classCode);
+  if (classMeta) {
+    applyClassAcademicMetaToProfile(profile, classMeta);
+  } else if (
+    previousClassCode &&
+    !normalizeStudentClassCodeValue(profile.classCode) &&
+    (body.classCode !== undefined || body.classId !== undefined)
+  ) {
+    // Removed from class — keep last faculty unless explicitly cleared.
+  }
   if (body.currentScore !== undefined) {
     profile.currentScore =
       body.currentScore === '' || body.currentScore === null ? undefined : Number(body.currentScore);
@@ -511,7 +567,7 @@ export async function updateStudent(profileId, body) {
   await u.save();
   await profile.save();
   await profile.populate('user');
-  return formatStudent(profile);
+  return formatStudent(profile, classMeta);
 }
 
 export async function importStudents(rows) {

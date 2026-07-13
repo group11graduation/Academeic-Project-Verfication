@@ -221,8 +221,12 @@ const AdminStudents = () => {
 
     const uniqueClasses = [...new Set(students.map((s) => s.classId).filter(Boolean))].sort();
 
-    const resolveStudentFaculty = (student) =>
-        String(student?.faculty || student?.academicInfo?.faculty || '').trim();
+    const resolveStudentFaculty = (student) => {
+        const classCode = String(student?.classId || student?.classCode || '').trim().toUpperCase();
+        const classFaculty = classes.find((c) => String(c.code || '').trim().toUpperCase() === classCode)?.faculty;
+        if (classFaculty && String(classFaculty).trim()) return String(classFaculty).trim();
+        return String(student?.faculty || student?.academicInfo?.faculty || '').trim();
+    };
 
     const facultyFilterOptions = useMemo(() => {
         const set = new Set(facultyStructureNames);
@@ -716,7 +720,7 @@ const AdminStudents = () => {
                                             <span className="text-[12px] font-semibold text-slate-400">No class</span>
                                         )}
                                     </td>
-                                    <td className="px-3 py-2"><span className="text-[12px] font-semibold text-slate-600">{student.academicInfo?.faculty || 'N/A'}</span></td>
+                                    <td className="px-3 py-2"><span className="text-[12px] font-semibold text-slate-600">{resolveStudentFaculty(student) || 'N/A'}</span></td>
                                     <td className="px-3 py-2">
                                         <div className="flex flex-col items-center gap-1.5">
                                             {student.passcode ? (

@@ -84,10 +84,17 @@ function buildTeachersForStudent(assignment, profileByUser) {
 function enrichAssignmentTeachers(assignment, profileByUser) {
   const teachers = buildTeachersForStudent(assignment, profileByUser);
   const primary = enrichTeacherRef(assignment.teacher, profileByUser, 'Teacher');
+  const frontendSubject = assignment.frontendSubject || null;
+  const backendSubject = assignment.backendSubject || null;
+  const collabSubjects = [frontendSubject, backendSubject].filter(Boolean);
   return {
     ...assignment,
     teacher: primary || assignment.teacher,
     teachers,
+    frontendSubject,
+    backendSubject,
+    collabSubjects,
+    isCollaborative: Boolean(assignment.isCollaborative || isDualTeacherAssignment(assignment)),
   };
 }
 
@@ -157,6 +164,16 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
         isActive: true,
         $or: [{ class: e.class._id }, { classes: e.class._id }],
       });
+      orFilters.push({
+        isCollaborative: true,
+        isActive: true,
+        $or: [{ class: e.class._id }, { classes: e.class._id }],
+        $and: [
+          {
+            $or: [{ frontendSubject: sid }, { backendSubject: sid }, { subject: sid }],
+          },
+        ],
+      });
     }
   }
   if (!orFilters.length) return [];
@@ -167,12 +184,24 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     .populate('frontendTeacherId', 'name email photo username')
     .populate('backendTeacherId', 'name email photo username')
     .populate('subject', 'code name')
+    .populate('frontendSubject', 'code name collaborationSide')
+    .populate('backendSubject', 'code name collaborationSide')
     .populate('semester', 'name')
     .populate('academicYear', 'label')
     .populate('class', 'code name')
     .populate('classes', 'code name')
     .sort({ createdAt: -1 })
     .lean();
+
+  // Deduplicate if both normal and collaborative filters match the same assignment.
+  const uniqueAssignments = [];
+  const seenAssignmentIds = new Set();
+  for (const row of assignments) {
+    const id = String(row._id);
+    if (seenAssignmentIds.has(id)) continue;
+    seenAssignmentIds.add(id);
+    uniqueAssignments.push(row);
+  }
 
   const teacherIdSet = new Set();
   for (const a of assignments) {
@@ -186,7 +215,7 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
   const profileByUser = new Map(teacherProfiles.map((p) => [String(p.user), p]));
 
   const out = [];
-  for (const a of assignments) {
+  for (const a of uniqueAssignments) {
     const assignment = enrichAssignmentTeachers(normalizeAssignmentClasses(a), profileByUser);
     let proposal = await Proposal.findOne({
       assignment: assignment._id,

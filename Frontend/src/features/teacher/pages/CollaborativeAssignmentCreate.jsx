@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Check, Loader2, Lock, Save, Send, Trash2, Users } from 'lucide-react';
-import { appConfirm, appSuccess } from '../../../lib/appDialog';
+import { ArrowLeft, Check, Loader2, Lock, Save, Send, Trash2, Users } from 'lucide-react';
+import { appConfirm } from '../../../lib/appDialog';
+import InlineAlert from '../../../shared/components/InlineAlert';
 import { useAuth } from '../../../context/authContext';
 import teacherService from '../../../services/teacherService';
 import TeacherCollaborationPanel from '../components/TeacherCollaborationPanel';
@@ -90,12 +91,39 @@ const CollaborativeAssignmentCreate = () => {
 
     const frontendFileRef = useRef(null);
     const backendFileRef = useRef(null);
+    const noticeTimerRef = useRef(null);
 
     const draftId = searchParams.get('draft');
 
-    const showNotice = useCallback((title, message) => {
-        setNotice({ title, message });
+    const showNotice = useCallback((title, message, { variant = 'error', autoHideMs = 5000 } = {}) => {
+        if (noticeTimerRef.current) {
+            window.clearTimeout(noticeTimerRef.current);
+            noticeTimerRef.current = null;
+        }
+        const body = message || title;
+        if (!body) {
+            setNotice(null);
+            return;
+        }
+        setNotice({
+            title: message ? title : '',
+            message: message || title,
+            variant,
+        });
+        if (autoHideMs > 0) {
+            noticeTimerRef.current = window.setTimeout(() => {
+                setNotice(null);
+                noticeTimerRef.current = null;
+            }, autoHideMs);
+        }
     }, []);
+
+    useEffect(
+        () => () => {
+            if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+        },
+        []
+    );
 
     const applyDraftToForm = useCallback((row, catalogRows = []) => {
         setDraft(row);
@@ -367,7 +395,7 @@ const CollaborativeAssignmentCreate = () => {
                 }
                 await reloadDrafts();
                 if (!silent) {
-                    await appSuccess('Progress saved. Your co-teacher can continue their section.');
+                    showNotice('', 'Progress saved. Your co-teacher can continue their section.', { variant: 'success' });
                 }
             }
             return res.success;
@@ -402,10 +430,9 @@ const CollaborativeAssignmentCreate = () => {
                 await reloadDrafts();
                 await reloadCollaborators();
                 setCollabRefreshKey((k) => k + 1);
-                showNotice(
-                    'Draft deleted',
-                    'The assignment draft was removed. Your accepted partnership with this teacher is still active — start a new draft anytime.'
-                );
+                showNotice('', 'The assignment draft was removed. Your accepted partnership with this teacher is still active — start a new draft anytime.', {
+                    variant: 'success',
+                });
             }
         } catch (err) {
             showNotice('Delete failed', err.response?.data?.message || 'Could not delete draft.');
@@ -447,7 +474,7 @@ const CollaborativeAssignmentCreate = () => {
             await loadDraft(draft._id, catalog);
             const res = await teacherService.publishCollaborativeDraft(draft._id);
             if (res.success) {
-                await appSuccess('Collaborative assignment published.');
+                showNotice('', 'Collaborative assignment published.', { variant: 'success', autoHideMs: 6000 });
                 navigate('/teacher/assignments');
             }
         } catch (err) {
@@ -553,6 +580,17 @@ const CollaborativeAssignmentCreate = () => {
             <button type="button" onClick={() => navigate('/teacher/assignments')} className={`mb-3 ${Z_BTN_BACK}`}>
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to Assignments
             </button>
+
+            {notice ? (
+                <div className="mb-3">
+                    <InlineAlert
+                        variant={notice.variant}
+                        title={notice.title}
+                        message={notice.message}
+                        onDismiss={() => setNotice(null)}
+                    />
+                </div>
+            ) : null}
 
             <div className={Z_FORM_CARD}>
                 <div className="flex items-start gap-2.5 mb-4">
@@ -938,34 +976,6 @@ const CollaborativeAssignmentCreate = () => {
                     </>
                 )}
             </div>
-
-            {notice && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="collab-notice-title"
-                >
-                    <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-[#0B1120]">
-                        <div className="flex items-start gap-3">
-                            <div className="rounded-lg bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">
-                                <AlertCircle className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <h2 id="collab-notice-title" className="text-sm font-black text-slate-900 dark:text-slate-100">
-                                    {notice.title}
-                                </h2>
-                                <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">{notice.message}</p>
-                            </div>
-                        </div>
-                        <div className="mt-5 flex justify-end">
-                            <button type="button" onClick={() => setNotice(null)} className={`${Z_BTN_INDIGO} w-auto px-5`}>
-                                OK
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

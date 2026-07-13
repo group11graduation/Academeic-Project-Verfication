@@ -239,6 +239,17 @@ export async function updateClass(code, body) {
     doc.teacherAssignments = cleanedAssignments;
   }
   await doc.save();
+
+  // Keep enrolled students' faculty/department aligned with this class.
+  if (body.faculty !== undefined || body.department !== undefined) {
+    const studentPatch = {};
+    if (body.faculty !== undefined) studentPatch.faculty = String(doc.faculty || '').trim();
+    if (body.department !== undefined) studentPatch.department = String(doc.department || '').trim();
+    if (Object.keys(studentPatch).length) {
+      await StudentProfile.updateMany({ classCode: doc.code }, { $set: studentPatch });
+    }
+  }
+
   const withSubjects = await Class.findById(doc._id).populate('subjects').lean();
   return formatClassRow(withSubjects || doc.toObject(), await StudentProfile.countDocuments({ classCode: doc.code }));
 }
