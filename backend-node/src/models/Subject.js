@@ -7,6 +7,12 @@ const subjectSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     faculty: { type: String, trim: true, default: '' },
     department: { type: String, trim: true, default: '' },
+    /** frontend | backend — used to pair teachers for collaborative assignments */
+    collaborationSide: {
+      type: String,
+      enum: ['', 'frontend', 'backend'],
+      default: '',
+    },
   },
   { timestamps: true }
 );

@@ -209,6 +209,53 @@ write_mern_backend_env() {
   echo "[preview] MONGO_URI=$mongo"
 }
 
+wait_for_mongo_ready() {
+  n=0
+  while [ "$n" -lt 45 ]; do
+    if node -e "
+      const mongoose=require('mongoose');
+      const uri=process.env.MONGO_URI||process.env.MONGODB_URI;
+      if(!uri) process.exit(1);
+      mongoose.connect(uri,{serverSelectionTimeoutMS:2000}).then(()=>mongoose.disconnect()).then(()=>process.exit(0)).catch(()=>process.exit(1));
+    " >> /tmp/preview-backend.log 2>&1; then
+      echo "[preview] MongoDB ready for seed"
+      return 0
+    fi
+    n=$((n + 1))
+    sleep 2
+  done
+  echo "[preview] MongoDB not ready after wait — seed may fail"
+  return 1
+}
+
+run_preview_admin_seed() {
+  label="${1:-admin seed}"
+  if [ -z "$PREVIEW_ADMIN_EMAIL" ] || [ ! -f package.json ]; then
+    return 0
+  fi
+  echo "[preview] ${label}…"
+  node /preview-seed-admin.js >> /tmp/preview-backend.log 2>&1 || {
+    echo "[preview] ${label} failed — check /tmp/preview-backend.log"
+    tail -25 /tmp/preview-backend.log 2>/dev/null || true
+    return 1
+  }
+  grep '\[preview-seed\]' /tmp/preview-backend.log 2>/dev/null | tail -12 || true
+  return 0
+}
+
+verify_preview_login() {
+  if [ -z "$PREVIEW_ADMIN_EMAIL" ]; then
+    return 0
+  fi
+  echo "[preview] verifying login against API on port ${API_PORT}…"
+  if node /preview-verify-login.js >> /tmp/preview-backend.log 2>&1; then
+    grep '\[preview-login\]' /tmp/preview-backend.log 2>/dev/null | tail -3 || true
+    return 0
+  fi
+  grep '\[preview-login\]' /tmp/preview-backend.log 2>/dev/null | tail -3 || true
+  return 1
+}
+
 start_mern_backend() {
   backend_rel="$1"
   cd "$ROOT/$backend_rel" || return 1
@@ -223,29 +270,8 @@ start_mern_backend() {
   fi
 
   if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
-    echo "[preview] ensuring preview admin account exists…"
-  fi
-  if [ -n "$PREVIEW_ADMIN_EMAIL" ] && [ -f package.json ]; then
-    echo "[preview] waiting for MongoDB before admin seed…"
-    n=0
-    while [ "$n" -lt 45 ]; do
-      if node -e "
-        const mongoose=require('mongoose');
-        const uri=process.env.MONGO_URI||process.env.MONGODB_URI;
-        if(!uri) process.exit(1);
-        mongoose.connect(uri,{serverSelectionTimeoutMS:2000}).then(()=>mongoose.disconnect()).then(()=>process.exit(0)).catch(()=>process.exit(1));
-      " >> /tmp/preview-backend.log 2>&1; then
-        echo "[preview] MongoDB ready for seed"
-        break
-      fi
-      n=$((n + 1))
-      sleep 2
-    done
-    node /preview-seed-admin.js >> /tmp/preview-backend.log 2>&1 || {
-      echo "[preview] preview admin seed failed — login may return 401; check /tmp/preview-backend.log"
-      tail -20 /tmp/preview-backend.log 2>/dev/null || true
-    }
-    grep '\[preview-seed\]' /tmp/preview-backend.log 2>/dev/null | tail -12 || true
+    wait_for_mongo_ready || true
+    run_preview_admin_seed "pre-start admin seed" || true
   fi
 
   echo "[preview] starting backend on 0.0.0.0:${API_PORT}"
@@ -267,6 +293,13 @@ start_mern_backend() {
   fi
 
   wait_for_tcp_port "$API_PORT" "student API" 240
+
+  # Many student apps seed or reset users on startup — seed again after API is listening.
+  if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
+    sleep 2
+    run_preview_admin_seed "post-start admin seed" || true
+    verify_preview_login || echo "[preview] login verify failed after post-start seed"
+  fi
 }
 
 ensure_flutter_web_ready() {

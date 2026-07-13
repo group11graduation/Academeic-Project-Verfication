@@ -357,10 +357,23 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
         const backendLog = await dockerOrchestrator.readPreviewBackendLog(deployResult.containerName, 40);
         const seedLines = backendLog
           .split('\n')
-          .filter((l) => l.includes('[preview-seed]') || l.includes('[preview] MONGO_URI'))
-          .slice(-10);
+          .filter(
+            (l) =>
+              l.includes('[preview-seed]') ||
+              l.includes('[preview-login]') ||
+              l.includes('[preview] MONGO_URI')
+          )
+          .slice(-12);
         for (const line of seedLines) {
           appendLog(session, 'info', line.trim());
+        }
+        let loginPaths = [];
+        let fallbackCredentials = [];
+        if (extractDir) {
+          const backendSubdir = deployResult.mernPair?.backendSubdir || 'backend';
+          loginPaths = await previewMern.discoverLoginApiPaths(extractDir, backendSubdir);
+          const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
+          fallbackCredentials = previewLoginVerify.buildFallbackPreviewCredentials(discovered);
         }
         const loginCheck = await previewLoginVerify.verifyAndFixMernPreviewLogin({
           containerName: deployResult.containerName,
@@ -369,13 +382,30 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
           email: session.previewLoginEmail,
           password: session.previewLoginPassword,
           identifierType: session.previewLoginIdentifierType,
+          loginPaths,
+          fallbackCredentials,
         });
         if (loginCheck.ok) {
           appendLog(session, 'info', loginCheck.message);
+          if (loginCheck.workingCredentials) {
+            session.previewLoginEmail = loginCheck.workingCredentials.email;
+            session.previewLoginPassword = loginCheck.workingCredentials.password;
+            session.previewLoginSource = 'project_seed_fallback';
+            session.previewLoginHint =
+              'Preview admin account could not be seeded; using credentials from the student project seed/setup script.';
+            appendLog(
+              session,
+              'info',
+              `Use these working credentials: ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail}`
+            );
+          }
         } else {
           appendLog(session, 'warn', loginCheck.message);
           if (loginCheck.seedTail) {
             appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
+          } else if (loginCheck.seedOutput) {
+            const tail = String(loginCheck.seedOutput).split('\n').slice(-6).join('\n');
+            if (tail) appendLog(session, 'warn', `Admin seed output:\n${tail}`);
           }
         }
       }

@@ -412,12 +412,14 @@ export async function getSubject(id) {
 }
 
 export async function createSubject(body) {
+  const side = String(body.collaborationSide || '').trim().toLowerCase();
   const doc = await Subject.create({
     code: String(body.code || '').trim().toUpperCase(),
     name: String(body.name || '').trim(),
     description: String(body.description || '').trim(),
     faculty: String(body.faculty || body.department || '').trim(),
     department: String(body.department || '').trim(),
+    collaborationSide: ['frontend', 'backend'].includes(side) ? side : '',
   });
   return doc.toObject();
 }
@@ -432,6 +434,10 @@ export async function updateSubject(id, body) {
   if (body.code !== undefined) doc.code = String(body.code || '').trim().toUpperCase();
   if (body.name !== undefined) doc.name = String(body.name || '').trim();
   if (body.description !== undefined) doc.description = String(body.description || '').trim();
+  if (body.collaborationSide !== undefined) {
+    const side = String(body.collaborationSide || '').trim().toLowerCase();
+    doc.collaborationSide = ['frontend', 'backend'].includes(side) ? side : '';
+  }
   if (body.faculty !== undefined) {
     doc.faculty = String(body.faculty || '').trim();
   }

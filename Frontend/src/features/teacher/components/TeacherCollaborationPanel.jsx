@@ -1,63 +1,129 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Send, UserCheck, UserX, X } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
-import { Z_BTN_INDIGO, Z_FORM_SECTION, Z_INPUT } from '../../../shared/ui/zendentaLayout';
+import { Z_BTN_INDIGO, Z_FORM_SECTION, Z_INPUT, Z_LABEL } from '../../../shared/ui/zendentaLayout';
+
+const FRONTEND_HINTS = ['frontend', 'react', 'vue', 'angular', 'html', 'css', 'javascript', 'ui', 'web'];
+const BACKEND_HINTS = ['backend', 'php', 'node', 'java', 'spring', 'api', 'database', 'mysql', 'server'];
+
+function inferSubjectSide(subject = {}) {
+    const explicit = String(subject.collaborationSide || '').toLowerCase();
+    if (explicit === 'frontend' || explicit === 'backend') return explicit;
+    const text = `${subject.code || ''} ${subject.name || ''}`.toLowerCase();
+    const fe = FRONTEND_HINTS.some((h) => text.includes(h));
+    const be = BACKEND_HINTS.some((h) => text.includes(h));
+    if (fe && !be) return 'frontend';
+    if (be && !fe) return 'backend';
+    return '';
+}
+
+function roleLabel(role) {
+    if (role === 'frontend') return 'Frontend';
+    if (role === 'backend') return 'Backend';
+    return '';
+}
 
 /**
  * Self-service collaboration: send requests, accept/decline incoming, cancel outgoing.
- * Calls onAcceptedChange when the accepted partner list may have changed.
  */
-const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
+const TeacherCollaborationPanel = ({ onAcceptedChange, onPendingCountChange }) => {
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState('');
     const [incoming, setIncoming] = useState([]);
     const [outgoing, setOutgoing] = useState([]);
     const [accepted, setAccepted] = useState([]);
     const [candidates, setCandidates] = useState([]);
+    const [catalog, setCatalog] = useState([]);
     const [targetTeacherId, setTargetTeacherId] = useState('');
+    const [classId, setClassId] = useState('');
+    const [subjectId, setSubjectId] = useState('');
+    const [myRole, setMyRole] = useState('frontend');
     const [requestNotes, setRequestNotes] = useState('');
     const [sending, setSending] = useState(false);
     const [error, setError] = useState('');
 
+    const selectedCatalogRow = useMemo(
+        () => catalog.find((row) => String(row.class?._id) === String(classId)),
+        [catalog, classId]
+    );
+
+    const subjectsForRole = useMemo(() => {
+        const subjects = selectedCatalogRow?.subjects || [];
+        return subjects.filter((s) => inferSubjectSide(s) === myRole);
+    }, [selectedCatalogRow, myRole]);
+
+    const loadCandidates = useCallback(async (nextClassId) => {
+        const candRes = await teacherService.getCollaborationCandidates(
+            nextClassId ? { classId: nextClassId } : {}
+        );
+        if (candRes.success) {
+            const rows = (candRes.data || []).filter((t) => t.collaborationStatus !== 'accepted');
+            setCandidates(rows);
+            setTargetTeacherId((prev) =>
+                prev && rows.some((t) => String(t._id) === String(prev)) ? prev : String(rows[0]?._id || '')
+            );
+        }
+    }, []);
+
     const reload = useCallback(async () => {
         setError('');
         try {
-            const [collabRes, candRes] = await Promise.all([
+            const [collabRes, catalogRes] = await Promise.all([
                 teacherService.getCollaborations(),
-                teacherService.getCollaborationCandidates(),
+                teacherService.getCatalog(),
             ]);
             if (collabRes.success) {
-                setIncoming(collabRes.data?.incoming || []);
+                const inc = collabRes.data?.incoming || [];
+                setIncoming(inc);
                 setOutgoing(collabRes.data?.outgoing || []);
                 setAccepted(collabRes.data?.accepted || []);
+                onPendingCountChange?.(inc.length);
             }
-            if (candRes.success) {
-                const rows = (candRes.data || []).filter((t) => t.collaborationStatus !== 'accepted');
-                setCandidates(rows);
-                setTargetTeacherId((prev) =>
-                    prev && rows.some((t) => String(t._id) === String(prev)) ? prev : String(rows[0]?._id || '')
-                );
-            }
+            const rows = catalogRes.success ? catalogRes.data || [] : [];
+            setCatalog(rows);
+            const nextClassId = classId || String(rows[0]?.class?._id || '');
+            if (!classId && nextClassId) setClassId(nextClassId);
+            await loadCandidates(nextClassId || classId);
         } catch (err) {
             console.error(err);
             setError(err.response?.data?.message || 'Could not load collaborations.');
         } finally {
             setLoading(false);
         }
-    }, [onAcceptedChange]);
+    }, [classId, loadCandidates, onPendingCountChange]);
 
     useEffect(() => {
         reload();
     }, [reload]);
 
+    useEffect(() => {
+        if (!classId) return;
+        loadCandidates(classId).catch(() => {});
+    }, [classId, loadCandidates]);
+
+    useEffect(() => {
+        if (!subjectsForRole.length) {
+            setSubjectId('');
+            return;
+        }
+        setSubjectId((prev) =>
+            prev && subjectsForRole.some((s) => String(s._id) === String(prev))
+                ? prev
+                : String(subjectsForRole[0]._id)
+        );
+    }, [subjectsForRole]);
+
     const handleSendRequest = async (e) => {
         e.preventDefault();
-        if (!targetTeacherId) return;
+        if (!targetTeacherId || !classId || !subjectId || !myRole) return;
         setSending(true);
         setError('');
         try {
             const res = await teacherService.requestCollaboration({
                 targetTeacherId,
+                classId,
+                subjectId,
+                myRole,
                 notes: requestNotes.trim(),
             });
             if (res.success) {
@@ -99,6 +165,16 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
     const actionBtn =
         'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold disabled:opacity-60';
 
+    const renderRequestMeta = (row) => {
+        const parts = [];
+        if (row.class?.code) parts.push(`Class ${row.class.code}`);
+        if (row.subject?.code) parts.push(row.subject.code);
+        if (row.myRole) parts.push(`You: ${roleLabel(row.myRole)}`);
+        if (row.partnerRole) parts.push(`Partner: ${roleLabel(row.partnerRole)}`);
+        if (!parts.length) return null;
+        return <p className="text-[10px] text-slate-500 mt-0.5">{parts.join(' · ')}</p>;
+    };
+
     return (
         <div className="space-y-3">
             {error && (
@@ -122,7 +198,10 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
                                     {row.partner?.name || row.partner?.email}
                                 </p>
                                 <p className="text-[10px] text-slate-500">{row.partner?.email}</p>
-                                {row.notes && <p className="text-[10px] text-slate-600 mt-0.5 italic">&ldquo;{row.notes}&rdquo;</p>}
+                                {renderRequestMeta(row)}
+                                {row.notes && (
+                                    <p className="text-[10px] text-slate-600 mt-0.5 italic">&ldquo;{row.notes}&rdquo;</p>
+                                )}
                             </div>
                             <div className="flex gap-1.5">
                                 <button
@@ -165,6 +244,7 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
                                     {row.partner?.name || row.partner?.email}
                                 </p>
                                 <p className="text-[10px] text-slate-500">Pending — they need to accept</p>
+                                {renderRequestMeta(row)}
                             </div>
                             <button
                                 type="button"
@@ -208,23 +288,81 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
                     Invite a co-teacher
                 </p>
                 <p className="text-[10px] text-slate-600 dark:text-slate-400 -mt-1">
-                    Pick another teacher and send a request. When they accept, you can create collaborative assignments together — no admin needed.
+                    Choose class and your subject role. Collaboration requires one Frontend teacher and one Backend teacher in the same class — not two frontend or two backend subjects.
                 </p>
-                {requestableCandidates.length === 0 ? (
+                {catalog.length === 0 ? (
+                    <p className="text-[11px] text-slate-500">No classes assigned yet. Ask admin to assign you to a class first.</p>
+                ) : requestableCandidates.length === 0 ? (
                     <p className="text-[11px] text-slate-500">
-                        No other teachers available to invite yet. Ask admin to assign another teacher to your class, or wait for pending requests above.
+                        No other teachers in this class to invite yet. Pick another class or ask admin to assign a co-teacher.
                     </p>
                 ) : (
                     <>
-                        <select value={targetTeacherId} onChange={(e) => setTargetTeacherId(e.target.value)} className={Z_INPUT}>
-                            {requestableCandidates.map((t) => (
-                                <option key={String(t._id)} value={String(t._id)}>
-                                    {t.name || t.email}
-                                    {t.email ? ` (${t.email})` : ''}
-                                    {t.collaborationStatus === 'declined' ? ' — previously declined' : ''}
-                                </option>
-                            ))}
-                        </select>
+                        <div>
+                            <label className={Z_LABEL}>Class</label>
+                            <select
+                                value={classId}
+                                onChange={(e) => setClassId(e.target.value)}
+                                className={Z_INPUT}
+                            >
+                                {catalog.map((row) => (
+                                    <option key={String(row.class?._id)} value={String(row.class?._id)}>
+                                        {row.class?.code} — {row.class?.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className={Z_LABEL}>Your role in this collaboration</label>
+                            <div className="flex gap-2 mt-1">
+                                {['frontend', 'backend'].map((role) => (
+                                    <button
+                                        key={role}
+                                        type="button"
+                                        onClick={() => setMyRole(role)}
+                                        className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold capitalize ${
+                                            myRole === role
+                                                ? 'border-indigo-600 bg-indigo-600 text-white'
+                                                : 'border-slate-200 bg-white text-slate-700 dark:bg-slate-900 dark:border-slate-600'
+                                        }`}
+                                    >
+                                        {roleLabel(role)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className={Z_LABEL}>Your subject ({roleLabel(myRole)})</label>
+                            {subjectsForRole.length === 0 ? (
+                                <p className="text-[11px] text-amber-700 mt-1">
+                                    No {myRole} subject assigned in this class. Ask admin to set subject collaboration side or assign the right subject.
+                                </p>
+                            ) : (
+                                <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={Z_INPUT}>
+                                    {subjectsForRole.map((s) => (
+                                        <option key={String(s._id)} value={String(s._id)}>
+                                            {s.code} — {s.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className={Z_LABEL}>Co-teacher</label>
+                            <select value={targetTeacherId} onChange={(e) => setTargetTeacherId(e.target.value)} className={Z_INPUT}>
+                                {requestableCandidates.map((t) => (
+                                    <option key={String(t._id)} value={String(t._id)}>
+                                        {t.name || t.email}
+                                        {t.email ? ` (${t.email})` : ''}
+                                        {t.collaborationStatus === 'declined' ? ' — previously declined' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                         <input
                             type="text"
                             value={requestNotes}
@@ -232,7 +370,11 @@ const TeacherCollaborationPanel = ({ onAcceptedChange }) => {
                             placeholder="Optional message (e.g. Joint capstone — I handle frontend, you handle backend)"
                             className={Z_INPUT}
                         />
-                        <button type="submit" disabled={sending || !targetTeacherId} className={`${Z_BTN_INDIGO} w-auto px-3`}>
+                        <button
+                            type="submit"
+                            disabled={sending || !targetTeacherId || !classId || !subjectId || !subjectsForRole.length}
+                            className={`${Z_BTN_INDIGO} w-auto px-3`}
+                        >
                             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                             Send collaboration request
                         </button>

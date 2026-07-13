@@ -605,3 +605,67 @@ export function buildPreviewMongoUri(sessionId, { sidecarHost = null } = {}) {
     (process.env.PREVIEW_SIDECAR_MONGO === 'false' ? 'host.docker.internal' : previewMongoHostName(sessionId));
   return `mongodb://${host}:27017/scholarverify_preview_${suffix}`;
 }
+
+const DEFAULT_LOGIN_PATHS = [
+  '/api/users/login',
+  '/api/auth/login',
+  '/api/login',
+  '/users/login',
+  '/auth/login',
+];
+
+const LOGIN_PATH_LITERAL_RE = /['"`](\/(?:api\/)?[^'"`]*login[^'"`]*)['"`]/gi;
+
+/**
+ * Scan backend route files for login POST paths (e.g. /api/users/login).
+ */
+export async function discoverLoginApiPaths(extractDir, backendSubdir = '') {
+  const backendRoot = backendSubdir
+    ? path.join(extractDir, backendSubdir.replace(/^\.\/?/, ''))
+    : extractDir;
+  const found = new Set(DEFAULT_LOGIN_PATHS);
+
+  async function walk(dir, depth = 0) {
+    if (depth > 8) return;
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist') continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        // eslint-disable-next-line no-await-in-loop
+        await walk(full, depth + 1);
+        continue;
+      }
+      if (!/\.(js|mjs|cjs|ts)$/i.test(entry.name)) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const content = await fs.readFile(full, 'utf8').catch(() => '');
+      if (!content) continue;
+      let match;
+      const re = new RegExp(LOGIN_PATH_LITERAL_RE.source, 'gi');
+      while ((match = re.exec(content)) !== null) {
+        const p = match[1];
+        if (p && /login/i.test(p)) found.add(p.startsWith('/') ? p : `/${p}`);
+      }
+      const mountMatch = content.match(/app\.use\(\s*['"`](\/api\/[^'"`]+)['"`]/gi) || [];
+      for (const mount of mountMatch) {
+        const base = mount.match(/['"`](\/api\/[^'"`]+)['"`]/)?.[1];
+        if (base && content.includes("post('/login'") || content.includes('post("/login"')) {
+          found.add(`${base}/login`.replace(/\/+/g, '/'));
+        }
+      }
+    }
+  }
+
+  if (await pathExists(backendRoot)) {
+    await walk(backendRoot);
+  } else {
+    await walk(extractDir);
+  }
+
+  return [...found];
+}

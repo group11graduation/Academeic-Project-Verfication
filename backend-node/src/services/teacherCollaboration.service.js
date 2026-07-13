@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 import { TeacherCollaboration } from '../models/TeacherCollaboration.js';
 import { User } from '../models/User.js';
 import { Class } from '../models/Class.js';
+import {
+  assertComplementaryTeacherSubjects,
+  oppositeCollaborationSide,
+  resolveSubjectCollaborationSide,
+} from './subjectCollaboration.service.js';
 
 /** Stable pair key so (A,B) and (B,A) share one document. */
 function normalizeTeacherPair(teacherAId, teacherBId) {
@@ -23,6 +28,10 @@ function formatCollaborationRow(row, viewerId) {
   const partner = partnerFromRow(row, viewerId);
   const initiatedById = String(row.initiatedBy?._id || row.initiatedBy);
   const viewerIdStr = String(viewerId);
+  const requesterRole = row.requesterRole || '';
+  const partnerRole = requesterRole ? oppositeCollaborationSide(requesterRole) : '';
+  const myRole =
+    initiatedById === viewerIdStr ? requesterRole : partnerRole;
   return {
     _id: row._id,
     status: row.status,
@@ -32,6 +41,24 @@ function formatCollaborationRow(row, viewerId) {
     updatedAt: row.updatedAt,
     initiatedBy: row.initiatedBy,
     initiatedByMe: initiatedById === viewerIdStr,
+    requesterRole,
+    partnerRole,
+    myRole,
+    class: row.class
+      ? {
+          _id: row.class._id || row.class,
+          code: row.class.code || '',
+          name: row.class.name || '',
+        }
+      : null,
+    subject: row.subject
+      ? {
+          _id: row.subject._id || row.subject,
+          code: row.subject.code || '',
+          name: row.subject.name || '',
+          collaborationSide: resolveSubjectCollaborationSide(row.subject),
+        }
+      : null,
     partner: {
       _id: partner?._id || partner,
       name: partner?.name || '',
@@ -108,6 +135,15 @@ export async function listAcceptedCollaboratorsForTeacher(teacherId) {
   });
 }
 
+export async function countIncomingPendingCollaborations(teacherId) {
+  const tid = new mongoose.Types.ObjectId(teacherId);
+  return TeacherCollaboration.countDocuments({
+    status: 'pending',
+    $or: [{ primaryTeacher: tid }, { coTeacher: tid }],
+    initiatedBy: { $ne: tid },
+  });
+}
+
 /** Incoming pending, outgoing pending, and accepted collaborations for the logged-in teacher. */
 export async function listCollaborationsForTeacher(teacherId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
@@ -118,6 +154,8 @@ export async function listCollaborationsForTeacher(teacherId) {
     .populate('primaryTeacher', 'name email')
     .populate('coTeacher', 'name email')
     .populate('initiatedBy', 'name email')
+    .populate('class', 'code name')
+    .populate('subject', 'code name description collaborationSide')
     .sort({ updatedAt: -1 })
     .lean();
 
@@ -130,9 +168,13 @@ export async function listCollaborationsForTeacher(teacherId) {
 }
 
 /** Teachers assigned to the same class(es) as the requester — candidates for collaboration. */
-export async function listTeachersAvailableForCollaboration(teacherId) {
+export async function listTeachersAvailableForCollaboration(teacherId, { classId = null } = {}) {
   const tid = new mongoose.Types.ObjectId(teacherId);
-  const myClasses = await Class.find({ 'teacherAssignments.teacher': tid }).select('teacherAssignments').lean();
+  const classQuery = { 'teacherAssignments.teacher': tid };
+  if (classId && mongoose.Types.ObjectId.isValid(classId)) {
+    classQuery._id = new mongoose.Types.ObjectId(classId);
+  }
+  const myClasses = await Class.find(classQuery).select('teacherAssignments').lean();
   const peerIds = new Set();
   for (const cls of myClasses) {
     for (const ta of cls.teacherAssignments || []) {
@@ -175,11 +217,39 @@ async function mapTeachersWithCollabStatus(teacherId, teachers) {
   }));
 }
 
+async function loadClassTeacherSubjects(classId, teacherId) {
+  const cls = await Class.findById(classId)
+    .populate('teacherAssignments.subjects', 'code name description collaborationSide')
+    .populate('subjects', 'code name description collaborationSide')
+    .lean();
+  if (!cls) {
+    const err = new Error('Class not found');
+    err.status = 404;
+    throw err;
+  }
+  const ta = (cls.teacherAssignments || []).find(
+    (row) => String(row.teacher?._id || row.teacher) === String(teacherId)
+  );
+  if (!ta) {
+    const err = new Error('You are not assigned to this class');
+    err.status = 403;
+    throw err;
+  }
+  const classSubjects = (cls.subjects || []).filter(Boolean);
+  const teacherSubjects = (ta.subjects || []).filter(Boolean);
+  const subjects = classSubjects.length ? classSubjects : teacherSubjects;
+  return { classDoc: cls, subjects, teacherAssignment: ta };
+}
+
 /**
  * Teacher A requests to collaborate with Teacher B.
  * If B already sent a pending request to A, it is auto-accepted.
  */
-export async function requestCollaboration(requesterId, targetTeacherId, notes = '') {
+export async function requestCollaboration(
+  requesterId,
+  targetTeacherId,
+  { notes = '', classId = null, subjectId = null, myRole = '' } = {}
+) {
   if (String(requesterId) === String(targetTeacherId)) {
     const err = new Error('You cannot send a collaboration request to yourself');
     err.status = 400;
@@ -192,6 +262,21 @@ export async function requestCollaboration(requesterId, targetTeacherId, notes =
     err.status = 404;
     throw err;
   }
+
+  if (!classId || !subjectId || !myRole) {
+    const err = new Error('classId, subjectId, and myRole (frontend or backend) are required');
+    err.status = 400;
+    throw err;
+  }
+
+  const requesterCtx = await loadClassTeacherSubjects(classId, requesterId);
+  const targetCtx = await loadClassTeacherSubjects(classId, targetTeacherId);
+  assertComplementaryTeacherSubjects({
+    requesterSubjects: requesterCtx.subjects,
+    targetSubjects: targetCtx.subjects,
+    requesterRole: myRole,
+    subjectId,
+  });
 
   const existing = await findCollaborationPair(requesterId, targetTeacherId);
 
@@ -207,7 +292,7 @@ export async function requestCollaboration(requesterId, targetTeacherId, notes =
       existing.status = 'accepted';
       existing.acceptedAt = new Date();
       await existing.save();
-      return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy']);
+      return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject']);
     }
     const err = new Error('Collaboration request already sent — waiting for their response');
     err.status = 409;
@@ -222,9 +307,12 @@ export async function requestCollaboration(requesterId, targetTeacherId, notes =
     existing.primaryTeacher = pair.primaryTeacher;
     existing.coTeacher = pair.coTeacher;
     existing.notes = String(notes || '').trim();
+    existing.class = classId;
+    existing.subject = subjectId;
+    existing.requesterRole = String(myRole).trim().toLowerCase();
     existing.acceptedAt = null;
     await existing.save();
-    return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy']);
+    return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject']);
   }
 
   const doc = await TeacherCollaboration.create({
@@ -232,8 +320,11 @@ export async function requestCollaboration(requesterId, targetTeacherId, notes =
     status: 'pending',
     initiatedBy: requesterId,
     notes: String(notes || '').trim(),
+    class: classId,
+    subject: subjectId,
+    requesterRole: String(myRole).trim().toLowerCase(),
   });
-  return doc.populate(['primaryTeacher', 'coTeacher', 'initiatedBy']);
+  return doc.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject']);
 }
 
 /** Recipient accepts or declines; initiator may cancel a pending outgoing request. */

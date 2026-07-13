@@ -8,6 +8,9 @@
   try {
     require('dotenv').config({ path: '.env' });
     mongoose = require('mongoose');
+    for (const key of Object.keys(mongoose.models || {})) {
+      delete mongoose.models[key];
+    }
     const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
     if (!uri) {
       console.log('[preview-seed] skipped: missing mongo uri');
@@ -32,8 +35,12 @@
       './src/models/user.js',
       './src/models/userModel.js',
       './src/models/UserModel.js',
+      './src/models/Admin.js',
+      './src/models/admin.js',
+      './src/models/adminModel.js',
       './models/User.js',
       './models/user.js',
+      './models/Admin.js',
       './model/User.js',
     ];
     const discovered = [];
@@ -44,7 +51,7 @@
       if (!fs.existsSync(abs)) continue;
       try {
         for (const file of fs.readdirSync(abs)) {
-          if (/user/i.test(file) && /\.(js|cjs|mjs)$/i.test(file)) {
+          if (/user|admin/i.test(file) && /\.(js|cjs|mjs)$/i.test(file)) {
             discovered.push(path.join(dir, file).replace(/\\/g, '/'));
           }
         }
@@ -54,19 +61,6 @@
     }
     const userModelPaths = [...new Set([...staticPaths, ...discovered])];
     let User = null;
-    for (const p of userModelPaths) {
-      try {
-        User = require(p);
-        console.log('[preview-seed] using User model', p);
-        break;
-      } catch {
-        /* try next */
-      }
-    }
-    if (!User) {
-      console.log('[preview-seed] skipped: no User model found');
-      return;
-    }
 
     let bcrypt;
     let bcryptjs;
@@ -86,6 +80,47 @@
       if (bcryptjs) return bcryptjs.hash(plain, 10);
       throw new Error('bcrypt or bcryptjs required');
     };
+
+    for (const p of userModelPaths) {
+      try {
+        User = require(p);
+        console.log('[preview-seed] using User model', p);
+        break;
+      } catch {
+        /* try next */
+      }
+    }
+    if (!User) {
+      console.log('[preview-seed] no Mongoose User model — trying raw MongoDB upsert');
+      await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
+      const hashed = await hashPassword(rawPass);
+      const db = mongoose.connection.db;
+      for (const collName of ['users', 'user', 'admins', 'admin']) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await db.collection(collName).updateOne(
+            { $or: [{ email }, { username: email }] },
+            {
+              $set: {
+                email,
+                username: email.split('@')[0] || 'previewadmin',
+                password: hashed,
+                name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
+                role: 'admin',
+                isAdmin: true,
+                isActive: true,
+                status: 'active',
+              },
+            },
+            { upsert: true }
+          );
+          console.log('[preview-seed] raw mongo upsert in', collName);
+        } catch (err) {
+          console.log('[preview-seed] raw mongo upsert failed for', collName, err.message || err);
+        }
+      }
+      return;
+    }
 
     const comparePassword = async (plain, hash) => {
       if (!hash) return false;
@@ -111,7 +146,17 @@
       const enumValues = rolePath?.enumValues;
       if (Array.isArray(enumValues) && enumValues.length) {
         const vals = enumValues.map((v) => String(v));
-        const prefer = ['admin', 'ADMIN', 'manager', 'MANAGER', 'superadmin', 'SuperAdmin', 'user', 'USER'];
+        const prefer = [
+          'admin',
+          'ADMIN',
+          'SuperAdmin',
+          'superadmin',
+          'SUPER_ADMIN',
+          'manager',
+          'MANAGER',
+          'user',
+          'USER',
+        ];
         for (const p of prefer) {
           if (vals.includes(p)) return p;
         }
@@ -172,6 +217,20 @@
           /* fall through */
         }
       }
+      if (typeof user.matchPassword === 'function') {
+        try {
+          if (await user.matchPassword(plain)) return true;
+        } catch {
+          /* fall through */
+        }
+      }
+      if (typeof user.correctPassword === 'function') {
+        try {
+          if (await user.correctPassword(plain, stored)) return true;
+        } catch {
+          /* fall through */
+        }
+      }
       return comparePassword(plain, String(stored));
     }
 
@@ -200,9 +259,19 @@
 
     function applyActiveFlags(doc) {
       if (User.schema?.paths?.isActive && doc.isActive === undefined) doc.isActive = true;
+      if (User.schema?.paths?.isAdmin && doc.isAdmin === undefined) doc.isAdmin = true;
       if (User.schema?.paths?.status && !doc.status) doc.status = 'active';
       if (User.schema?.paths?.isVerified && doc.isVerified === undefined) doc.isVerified = true;
       return doc;
+    }
+
+    function applyRequiredFields(doc) {
+      const paths = User.schema?.paths || {};
+      if (paths.name && !doc.name) doc.name = process.env.PREVIEW_ADMIN_NAME || 'Preview Admin';
+      if (paths.firstName && !doc.firstName) doc.firstName = 'Preview';
+      if (paths.lastName && !doc.lastName) doc.lastName = 'Admin';
+      if (paths.phone && !doc.phone) doc.phone = '0000000000';
+      return applyActiveFlags(doc);
     }
 
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
@@ -212,7 +281,7 @@
     const lookup = { $or: [{ email }, { username: email }] };
     let user = await findUserWithSecrets(lookup);
     if (!user) {
-      const doc = applyActiveFlags({
+      const doc = applyRequiredFields({
         name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
         email,
         role,
@@ -246,7 +315,7 @@
 
     const rolePath = User.schema?.paths?.role;
     const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
-    const adminLike = enumValues.find((v) => /admin|manager/i.test(v));
+    const adminLike = enumValues.find((v) => /admin|manager|super/i.test(v));
     if (adminLike && user && String(user.role) !== adminLike) {
       await User.updateOne({ _id: user._id }, { $set: { role: adminLike } });
       console.log('[preview-seed] set role to', adminLike);
@@ -255,7 +324,36 @@
     const verified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
     console.log('[preview-seed] password verify:', verified ? 'OK' : 'FAILED');
     if (!verified) {
-      process.exitCode = 1;
+      const hashed = await hashPassword(rawPass);
+      const db = mongoose.connection.db;
+      const collections = ['users', 'user', 'admins', 'admin'];
+      for (const collName of collections) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await db.collection(collName).updateOne(
+            { $or: [{ email }, { username: email }] },
+            {
+              $set: {
+                email,
+                username: email.split('@')[0] || 'previewadmin',
+                password: hashed,
+                name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
+                role: 'admin',
+                isAdmin: true,
+                isActive: true,
+                status: 'active',
+              },
+            },
+            { upsert: true }
+          );
+          console.log('[preview-seed] raw mongo upsert in', collName);
+        } catch (err) {
+          console.log('[preview-seed] raw mongo upsert failed for', collName, err.message || err);
+        }
+      }
+      const rawVerified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
+      console.log('[preview-seed] password verify after raw upsert:', rawVerified ? 'OK' : 'FAILED');
+      if (!rawVerified) process.exitCode = 1;
     }
   } catch (err) {
     console.error('[preview-seed] failed:', err.message || err);

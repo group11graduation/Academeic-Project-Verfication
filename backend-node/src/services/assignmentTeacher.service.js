@@ -104,6 +104,7 @@ function mapSubjectOption(subject) {
     _id: id,
     code: subject.code || '',
     name: subject.name || '',
+    collaborationSide: subject.collaborationSide || '',
   };
 }
 

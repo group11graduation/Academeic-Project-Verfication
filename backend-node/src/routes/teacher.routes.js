@@ -25,6 +25,7 @@ router.post('/classes/:classRef/groups/generate', teacher.generateClassGroups);
 router.get('/classes/:id', teacher.getMyClassDetails);
 router.get('/catalog', teacher.getCatalog);
 router.get('/collaborations/teachers', teacherCollaborative.listCollaborationCandidates);
+router.get('/collaborations/pending-count', teacherCollaborative.collaborationPendingCount);
 router.get('/collaborations/accepted', teacherCollaborative.listAcceptedCollaborators);
 router.get('/collaborations', teacherCollaborative.listCollaborations);
 router.post('/collaborations/request', teacherCollaborative.sendCollaborationRequest);

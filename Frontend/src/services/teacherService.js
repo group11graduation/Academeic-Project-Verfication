@@ -190,8 +190,13 @@ const teacherService = {
         return response.data;
     },
 
-    getCollaborationCandidates: async () => {
-        const response = await api.get(`${base}/collaborations/teachers`);
+    getCollaborationCandidates: async (params = {}) => {
+        const response = await api.get(`${base}/collaborations/teachers`, { params });
+        return response.data;
+    },
+
+    getCollaborationPendingCount: async () => {
+        const response = await api.get(`${base}/collaborations/pending-count`);
         return response.data;
     },
 

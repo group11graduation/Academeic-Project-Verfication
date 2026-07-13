@@ -10,6 +10,7 @@ import {
   uploadCollaborativeDraftSectionFile,
 } from '../services/collaborativeAssignmentDraft.service.js';
 import {
+  countIncomingPendingCollaborations,
   listAcceptedCollaboratorsForTeacher,
   listCollaborationsForTeacher,
   listTeachersAvailableForCollaboration,
@@ -31,18 +32,33 @@ export const listCollaborations = asyncHandler(async (req, res) => {
  * Teachers the logged-in user can invite (same class or all active teachers).
  */
 export const listCollaborationCandidates = asyncHandler(async (req, res) => {
-  const rows = await listTeachersAvailableForCollaboration(req.userId);
+  const rows = await listTeachersAvailableForCollaboration(req.userId, {
+    classId: req.query.classId || null,
+  });
   return success(res, rows);
 });
 
 /**
+ * GET /teacher/collaborations/pending-count
+ */
+export const collaborationPendingCount = asyncHandler(async (req, res) => {
+  const count = await countIncomingPendingCollaborations(req.userId);
+  return success(res, { count });
+});
+
+/**
  * POST /teacher/collaborations/request
- * Body: { targetTeacherId, notes? }
+ * Body: { targetTeacherId, classId, subjectId, myRole, notes? }
  */
 export const sendCollaborationRequest = asyncHandler(async (req, res) => {
-  const { targetTeacherId, notes } = req.body || {};
+  const { targetTeacherId, notes, classId, subjectId, myRole } = req.body || {};
   if (!targetTeacherId) return fail(res, 'targetTeacherId is required', 400);
-  const row = await requestCollaboration(req.userId, targetTeacherId, notes);
+  const row = await requestCollaboration(req.userId, targetTeacherId, {
+    notes,
+    classId,
+    subjectId,
+    myRole,
+  });
   return success(res, row, 201);
 });
 

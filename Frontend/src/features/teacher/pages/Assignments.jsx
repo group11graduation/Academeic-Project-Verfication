@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ClipboardList, Plus, Trash2, ChevronRight,
@@ -122,24 +122,30 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
 
 const Assignments = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [assignments, setAssignments] = useState([]);
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeClassId, setActiveClassId] = useState('');
     const [semesterFilter, setSemesterFilter] = useState('');
+    const [collabPendingCount, setCollabPendingCount] = useState(0);
     const searchQuery = useShellSearchFilter('Search assignments by title or subject…');
 
     const fetchData = async () => {
         try {
-            const [aRes, cRes] = await Promise.all([
+            const [aRes, cRes, collabCountRes] = await Promise.all([
                 teacherService.getMyAssignments(),
                 teacherService.getMyClasses(),
+                teacherService.getCollaborationPendingCount().catch(() => ({ success: false })),
             ]);
             if (aRes.success) setAssignments(aRes.data || []);
             if (cRes.success) {
                 const rows = cRes.data || [];
                 setClasses(rows);
                 if (rows.length) setActiveClassId(String(rows[0]._id || ''));
+            }
+            if (collabCountRes?.success) {
+                setCollabPendingCount(Number(collabCountRes.data?.count || 0));
             }
         } catch (err) {
             console.error(err);
@@ -150,7 +156,7 @@ const Assignments = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [location.pathname]);
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
@@ -253,9 +259,17 @@ const Assignments = () => {
                     <button
                         type="button"
                         onClick={() => navigate('/teacher/assignments/collaborative/new')}
-                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700"
+                        className="relative inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700"
                     >
                         <UserPlus className="h-3.5 w-3.5" /> Collab
+                        {collabPendingCount > 0 && (
+                            <span
+                                className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-white ring-2 ring-white dark:ring-slate-900"
+                                title={`${collabPendingCount} pending collaboration request${collabPendingCount === 1 ? '' : 's'}`}
+                            >
+                                {collabPendingCount > 9 ? '9+' : collabPendingCount}
+                            </span>
+                        )}
                     </button>
                     <button
                         type="button"

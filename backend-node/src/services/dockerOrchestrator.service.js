@@ -3,6 +3,7 @@ import fsSync from 'fs';
 import path from 'path';
 import net from 'net';
 import os from 'os';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { exec, spawn } from 'child_process';
 import { safeExtractProjectZip } from './previewZipExtract.service.js';
@@ -133,6 +134,37 @@ function previewNodeBaseImageTag(flutterPair) {
   return flutterPair ? PREVIEW_NODE_FLUTTER_BASE_IMAGE : PREVIEW_NODE_BASE_IMAGE;
 }
 
+async function previewNodeTemplateContentHash(templateDirName) {
+  const templateDir = path.join(TEMPLATES_ROOT, templateDirName);
+  const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
+  const files = [
+    fsSync.existsSync(path.join(templateDir, 'entrypoint.sh'))
+      ? path.join(templateDir, 'entrypoint.sh')
+      : path.join(sharedNodeDir, 'entrypoint.sh'),
+    path.join(sharedNodeDir, 'preview-seed-admin.js'),
+    path.join(sharedNodeDir, 'preview-verify-login.js'),
+    path.join(templateDir, 'Dockerfile'),
+  ];
+  const hash = crypto.createHash('sha256');
+  for (const filePath of files) {
+    if (!fsSync.existsSync(filePath)) continue;
+    hash.update(await fs.readFile(filePath));
+  }
+  return hash.digest('hex').slice(0, 12);
+}
+
+async function dockerImageLabel(imageTag, labelKey) {
+  try {
+    const { stdout } = await runCommand(
+      `docker image inspect ${imageTag} --format "{{index .Config.Labels \\"${labelKey}\\"}}"`,
+      { timeoutMs: 15_000 }
+    );
+    return String(stdout || '').trim();
+  } catch {
+    return '';
+  }
+}
+
 async function stagePreviewBaseBuildDir(templateDirName) {
   const templateDir = path.join(TEMPLATES_ROOT, templateDirName);
   const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
@@ -155,6 +187,12 @@ async function stagePreviewBaseBuildDir(templateDirName) {
   if (fsSync.existsSync(seedScriptSrc)) {
     const seedScript = await fs.readFile(seedScriptSrc, 'utf8');
     await fs.writeFile(path.join(stageDir, 'preview-seed-admin.js'), seedScript.replace(/\r\n/g, '\n'));
+  }
+
+  const verifyScriptSrc = path.join(sharedNodeDir, 'preview-verify-login.js');
+  if (fsSync.existsSync(verifyScriptSrc)) {
+    const verifyScript = await fs.readFile(verifyScriptSrc, 'utf8');
+    await fs.writeFile(path.join(stageDir, 'preview-verify-login.js'), verifyScript.replace(/\r\n/g, '\n'));
   }
 
   const fallbackSrc = fsSync.existsSync(path.join(templateDir, 'preview-fallback'))
@@ -186,9 +224,14 @@ function previewBaseImageFailureMessage(stack) {
   return messages[stack] || 'Project preview is temporarily unavailable';
 }
 
-async function runPreviewBaseImageBuild({ imageTag, stageDir, timeoutMs, label }) {
+async function runPreviewBaseImageBuild({ imageTag, stageDir, timeoutMs, label, contentHash = '' }) {
   try {
-    await spawnProcess('docker', ['build', '-t', imageTag, '.'], { cwd: stageDir, timeoutMs });
+    const buildArgs = ['build', '-t', imageTag];
+    if (contentHash) {
+      buildArgs.push('--label', `sv.preview.hash=${contentHash}`);
+    }
+    buildArgs.push('.');
+    await spawnProcess('docker', buildArgs, { cwd: stageDir, timeoutMs });
     return { imageTag, reused: false };
   } catch (err) {
     logger.warn(`Preview base image build failed (${label}): ${err.stderr || err.message}`);
@@ -205,8 +248,12 @@ async function runPreviewBaseImageBuild({ imageTag, stageDir, timeoutMs, label }
 async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } = {}) {
   const templateDirName = previewNodeTemplateDir(flutterPair);
   const imageTag = previewNodeBaseImageTag(flutterPair);
+  const contentHash = await previewNodeTemplateContentHash(templateDirName);
   if (!forceRebuild && (await dockerImageExists(imageTag))) {
-    return { imageTag, reused: true };
+    const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
+    if (existingHash && existingHash === contentHash) {
+      return { imageTag, reused: true };
+    }
   }
 
   const stageDir = await stagePreviewBaseBuildDir(templateDirName);
@@ -215,6 +262,7 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
     stageDir,
     timeoutMs: flutterPair ? FLUTTER_BUILD_TIMEOUT_MS : BUILD_TIMEOUT_MS,
     label: templateDirName,
+    contentHash,
   });
 }
 
