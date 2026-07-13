@@ -674,3 +674,32 @@ export async function setSettings(value) {
   ).lean();
   return row?.value || {};
 }
+
+/** Real faculty names from academic structure, classes, students, teachers, and subjects. */
+export async function listFacultyNames() {
+  const names = new Set();
+  const settings = await getSettings();
+  const structure = settings?.academicStructure;
+  if (structure?.faculties && Array.isArray(structure.faculties)) {
+    for (const f of structure.faculties) {
+      const label = String(f?.name || '').trim();
+      if (label) names.add(label);
+    }
+  }
+
+  const [classFaculties, studentFaculties, teacherFaculties, subjectFaculties] = await Promise.all([
+    Class.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+    StudentProfile.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+    TeacherProfile.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+    Subject.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+  ]);
+
+  for (const list of [classFaculties, studentFaculties, teacherFaculties, subjectFaculties]) {
+    for (const value of list || []) {
+      const label = String(value || '').trim();
+      if (label) names.add(label);
+    }
+  }
+
+  return [...names].sort((a, b) => a.localeCompare(b));
+}

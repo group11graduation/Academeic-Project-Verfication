@@ -56,5 +56,12 @@ export const adminAcademicService = {
             success: Boolean(res.data?.success),
             data: res.data?.data?.academicStructure || { faculties: [] }
         };
+    },
+    listFaculties: async () => {
+        const res = await api.get('/admin/faculties');
+        return {
+            success: Boolean(res.data?.success),
+            data: Array.isArray(res.data?.data) ? res.data.data : []
+        };
     }
 };

@@ -31,6 +31,7 @@ import {
     getProposalSubmissionHistoryContext,
     getTeacherSubmissionJourneyHeadline,
 } from '../../../shared/utils/proposalSubmissionHistoryUi';
+import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 
 const PREVIEW_STACK_LABELS = {
     'static-html': 'HTML + CSS',
@@ -566,9 +567,10 @@ const TeacherProposalStudentDetail = () => {
     const copyProposal = async () => {
         if (!proposalPlain) return;
         try {
-            await navigator.clipboard.writeText(proposalPlain);
+            await copyTextToClipboard(proposalPlain);
+            await appSuccess('Proposal text copied');
         } catch {
-            /* ignore */
+            await appWarning('Could not copy proposal text automatically.');
         }
     };
 
@@ -1347,10 +1349,10 @@ const TeacherProposalStudentDetail = () => {
                                     const copyText = async (label, value) => {
                                         if (!value) return;
                                         try {
-                                            await navigator.clipboard.writeText(value);
+                                            await copyTextToClipboard(value);
                                             await appSuccess(`${label} copied`);
                                         } catch {
-                                            await appWarning(`Copy ${label} manually: ${value}`);
+                                            await appWarning(`Could not copy ${label.toLowerCase()} automatically. Select the field and copy manually.`);
                                         }
                                     };
 

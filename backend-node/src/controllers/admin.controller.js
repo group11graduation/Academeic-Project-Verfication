@@ -266,6 +266,11 @@ export const putSettings = asyncHandler(async (req, res) => {
   return success(res, data);
 });
 
+export const listFaculties = asyncHandler(async (req, res) => {
+  const data = await academic.listFacultyNames();
+  return success(res, data);
+});
+
 /** Dashboard */
 export const dashboardStats = asyncHandler(async (req, res) => {
   const data = await dashboard.getDashboardStats();

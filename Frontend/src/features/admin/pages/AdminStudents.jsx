@@ -89,10 +89,10 @@ const AdminStudents = () => {
     useEffect(() => {
         const boot = async () => {
             try {
-                const [studentRes, classRes, stRes] = await Promise.all([
+                const [studentRes, classRes, facultyRes] = await Promise.all([
                     adminStudentService.getStudents(),
                     adminClassService.getClasses(),
-                    adminAcademicService.getAcademicStructure(),
+                    adminAcademicService.listFaculties(),
                 ]);
                 if (studentRes.success) setStudents(studentRes.data || []);
                 if (classRes.success) {
@@ -105,9 +105,8 @@ const AdminStudents = () => {
                         }));
                     }
                 }
-                if (stRes.success) {
-                    const names = (stRes.data?.faculties || []).map((f) => f.name).filter(Boolean);
-                    setFacultyStructureNames(names);
+                if (facultyRes.success) {
+                    setFacultyStructureNames(facultyRes.data || []);
                 }
             } catch (error) {
                 console.error('Failed to fetch students/classes:', error);
@@ -221,13 +220,23 @@ const AdminStudents = () => {
     );
 
     const uniqueClasses = [...new Set(students.map((s) => s.classId).filter(Boolean))].sort();
-    const uniqueFaculties = [...new Set(students.map((s) => s.academicInfo?.faculty).filter(Boolean))].sort();
+
+    const resolveStudentFaculty = (student) =>
+        String(student?.faculty || student?.academicInfo?.faculty || '').trim();
 
     const facultyFilterOptions = useMemo(() => {
         const set = new Set(facultyStructureNames);
-        uniqueFaculties.forEach((f) => set.add(f));
+        for (const cls of classes) {
+            if (cls.faculty && String(cls.faculty).trim()) set.add(String(cls.faculty).trim());
+        }
+        for (const student of students) {
+            const faculty = resolveStudentFaculty(student);
+            if (faculty) set.add(faculty);
+        }
         return [...set].sort((a, b) => a.localeCompare(b));
-    }, [facultyStructureNames, uniqueFaculties]);
+    }, [facultyStructureNames, classes, students]);
+
+    const allFacultyOptions = facultyFilterOptions;
 
     const filteredStudents = students.filter((student) => {
         const matchesSearch = matchesSearchQuery(
@@ -239,7 +248,7 @@ const AdminStudents = () => {
         );
 
         const matchesClass = classFilter ? student.classId === classFilter : true;
-        const matchesFaculty = facultyFilter ? student.academicInfo?.faculty === facultyFilter : true;
+        const matchesFaculty = facultyFilter ? resolveStudentFaculty(student) === facultyFilter : true;
         return matchesSearch && matchesClass && matchesFaculty;
     });
 
@@ -484,7 +493,7 @@ const AdminStudents = () => {
                             onChange={(e) => setFacultyFilter(e.target.value)}
                             className="w-full appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-3 pr-8 text-[12px] font-semibold text-slate-700 dark:text-slate-200"
                         >
-                            <option value="">Faculties</option>
+                            <option value="">All faculties</option>
                             {facultyFilterOptions.map((fac) => (
                                 <option key={fac} value={fac}>
                                     {fac}
@@ -529,12 +538,7 @@ const AdminStudents = () => {
                                 className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
                             >
                                 <option value="">Select faculty</option>
-                                {(() => {
-                                    const set = new Set(facultyStructureNames);
-                                    if (selectedClass?.faculty) set.add(selectedClass.faculty);
-                                    if (addForm.faculty) set.add(addForm.faculty);
-                                    return [...set].sort((a, b) => a.localeCompare(b));
-                                })().map((name) => (
+                                {allFacultyOptions.map((name) => (
                                     <option key={name} value={name}>
                                         {name}
                                     </option>
@@ -590,13 +594,7 @@ const AdminStudents = () => {
                                 className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
                             >
                                 <option value="">Select faculty</option>
-                                {(() => {
-                                    const set = new Set(facultyStructureNames);
-                                    const cls = classes.find((c) => c.code === editForm.classId);
-                                    if (cls?.faculty) set.add(cls.faculty);
-                                    if (editForm.faculty) set.add(editForm.faculty);
-                                    return [...set].sort((a, b) => a.localeCompare(b));
-                                })().map((name) => (
+                                {allFacultyOptions.map((name) => (
                                     <option key={name} value={name}>
                                         {name}
                                     </option>

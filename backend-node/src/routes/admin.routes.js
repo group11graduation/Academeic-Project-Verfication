@@ -70,5 +70,6 @@ router.patch('/students/:studentUserId/performance', admin.patchPerformance);
 
 router.get('/settings', admin.getSettings);
 router.put('/settings', admin.putSettings);
+router.get('/faculties', admin.listFaculties);
 
 export default router;
