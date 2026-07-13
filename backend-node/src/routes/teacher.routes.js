@@ -37,6 +37,7 @@ router.get('/assignments/collaborative/drafts', teacherCollaborative.listCollabo
 router.post('/assignments/collaborative/drafts', teacherCollaborative.createCollaborativeDraftHandler);
 router.get('/assignments/collaborative/drafts/:id', teacherCollaborative.getCollaborativeDraft);
 router.patch('/assignments/collaborative/drafts/:id', teacherCollaborative.updateCollaborativeDraftHandler);
+router.delete('/assignments/collaborative/drafts/:id', teacherCollaborative.deleteCollaborativeDraftHandler);
 router.post(
   '/assignments/collaborative/drafts/:id/requirements-file',
   uploadAssignmentRequirement.single('requirementsFile'),

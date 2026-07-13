@@ -289,3 +289,16 @@ export async function publishCollaborativeDraft(teacherId, draftId) {
 
   return assignment;
 }
+
+/** Either collaborating teacher may delete an unpublished draft. */
+export async function deleteCollaborativeDraft(teacherId, draftId) {
+  const draft = await CollaborativeAssignmentDraft.findById(draftId);
+  if (!draft || draft.status !== 'draft') {
+    const err = new Error('Collaborative draft not found');
+    err.status = 404;
+    throw err;
+  }
+  assertDraftParticipant(draft, teacherId);
+  await CollaborativeAssignmentDraft.deleteOne({ _id: draft._id });
+  return { deleted: true, draftId: String(draft._id) };
+}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Send, UserCheck, UserX, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Loader2, Send, UserCheck, UserX, X } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { Z_BTN_INDIGO, Z_FORM_SECTION, Z_INPUT, Z_LABEL } from '../../../shared/ui/zendentaLayout';
 
@@ -26,7 +26,12 @@ function roleLabel(role) {
 /**
  * Self-service collaboration: send requests, accept/decline incoming, cancel outgoing.
  */
-const TeacherCollaborationPanel = ({ onAcceptedChange, onPendingCountChange }) => {
+const TeacherCollaborationPanel = ({
+    onAcceptedChange,
+    onPendingCountChange,
+    collapseInviteWhenReady = true,
+    draftActive = false,
+}) => {
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState('');
     const [incoming, setIncoming] = useState([]);
@@ -41,6 +46,8 @@ const TeacherCollaborationPanel = ({ onAcceptedChange, onPendingCountChange }) =
     const [requestNotes, setRequestNotes] = useState('');
     const [sending, setSending] = useState(false);
     const [error, setError] = useState('');
+    const [inviteCollapsed, setInviteCollapsed] = useState(false);
+    const [inviteManuallyExpanded, setInviteManuallyExpanded] = useState(false);
 
     const selectedCatalogRow = useMemo(
         () => catalog.find((row) => String(row.class?._id) === String(classId)),
@@ -113,6 +120,45 @@ const TeacherCollaborationPanel = ({ onAcceptedChange, onPendingCountChange }) =
         );
     }, [subjectsForRole]);
 
+    const shouldAutoCollapseInvite =
+        draftActive || (collapseInviteWhenReady && (accepted.length > 0 || outgoing.length > 0));
+    const inviteFormOpen = !inviteCollapsed || inviteManuallyExpanded;
+
+    useEffect(() => {
+        if (shouldAutoCollapseInvite && !inviteManuallyExpanded) {
+            setInviteCollapsed(true);
+        }
+    }, [shouldAutoCollapseInvite, inviteManuallyExpanded]);
+
+    const inviteCollapsedSummary = useMemo(() => {
+        if (draftActive) {
+            return 'Assignment draft in progress — expand only if you need to invite another co-teacher.';
+        }
+        if (accepted.length > 0) {
+            const names = accepted.map((r) => r.partner?.name || r.partner?.email).filter(Boolean);
+            return `Connected with ${names.join(', ')}. You can start the assignment below.`;
+        }
+        if (outgoing.length > 0) {
+            const row = outgoing[0];
+            const name = row.partner?.name || row.partner?.email || 'co-teacher';
+            const meta = [row.class?.code, row.subject?.code, row.requesterRole && `You: ${roleLabel(row.requesterRole)}`]
+                .filter(Boolean)
+                .join(' · ');
+            return `Request sent to ${name}${meta ? ` (${meta})` : ''} — waiting for acceptance.`;
+        }
+        return 'Invite form hidden. Expand to send another collaboration request.';
+    }, [accepted, outgoing, draftActive]);
+
+    const toggleInviteForm = () => {
+        if (inviteFormOpen) {
+            setInviteManuallyExpanded(false);
+            setInviteCollapsed(true);
+            return;
+        }
+        setInviteCollapsed(false);
+        setInviteManuallyExpanded(true);
+    };
+
     const handleSendRequest = async (e) => {
         e.preventDefault();
         if (!targetTeacherId || !classId || !subjectId || !myRole) return;
@@ -128,6 +174,8 @@ const TeacherCollaborationPanel = ({ onAcceptedChange, onPendingCountChange }) =
             });
             if (res.success) {
                 setRequestNotes('');
+                setInviteCollapsed(true);
+                setInviteManuallyExpanded(false);
                 await reload();
                 onAcceptedChange?.();
             }
@@ -280,14 +328,30 @@ const TeacherCollaborationPanel = ({ onAcceptedChange, onPendingCountChange }) =
                 </div>
             )}
 
-            <form
-                onSubmit={handleSendRequest}
-                className="rounded-lg border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 p-3 space-y-2.5"
-            >
-                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
-                    Invite a co-teacher
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 -mt-1">
+            <div className="rounded-lg border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 overflow-hidden">
+                <button
+                    type="button"
+                    onClick={toggleInviteForm}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-indigo-100/50 dark:hover:bg-indigo-950/40 transition-colors"
+                >
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                            Invite a co-teacher
+                        </p>
+                        {!inviteFormOpen && (
+                            <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">
+                                {inviteCollapsedSummary}
+                            </p>
+                        )}
+                    </div>
+                    <span className="shrink-0 text-indigo-600 dark:text-indigo-300" aria-hidden>
+                        {inviteFormOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </span>
+                </button>
+
+                {inviteFormOpen && (
+            <form onSubmit={handleSendRequest} className="px-3 pb-3 pt-0 space-y-2.5 border-t border-indigo-200/60 dark:border-indigo-900/30">
+                <p className="text-[10px] text-slate-600 dark:text-slate-400 pt-2">
                     Choose class and your subject role. Collaboration requires one Frontend teacher and one Backend teacher in the same class — not two frontend or two backend subjects.
                 </p>
                 {catalog.length === 0 ? (
@@ -381,6 +445,8 @@ const TeacherCollaborationPanel = ({ onAcceptedChange, onPendingCountChange }) =
                     </>
                 )}
             </form>
+                )}
+            </div>
         </div>
     );
 };

@@ -254,6 +254,11 @@ const teacherService = {
         return response.data;
     },
 
+    deleteCollaborativeDraft: async (draftId) => {
+        const response = await api.delete(`${base}/assignments/collaborative/drafts/${encodeURIComponent(draftId)}`);
+        return response.data;
+    },
+
     getMyAssignments: async (semesterId) => {
         const response = await api.get(`${base}/assignments`, {
             params: semesterId ? { semesterId } : undefined

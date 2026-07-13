@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Check, Loader2, Lock, Save, Send, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Loader2, Lock, Save, Send, Trash2, Users } from 'lucide-react';
+import { appConfirm, appSuccess } from '../../../lib/appDialog';
 import { useAuth } from '../../../context/authContext';
 import teacherService from '../../../services/teacherService';
 import TeacherCollaborationPanel from '../components/TeacherCollaborationPanel';
@@ -67,6 +68,7 @@ const CollaborativeAssignmentCreate = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [publishing, setPublishing] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [startingDraft, setStartingDraft] = useState(false);
     const [uploadingSection, setUploadingSection] = useState('');
     const [notice, setNotice] = useState(null);
@@ -282,12 +284,16 @@ const CollaborativeAssignmentCreate = () => {
             projectDeadline: projectDeadline || null,
         };
 
-        if (row && activeSubjectId && activeClassIds.length > 0) {
-            payload.classId = row.class._id;
-            payload.classIds = activeClassIds;
-            payload.subjectId = activeSubjectId;
+        if (row) {
+            if (activeSubjectId) payload.subjectId = activeSubjectId;
             payload.semesterId = row.semester?._id || row.semester || '';
             payload.academicYearId = row.academicYear?._id || row.academicYear || '';
+            if (activeClassIds.length > 0) {
+                payload.classId = row.class._id;
+                payload.classIds = activeClassIds;
+            } else if (row.class?._id) {
+                payload.classId = row.class._id;
+            }
         }
 
         if (myDraftRole === 'frontend') {
@@ -299,7 +305,7 @@ const CollaborativeAssignmentCreate = () => {
         return payload;
     };
 
-    const handleSaveProgress = async () => {
+    const handleSaveProgress = async ({ silent = false } = {}) => {
         if (!draft?._id) return false;
         const payload = buildSavePayload();
 
@@ -319,6 +325,10 @@ const CollaborativeAssignmentCreate = () => {
                     setFrontend(blockToForm(res.data.frontendTechRequirements));
                     setBackend(blockToForm(res.data.backendTechRequirements));
                 }
+                await reloadDrafts();
+                if (!silent) {
+                    await appSuccess('Progress saved. Your co-teacher can continue their section.');
+                }
             }
             return res.success;
         } catch (err) {
@@ -326,6 +336,36 @@ const CollaborativeAssignmentCreate = () => {
             return false;
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDeleteDraft = async (draftIdToDelete = draft?._id) => {
+        if (!draftIdToDelete) return;
+        if (
+            !(await appConfirm({
+                message:
+                    'Delete this collaborative assignment draft? Both you and your co-teacher will lose this draft. This cannot be undone.',
+                danger: true,
+                confirmLabel: 'Delete draft',
+            }))
+        ) {
+            return;
+        }
+        try {
+            setDeleting(true);
+            const res = await teacherService.deleteCollaborativeDraft(draftIdToDelete);
+            if (res.success) {
+                if (String(draftIdToDelete) === String(draft?._id) || String(draftIdToDelete) === String(draftId)) {
+                    setSearchParams({}, { replace: true });
+                    setDraft(null);
+                }
+                await reloadDrafts();
+                showNotice('Draft deleted', 'The collaborative draft was removed. Start a new one when you are ready.');
+            }
+        } catch (err) {
+            showNotice('Delete failed', err.response?.data?.message || 'Could not delete draft.');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -348,13 +388,23 @@ const CollaborativeAssignmentCreate = () => {
 
     const handlePublish = async () => {
         if (!draft?._id) return;
+        if (!readyToPublish) {
+            showNotice(
+                'Not ready to publish',
+                `Complete and save: ${missingPublishItems.join(', ')}. Both teachers must finish their tech sections.`
+            );
+            return;
+        }
         try {
             setPublishing(true);
-            const saved = await handleSaveProgress();
+            const saved = await handleSaveProgress({ silent: true });
             if (!saved) return;
             await loadDraft(draft._id, catalog);
             const res = await teacherService.publishCollaborativeDraft(draft._id);
-            if (res.success) navigate('/teacher/assignments');
+            if (res.success) {
+                await appSuccess('Collaborative assignment published.');
+                navigate('/teacher/assignments');
+            }
         } catch (err) {
             showNotice('Publish failed', err.response?.data?.message || 'Could not publish collaborative assignment.');
         } finally {
@@ -472,7 +522,13 @@ const CollaborativeAssignmentCreate = () => {
                     </div>
                 </div>
 
-                <TeacherCollaborationPanel onAcceptedChange={reloadDrafts} />
+                <TeacherCollaborationPanel
+                    onAcceptedChange={() => {
+                        reloadCollaborators();
+                        reloadDrafts();
+                    }}
+                    draftActive={Boolean(draft)}
+                />
 
                 {catalog.length === 0 ? (
                     <p className="text-slate-500 text-sm mt-4">No class/subject assignments found. Ask admin to assign classes first.</p>
@@ -491,24 +547,37 @@ const CollaborativeAssignmentCreate = () => {
                                             ? row.coTeacherId
                                             : row.initiatedBy;
                                     return (
-                                        <button
+                                        <div
                                             key={row._id}
-                                            type="button"
-                                            onClick={() => {
-                                                setSearchParams({ draft: row._id });
-                                                loadDraft(row._id, catalog);
-                                            }}
-                                            className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 text-[11px] hover:bg-slate-50 dark:border-white/10 dark:hover:bg-slate-900/40"
+                                            className="flex items-stretch gap-2 rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden"
                                         >
-                                            <span className="font-bold text-slate-800 dark:text-slate-100">
-                                                {row.title?.trim() || 'Untitled draft'}
-                                            </span>
-                                            <span className="text-slate-500"> · with {teacherLabel(partner)}</span>
-                                            <span className="block text-[10px] text-slate-500 mt-0.5">
-                                                Frontend {row.frontendSectionComplete ? 'done' : 'pending'} · Backend{' '}
-                                                {row.backendSectionComplete ? 'done' : 'pending'}
-                                            </span>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSearchParams({ draft: row._id });
+                                                    loadDraft(row._id, catalog);
+                                                }}
+                                                className="flex-1 text-left px-3 py-2 text-[11px] hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                                            >
+                                                <span className="font-bold text-slate-800 dark:text-slate-100">
+                                                    {row.title?.trim() || 'Untitled draft'}
+                                                </span>
+                                                <span className="text-slate-500"> · with {teacherLabel(partner)}</span>
+                                                <span className="block text-[10px] text-slate-500 mt-0.5">
+                                                    Frontend {row.frontendSectionComplete ? 'done' : 'pending'} · Backend{' '}
+                                                    {row.backendSectionComplete ? 'done' : 'pending'}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={deleting}
+                                                onClick={() => handleDeleteDraft(row._id)}
+                                                className="shrink-0 px-2.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-l border-slate-200 dark:border-white/10"
+                                                title="Delete draft (either teacher)"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -690,25 +759,46 @@ const CollaborativeAssignmentCreate = () => {
                             </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                            <button type="button" onClick={handleSaveProgress} disabled={saving} className={Z_BTN_INDIGO}>
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => handleSaveProgress()}
+                                disabled={saving || publishing || deleting}
+                                className={Z_BTN_INDIGO}
+                            >
                                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                                 Save progress
                             </button>
                             <button
                                 type="button"
                                 onClick={handlePublish}
-                                disabled={publishing}
-                                className={`${Z_BTN_INDIGO} bg-[#2a3fa4] hover:bg-[#223688] disabled:opacity-50 ${
-                                    !readyToPublish ? 'opacity-80' : ''
-                                }`}
+                                disabled={publishing || saving || deleting || !readyToPublish}
+                                className={`${Z_BTN_INDIGO} bg-[#2a3fa4] hover:bg-[#223688] disabled:opacity-50`}
+                                title={
+                                    readyToPublish
+                                        ? 'Saves latest changes, then publishes'
+                                        : `Complete first: ${missingPublishItems.join(', ')}`
+                                }
                             >
                                 {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                                 Publish assignment
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteDraft()}
+                                disabled={deleting || saving || publishing}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900/40 dark:bg-transparent dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                title="Either teacher can delete this draft"
+                            >
+                                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                Delete draft
+                            </button>
                         </div>
+                        <p className="text-[10px] text-slate-500">
+                            Save progress anytime so your partner can continue. Publish saves automatically first, then creates the assignment when both sections are complete.
+                        </p>
                         {!readyToPublish && (
-                            <p className="text-[10px] text-slate-500">
+                            <p className="text-[10px] text-amber-700 dark:text-amber-300">
                                 Missing before publish: {missingPublishItems.join(', ') || 'waiting for saved draft refresh'}.
                                 {drafts.length > 1 ? ' Reopen this page to continue the most recently updated collaborative draft.' : ''}
                             </p>

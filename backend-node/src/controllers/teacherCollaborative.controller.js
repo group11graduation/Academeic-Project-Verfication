@@ -8,6 +8,7 @@ import {
   publishCollaborativeDraft,
   updateCollaborativeDraft,
   uploadCollaborativeDraftSectionFile,
+  deleteCollaborativeDraft,
 } from '../services/collaborativeAssignmentDraft.service.js';
 import {
   countIncomingPendingCollaborations,
@@ -153,4 +154,9 @@ export const uploadCollaborativeDraftSectionFileHandler = asyncHandler(async (re
 export const publishCollaborativeDraftHandler = asyncHandler(async (req, res) => {
   const row = await publishCollaborativeDraft(req.userId, req.params.id);
   return success(res, row, 201);
+});
+
+export const deleteCollaborativeDraftHandler = asyncHandler(async (req, res) => {
+  const result = await deleteCollaborativeDraft(req.userId, req.params.id);
+  return success(res, result);
 });
