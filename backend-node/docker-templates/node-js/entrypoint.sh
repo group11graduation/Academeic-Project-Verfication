@@ -187,12 +187,23 @@ write_mern_backend_env() {
     echo "PREVIEW_SANDBOX=1"
     if [ -n "$cors" ]; then echo "CORS_ORIGIN=$cors"; fi
     if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
+      echo "PREVIEW_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
+      echo "PREVIEW_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
       echo "ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
       echo "ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
       echo "SEED_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
       echo "SEED_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
     fi
-  } > .env
+  } > .env.preview-runtime
+  if [ -f .env ] && [ ! -f .env.preview-backup ]; then
+    cp .env .env.preview-backup
+  fi
+  if [ -f .env.preview-backup ]; then
+    cat .env.preview-backup .env.preview-runtime > .env
+  else
+    cat .env.preview-runtime > .env
+  fi
+  rm -f .env.preview-runtime
   export PORT="$API_PORT"
   export HOST=0.0.0.0
   export MONGO_URI="$mongo"
@@ -215,121 +226,14 @@ start_mern_backend() {
     npm run seed >> /tmp/preview-backend.log 2>&1 || true
   fi
 
-  if [ -n "$PREVIEW_ADMIN_EMAIL" ] && [ -f src/models/User.js ]; then
+  if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
     echo "[preview] ensuring preview admin account exists…"
-    node -e "
-      (async () => {
-        try {
-          require('dotenv').config({ path: '.env' });
-          const mongoose = require('mongoose');
-          const bcrypt = require('bcrypt');
-          const User = require('./src/models/User');
-          const tryRequire = (p) => {
-            try {
-              return require(p);
-            } catch {
-              return null;
-            }
-          };
-          const Building = tryRequire('./src/models/Building');
-          const Floor = tryRequire('./src/models/Floor');
-          const Room = tryRequire('./src/models/Room');
-          const Person = tryRequire('./src/models/Person');
-          const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
-          if (!uri) {
-            console.log('[preview-seed] skipped: missing mongo uri');
-            return;
-          }
-          await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
-          const email = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@preview.demo')
-            .toLowerCase()
-            .trim();
-          const rawPass = String(process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!');
-          let existing = await User.findOne({ email });
-          if (!existing) {
-            const hash = await bcrypt.hash(rawPass, 10);
-            existing = await User.create({
-              name: 'Preview Admin',
-              email,
-              password: hash,
-              role: 'MANAGER',
-            });
-            console.log('[preview-seed] created preview admin', email);
-          } else if (existing.password) {
-            const ok = await bcrypt.compare(rawPass, existing.password);
-            if (!ok) {
-              existing.password = await bcrypt.hash(rawPass, 10);
-              await existing.save();
-              console.log('[preview-seed] reset preview admin password', email);
-            } else {
-              console.log('[preview-seed] preview admin already valid', email);
-            }
-          } else {
-            existing.password = await bcrypt.hash(rawPass, 10);
-            await existing.save();
-            console.log('[preview-seed] set missing preview admin password', email);
-          }
-
-          if (Building && existing && existing.role === 'MANAGER') {
-            let building = await Building.findOne({ manager: existing._id });
-            if (!building) {
-              building = await Building.create({
-                name: 'Preview Tower',
-                brandingName: 'Preview Tower',
-                location: 'Preview City',
-                manager: existing._id,
-                floorLimit: 10,
-                allowedRoomTypes: ['STANDARD', 'DELUXE', 'APARTMENT'],
-              });
-              console.log('[preview-seed] created preview building', building.name);
-            }
-
-            if (Floor) {
-              let floor = await Floor.findOne({ building: building._id, floorNumber: 1 });
-              if (!floor) {
-                floor = await Floor.create({ building: building._id, floorNumber: 1 });
-                console.log('[preview-seed] created floor 1');
-              }
-
-              if (Room) {
-                let room = await Room.findOne({ floor: floor._id, roomNumber: '101' });
-                if (!room) {
-                  room = await Room.create({
-                    roomNumber: '101',
-                    type: 'STANDARD',
-                    capacity: 2,
-                    status: 'AVAILABLE',
-                    payment: { amount: 500, frequency: 'MONTHLY', currency: 'USD' },
-                    floor: floor._id,
-                    building: building._id,
-                  });
-                  console.log('[preview-seed] created room 101');
-                }
-
-                if (Person) {
-                  const tenant = await Person.findOne({ building: building._id, room: room._id, type: 'TENANT' });
-                  if (!tenant) {
-                    await Person.create({
-                      name: 'Preview Tenant',
-                      phone: '0000000000',
-                      type: 'TENANT',
-                      room: room._id,
-                      building: building._id,
-                    });
-                    console.log('[preview-seed] created preview tenant');
-                  }
-                }
-              }
-            }
-          }
-
-          await mongoose.disconnect();
-        } catch (err) {
-          console.error('[preview-seed] failed:', err.message || err);
-          process.exit(0);
-        }
-      })();
-    " >> /tmp/preview-backend.log 2>&1 || true
+  fi
+  if [ -n "$PREVIEW_ADMIN_EMAIL" ] && [ -f package.json ]; then
+    node /preview-seed-admin.js >> /tmp/preview-backend.log 2>&1 || {
+      echo "[preview] preview admin seed failed — login may return 401; check /tmp/preview-backend.log"
+      tail -20 /tmp/preview-backend.log 2>/dev/null || true
+    }
   fi
 
   echo "[preview] starting backend on 0.0.0.0:${API_PORT}"

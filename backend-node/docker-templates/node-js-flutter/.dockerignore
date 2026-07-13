@@ -1,4 +1,5 @@
 *
 !entrypoint.sh
+!preview-seed-admin.js
 !preview-fallback
 !preview-fallback/**

@@ -151,6 +151,12 @@ async function stagePreviewBaseBuildDir(templateDirName) {
   const script = await fs.readFile(entrypointSrc, 'utf8');
   await fs.writeFile(path.join(stageDir, 'entrypoint.sh'), script.replace(/\r\n/g, '\n'));
 
+  const seedScriptSrc = path.join(sharedNodeDir, 'preview-seed-admin.js');
+  if (fsSync.existsSync(seedScriptSrc)) {
+    const seedScript = await fs.readFile(seedScriptSrc, 'utf8');
+    await fs.writeFile(path.join(stageDir, 'preview-seed-admin.js'), seedScript.replace(/\r\n/g, '\n'));
+  }
+
   const fallbackSrc = fsSync.existsSync(path.join(templateDir, 'preview-fallback'))
     ? path.join(templateDir, 'preview-fallback')
     : path.join(sharedNodeDir, 'preview-fallback');
