@@ -88,31 +88,55 @@ find_bootable_jar() {
   echo "$jar"
 }
 
-# Preview forces H2 via SPRING_DATASOURCE_* — inject the driver into pom.xml when missing.
+# Insert a Maven dependency if missing. Inserts before the LAST </dependencies>
+# (project deps usually follow <dependencyManagement>), or adds a fresh
+# <dependencies> block before </project> when none exist.
+# Usage: ensure_pom_dependency <groupId> <artifactId> [scope] [pom.xml]
 # Returns 0 if already present, 2 if injected, 1 on failure.
-ensure_h2_dependency_in_pom() {
-  pom="${1:-./pom.xml}"
+ensure_pom_dependency() {
+  group_id="$1"
+  artifact_id="$2"
+  scope="${3:-}"
+  pom="${4:-./pom.xml}"
+
+  if [ -z "$group_id" ] || [ -z "$artifact_id" ]; then
+    echo "[preview] WARN: ensure_pom_dependency requires groupId and artifactId"
+    return 1
+  fi
   if [ ! -f "$pom" ]; then
     return 0
   fi
 
-  if grep -qE 'com\.h2database|<artifactId>[[:space:]]*h2[[:space:]]*</artifactId>' "$pom"; then
-    echo "[preview] H2 dependency already present in pom.xml"
+  # Match either groupId near this artifact, or a bare artifactId tag.
+  if grep -qF "<groupId>${group_id}</groupId>" "$pom" 2>/dev/null && \
+     grep -qE "<artifactId>[[:space:]]*${artifact_id}[[:space:]]*</artifactId>" "$pom"; then
+    echo "[preview] dependency ${group_id}:${artifact_id} already present in pom.xml"
+    return 0
+  fi
+  if grep -qE "<artifactId>[[:space:]]*${artifact_id}[[:space:]]*</artifactId>" "$pom" && \
+     grep -qF "$group_id" "$pom"; then
+    echo "[preview] dependency ${group_id}:${artifact_id} already present in pom.xml"
     return 0
   fi
 
-  echo "[preview] H2 dependency missing — injecting it into pom.xml for preview compatibility"
+  echo "[preview] dependency ${group_id}:${artifact_id} missing — injecting into pom.xml for preview compatibility"
 
-  # Prefer last </dependencies> (project deps usually follow dependencyManagement).
-  # If none exist, insert a fresh <dependencies> block before </project>.
-  if ! node -e '
+  scope_xml=""
+  if [ -n "$scope" ]; then
+    scope_xml="      <scope>${scope}</scope>"
+  fi
+
+  if ! GROUP_ID="$group_id" ARTIFACT_ID="$artifact_id" SCOPE_XML="$scope_xml" node -e '
     const fs = require("fs");
     const path = process.argv[1];
+    const groupId = process.env.GROUP_ID;
+    const artifactId = process.env.ARTIFACT_ID;
+    const scopeXml = process.env.SCOPE_XML || "";
     let xml = fs.readFileSync(path, "utf8");
+    const scopeLine = scopeXml ? `\n${scopeXml}` : "";
     const dep = `    <dependency>
-      <groupId>com.h2database</groupId>
-      <artifactId>h2</artifactId>
-      <scope>runtime</scope>
+      <groupId>${groupId}</groupId>
+      <artifactId>${artifactId}</artifactId>${scopeLine}
     </dependency>
 `;
     const closeDeps = "</dependencies>";
@@ -122,7 +146,7 @@ ensure_h2_dependency_in_pom() {
     } else {
       const closeProj = xml.lastIndexOf("</project>");
       if (closeProj === -1) {
-        console.error("[preview] ERROR: no </project> in pom.xml — cannot inject H2");
+        console.error("[preview] ERROR: no </project> in pom.xml — cannot inject dependency");
         process.exit(1);
       }
       xml =
@@ -134,10 +158,81 @@ ensure_h2_dependency_in_pom() {
     }
     fs.writeFileSync(path, xml);
   ' "$pom"; then
-    echo "[preview] WARN: failed to inject H2 into pom.xml"
+    echo "[preview] WARN: failed to inject ${group_id}:${artifact_id} into pom.xml"
     return 1
   fi
   return 2
+}
+
+# Preview forces H2 via SPRING_DATASOURCE_* — ensure the driver is on the classpath.
+ensure_h2_dependency_in_pom() {
+  ensure_pom_dependency "com.h2database" "h2" "runtime" "${1:-./pom.xml}"
+}
+
+# Spring Externalized Config: command-line args beat env beat application.properties.
+# Still pass -Dserver.port as a JVM system property for belt-and-suspenders reliability
+# (covers spring-boot:run / nested JVM launches where args can be dropped).
+spring_java_port_flags() {
+  printf '%s' "-Dserver.port=${API_PORT}"
+}
+
+spring_boot_args() {
+  printf '%s' "--spring.profiles.active=preview --server.port=${API_PORT}"
+}
+
+# Grep /tmp/preview-spring.log for common student-project failure signatures.
+# Logs plain-English DIAGNOSIS lines only — does not attempt auto-fixes.
+diagnose_spring_startup_failures() {
+  log="${1:-/tmp/preview-spring.log}"
+  if [ ! -f "$log" ]; then
+    echo "[preview] DIAGNOSIS: No Spring log at ${log} — backend may not have started."
+    return 0
+  fi
+
+  found=0
+
+  if grep -qF 'Cannot load driver class' "$log" 2>/dev/null; then
+    echo "[preview] DIAGNOSIS: Missing JDBC driver class on the classpath (often H2/MySQL/PostgreSQL). Preview injects H2 when it can — if this persists, the student pom.xml may block or exclude the driver. See full log above for details."
+    found=1
+  fi
+
+  if grep -qiE 'Address already in use|BindException|port.*(in use|already)' "$log" 2>/dev/null; then
+    echo "[preview] DIAGNOSIS: Port already in use — the app likely hardcodes server.port (or another process holds the port). Preview forces SERVER_PORT / -Dserver.port / --server.port=${API_PORT}; a hardcoded bind in code can still conflict. See full log above for details."
+    found=1
+  fi
+
+  if grep -qF 'UnsatisfiedDependencyException' "$log" 2>/dev/null && \
+     grep -qF 'Could not resolve placeholder' "$log" 2>/dev/null; then
+    echo "[preview] DIAGNOSIS: Missing required application property/env var (e.g. JWT secret, API keys via \${...} placeholders). This is a student project config issue — preview does not invent secret values. See full log above for details."
+    found=1
+  elif grep -qF 'Could not resolve placeholder' "$log" 2>/dev/null; then
+    echo "[preview] DIAGNOSIS: Unresolved \${placeholder} in Spring config (missing env/property). Likely a student code/config issue. See full log above for details."
+    found=1
+  fi
+
+  if grep -qF 'Failed to configure a DataSource' "$log" 2>/dev/null; then
+    echo "[preview] DIAGNOSIS: DataSource configuration failed (URL/driver/credentials). Preview overlays H2 for sandbox use; student MySQL/Postgres settings or missing drivers may still break startup. See full log above for details."
+    found=1
+  fi
+
+  if grep -qE 'COMPILATION ERROR|cannot find symbol|error: package .* does not exist|Failed to execute goal org\.apache\.maven\.plugins:maven-compiler-plugin' "$log" 2>/dev/null; then
+    echo "[preview] DIAGNOSIS: Maven compile failed (e.g. missing types/packages or compiler errors in student Java sources). Fix the project code/build, then re-preview. See full log above for details."
+    found=1
+  fi
+
+  if [ "$found" -eq 0 ]; then
+    if grep -qiE 'APPLICATION FAILED TO START|Error starting ApplicationContext|BUILD FAILURE' "$log" 2>/dev/null; then
+      echo "[preview] DIAGNOSIS: Spring/Maven reported a startup or build failure, but no specific known signature matched. Tail of log follows — likely a student project issue, not the preview platform."
+      found=1
+    fi
+  fi
+
+  if [ "$found" -eq 1 ]; then
+    echo "[preview] --- last 30 lines of ${log} ---"
+    tail -n 30 "$log" 2>/dev/null || true
+    echo "[preview] --- end spring diagnosis ---"
+  fi
+  return 0
 }
 
 package_spring_jar() {
@@ -175,6 +270,7 @@ start_spring_backend_async() {
   echo "[preview] Spring Boot backend in $(pwd)"
   : > /tmp/preview-spring.log
   export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-preview}"
+  # Relaxed binding → server.port; CLI --server.port and -Dserver.port also set below.
   export SERVER_PORT="$API_PORT"
   export SPRING_DATASOURCE_URL="${SPRING_DATASOURCE_URL:-jdbc:h2:mem:scholarverify;DB_CLOSE_DELAY=-1}"
   export SPRING_DATASOURCE_DRIVER_CLASS_NAME="${SPRING_DATASOURCE_DRIVER_CLASS_NAME:-org.h2.Driver}"
@@ -192,11 +288,14 @@ start_spring_backend_async() {
   esac
 
   jar_path="$(find_bootable_jar)"
+  port_sys="$(spring_java_port_flags)"
+  boot_args="$(spring_boot_args)"
 
   # Keep Spring in background (UI server no longer uses exec, so this process group stays alive).
   if [ -n "$jar_path" ]; then
-    echo "[preview] reusing pre-built Spring jar: $jar_path (fast start)"
-    nohup java -jar "$jar_path" --spring.profiles.active=preview --server.port="$API_PORT" >> /tmp/preview-spring.log 2>&1 &
+    echo "[preview] reusing pre-built Spring jar: $jar_path (fast start, ${port_sys} ${boot_args})"
+    # shellcheck disable=SC2086
+    nohup java ${port_sys} -jar "$jar_path" ${boot_args} >> /tmp/preview-spring.log 2>&1 &
     SPRING_BG_PID=$!
     echo "[preview] Spring PID ${SPRING_BG_PID}; tail /tmp/preview-spring.log for output"
     return 0
@@ -205,7 +304,7 @@ start_spring_backend_async() {
   if [ -f ./gradlew ]; then
     chmod +x ./gradlew
     echo "[preview] ./gradlew bootRun (no packaged jar found)…"
-    nohup ./gradlew bootRun --args="--spring.profiles.active=preview --server.port=${API_PORT}" >> /tmp/preview-spring.log 2>&1 &
+    nohup ./gradlew bootRun "-Dserver.port=${API_PORT}" --args="${boot_args}" >> /tmp/preview-spring.log 2>&1 &
     SPRING_BG_PID=$!
     echo "[preview] Spring PID ${SPRING_BG_PID}"
     return 0
@@ -217,27 +316,38 @@ start_spring_backend_async() {
   fi
 
   # Package first, then run the JAR — fast subsequent starts (target/*.jar reused).
-  # ensure_h2 is inlined here because functions are not available inside `sh -c`.
+  # Helpers are inlined because functions are not available inside `sh -c`.
   nohup sh -c '
     set +e
     cd "'"$ROOT/$spring_rel"'" || exit 1
+    API_PORT="'"$API_PORT"'"
+    PREVIEW_WORKSPACE_CACHED="'"$PREVIEW_WORKSPACE_CACHED"'"
 
-    ensure_h2_dependency_in_pom() {
-      pom="${1:-./pom.xml}"
+    ensure_pom_dependency() {
+      group_id="$1"
+      artifact_id="$2"
+      scope="${3:-}"
+      pom="${4:-./pom.xml}"
       [ -f "$pom" ] || return 0
-      if grep -qE "com\\.h2database|<artifactId>[[:space:]]*h2[[:space:]]*</artifactId>" "$pom"; then
-        echo "[preview] H2 dependency already present in pom.xml" >> /tmp/preview-spring.log
+      if grep -qF "<groupId>${group_id}</groupId>" "$pom" 2>/dev/null && \
+         grep -qE "<artifactId>[[:space:]]*${artifact_id}[[:space:]]*</artifactId>" "$pom"; then
+        echo "[preview] dependency ${group_id}:${artifact_id} already present in pom.xml" >> /tmp/preview-spring.log
         return 0
       fi
-      echo "[preview] H2 dependency missing — injecting it into pom.xml for preview compatibility" >> /tmp/preview-spring.log
-      if ! node -e "
+      echo "[preview] dependency ${group_id}:${artifact_id} missing — injecting into pom.xml for preview compatibility" >> /tmp/preview-spring.log
+      scope_xml=""
+      if [ -n "$scope" ]; then scope_xml="      <scope>${scope}</scope>"; fi
+      if ! GROUP_ID="$group_id" ARTIFACT_ID="$artifact_id" SCOPE_XML="$scope_xml" node -e "
         const fs = require(\"fs\");
         const path = process.argv[1];
+        const groupId = process.env.GROUP_ID;
+        const artifactId = process.env.ARTIFACT_ID;
+        const scopeXml = process.env.SCOPE_XML || \"\";
         let xml = fs.readFileSync(path, \"utf8\");
+        const scopeLine = scopeXml ? \"\\n\" + scopeXml : \"\";
         const dep = \"    <dependency>\\n\" +
-          \"      <groupId>com.h2database</groupId>\\n\" +
-          \"      <artifactId>h2</artifactId>\\n\" +
-          \"      <scope>runtime</scope>\\n\" +
+          \"      <groupId>\" + groupId + \"</groupId>\\n\" +
+          \"      <artifactId>\" + artifactId + \"</artifactId>\" + scopeLine + \"\\n\" +
           \"    </dependency>\\n\";
         const closeDeps = \"</dependencies>\";
         const lastIdx = xml.lastIndexOf(closeDeps);
@@ -250,13 +360,13 @@ start_spring_backend_async() {
         }
         fs.writeFileSync(path, xml);
       " "$pom"; then
-        echo "[preview] WARN: failed to inject H2 into pom.xml" >> /tmp/preview-spring.log
+        echo "[preview] WARN: failed to inject ${group_id}:${artifact_id} into pom.xml" >> /tmp/preview-spring.log
         return 1
       fi
       return 2
     }
 
-    ensure_h2_dependency_in_pom ./pom.xml
+    ensure_pom_dependency "com.h2database" "h2" "runtime" ./pom.xml
     h2_rc=$?
     if [ "$h2_rc" -eq 2 ]; then
       rm -f target/*.jar 2>/dev/null || true
@@ -265,13 +375,13 @@ start_spring_backend_async() {
     if [ -f ./mvnw ]; then
       chmod +x ./mvnw
       offline=""
-      if [ -d "$HOME/.m2/repository" ] && [ "'"$PREVIEW_WORKSPACE_CACHED"'" = "1" ]; then offline="-o"; fi
+      if [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then offline="-o"; fi
       echo "[preview] ./mvnw package…" >> /tmp/preview-spring.log
       ./mvnw $offline -q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17 package >> /tmp/preview-spring.log 2>&1
       rc=$?
     elif [ -f pom.xml ]; then
       offline=""
-      if [ -d "$HOME/.m2/repository" ] && [ "'"$PREVIEW_WORKSPACE_CACHED"'" = "1" ]; then offline="-o"; fi
+      if [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then offline="-o"; fi
       echo "[preview] mvn package…" >> /tmp/preview-spring.log
       mvn $offline -q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17 package >> /tmp/preview-spring.log 2>&1
       rc=$?
@@ -286,14 +396,16 @@ start_spring_backend_async() {
       if [ -f "$candidate" ]; then jar="$candidate"; break; fi
     done
     if [ "$rc" -eq 0 ] && [ -n "$jar" ]; then
-      echo "[preview] Spring jar built: $jar — starting" >> /tmp/preview-spring.log
-      exec java -jar "$jar" --spring.profiles.active=preview --server.port='"$API_PORT"'
+      echo "[preview] Spring jar built: $jar — starting with -Dserver.port=${API_PORT}" >> /tmp/preview-spring.log
+      exec java -Dserver.port="$API_PORT" -jar "$jar" --spring.profiles.active=preview --server.port="$API_PORT"
     fi
     echo "[preview] mvn package failed or no jar — falling back to spring-boot:run" >> /tmp/preview-spring.log
+    jvm_args="-Dserver.port=${API_PORT}"
+    run_args="--spring.profiles.active=preview --server.port=${API_PORT}"
     if [ -f ./mvnw ]; then
-      exec ./mvnw -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="-Dserver.port='"$API_PORT"'"
+      exec ./mvnw -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="${jvm_args}" -Dspring-boot.run.arguments="${run_args}"
     else
-      exec mvn -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="-Dserver.port='"$API_PORT"'"
+      exec mvn -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="${jvm_args}" -Dspring-boot.run.arguments="${run_args}"
     fi
   ' >> /tmp/preview-spring.log 2>&1 &
   SPRING_BG_PID=$!
@@ -310,6 +422,7 @@ serve_dir() {
 
 serve_fallback_forever() {
   release_port_holder
+  diagnose_spring_startup_failures /tmp/preview-spring.log
   run_serve /preview-fallback "${LISTEN}" 1
 }
 
@@ -440,11 +553,17 @@ wait_for_spring_briefly() {
       echo "[preview] Spring API is listening on :${API_PORT}"
       return 0
     fi
+    # If the background Spring/Maven process already exited, diagnose immediately.
+    if [ -n "${SPRING_BG_PID:-}" ] && ! kill -0 "$SPRING_BG_PID" 2>/dev/null; then
+      echo "[preview] Spring/Maven process (PID ${SPRING_BG_PID}) exited before API port opened"
+      diagnose_spring_startup_failures /tmp/preview-spring.log
+      return 1
+    fi
     i=$((i + 3))
     sleep 3
   done
   echo "[preview] WARN: Spring API not listening yet after ${max_wait}s — UI will start; API may still be compiling. Check /tmp/preview-spring.log"
-  tail -n 40 /tmp/preview-spring.log 2>/dev/null || true
+  diagnose_spring_startup_failures /tmp/preview-spring.log
   return 1
 }
 
@@ -452,7 +571,10 @@ hold_port_with_fallback
 
 if [ "$PREVIEW_SPRING_MODE" = "1" ] && [ -n "$SPRING_SUBDIR" ] && [ -n "$FRONTEND_SUBDIR" ]; then
   echo "[preview] Spring+React mode spring=$SPRING_SUBDIR frontend=$FRONTEND_SUBDIR API=$API_PORT UI=$PORT public_api=${PREVIEW_PUBLIC_API_URL:-}"
-  start_spring_backend_async || echo "[preview] Spring start skipped — check /tmp/preview-spring.log"
+  start_spring_backend_async || {
+    echo "[preview] Spring start skipped — check /tmp/preview-spring.log"
+    diagnose_spring_startup_failures /tmp/preview-spring.log
+  }
   wait_for_spring_briefly || true
   run_react_frontend || serve_fallback_forever
 fi
