@@ -69,6 +69,7 @@ const CollaborativeAssignmentCreate = () => {
     const [saving, setSaving] = useState(false);
     const [publishing, setPublishing] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [collabRefreshKey, setCollabRefreshKey] = useState(0);
     const [startingDraft, setStartingDraft] = useState(false);
     const [uploadingSection, setUploadingSection] = useState('');
     const [notice, setNotice] = useState(null);
@@ -238,6 +239,21 @@ const CollaborativeAssignmentCreate = () => {
     const backendDone = isSectionComplete(backend);
     const defaultClassId = selectedCatalogRow?.class?._id ? String(selectedCatalogRow.class._id) : '';
     const activeClassIds = selectedClassIds.length > 0 ? selectedClassIds : defaultClassId ? [defaultClassId] : [];
+
+    const findDraftForPartner = useCallback(
+        (partnerTeacherId) => {
+            const pid = String(partnerTeacherId || '');
+            if (!pid) return null;
+            return (
+                drafts.find((d) => {
+                    const co = String(d.coTeacherId?._id || d.coTeacherId);
+                    const init = String(d.initiatedBy?._id || d.initiatedBy);
+                    return (init === currentUserId && co === pid) || (init === pid && co === currentUserId);
+                }) || null
+            );
+        },
+        [drafts, currentUserId]
+    );
     const readyToPublish = Boolean(title.trim()) && frontendDone && backendDone && activeClassIds.length > 0 && activeSubjectId;
     const missingPublishItems = [
         !title.trim() ? 'title' : '',
@@ -360,7 +376,12 @@ const CollaborativeAssignmentCreate = () => {
                     setDraft(null);
                 }
                 await reloadDrafts();
-                showNotice('Draft deleted', 'The collaborative draft was removed. Start a new one when you are ready.');
+                await reloadCollaborators();
+                setCollabRefreshKey((k) => k + 1);
+                showNotice(
+                    'Draft deleted',
+                    'The assignment draft was removed. Your accepted partnership with this teacher is still active — start a new draft anytime.'
+                );
             }
         } catch (err) {
             showNotice('Delete failed', err.response?.data?.message || 'Could not delete draft.');
@@ -523,12 +544,76 @@ const CollaborativeAssignmentCreate = () => {
                 </div>
 
                 <TeacherCollaborationPanel
+                    refreshKey={collabRefreshKey}
                     onAcceptedChange={() => {
                         reloadCollaborators();
                         reloadDrafts();
                     }}
                     draftActive={Boolean(draft)}
                 />
+
+                {collaborators.length > 0 && (
+                    <div className="mt-4 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] p-3 space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            Your partners &amp; drafts ({collaborators.length})
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                            Each accepted teacher is a separate collaboration. You can have one active draft per partner.
+                        </p>
+                        {collaborators.map((c) => {
+                            const partnerDraft = findDraftForPartner(c.teacherId);
+                            return (
+                                <div
+                                    key={String(c.teacherId)}
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-slate-100 dark:border-white/10 px-3 py-2 bg-slate-50/50 dark:bg-slate-900/30"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                                            {c.name || c.email}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500">
+                                            {c.myRole ? `You: ${c.myRole}` : ''}
+                                            {c.subject?.code ? ` · ${c.subject.code}` : ''}
+                                            {c.class?.code ? ` · ${c.class.code}` : ''}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                            {partnerDraft
+                                                ? `Draft: ${partnerDraft.title?.trim() || 'Untitled'} (FE ${partnerDraft.frontendSectionComplete ? 'done' : 'pending'} · BE ${partnerDraft.backendSectionComplete ? 'done' : 'pending'})`
+                                                : 'No draft yet with this partner'}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-1.5 shrink-0">
+                                        {partnerDraft ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSearchParams({ draft: partnerDraft._id });
+                                                    loadDraft(partnerDraft._id, catalog);
+                                                }}
+                                                className="rounded-lg border border-indigo-200 bg-indigo-600 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-indigo-700"
+                                            >
+                                                Open draft
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCoTeacherId(String(c.teacherId));
+                                                    if (c.myRole === 'frontend' || c.myRole === 'backend') {
+                                                        setMyRole(c.myRole);
+                                                    }
+                                                }}
+                                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200"
+                                            >
+                                                Select to start
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
 
                 {catalog.length === 0 ? (
                     <p className="text-slate-500 text-sm mt-4">No class/subject assignments found. Ask admin to assign classes first.</p>
@@ -788,7 +873,7 @@ const CollaborativeAssignmentCreate = () => {
                                 onClick={() => handleDeleteDraft()}
                                 disabled={deleting || saving || publishing}
                                 className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900/40 dark:bg-transparent dark:text-rose-300 dark:hover:bg-rose-950/30"
-                                title="Either teacher can delete this draft"
+                                title="Removes assignment draft only — partnership with your co-teacher stays active"
                             >
                                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                 Delete draft

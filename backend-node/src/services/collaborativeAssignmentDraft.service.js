@@ -109,6 +109,19 @@ export async function createCollaborativeDraft(teacherId, { coTeacherId, myRole 
 
   await assertActiveCollaboration(teacherId, coTeacherId);
 
+  const tid = new mongoose.Types.ObjectId(String(teacherId));
+  const cid = new mongoose.Types.ObjectId(String(coTeacherId));
+  const existingDraft = await CollaborativeAssignmentDraft.findOne({
+    status: 'draft',
+    $or: [
+      { initiatedBy: tid, coTeacherId: cid },
+      { initiatedBy: cid, coTeacherId: tid },
+    ],
+  });
+  if (existingDraft) {
+    return getCollaborativeDraftForTeacher(teacherId, existingDraft._id);
+  }
+
   const frontendTeacherId = role === 'frontend' ? teacherId : coTeacherId;
   const backendTeacherId = role === 'backend' ? teacherId : coTeacherId;
 

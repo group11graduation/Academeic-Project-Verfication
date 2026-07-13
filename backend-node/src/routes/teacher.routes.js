@@ -30,6 +30,7 @@ router.get('/collaborations/accepted', teacherCollaborative.listAcceptedCollabor
 router.get('/collaborations', teacherCollaborative.listCollaborations);
 router.post('/collaborations/request', teacherCollaborative.sendCollaborationRequest);
 router.patch('/collaborations/:id/respond', teacherCollaborative.respondCollaborationRequest);
+router.patch('/collaborations/:id/revoke', teacherCollaborative.revokeCollaborationRequest);
 router.get('/groups', teacher.listAllGroups);
 router.get('/groups/:id', teacher.getGroupDetails);
 router.get('/assignments', teacher.listAssignments);

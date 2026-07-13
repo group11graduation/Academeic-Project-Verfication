@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Loader2, Send, UserCheck, UserX, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Loader2, Send, UserCheck, UserMinus, UserX, X } from 'lucide-react';
+import { appConfirm } from '../../../lib/appDialog';
 import teacherService from '../../../services/teacherService';
 import { Z_BTN_INDIGO, Z_FORM_SECTION, Z_INPUT, Z_LABEL } from '../../../shared/ui/zendentaLayout';
 
@@ -31,6 +32,7 @@ const TeacherCollaborationPanel = ({
     onPendingCountChange,
     collapseInviteWhenReady = true,
     draftActive = false,
+    refreshKey = 0,
 }) => {
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState('');
@@ -102,6 +104,10 @@ const TeacherCollaborationPanel = ({
     useEffect(() => {
         reload();
     }, [reload]);
+
+    useEffect(() => {
+        if (refreshKey > 0) reload();
+    }, [refreshKey, reload]);
 
     useEffect(() => {
         if (!classId) return;
@@ -200,6 +206,29 @@ const TeacherCollaborationPanel = ({
         }
     };
 
+    const handleRevokePartnership = async (collaborationId, partnerName) => {
+        if (
+            !(await appConfirm({
+                message: `End collaboration with ${partnerName}? Any draft assignment with them will also be deleted. You can send a new request later. Other partners are not affected.`,
+                danger: true,
+                confirmLabel: 'End partnership',
+            }))
+        ) {
+            return;
+        }
+        setBusyId(`${collaborationId}-revoke`);
+        setError('');
+        try {
+            await teacherService.revokeCollaboration(collaborationId);
+            await reload();
+            onAcceptedChange?.();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not end partnership.');
+        } finally {
+            setBusyId('');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-6">
@@ -225,6 +254,18 @@ const TeacherCollaborationPanel = ({
 
     return (
         <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-slate-900/30 px-3 py-2 text-[10px] text-slate-600 dark:text-slate-400">
+                <p>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">Collaboration status: </span>
+                    {incoming.length} incoming · {outgoing.length} waiting · {accepted.length} accepted partner
+                    {accepted.length === 1 ? '' : 's'}
+                </p>
+                <p className="mt-0.5">
+                    You can partner with <strong>many teachers</strong> (one partnership each). Each partner gets their own assignment draft.
+                    <strong> Delete draft</strong> only removes assignment work — partnerships and requests stay unless you cancel or end them.
+                </p>
+            </div>
+
             {error && (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-semibold text-rose-800">
                     {error}
@@ -312,19 +353,45 @@ const TeacherCollaborationPanel = ({
                 </div>
             )}
 
+            {incoming.length === 0 && outgoing.length === 0 && accepted.length === 0 && (
+                <p className="text-[11px] text-slate-500 px-1">
+                    No collaboration requests yet. Expand <strong>Invite a co-teacher</strong> below to send one.
+                </p>
+            )}
+
             {accepted.length > 0 && (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/40 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1.5 flex items-center gap-1.5">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/40 p-3 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
                         <UserCheck className="h-3.5 w-3.5" /> Accepted partners ({accepted.length})
                     </p>
-                    <ul className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 space-y-0.5">
-                        {accepted.map((row) => (
-                            <li key={row._id}>
-                                {row.partner?.name || row.partner?.email}
-                                {row.partner?.email ? ` · ${row.partner.email}` : ''}
-                            </li>
-                        ))}
-                    </ul>
+                    {accepted.map((row) => (
+                        <div
+                            key={row._id}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-white/80 dark:bg-[#0B1120] border border-emerald-100 dark:border-white/10 px-3 py-2"
+                        >
+                            <div className="min-w-0">
+                                <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                                    {row.partner?.name || row.partner?.email}
+                                </p>
+                                <p className="text-[10px] text-slate-500 truncate">{row.partner?.email}</p>
+                                {renderRequestMeta(row)}
+                            </div>
+                            <button
+                                type="button"
+                                disabled={Boolean(busyId)}
+                                onClick={() => handleRevokePartnership(row._id, row.partner?.name || row.partner?.email)}
+                                className={`${actionBtn} border-rose-200 text-rose-700 hover:bg-rose-50 shrink-0`}
+                                title="End this partnership only (other partners unchanged)"
+                            >
+                                {busyId === `${row._id}-revoke` ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                    <UserMinus className="h-3 w-3" />
+                                )}
+                                End partnership
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
 

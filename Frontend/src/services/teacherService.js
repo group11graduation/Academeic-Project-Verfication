@@ -212,6 +212,11 @@ const teacherService = {
         return response.data;
     },
 
+    revokeCollaboration: async (collaborationId) => {
+        const response = await api.patch(`${base}/collaborations/${encodeURIComponent(collaborationId)}/revoke`);
+        return response.data;
+    },
+
     createCollaborativeAssignment: async (body) => {
         const response = await api.post(`${base}/assignments/collaborative`, body);
         return response.data;

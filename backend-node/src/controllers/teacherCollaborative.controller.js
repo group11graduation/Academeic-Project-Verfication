@@ -17,6 +17,7 @@ import {
   listTeachersAvailableForCollaboration,
   requestCollaboration,
   respondToCollaboration,
+  revokeAcceptedCollaboration,
 } from '../services/teacherCollaboration.service.js';
 
 /**
@@ -70,6 +71,11 @@ export const sendCollaborationRequest = asyncHandler(async (req, res) => {
 export const respondCollaborationRequest = asyncHandler(async (req, res) => {
   const { action } = req.body || {};
   const row = await respondToCollaboration(req.userId, req.params.id, action);
+  return success(res, row);
+});
+
+export const revokeCollaborationRequest = asyncHandler(async (req, res) => {
+  const row = await revokeAcceptedCollaboration(req.userId, req.params.id);
   return success(res, row);
 });
 

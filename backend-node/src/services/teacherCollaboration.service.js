@@ -2,13 +2,19 @@ import mongoose from 'mongoose';
 import { TeacherCollaboration } from '../models/TeacherCollaboration.js';
 import { User } from '../models/User.js';
 import { Class } from '../models/Class.js';
+import { CollaborativeAssignmentDraft } from '../models/CollaborativeAssignmentDraft.js';
 import {
   assertComplementaryTeacherSubjects,
   oppositeCollaborationSide,
   resolveSubjectCollaborationSide,
 } from './subjectCollaboration.service.js';
 
-/** Stable pair key so (A,B) and (B,A) share one document. */
+function idOf(value) {
+  if (!value) return '';
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
+}
+
 function normalizeTeacherPair(teacherAId, teacherBId) {
   const sa = String(teacherAId);
   const sb = String(teacherBId);
@@ -120,17 +126,37 @@ export async function listAcceptedCollaboratorsForTeacher(teacherId) {
   })
     .populate('primaryTeacher', 'name email')
     .populate('coTeacher', 'name email')
+    .populate('initiatedBy', 'name email')
+    .populate('class', 'code name')
+    .populate('subject', 'code name collaborationSide')
     .sort({ acceptedAt: -1, updatedAt: -1 })
     .lean();
 
   return rows.map((row) => {
     const partner = partnerFromRow(row, teacherId);
+    const requesterRole = row.requesterRole || '';
+    const partnerRole = requesterRole ? oppositeCollaborationSide(requesterRole) : '';
+    const initiatedById = String(row.initiatedBy?._id || row.initiatedBy);
+    const myRole = initiatedById === String(teacherId) ? requesterRole : partnerRole;
     return {
       collaborationId: row._id,
       teacherId: partner?._id || partner,
       name: partner?.name || '',
       email: partner?.email || '',
       acceptedAt: row.acceptedAt || row.updatedAt,
+      class: row.class
+        ? { _id: row.class._id, code: row.class.code, name: row.class.name }
+        : null,
+      subject: row.subject
+        ? {
+            _id: row.subject._id,
+            code: row.subject.code,
+            name: row.subject.name,
+            collaborationSide: resolveSubjectCollaborationSide(row.subject),
+          }
+        : null,
+      myRole,
+      partnerRole,
     };
   });
 }
@@ -388,5 +414,43 @@ export async function respondToCollaboration(teacherId, collaborationId, action)
     row.status = 'declined';
   }
   await row.save();
+  return row;
+}
+
+async function deleteDraftsForCollaborationPair(collabRow) {
+  const tidA = new mongoose.Types.ObjectId(idOf(collabRow.primaryTeacher));
+  const tidB = new mongoose.Types.ObjectId(idOf(collabRow.coTeacher));
+  await CollaborativeAssignmentDraft.deleteMany({
+    status: 'draft',
+    $or: [
+      { initiatedBy: tidA, coTeacherId: tidB },
+      { initiatedBy: tidB, coTeacherId: tidA },
+    ],
+  });
+}
+
+/** Either teacher may end an accepted partnership (does not affect other partners). */
+export async function revokeAcceptedCollaboration(teacherId, collaborationId) {
+  const row = await TeacherCollaboration.findById(collaborationId)
+    .populate('primaryTeacher', 'name email')
+    .populate('coTeacher', 'name email');
+
+  if (!row || row.status !== 'accepted') {
+    const err = new Error('Accepted collaboration not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const isParticipant =
+    idOf(row.primaryTeacher) === idOf(teacherId) || idOf(row.coTeacher) === idOf(teacherId);
+  if (!isParticipant) {
+    const err = new Error('Forbidden');
+    err.status = 403;
+    throw err;
+  }
+
+  row.status = 'revoked';
+  await row.save();
+  await deleteDraftsForCollaborationPair(row);
   return row;
 }
