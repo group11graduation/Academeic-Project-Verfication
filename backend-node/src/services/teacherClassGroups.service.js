@@ -734,12 +734,11 @@ async function deleteClassTemplateGroups(hostClassId) {
  * Copy class-level team rows onto a group-mode assignment (new Group docs per assignment).
  * Runs after assignment create or when switching an assignment to group mode.
  */
-export async function syncAssignmentGroupsFromClassTemplates(
-  teacherId,
+export async function syncAssignmentGroupsFromClassTemplatesByAssignmentId(
   assignmentId,
   { onlyIfEmpty = true } = {}
 ) {
-  const a = await Assignment.findOne({ _id: assignmentId, teacher: teacherId, isActive: true }).lean();
+  const a = await Assignment.findOne({ _id: assignmentId, isActive: true }).lean();
   if (!a || a.submissionMode !== 'group') {
     return { synced: 0, reason: 'not_group_assignment' };
   }
@@ -753,14 +752,42 @@ export async function syncAssignmentGroupsFromClassTemplates(
   const classIds = [...new Set([String(a.class), ...(a.classes || []).map(String)].filter(Boolean))].map(
     (id) => new mongoose.Types.ObjectId(id)
   );
+  if (!classIds.length) {
+    return { synced: 0, reason: 'assignment_has_no_class' };
+  }
 
   const templates = await Group.find({
     assignment: null,
     hostClass: { $in: classIds },
   }).lean();
 
+  let sourceRows = templates;
+  if (!sourceRows.length) {
+    // Fallback: copy groups from another group assignment in the same class
+    // (when teachers created teams only on one assignment, not as class templates).
+    const peerAssignments = await Assignment.find({
+      _id: { $ne: a._id },
+      isActive: true,
+      submissionMode: 'group',
+      $or: [{ class: { $in: classIds } }, { classes: { $in: classIds } }],
+    })
+      .select('_id')
+      .lean();
+    const peerIds = peerAssignments.map((row) => row._id);
+    if (peerIds.length) {
+      sourceRows = await Group.find({ assignment: { $in: peerIds } }).lean();
+      // Keep one row per leader so we do not duplicate teams across peer assignments.
+      const byLeader = new Map();
+      for (const row of sourceRows) {
+        const key = String(row.leader?._id || row.leader || '');
+        if (key && !byLeader.has(key)) byLeader.set(key, row);
+      }
+      sourceRows = [...byLeader.values()];
+    }
+  }
+
   let synced = 0;
-  for (const t of templates) {
+  for (const t of sourceRows) {
     await Group.create({
       assignment: a._id,
       hostClass: null,
@@ -771,6 +798,27 @@ export async function syncAssignmentGroupsFromClassTemplates(
     synced += 1;
   }
   return { synced };
+}
+
+export async function syncAssignmentGroupsFromClassTemplates(
+  teacherId,
+  assignmentId,
+  { onlyIfEmpty = true } = {}
+) {
+  const a = await Assignment.findOne({
+    _id: assignmentId,
+    isActive: true,
+    $or: [
+      { teacher: teacherId },
+      { coTeacherId: teacherId },
+      { frontendTeacherId: teacherId },
+      { backendTeacherId: teacherId },
+    ],
+  }).lean();
+  if (!a) {
+    return { synced: 0, reason: 'assignment_not_found' };
+  }
+  return syncAssignmentGroupsFromClassTemplatesByAssignmentId(assignmentId, { onlyIfEmpty });
 }
 
 /**

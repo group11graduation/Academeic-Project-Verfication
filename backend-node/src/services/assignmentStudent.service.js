@@ -15,6 +15,7 @@ import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
 import { PreviewSession } from '../models/PreviewSession.js';
 import { TeacherProfile } from '../models/TeacherProfile.js';
+import { syncAssignmentGroupsFromClassTemplatesByAssignmentId } from './teacherClassGroups.service.js';
 
 function idOf(value) {
   if (!value) return '';
@@ -249,7 +250,32 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
             .lean()
         : null;
 
-    const isLeader = groupInfo ? String(groupInfo.leader?._id || groupInfo.leader) === String(userId) : true;
+    if (assignment.submissionMode === 'group' && !groupInfo) {
+      const groupCount = await Group.countDocuments({ assignment: assignment._id });
+      if (groupCount === 0) {
+        try {
+          await syncAssignmentGroupsFromClassTemplatesByAssignmentId(assignment._id, { onlyIfEmpty: true });
+        } catch {
+          /* ignore — proposal submit will surface a clear error if needed */
+        }
+      }
+    }
+
+    const resolvedGroupInfo =
+      assignment.submissionMode === 'group'
+        ? groupInfo ||
+          (await Group.findOne({
+            assignment: assignment._id,
+            $or: [{ leader: userId }, { 'members.user': userId }],
+          })
+            .populate('leader', 'name email')
+            .populate('members.user', 'name email')
+            .lean())
+        : null;
+
+    const isLeader = resolvedGroupInfo
+      ? String(resolvedGroupInfo.leader?._id || resolvedGroupInfo.leader) === String(userId)
+      : true;
     const approved = isProposalFullyApprovedForProject(proposal, assignment);
     const deadlineOpen = isProjectDeadlineOpen(assignment);
     const isNormal = String(assignment.assignmentType || 'normal') === 'normal';
@@ -316,7 +342,7 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     out.push({
       assignment,
       proposal: proposalOut,
-      group: groupInfo,
+      group: resolvedGroupInfo,
       isGroupLeader: isLeader,
       projectSubmissionAllowed,
       projectDeadline: assignment.projectDeadline || null,

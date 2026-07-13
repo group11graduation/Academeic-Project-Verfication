@@ -32,6 +32,7 @@ import {
   findAssignmentVisibleToTeacher,
   resolveCollaborativeReviewRole,
 } from './teacherAssignmentAccess.service.js';
+import { syncAssignmentGroupsFromClassTemplatesByAssignmentId } from './teacherClassGroups.service.js';
 
 const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_CANDIDATES || 40);
 const AI_LEGACY_MAX_CANDIDATES = Number(process.env.AI_LEGACY_MAX_CANDIDATES || 40);
@@ -508,22 +509,48 @@ async function assertStudentAccess(userId, assignment) {
   throw err;
 }
 
+async function findStudentGroupOnAssignment(userId, assignmentId) {
+  return Group.findOne({
+    assignment: assignmentId,
+    $or: [{ leader: userId }, { 'members.user': userId }],
+  }).populate('members.user');
+}
+
 async function assertLeaderOrSingle(userId, assignment, groupId) {
   if (assignment.submissionMode === 'single') {
     return { group: null };
   }
-  if (!groupId) {
-    const err = new Error('Group assignment requires a group; contact your teacher.');
-    err.status = 400;
-    throw err;
+
+  let group = null;
+  if (groupId) {
+    const gid = new mongoose.Types.ObjectId(groupId);
+    group = await Group.findOne({ _id: gid, assignment: assignment._id }).populate('members.user');
+    if (!group) {
+      const err = new Error('Group not found for this assignment');
+      err.status = 404;
+      throw err;
+    }
+  } else {
+    // Class teams may exist as templates, but not yet copied onto this assignment
+    // (common for newly published collaborative / group assignments).
+    const existingCount = await Group.countDocuments({ assignment: assignment._id });
+    if (existingCount === 0) {
+      try {
+        await syncAssignmentGroupsFromClassTemplatesByAssignmentId(assignment._id, { onlyIfEmpty: true });
+      } catch {
+        /* continue — resolve may still fail with a clear error */
+      }
+    }
+    group = await findStudentGroupOnAssignment(userId, assignment._id);
+    if (!group) {
+      const err = new Error(
+        'Group assignment requires a group. Ask your teacher to sync class groups to this assignment, or confirm you were assigned to a group.'
+      );
+      err.status = 400;
+      throw err;
+    }
   }
-  const gid = new mongoose.Types.ObjectId(groupId);
-  const group = await Group.findOne({ _id: gid, assignment: assignment._id }).populate('members.user');
-  if (!group) {
-    const err = new Error('Group not found for this assignment');
-    err.status = 404;
-    throw err;
-  }
+
   if (!group.leader.equals(userId)) {
     const err = new Error('Only the group leader can submit the proposal for this assignment.');
     err.status = 403;

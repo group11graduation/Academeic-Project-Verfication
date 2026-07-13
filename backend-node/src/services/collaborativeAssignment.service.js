@@ -9,6 +9,7 @@ import {
   parseObjectIdList,
   teacherCanUseSubject,
 } from './assignmentTeacher.service.js';
+import { syncAssignmentGroupsFromClassTemplatesByAssignmentId } from './teacherClassGroups.service.js';
 
 function parseList(value) {
   if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
@@ -215,5 +216,12 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
   });
 
   await doc.save();
+  if (doc.submissionMode === 'group') {
+    try {
+      await syncAssignmentGroupsFromClassTemplatesByAssignmentId(doc._id, { onlyIfEmpty: true });
+    } catch {
+      /* non-fatal: assignment still published */
+    }
+  }
   return getAssignmentForTeacher(primaryTeacherId, doc._id);
 }
