@@ -8,6 +8,7 @@ import { getPreviewProbeHost } from '../config/previewProbe.js';
 import * as previewCredentials from './previewCredentials.service.js';
 import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as previewMern from './previewMern.service.js';
+import * as previewSpring from './previewSpring.service.js';
 import * as previewLoginVerify from './previewLoginVerify.service.js';
 import { buildPhpPreviewLoginHint, parsePhpBootstrapCredentialsFromLog } from './previewPhp.service.js';
 import {
@@ -361,51 +362,80 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
             (l) =>
               l.includes('[preview-seed]') ||
               l.includes('[preview-login]') ||
-              l.includes('[preview] MONGO_URI')
+              l.includes('[preview] MONGO_URI') ||
+              l.includes('[preview] Spring') ||
+              l.includes('[preview] mvn')
           )
           .slice(-12);
         for (const line of seedLines) {
           appendLog(session, 'info', line.trim());
         }
-        let loginPaths = [];
-        let fallbackCredentials = [];
-        if (extractDir) {
-          const backendSubdir = deployResult.mernPair?.backendSubdir || 'backend';
-          loginPaths = await previewMern.discoverLoginApiPaths(extractDir, backendSubdir);
-          const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
-          fallbackCredentials = previewLoginVerify.buildFallbackPreviewCredentials(discovered);
-        }
-        const loginCheck = await previewLoginVerify.verifyAndFixMernPreviewLogin({
-          containerName: deployResult.containerName,
-          apiHostPort: Number(deployResult.apiHostPort || session.previewApiHostPort),
-          backendSubdir: deployResult.mernPair?.backendSubdir || 'backend',
-          email: session.previewLoginEmail,
-          password: session.previewLoginPassword,
-          identifierType: session.previewLoginIdentifierType,
-          loginPaths,
-          fallbackCredentials,
-        });
-        if (loginCheck.ok) {
-          appendLog(session, 'info', loginCheck.message);
-          if (loginCheck.workingCredentials) {
-            session.previewLoginEmail = loginCheck.workingCredentials.email;
-            session.previewLoginPassword = loginCheck.workingCredentials.password;
-            session.previewLoginSource = 'project_seed_fallback';
-            session.previewLoginHint =
-              'Preview admin account could not be seeded; using credentials from the student project seed/setup script.';
-            appendLog(
-              session,
-              'info',
-              `Use these working credentials: ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail}`
-            );
+
+        if (wait.apiReady === false || wait.reason === 'http_ui_spring_api_timeout') {
+          appendLog(
+            session,
+            'warn',
+            `Spring API on :${deployResult.apiHostPort} is still starting (Maven may take several minutes). Wait, then try login — check /tmp/preview-spring.log in the container if it stays down.`
+          );
+          const springTail = await dockerOrchestrator
+            .execInPreviewContainer(
+              deployResult.containerName,
+              'tail -n 40 /tmp/preview-spring.log 2>/dev/null || true',
+              { timeoutMs: 15_000 }
+            )
+            .catch(() => '');
+          if (springTail?.trim()) {
+            appendLog(session, 'warn', `Spring build log:\n${springTail.trim().slice(-2000)}`);
           }
         } else {
-          appendLog(session, 'warn', loginCheck.message);
-          if (loginCheck.seedTail) {
-            appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
-          } else if (loginCheck.seedOutput) {
-            const tail = String(loginCheck.seedOutput).split('\n').slice(-6).join('\n');
-            if (tail) appendLog(session, 'warn', `Admin seed output:\n${tail}`);
+          let loginPaths = [];
+          let fallbackCredentials = [];
+          if (extractDir) {
+            if (deployResult.stack === 'java-spring-react') {
+              const springSubdir = deployResult.springPair?.springSubdir || '.';
+              loginPaths = await previewSpring.discoverSpringLoginApiPaths(extractDir, springSubdir);
+            } else {
+              const backendSubdir = deployResult.mernPair?.backendSubdir || 'backend';
+              loginPaths = await previewMern.discoverLoginApiPaths(extractDir, backendSubdir);
+            }
+            const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
+            fallbackCredentials = previewLoginVerify.buildFallbackPreviewCredentials(discovered);
+          }
+          const loginCheck = await previewLoginVerify.verifyAndFixMernPreviewLogin({
+            containerName: deployResult.containerName,
+            apiHostPort: Number(deployResult.apiHostPort || session.previewApiHostPort),
+            backendSubdir:
+              deployResult.mernPair?.backendSubdir ||
+              deployResult.springPair?.springSubdir ||
+              'backend',
+            email: session.previewLoginEmail,
+            password: session.previewLoginPassword,
+            identifierType: session.previewLoginIdentifierType,
+            loginPaths,
+            fallbackCredentials,
+          });
+          if (loginCheck.ok) {
+            appendLog(session, 'info', loginCheck.message);
+            if (loginCheck.workingCredentials) {
+              session.previewLoginEmail = loginCheck.workingCredentials.email;
+              session.previewLoginPassword = loginCheck.workingCredentials.password;
+              session.previewLoginSource = 'project_seed_fallback';
+              session.previewLoginHint =
+                'Preview admin account could not be seeded; using credentials from the student project seed/setup script.';
+              appendLog(
+                session,
+                'info',
+                `Use these working credentials: ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail}`
+              );
+            }
+          } else {
+            appendLog(session, 'warn', loginCheck.message);
+            if (loginCheck.seedTail) {
+              appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
+            } else if (loginCheck.seedOutput) {
+              const tail = String(loginCheck.seedOutput).split('\n').slice(-6).join('\n');
+              if (tail) appendLog(session, 'warn', `Admin seed output:\n${tail}`);
+            }
           }
         }
       }

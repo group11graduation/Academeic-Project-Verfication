@@ -134,16 +134,15 @@ function previewNodeBaseImageTag(flutterPair) {
   return flutterPair ? PREVIEW_NODE_FLUTTER_BASE_IMAGE : PREVIEW_NODE_BASE_IMAGE;
 }
 
-async function previewNodeTemplateContentHash(templateDirName) {
+async function previewTemplateContentHash(templateDirName, extraFiles = []) {
   const templateDir = path.join(TEMPLATES_ROOT, templateDirName);
   const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
   const files = [
     fsSync.existsSync(path.join(templateDir, 'entrypoint.sh'))
       ? path.join(templateDir, 'entrypoint.sh')
       : path.join(sharedNodeDir, 'entrypoint.sh'),
-    path.join(sharedNodeDir, 'preview-seed-admin.js'),
-    path.join(sharedNodeDir, 'preview-verify-login.js'),
     path.join(templateDir, 'Dockerfile'),
+    ...extraFiles,
   ];
   const hash = crypto.createHash('sha256');
   for (const filePath of files) {
@@ -151,6 +150,14 @@ async function previewNodeTemplateContentHash(templateDirName) {
     hash.update(await fs.readFile(filePath));
   }
   return hash.digest('hex').slice(0, 12);
+}
+
+async function previewNodeTemplateContentHash(templateDirName) {
+  const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
+  return previewTemplateContentHash(templateDirName, [
+    path.join(sharedNodeDir, 'preview-seed-admin.js'),
+    path.join(sharedNodeDir, 'preview-verify-login.js'),
+  ]);
 }
 
 async function dockerImageLabel(imageTag, labelKey) {
@@ -688,8 +695,12 @@ async function ensurePreviewJavaBaseImage() {
 
 async function ensurePreviewSpringReactBaseImage({ forceRebuild = false } = {}) {
   const imageTag = PREVIEW_SPRING_REACT_BASE_IMAGE;
+  const contentHash = await previewTemplateContentHash('java-spring-react');
   if (!forceRebuild && (await dockerImageExists(imageTag))) {
-    return { imageTag, reused: true };
+    const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
+    if (existingHash && existingHash === contentHash) {
+      return { imageTag, reused: true };
+    }
   }
   const javaMeta = await ensurePreviewJavaBaseImage();
   if (javaMeta.failed) {
@@ -701,6 +712,7 @@ async function ensurePreviewSpringReactBaseImage({ forceRebuild = false } = {}) 
     stageDir,
     timeoutMs: SPRING_BUILD_TIMEOUT_MS,
     label: 'java-spring-react',
+    contentHash,
   });
 }
 
@@ -2098,8 +2110,10 @@ export async function checkPreviewAppHttpReady({
   }
 
   if (!apiOpen) {
+    // Keep polling until Spring listens — early UI-only "ready" caused login
+    // verify while :8311 was still refused (Maven / Spring not up yet).
     if (stack === 'java-spring-react' && uiReady) {
-      return { ready: true, reason: 'http_ui_spring_api_pending', apiReady: false };
+      return { ready: false, reason: 'http_ui_spring_api_pending', apiReady: false, uiReady: true };
     }
     return { ready: false, reason: 'api_port_closed' };
   }
@@ -2122,8 +2136,9 @@ export async function checkPreviewAppHttpReady({
   if (apiHit.ok && apiHit.status < 500) {
     return { ready: true, reason: 'api_http', apiReady: true };
   }
+  // Spring often returns 401/404 on `/` before actuator — TCP open + UI is enough.
   if (stack === 'java-spring-react' && uiReady) {
-    return { ready: true, reason: 'http_ui_spring_api_pending', apiReady: false };
+    return { ready: true, reason: 'http_spring_api_open', apiReady: true };
   }
   return { ready: false, reason: 'api_not_http' };
 }
@@ -2200,7 +2215,12 @@ export async function waitForPreviewReady({
 
       const logReady = detectPreviewReadyFromLogs(lastLogTail, stack);
       if (logReady?.ready) {
-        return { ready: true, reason: logReady.reason, logs: lastLogTail };
+        // Spring: never unlock on UI-serve logs alone — wait until API TCP is open.
+        if (stack === 'java-spring-react' && apiTarget && !sawApiPortOpen) {
+          // keep polling
+        } else {
+          return { ready: true, reason: logReady.reason, logs: lastLogTail, apiReady: sawApiPortOpen };
+        }
       }
     }
 
@@ -2230,7 +2250,7 @@ export async function waitForPreviewReady({
         stack,
       });
       if (probe.ready) {
-        return { ready: true, reason: probe.reason };
+        return { ready: true, reason: probe.reason, apiReady: probe.apiReady !== false };
       }
 
       if (
@@ -2266,10 +2286,22 @@ export async function waitForPreviewReady({
           stack,
         });
         if (probe.ready) {
-          return { ready: true, reason: probe.reason };
+          return { ready: true, reason: probe.reason, apiReady: probe.apiReady !== false };
         }
       }
     }
+  }
+
+  // After full Spring timeout: unlock UI if it is up, but flag API as not ready.
+  if (stack === 'java-spring-react' && sawPortOpen && apiTarget && !sawApiPortOpen) {
+    return {
+      ready: true,
+      reason: 'http_ui_spring_api_timeout',
+      apiReady: false,
+      sawPortOpen,
+      sawApiPortOpen,
+      logs: lastLogTail,
+    };
   }
 
   if (apiTarget && !sawApiPortOpen && sawPortOpen) {
@@ -2285,6 +2317,14 @@ export async function waitForPreviewReady({
  */
 export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
   if (!logText?.trim()) return null;
+
+  if (stack === 'java-spring-react') {
+    if (/\[preview\]\s*Spring API is listening/i.test(logText)) {
+      return { ready: true, reason: 'log_spring_api_listening' };
+    }
+    // UI-only serve logs must not mark Spring previews ready (API still building).
+    return null;
+  }
 
   if (/\[preview\]\s*serve static:/i.test(logText) && /Accepting connections/i.test(logText)) {
     return { ready: true, reason: 'log_serve_listening' };
@@ -2459,7 +2499,9 @@ export async function execInPreviewContainer(containerName, shellCommand, { time
 }
 
 export async function readPreviewBackendLog(containerName, maxLines = 80) {
-  const raw = await readFileFromPreviewContainer(containerName, '/tmp/preview-backend.log', 120_000);
+  const springRaw = await readFileFromPreviewContainer(containerName, '/tmp/preview-spring.log', 120_000);
+  const backendRaw = await readFileFromPreviewContainer(containerName, '/tmp/preview-backend.log', 120_000);
+  const raw = [springRaw, backendRaw].filter(Boolean).join('\n');
   if (!raw) return '';
   return raw.split('\n').slice(-maxLines).join('\n');
 }

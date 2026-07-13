@@ -25,10 +25,19 @@ start_serve_background() {
 run_serve() {
   dir="$1"
   listen="$2"
+  no_exec="${3:-}"
   cd "$dir" || exit 1
   if command -v serve >/dev/null 2>&1; then
+    if [ "$no_exec" = "1" ]; then
+      serve -s . --listen "$listen"
+      return $?
+    fi
     exec serve -s . --listen "$listen"
   else
+    if [ "$no_exec" = "1" ]; then
+      npx --yes serve@14.2.4 -s . --listen "$listen"
+      return $?
+    fi
     exec npx --yes serve@14.2.4 -s . --listen "$listen"
   fi
 }
@@ -79,7 +88,67 @@ find_bootable_jar() {
   echo "$jar"
 }
 
+# Preview forces H2 via SPRING_DATASOURCE_* — inject the driver into pom.xml when missing.
+# Returns 0 if already present, 2 if injected, 1 on failure.
+ensure_h2_dependency_in_pom() {
+  pom="${1:-./pom.xml}"
+  if [ ! -f "$pom" ]; then
+    return 0
+  fi
+
+  if grep -qE 'com\.h2database|<artifactId>[[:space:]]*h2[[:space:]]*</artifactId>' "$pom"; then
+    echo "[preview] H2 dependency already present in pom.xml"
+    return 0
+  fi
+
+  echo "[preview] H2 dependency missing — injecting it into pom.xml for preview compatibility"
+
+  # Prefer last </dependencies> (project deps usually follow dependencyManagement).
+  # If none exist, insert a fresh <dependencies> block before </project>.
+  if ! node -e '
+    const fs = require("fs");
+    const path = process.argv[1];
+    let xml = fs.readFileSync(path, "utf8");
+    const dep = `    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+`;
+    const closeDeps = "</dependencies>";
+    const lastIdx = xml.lastIndexOf(closeDeps);
+    if (lastIdx !== -1) {
+      xml = xml.slice(0, lastIdx) + dep + xml.slice(lastIdx);
+    } else {
+      const closeProj = xml.lastIndexOf("</project>");
+      if (closeProj === -1) {
+        console.error("[preview] ERROR: no </project> in pom.xml — cannot inject H2");
+        process.exit(1);
+      }
+      xml =
+        xml.slice(0, closeProj) +
+        "  <dependencies>\n" +
+        dep +
+        "  </dependencies>\n" +
+        xml.slice(closeProj);
+    }
+    fs.writeFileSync(path, xml);
+  ' "$pom"; then
+    echo "[preview] WARN: failed to inject H2 into pom.xml"
+    return 1
+  fi
+  return 2
+}
+
 package_spring_jar() {
+  ensure_h2_dependency_in_pom ./pom.xml
+  case $? in
+    2)
+      # Old jars may lack H2 on the classpath — force a fresh package.
+      rm -f target/*.jar 2>/dev/null || true
+      ;;
+  esac
+
   build_flags="-q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17"
   offline=""
   if [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
@@ -113,11 +182,21 @@ start_spring_backend_async() {
   export SPRING_DATASOURCE_PASSWORD="${SPRING_DATASOURCE_PASSWORD:-}"
   export MAVEN_OPTS="${MAVEN_OPTS:--Xmx768m -XX:+TieredCompilation -XX:TieredStopAtLevel=1}"
 
+  # Ensure H2 is on the classpath before we reuse or build a jar.
+  ensure_h2_dependency_in_pom ./pom.xml
+  case $? in
+    2)
+      rm -f target/*.jar 2>/dev/null || true
+      echo "[preview] cleared target/*.jar so Maven rebuilds with H2" >> /tmp/preview-spring.log
+      ;;
+  esac
+
   jar_path="$(find_bootable_jar)"
 
+  # Keep Spring in background (UI server no longer uses exec, so this process group stays alive).
   if [ -n "$jar_path" ]; then
     echo "[preview] reusing pre-built Spring jar: $jar_path (fast start)"
-    java -jar "$jar_path" --spring.profiles.active=preview --server.port="$API_PORT" >> /tmp/preview-spring.log 2>&1 &
+    nohup java -jar "$jar_path" --spring.profiles.active=preview --server.port="$API_PORT" >> /tmp/preview-spring.log 2>&1 &
     SPRING_BG_PID=$!
     echo "[preview] Spring PID ${SPRING_BG_PID}; tail /tmp/preview-spring.log for output"
     return 0
@@ -126,7 +205,7 @@ start_spring_backend_async() {
   if [ -f ./gradlew ]; then
     chmod +x ./gradlew
     echo "[preview] ./gradlew bootRun (no packaged jar found)…"
-    ./gradlew bootRun --args="--spring.profiles.active=preview --server.port=${API_PORT}" >> /tmp/preview-spring.log 2>&1 &
+    nohup ./gradlew bootRun --args="--spring.profiles.active=preview --server.port=${API_PORT}" >> /tmp/preview-spring.log 2>&1 &
     SPRING_BG_PID=$!
     echo "[preview] Spring PID ${SPRING_BG_PID}"
     return 0
@@ -138,64 +217,136 @@ start_spring_backend_async() {
   fi
 
   # Package first, then run the JAR — fast subsequent starts (target/*.jar reused).
-  (
-    if package_spring_jar; then
-      jar_path="$(find_bootable_jar)"
-      if [ -n "$jar_path" ]; then
-        echo "[preview] Spring jar built: $jar_path — starting"
-        java -jar "$jar_path" --spring.profiles.active=preview --server.port="$API_PORT" >> /tmp/preview-spring.log 2>&1
-      else
-        echo "[preview] ERROR: mvn package succeeded but no bootable jar in target/" >> /tmp/preview-spring.log
+  # ensure_h2 is inlined here because functions are not available inside `sh -c`.
+  nohup sh -c '
+    set +e
+    cd "'"$ROOT/$spring_rel"'" || exit 1
+
+    ensure_h2_dependency_in_pom() {
+      pom="${1:-./pom.xml}"
+      [ -f "$pom" ] || return 0
+      if grep -qE "com\\.h2database|<artifactId>[[:space:]]*h2[[:space:]]*</artifactId>" "$pom"; then
+        echo "[preview] H2 dependency already present in pom.xml" >> /tmp/preview-spring.log
+        return 0
       fi
-    else
-      echo "[preview] mvn package failed — falling back to spring-boot:run" >> /tmp/preview-spring.log
-      if [ -f ./mvnw ]; then
-        ./mvnw -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="-Dserver.port=${API_PORT}" >> /tmp/preview-spring.log 2>&1
-      else
-        mvn -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="-Dserver.port=${API_PORT}" >> /tmp/preview-spring.log 2>&1
+      echo "[preview] H2 dependency missing — injecting it into pom.xml for preview compatibility" >> /tmp/preview-spring.log
+      if ! node -e "
+        const fs = require(\"fs\");
+        const path = process.argv[1];
+        let xml = fs.readFileSync(path, \"utf8\");
+        const dep = \"    <dependency>\\n\" +
+          \"      <groupId>com.h2database</groupId>\\n\" +
+          \"      <artifactId>h2</artifactId>\\n\" +
+          \"      <scope>runtime</scope>\\n\" +
+          \"    </dependency>\\n\";
+        const closeDeps = \"</dependencies>\";
+        const lastIdx = xml.lastIndexOf(closeDeps);
+        if (lastIdx !== -1) {
+          xml = xml.slice(0, lastIdx) + dep + xml.slice(lastIdx);
+        } else {
+          const closeProj = xml.lastIndexOf(\"</project>\");
+          if (closeProj === -1) process.exit(1);
+          xml = xml.slice(0, closeProj) + \"  <dependencies>\\n\" + dep + \"  </dependencies>\\n\" + xml.slice(closeProj);
+        }
+        fs.writeFileSync(path, xml);
+      " "$pom"; then
+        echo "[preview] WARN: failed to inject H2 into pom.xml" >> /tmp/preview-spring.log
+        return 1
       fi
+      return 2
+    }
+
+    ensure_h2_dependency_in_pom ./pom.xml
+    h2_rc=$?
+    if [ "$h2_rc" -eq 2 ]; then
+      rm -f target/*.jar 2>/dev/null || true
     fi
-  ) &
+
+    if [ -f ./mvnw ]; then
+      chmod +x ./mvnw
+      offline=""
+      if [ -d "$HOME/.m2/repository" ] && [ "'"$PREVIEW_WORKSPACE_CACHED"'" = "1" ]; then offline="-o"; fi
+      echo "[preview] ./mvnw package…" >> /tmp/preview-spring.log
+      ./mvnw $offline -q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17 package >> /tmp/preview-spring.log 2>&1
+      rc=$?
+    elif [ -f pom.xml ]; then
+      offline=""
+      if [ -d "$HOME/.m2/repository" ] && [ "'"$PREVIEW_WORKSPACE_CACHED"'" = "1" ]; then offline="-o"; fi
+      echo "[preview] mvn package…" >> /tmp/preview-spring.log
+      mvn $offline -q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17 package >> /tmp/preview-spring.log 2>&1
+      rc=$?
+    else
+      exit 1
+    fi
+    jar=""
+    for candidate in target/*.jar; do
+      case "$candidate" in
+        *-sources.jar|*-javadoc.jar|*-original.jar|*-plain.jar) continue ;;
+      esac
+      if [ -f "$candidate" ]; then jar="$candidate"; break; fi
+    done
+    if [ "$rc" -eq 0 ] && [ -n "$jar" ]; then
+      echo "[preview] Spring jar built: $jar — starting" >> /tmp/preview-spring.log
+      exec java -jar "$jar" --spring.profiles.active=preview --server.port='"$API_PORT"'
+    fi
+    echo "[preview] mvn package failed or no jar — falling back to spring-boot:run" >> /tmp/preview-spring.log
+    if [ -f ./mvnw ]; then
+      exec ./mvnw -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="-Dserver.port='"$API_PORT"'"
+    else
+      exec mvn -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=preview -Dspring-boot.run.jvmArguments="-Dserver.port='"$API_PORT"'"
+    fi
+  ' >> /tmp/preview-spring.log 2>&1 &
   SPRING_BG_PID=$!
-  echo "[preview] Spring PID ${SPRING_BG_PID} (packaging in background)"
+  echo "[preview] Spring PID ${SPRING_BG_PID} (packaging in background with nohup)"
 }
 
 serve_dir() {
   dir="$1"
   release_port_holder
   echo "[preview] serve static: $dir on ${LISTEN}"
-  run_serve "$dir" "${LISTEN}"
+  # Do not exec — keep this shell as PID 1 so Maven/Spring (started in background) stay alive.
+  run_serve "$dir" "${LISTEN}" 1
 }
 
 serve_fallback_forever() {
   release_port_holder
-  run_serve /preview-fallback "${LISTEN}"
+  run_serve /preview-fallback "${LISTEN}" 1
 }
 
 patch_frontend_api_urls() {
-  [ -n "$PREVIEW_API_HOST_PORT" ] || return 0
+  api_url="${PREVIEW_PUBLIC_API_URL:-}"
+  if [ -z "$api_url" ] && [ -n "$PREVIEW_API_HOST_PORT" ]; then
+    api_url="http://localhost:${PREVIEW_API_HOST_PORT}"
+  fi
+  [ -n "$api_url" ] || return 0
   fe_rel="${FRONTEND_SUBDIR:-.}"
-  find "$ROOT/$fe_rel" -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' \) \
+  echo "[preview] patching frontend source API base -> ${api_url}"
+  find "$ROOT/$fe_rel" -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.env*' \) \
     ! -path '*/node_modules/*' ! -path '*/build/*' ! -path '*/dist/*' 2>/dev/null | while read -r f; do
-      sed -i "s|http://localhost:8000|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:8000|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://localhost:8080|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:8080|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://localhost:5000|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:5000|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://localhost:8000|${api_url}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:8000|${api_url}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://localhost:8080|${api_url}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:8080|${api_url}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://localhost:5000|${api_url}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:5000|${api_url}|g" "$f" 2>/dev/null || true
     done
 }
 
 patch_built_bundle_urls() {
-  [ -n "$PREVIEW_API_HOST_PORT" ] || return 0
+  api_url="${PREVIEW_PUBLIC_API_URL:-}"
+  if [ -z "$api_url" ] && [ -n "$PREVIEW_API_HOST_PORT" ]; then
+    api_url="http://localhost:${PREVIEW_API_HOST_PORT}"
+  fi
+  [ -n "$api_url" ] || return 0
   fe_rel="${FRONTEND_SUBDIR:-.}"
+  echo "[preview] patching built frontend API base -> ${api_url}"
   for dir in build dist; do
     root="$ROOT/$fe_rel/$dir"
     [ -d "$root" ] || continue
     find "$root" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.map' \) 2>/dev/null | while read -r f; do
-      sed -i "s|http://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
-      sed -i "s|https://localhost:[0-9][0-9]*|http://localhost:${PREVIEW_API_HOST_PORT}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://localhost:[0-9][0-9]*|${api_url}|g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:[0-9][0-9]*|${api_url}|g" "$f" 2>/dev/null || true
+      sed -i "s|https://localhost:[0-9][0-9]*|${api_url}|g" "$f" 2>/dev/null || true
     done
   done
 }
@@ -236,17 +387,23 @@ run_react_frontend() {
   fe_rel="${FRONTEND_SUBDIR:-.}"
   cd "$ROOT/$fe_rel" || return 1
   echo "[preview] React frontend in $(pwd)"
+  api_url="${PREVIEW_PUBLIC_API_URL:-}"
+  if [ -z "$api_url" ] && [ -n "$PREVIEW_API_HOST_PORT" ]; then
+    api_url="http://localhost:${PREVIEW_API_HOST_PORT}"
+  fi
   patch_frontend_api_urls
   patch_built_bundle_urls
-  if [ -n "$PREVIEW_API_HOST_PORT" ]; then
-    export VITE_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
-    export REACT_APP_API_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
-    export VITE_API_BASE_URL="http://localhost:${PREVIEW_API_HOST_PORT}"
+  if [ -n "$api_url" ]; then
+    export VITE_API_URL="$api_url"
+    export REACT_APP_API_URL="$api_url"
+    export VITE_API_BASE_URL="$api_url"
     {
-      echo "VITE_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
-      echo "REACT_APP_API_URL=http://localhost:${PREVIEW_API_HOST_PORT}"
+      echo "VITE_API_URL=${api_url}"
+      echo "REACT_APP_API_URL=${api_url}"
+      echo "VITE_API_BASE_URL=${api_url}"
       echo "GENERATE_SOURCEMAP=false"
     } > .env.local
+    echo "[preview] wrote .env.local with API ${api_url}"
   fi
 
   if [ -d dist ] && [ -f dist/index.html ]; then
@@ -274,11 +431,29 @@ run_react_frontend() {
   return 1
 }
 
+wait_for_spring_briefly() {
+  max_wait="${PREVIEW_SPRING_WAIT_SECONDS:-90}"
+  i=0
+  echo "[preview] waiting up to ${max_wait}s for Spring API on :${API_PORT}…"
+  while [ "$i" -lt "$max_wait" ]; do
+    if tcp_port_open "$API_PORT"; then
+      echo "[preview] Spring API is listening on :${API_PORT}"
+      return 0
+    fi
+    i=$((i + 3))
+    sleep 3
+  done
+  echo "[preview] WARN: Spring API not listening yet after ${max_wait}s — UI will start; API may still be compiling. Check /tmp/preview-spring.log"
+  tail -n 40 /tmp/preview-spring.log 2>/dev/null || true
+  return 1
+}
+
 hold_port_with_fallback
 
 if [ "$PREVIEW_SPRING_MODE" = "1" ] && [ -n "$SPRING_SUBDIR" ] && [ -n "$FRONTEND_SUBDIR" ]; then
-  echo "[preview] Spring+React mode spring=$SPRING_SUBDIR frontend=$FRONTEND_SUBDIR API=$API_PORT UI=$PORT"
+  echo "[preview] Spring+React mode spring=$SPRING_SUBDIR frontend=$FRONTEND_SUBDIR API=$API_PORT UI=$PORT public_api=${PREVIEW_PUBLIC_API_URL:-}"
   start_spring_backend_async || echo "[preview] Spring start skipped — check /tmp/preview-spring.log"
+  wait_for_spring_briefly || true
   run_react_frontend || serve_fallback_forever
 fi
 

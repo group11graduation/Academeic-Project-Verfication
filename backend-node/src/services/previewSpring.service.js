@@ -307,17 +307,21 @@ async function patchSpringSecurityCors(root) {
     let content = await fs.readFile(file, 'utf8');
     if (!content.includes('setAllowedOrigins') && !content.includes('setAllowedOriginPatterns')) continue;
     let changed = false;
+    // Preview VPS teachers open UI at http://SERVER:UI_PORT — localhost-only CORS blocks that.
+    const previewOrigins =
+      'setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*", "http://*:*", "https://*:*"))';
     if (/setAllowedOrigins\s*\(\s*List\.of\s*\([^)]*\)\s*\)/.test(content)) {
-      content = content.replace(
-        /setAllowedOrigins\s*\(\s*List\.of\s*\([^)]*\)\s*\)/g,
-        'setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"))'
-      );
+      content = content.replace(/setAllowedOrigins\s*\(\s*List\.of\s*\([^)]*\)\s*\)/g, previewOrigins);
       changed = true;
     }
     if (/setAllowedOrigins\s*\(\s*Arrays\.asList\s*\([^)]*\)\s*\)/.test(content)) {
+      content = content.replace(/setAllowedOrigins\s*\(\s*Arrays\.asList\s*\([^)]*\)\s*\)/g, previewOrigins);
+      changed = true;
+    }
+    if (/setAllowedOriginPatterns\s*\(\s*List\.of\s*\([^)]*\)\s*\)/.test(content)) {
       content = content.replace(
-        /setAllowedOrigins\s*\(\s*Arrays\.asList\s*\([^)]*\)\s*\)/g,
-        'setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"))'
+        /setAllowedOriginPatterns\s*\(\s*List\.of\s*\([^)]*\)\s*\)/g,
+        previewOrigins
       );
       changed = true;
     }
@@ -444,7 +448,7 @@ public class ScholarVerifyPreviewSeed {
   return { ...seed, seedFile: 'ScholarVerifyPreviewSeed.java' };
 }
 
-export async function patchSpringForPreview(extractDir, springSubdir, { apiHostPort, uiHostPort } = {}) {
+export async function patchSpringForPreview(extractDir, springSubdir, { apiHostPort, uiHostPort, publicUiUrl } = {}) {
   const root = path.join(extractDir, springSubdir);
   if (!(await pathExists(root))) return { files: 0 };
 
@@ -466,9 +470,18 @@ export async function patchSpringForPreview(extractDir, springSubdir, { apiHostP
     'spring.main.banner-mode=off',
     'management.endpoints.web.exposure.include=health',
   ];
+  const corsOrigins = [];
   if (uiHostPort) {
-    overlay.push(`app.cors.allowed-origins=http://localhost:${uiHostPort}`);
+    corsOrigins.push(`http://localhost:${uiHostPort}`, `http://127.0.0.1:${uiHostPort}`);
   }
+  if (publicUiUrl) {
+    corsOrigins.push(String(publicUiUrl).replace(/\/$/, ''));
+  }
+  if (corsOrigins.length) {
+    overlay.push(`app.cors.allowed-origins=${[...new Set(corsOrigins)].join(',')}`);
+  }
+  // Broad preview CORS for custom SecurityConfig apps that read a pattern prop.
+  overlay.push('app.cors.allowed-origin-patterns=http://localhost:*,http://127.0.0.1:*,http://*:*,https://*:*');
   overlay.push(
     'spring.datasource.url=jdbc:h2:mem:scholarverify_preview;DB_CLOSE_DELAY=-1;MODE=PostgreSQL',
     'spring.datasource.driver-class-name=org.h2.Driver',
@@ -520,4 +533,44 @@ export async function patchSpringForPreview(extractDir, springSubdir, { apiHostP
         }
       : null,
   };
+}
+
+const SPRING_DEFAULT_LOGIN_PATHS = [
+  '/auth/login',
+  '/api/auth/login',
+  '/api/login',
+  '/login',
+  '/api/users/login',
+  '/users/login',
+];
+
+/**
+ * Find Spring @PostMapping / @RequestMapping login routes for preview login verify.
+ */
+export async function discoverSpringLoginApiPaths(extractDir, springSubdir = '.') {
+  const found = new Set(SPRING_DEFAULT_LOGIN_PATHS);
+  const root = path.join(extractDir, springSubdir === '.' ? '' : springSubdir);
+  const srcRoot = path.join(root, 'src', 'main', 'java');
+  if (!(await pathExists(srcRoot))) return [...found];
+
+  const javaFiles = await walkJavaFiles(srcRoot, 400);
+  const mappingRe =
+    /@(?:Post|Request)Mapping\s*\(\s*(?:value\s*=\s*|path\s*=\s*)?["']([^"']*login[^"']*)["']/gi;
+
+  for (const file of javaFiles) {
+    let content = '';
+    try {
+      content = await fs.readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    if (!/login/i.test(content)) continue;
+    let match;
+    mappingRe.lastIndex = 0;
+    while ((match = mappingRe.exec(content)) !== null) {
+      const p = match[1];
+      if (p) found.add(p.startsWith('/') ? p : `/${p}`);
+    }
+  }
+  return [...found];
 }
