@@ -69,6 +69,8 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
     classId,
     classIds,
     subjectId,
+    frontendSubjectId,
+    backendSubjectId,
     semesterId,
     academicYearId,
     title,
@@ -94,8 +96,10 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
     err.status = 400;
     throw err;
   }
-  if (!subjectId) {
-    const err = new Error('subjectId is required');
+  const feSubjectId = frontendSubjectId || subjectId;
+  const beSubjectId = backendSubjectId || subjectId;
+  if (!feSubjectId || !beSubjectId) {
+    const err = new Error('frontendSubjectId and backendSubjectId are required');
     err.status = 400;
     throw err;
   }
@@ -122,8 +126,6 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
     throw err;
   }
 
-  const tid = new mongoose.Types.ObjectId(primaryTeacherId);
-  const coTid = new mongoose.Types.ObjectId(coTeacherId);
   const classDocsRaw = await Class.find({ _id: { $in: selectedClassIds } })
     .populate('teacherAssignments.subjects')
     .populate('subjects');
@@ -136,30 +138,29 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
     throw err;
   }
 
+  const feTeacherId = frontendTeacherId || primaryTeacherId;
+  const beTeacherId = backendTeacherId || coTeacherId;
+
   for (const classDoc of classDocs) {
-    const primaryTa = classDoc.teacherAssignments?.find((x) => tid.equals(x.teacher));
-    const coTa = classDoc.teacherAssignments?.find((x) => coTid.equals(x.teacher));
-    if (!primaryTa) {
-      const err = new Error(`You are not assigned to teach class ${classDoc.code || classDoc.name || ''}`.trim());
+    const feTa = classDoc.teacherAssignments?.find((x) => new mongoose.Types.ObjectId(feTeacherId).equals(x.teacher));
+    const beTa = classDoc.teacherAssignments?.find((x) => new mongoose.Types.ObjectId(beTeacherId).equals(x.teacher));
+    if (!feTa) {
+      const err = new Error(`Frontend teacher is not assigned to class ${classDoc.code || classDoc.name || ''}`.trim());
       err.status = 403;
       throw err;
     }
-    if (!coTa) {
-      const err = new Error(
-        `Selected co-teacher is not assigned to class ${classDoc.code || classDoc.name || ''}`.trim()
-      );
+    if (!beTa) {
+      const err = new Error(`Backend teacher is not assigned to class ${classDoc.code || classDoc.name || ''}`.trim());
       err.status = 403;
       throw err;
     }
-    if (!teacherCanUseSubject(classDoc, primaryTa, subjectId)) {
-      const err = new Error(`This subject is not linked to class ${classDoc.code || classDoc.name || ''}`.trim());
+    if (!teacherCanUseSubject(classDoc, feTa, feSubjectId)) {
+      const err = new Error(`Frontend subject is not linked to class ${classDoc.code || classDoc.name || ''}`.trim());
       err.status = 403;
       throw err;
     }
-    if (!teacherCanUseSubject(classDoc, coTa, subjectId)) {
-      const err = new Error(
-        `Selected subject is not linked to the co-teacher in class ${classDoc.code || classDoc.name || ''}`.trim()
-      );
+    if (!teacherCanUseSubject(classDoc, beTa, beSubjectId)) {
+      const err = new Error(`Backend subject is not linked to class ${classDoc.code || classDoc.name || ''}`.trim());
       err.status = 403;
       throw err;
     }
@@ -182,9 +183,6 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
 
   const mergedRequirements = mergeRequirementLists(frontendBlock, backendBlock);
 
-  const feTeacherId = frontendTeacherId || primaryTeacherId;
-  const beTeacherId = backendTeacherId || coTeacherId;
-
   const doc = new Assignment({
     teacher: primaryTeacherId,
     coTeacherId,
@@ -195,7 +193,9 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
     backendTechRequirements: backendBlock,
     class: primaryClassDoc._id,
     classes: classDocs.map((c) => c._id),
-    subject: subjectId,
+    subject: beSubjectId,
+    frontendSubject: feSubjectId,
+    backendSubject: beSubjectId,
     semester: semesterResolved,
     academicYear: academicYearResolved,
     title: title.trim(),

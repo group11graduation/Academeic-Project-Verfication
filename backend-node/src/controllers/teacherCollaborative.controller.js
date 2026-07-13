@@ -69,8 +69,8 @@ export const sendCollaborationRequest = asyncHandler(async (req, res) => {
  * Body: { action: 'accept' | 'decline' | 'cancel' }
  */
 export const respondCollaborationRequest = asyncHandler(async (req, res) => {
-  const { action } = req.body || {};
-  const row = await respondToCollaboration(req.userId, req.params.id, action);
+  const { action, subjectId, myRole } = req.body || {};
+  const row = await respondToCollaboration(req.userId, req.params.id, action, { subjectId, myRole });
   return success(res, row);
 });
 

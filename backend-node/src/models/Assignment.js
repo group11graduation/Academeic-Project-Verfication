@@ -33,6 +33,9 @@ const assignmentSchema = new mongoose.Schema(
     class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
     classes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
     subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
+    /** Collaborative assignments: each teacher's subject (frontend + backend). */
+    frontendSubject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
+    backendSubject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
     semester: { type: mongoose.Schema.Types.ObjectId, ref: 'Semester', required: true },
     academicYear: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear', required: true },
     title: { type: String, required: true, trim: true },

@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import path from 'path';
 import { CollaborativeAssignmentDraft } from '../models/CollaborativeAssignmentDraft.js';
-import { assertActiveCollaboration } from './teacherCollaboration.service.js';
+import { Class } from '../models/Class.js';
+import { findAcceptedCollaboration } from './teacherCollaboration.service.js';
 import {
   createCollaborativeAssignment,
   isTechSectionComplete,
@@ -41,7 +42,9 @@ function formatDraftRow(row) {
       Boolean(doc.title?.trim()) &&
       isTechSectionComplete(doc.frontendTechRequirements) &&
       isTechSectionComplete(doc.backendTechRequirements) &&
-      (doc.classes?.length > 0 || doc.class),
+      (doc.classes?.length > 0 || doc.class) &&
+      Boolean(doc.frontendSubject) &&
+      Boolean(doc.backendSubject),
   };
 }
 
@@ -59,6 +62,8 @@ export async function listCollaborativeDraftsForTeacher(teacherId) {
     .populate('class', 'code name')
     .populate('classes', 'code name')
     .populate('subject', 'code name')
+    .populate('frontendSubject', 'code name collaborationSide')
+    .populate('backendSubject', 'code name collaborationSide')
     .sort({ updatedAt: -1 })
     .lean();
 
@@ -74,6 +79,8 @@ export async function getCollaborativeDraftForTeacher(teacherId, draftId) {
     .populate('class', 'code name')
     .populate('classes', 'code name')
     .populate('subject', 'code name')
+    .populate('frontendSubject', 'code name collaborationSide')
+    .populate('backendSubject', 'code name collaborationSide')
     .populate('semester', 'name')
     .populate('academicYear', 'label');
 
@@ -88,16 +95,11 @@ export async function getCollaborativeDraftForTeacher(teacherId, draftId) {
 
 /**
  * Start a draft: pick co-teacher and whether the logged-in teacher owns frontend or backend.
+ * Class and subjects are locked from the accepted collaboration record.
  */
 export async function createCollaborativeDraft(teacherId, { coTeacherId, myRole }) {
   if (!coTeacherId) {
     const err = new Error('coTeacherId is required');
-    err.status = 400;
-    throw err;
-  }
-  const role = String(myRole || '').trim().toLowerCase();
-  if (!['frontend', 'backend'].includes(role)) {
-    const err = new Error('myRole must be frontend or backend');
     err.status = 400;
     throw err;
   }
@@ -107,7 +109,35 @@ export async function createCollaborativeDraft(teacherId, { coTeacherId, myRole 
     throw err;
   }
 
-  await assertActiveCollaboration(teacherId, coTeacherId);
+  const collaboration = await findAcceptedCollaboration(teacherId, coTeacherId);
+  if (!collaboration) {
+    const err = new Error(
+      'No accepted collaboration with the selected co-teacher. Send a collaboration request and wait for them to accept.'
+    );
+    err.status = 403;
+    throw err;
+  }
+  if (!collaboration.partnerSubject) {
+    const err = new Error('Collaboration is missing partner subject — ask your co-teacher to accept again with their subject');
+    err.status = 400;
+    throw err;
+  }
+
+  const initiatedById = String(collaboration.initiatedBy?._id || collaboration.initiatedBy);
+  const requesterRole = collaboration.requesterRole || '';
+  const partnerRole = requesterRole === 'frontend' ? 'backend' : requesterRole === 'backend' ? 'frontend' : '';
+  const roleFromCollab = initiatedById === String(teacherId) ? requesterRole : partnerRole;
+  const role = String(myRole || roleFromCollab || '').trim().toLowerCase();
+  if (!['frontend', 'backend'].includes(role)) {
+    const err = new Error('myRole must be frontend or backend');
+    err.status = 400;
+    throw err;
+  }
+  if (roleFromCollab && role !== roleFromCollab) {
+    const err = new Error(`Your role for this partnership is ${roleFromCollab} — it was set when the collaboration was accepted`);
+    err.status = 400;
+    throw err;
+  }
 
   const tid = new mongoose.Types.ObjectId(String(teacherId));
   const cid = new mongoose.Types.ObjectId(String(coTeacherId));
@@ -124,12 +154,26 @@ export async function createCollaborativeDraft(teacherId, { coTeacherId, myRole 
 
   const frontendTeacherId = role === 'frontend' ? teacherId : coTeacherId;
   const backendTeacherId = role === 'backend' ? teacherId : coTeacherId;
+  const requesterSubjectId = collaboration.subject?._id || collaboration.subject;
+  const partnerSubjectId = collaboration.partnerSubject?._id || collaboration.partnerSubject;
+  const frontendSubjectId = requesterRole === 'frontend' ? requesterSubjectId : partnerSubjectId;
+  const backendSubjectId = requesterRole === 'backend' ? requesterSubjectId : partnerSubjectId;
+  const classId = collaboration.class?._id || collaboration.class;
+
+  const classDoc = classId ? await Class.findById(classId).lean() : null;
 
   const doc = await CollaborativeAssignmentDraft.create({
     initiatedBy: teacherId,
     coTeacherId,
     frontendTeacherId,
     backendTeacherId,
+    class: classId || null,
+    classes: classId ? [classId] : [],
+    subject: backendSubjectId || frontendSubjectId || null,
+    frontendSubject: frontendSubjectId || null,
+    backendSubject: backendSubjectId || null,
+    semester: classDoc?.semester || null,
+    academicYear: classDoc?.academicYear || null,
   });
 
   return getCollaborativeDraftForTeacher(teacherId, doc._id);
@@ -160,11 +204,24 @@ export async function updateCollaborativeDraft(teacherId, draftId, payload = {})
   } = payload;
 
   const selectedClassIds = [...new Set(parseObjectIdList(classIds).concat(classId ? [String(classId)] : []))];
-  if (selectedClassIds.length) {
+  const lockedFromCollaboration = Boolean(draft.frontendSubject && draft.backendSubject);
+
+  if (lockedFromCollaboration) {
+    if (selectedClassIds.length && selectedClassIds.some((id) => String(id) !== String(draft.class))) {
+      const err = new Error('Class was set when collaboration was accepted and cannot be changed');
+      err.status = 400;
+      throw err;
+    }
+    if (subjectId && String(subjectId) !== String(draft.subject?._id || draft.subject || '')) {
+      const err = new Error('Subjects were set when collaboration was accepted and cannot be changed');
+      err.status = 400;
+      throw err;
+    }
+  } else if (selectedClassIds.length) {
     draft.class = new mongoose.Types.ObjectId(selectedClassIds[0]);
     draft.classes = selectedClassIds.map((id) => new mongoose.Types.ObjectId(id));
   }
-  if (subjectId) draft.subject = new mongoose.Types.ObjectId(subjectId);
+  if (!lockedFromCollaboration && subjectId) draft.subject = new mongoose.Types.ObjectId(subjectId);
   if (semesterId) draft.semester = new mongoose.Types.ObjectId(semesterId);
   if (academicYearId) draft.academicYear = new mongoose.Types.ObjectId(academicYearId);
   if (title !== undefined) draft.title = String(title || '').trim();
@@ -260,8 +317,8 @@ export async function publishCollaborativeDraft(teacherId, draftId) {
     throw err;
   }
   const classIds = (draft.classes?.length ? draft.classes : draft.class ? [draft.class] : []).map(String);
-  if (!classIds.length || !draft.subject) {
-    const err = new Error('Select at least one class and a subject before publishing');
+  if (!classIds.length || !draft.frontendSubject || !draft.backendSubject) {
+    const err = new Error('Class and both teacher subjects are required before publishing');
     err.status = 400;
     throw err;
   }
@@ -282,7 +339,9 @@ export async function publishCollaborativeDraft(teacherId, draftId) {
     backendTeacherId: draft.backendTeacherId,
     classId: classIds[0],
     classIds,
-    subjectId: draft.subject,
+    subjectId: draft.backendSubject || draft.subject,
+    frontendSubjectId: draft.frontendSubject,
+    backendSubjectId: draft.backendSubject,
     semesterId: draft.semester,
     academicYearId: draft.academicYear,
     title: draft.title,

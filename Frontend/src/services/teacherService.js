@@ -205,9 +205,10 @@ const teacherService = {
         return response.data;
     },
 
-    respondToCollaboration: async (collaborationId, action) => {
+    respondToCollaboration: async (collaborationId, action, extra = {}) => {
         const response = await api.patch(`${base}/collaborations/${encodeURIComponent(collaborationId)}/respond`, {
             action,
+            ...extra,
         });
         return response.data;
     },

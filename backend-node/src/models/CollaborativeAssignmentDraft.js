@@ -21,6 +21,8 @@ const collaborativeAssignmentDraftSchema = new mongoose.Schema(
     class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
     classes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
     subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
+    frontendSubject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
+    backendSubject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
     semester: { type: mongoose.Schema.Types.ObjectId, ref: 'Semester', default: null },
     academicYear: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear', default: null },
     title: { type: String, default: '', trim: true },

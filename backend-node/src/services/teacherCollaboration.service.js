@@ -4,7 +4,8 @@ import { User } from '../models/User.js';
 import { Class } from '../models/Class.js';
 import { CollaborativeAssignmentDraft } from '../models/CollaborativeAssignmentDraft.js';
 import {
-  assertComplementaryTeacherSubjects,
+  assertAcceptanceSubjects,
+  assertRequesterSubjectForCollaboration,
   oppositeCollaborationSide,
   resolveSubjectCollaborationSide,
 } from './subjectCollaboration.service.js';
@@ -30,14 +31,31 @@ function partnerFromRow(row, viewerId) {
   return primaryId === tid ? row.coTeacher : row.primaryTeacher;
 }
 
+function formatSubjectRef(subject) {
+  if (!subject) return null;
+  return {
+    _id: subject._id || subject,
+    code: subject.code || '',
+    name: subject.name || '',
+    collaborationSide: resolveSubjectCollaborationSide(subject),
+  };
+}
+
 function formatCollaborationRow(row, viewerId) {
   const partner = partnerFromRow(row, viewerId);
   const initiatedById = String(row.initiatedBy?._id || row.initiatedBy);
   const viewerIdStr = String(viewerId);
   const requesterRole = row.requesterRole || '';
   const partnerRole = requesterRole ? oppositeCollaborationSide(requesterRole) : '';
-  const myRole =
-    initiatedById === viewerIdStr ? requesterRole : partnerRole;
+  const initiatedByRequester = initiatedById === viewerIdStr;
+  const myRole = initiatedByRequester ? requesterRole : partnerRole;
+  const requesterSubject = formatSubjectRef(row.subject);
+  const partnerSubject = formatSubjectRef(row.partnerSubject);
+  const frontendSubject =
+    requesterRole === 'frontend' ? requesterSubject : partnerRole === 'frontend' ? partnerSubject : null;
+  const backendSubject =
+    requesterRole === 'backend' ? requesterSubject : partnerRole === 'backend' ? partnerSubject : null;
+
   return {
     _id: row._id,
     status: row.status,
@@ -46,10 +64,14 @@ function formatCollaborationRow(row, viewerId) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     initiatedBy: row.initiatedBy,
-    initiatedByMe: initiatedById === viewerIdStr,
+    initiatedByMe: initiatedByRequester,
     requesterRole,
     partnerRole,
     myRole,
+    requesterSubject,
+    partnerSubject,
+    frontendSubject,
+    backendSubject,
     class: row.class
       ? {
           _id: row.class._id || row.class,
@@ -57,14 +79,7 @@ function formatCollaborationRow(row, viewerId) {
           name: row.class.name || '',
         }
       : null,
-    subject: row.subject
-      ? {
-          _id: row.subject._id || row.subject,
-          code: row.subject.code || '',
-          name: row.subject.name || '',
-          collaborationSide: resolveSubjectCollaborationSide(row.subject),
-        }
-      : null,
+    subject: requesterSubject,
     partner: {
       _id: partner?._id || partner,
       name: partner?.name || '',
@@ -89,7 +104,12 @@ export async function findCollaborationPair(teacherAId, teacherBId) {
  */
 export async function findAcceptedCollaboration(teacherAId, teacherBId) {
   const row = await findCollaborationPair(teacherAId, teacherBId);
-  return row?.status === 'accepted' ? row.toObject?.() || row : null;
+  if (row?.status !== 'accepted') return null;
+  return TeacherCollaboration.findById(row._id)
+    .populate('class', 'code name semester academicYear')
+    .populate('subject', 'code name collaborationSide')
+    .populate('partnerSubject', 'code name collaborationSide')
+    .lean();
 }
 
 export async function assertActiveCollaboration(primaryTeacherId, coTeacherId) {
@@ -129,6 +149,7 @@ export async function listAcceptedCollaboratorsForTeacher(teacherId) {
     .populate('initiatedBy', 'name email')
     .populate('class', 'code name')
     .populate('subject', 'code name collaborationSide')
+    .populate('partnerSubject', 'code name collaborationSide')
     .sort({ acceptedAt: -1, updatedAt: -1 })
     .lean();
 
@@ -138,6 +159,12 @@ export async function listAcceptedCollaboratorsForTeacher(teacherId) {
     const partnerRole = requesterRole ? oppositeCollaborationSide(requesterRole) : '';
     const initiatedById = String(row.initiatedBy?._id || row.initiatedBy);
     const myRole = initiatedById === String(teacherId) ? requesterRole : partnerRole;
+    const requesterSubject = formatSubjectRef(row.subject);
+    const partnerSubject = formatSubjectRef(row.partnerSubject);
+    const frontendSubject =
+      requesterRole === 'frontend' ? requesterSubject : partnerRole === 'frontend' ? partnerSubject : null;
+    const backendSubject =
+      requesterRole === 'backend' ? requesterSubject : partnerRole === 'backend' ? partnerSubject : null;
     return {
       collaborationId: row._id,
       teacherId: partner?._id || partner,
@@ -147,14 +174,10 @@ export async function listAcceptedCollaboratorsForTeacher(teacherId) {
       class: row.class
         ? { _id: row.class._id, code: row.class.code, name: row.class.name }
         : null,
-      subject: row.subject
-        ? {
-            _id: row.subject._id,
-            code: row.subject.code,
-            name: row.subject.name,
-            collaborationSide: resolveSubjectCollaborationSide(row.subject),
-          }
-        : null,
+      subject: requesterSubject,
+      partnerSubject,
+      frontendSubject,
+      backendSubject,
       myRole,
       partnerRole,
     };
@@ -182,6 +205,7 @@ export async function listCollaborationsForTeacher(teacherId) {
     .populate('initiatedBy', 'name email')
     .populate('class', 'code name')
     .populate('subject', 'code name description collaborationSide')
+    .populate('partnerSubject', 'code name description collaborationSide')
     .sort({ updatedAt: -1 })
     .lean();
 
@@ -296,10 +320,8 @@ export async function requestCollaboration(
   }
 
   const requesterCtx = await loadClassTeacherSubjects(classId, requesterId);
-  const targetCtx = await loadClassTeacherSubjects(classId, targetTeacherId);
-  assertComplementaryTeacherSubjects({
+  assertRequesterSubjectForCollaboration({
     requesterSubjects: requesterCtx.subjects,
-    targetSubjects: targetCtx.subjects,
     requesterRole: myRole,
     subjectId,
   });
@@ -315,10 +337,22 @@ export async function requestCollaboration(
   if (existing?.status === 'pending') {
     const initiatedByOther = String(existing.initiatedBy) !== String(requesterId);
     if (initiatedByOther) {
+      const originalRequesterId = String(existing.initiatedBy);
+      const newRequesterCtx = await loadClassTeacherSubjects(existing.class, requesterId);
+      const originalRequesterCtx = await loadClassTeacherSubjects(existing.class, originalRequesterId);
+      assertAcceptanceSubjects({
+        requesterSubjects: originalRequesterCtx.subjects,
+        partnerSubjects: newRequesterCtx.subjects,
+        requesterRole: existing.requesterRole,
+        requesterSubjectId: existing.subject,
+        partnerRole: myRole,
+        partnerSubjectId: subjectId,
+      });
       existing.status = 'accepted';
       existing.acceptedAt = new Date();
+      existing.partnerSubject = subjectId;
       await existing.save();
-      return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject']);
+      return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject', 'partnerSubject']);
     }
     const err = new Error('Collaboration request already sent — waiting for their response');
     err.status = 409;
@@ -337,8 +371,9 @@ export async function requestCollaboration(
     existing.subject = subjectId;
     existing.requesterRole = String(myRole).trim().toLowerCase();
     existing.acceptedAt = null;
+    existing.partnerSubject = null;
     await existing.save();
-    return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject']);
+    return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject', 'partnerSubject']);
   }
 
   const doc = await TeacherCollaboration.create({
@@ -350,11 +385,11 @@ export async function requestCollaboration(
     subject: subjectId,
     requesterRole: String(myRole).trim().toLowerCase(),
   });
-  return doc.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject']);
+  return doc.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject', 'partnerSubject']);
 }
 
 /** Recipient accepts or declines; initiator may cancel a pending outgoing request. */
-export async function respondToCollaboration(teacherId, collaborationId, action) {
+export async function respondToCollaboration(teacherId, collaborationId, action, { subjectId = null, myRole = '' } = {}) {
   const normalizedAction = String(action || '').trim().toLowerCase();
   if (!['accept', 'decline', 'cancel'].includes(normalizedAction)) {
     const err = new Error('action must be accept, decline, or cancel');
@@ -365,7 +400,9 @@ export async function respondToCollaboration(teacherId, collaborationId, action)
   const row = await TeacherCollaboration.findById(collaborationId)
     .populate('primaryTeacher', 'name email')
     .populate('coTeacher', 'name email')
-    .populate('initiatedBy', 'name email');
+    .populate('initiatedBy', 'name email')
+    .populate('subject', 'code name collaborationSide')
+    .populate('partnerSubject', 'code name collaborationSide');
 
   if (!row) {
     const err = new Error('Collaboration request not found');
@@ -408,8 +445,31 @@ export async function respondToCollaboration(teacherId, collaborationId, action)
   }
 
   if (normalizedAction === 'accept') {
+    if (!subjectId || !myRole) {
+      const err = new Error('subjectId and myRole (frontend or backend) are required to accept');
+      err.status = 400;
+      throw err;
+    }
+    const classId = row.class?._id || row.class;
+    if (!classId) {
+      const err = new Error('Collaboration request is missing class information');
+      err.status = 400;
+      throw err;
+    }
+    const requesterId = String(row.initiatedBy?._id || row.initiatedBy);
+    const requesterCtx = await loadClassTeacherSubjects(classId, requesterId);
+    const partnerCtx = await loadClassTeacherSubjects(classId, teacherId);
+    assertAcceptanceSubjects({
+      requesterSubjects: requesterCtx.subjects,
+      partnerSubjects: partnerCtx.subjects,
+      requesterRole: row.requesterRole,
+      requesterSubjectId: row.subject?._id || row.subject,
+      partnerRole: myRole,
+      partnerSubjectId: subjectId,
+    });
     row.status = 'accepted';
     row.acceptedAt = new Date();
+    row.partnerSubject = subjectId;
   } else {
     row.status = 'declined';
   }

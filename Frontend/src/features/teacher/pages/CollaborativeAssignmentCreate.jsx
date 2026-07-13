@@ -101,7 +101,7 @@ const CollaborativeAssignmentCreate = () => {
         setDraft(row);
         setTitle(row.title || '');
         setDescription(row.description || '');
-        setSubjectId(row.subject?._id || row.subject || '');
+        setSubjectId(row.backendSubject?._id || row.backendSubject || row.subject?._id || row.subject || '');
         setSubmissionMode(row.submissionMode || 'single');
         setProposalDeadline(toDateTimeLocal(row.proposalDeadline));
         setProjectDeadline(toDateTimeLocal(row.projectDeadline));
@@ -189,6 +189,13 @@ const CollaborativeAssignmentCreate = () => {
         };
     }, [draftId, loadDraft, reloadCollaborators, reloadDrafts]);
 
+    useEffect(() => {
+        const partner = collaborators.find((c) => String(c.teacherId) === String(coTeacherId));
+        if (partner?.myRole === 'frontend' || partner?.myRole === 'backend') {
+            setMyRole(partner.myRole);
+        }
+    }, [coTeacherId, collaborators]);
+
     const selectedCatalogRow = catalog[catalogIndex] || null;
     const defaultSubjectId = selectedCatalogRow?.subjects?.[0]?._id || '';
     const activeSubjectId = subjectId || defaultSubjectId;
@@ -254,10 +261,20 @@ const CollaborativeAssignmentCreate = () => {
         },
         [drafts, currentUserId]
     );
-    const readyToPublish = Boolean(title.trim()) && frontendDone && backendDone && activeClassIds.length > 0 && activeSubjectId;
+    const frontendSubject = draft?.frontendSubject || null;
+    const backendSubject = draft?.backendSubject || null;
+    const collaborationLocked = Boolean(frontendSubject && backendSubject);
+    const selectedPartner = collaborators.find((c) => String(c.teacherId) === String(coTeacherId)) || null;
+    const readyToPublish =
+        Boolean(title.trim()) &&
+        frontendDone &&
+        backendDone &&
+        activeClassIds.length > 0 &&
+        (collaborationLocked || activeSubjectId);
     const missingPublishItems = [
         !title.trim() ? 'title' : '',
-        !activeSubjectId ? 'subject' : '',
+        !collaborationLocked && !activeSubjectId ? 'subject' : '',
+        collaborationLocked && (!frontendSubject || !backendSubject) ? 'teacher subjects' : '',
         activeClassIds.length === 0 ? 'at least one class' : '',
         !frontendDone ? 'frontend requirements' : '',
         !backendDone ? 'backend requirements' : '',
@@ -276,7 +293,10 @@ const CollaborativeAssignmentCreate = () => {
         }
         try {
             setStartingDraft(true);
-            const res = await teacherService.createCollaborativeDraft({ coTeacherId, myRole });
+            const res = await teacherService.createCollaborativeDraft({
+                coTeacherId,
+                myRole: selectedPartner?.myRole || myRole,
+            });
             if (res.success) {
                 setSearchParams({ draft: res.data._id });
                 applyDraftToForm(res.data, catalog);
@@ -300,7 +320,7 @@ const CollaborativeAssignmentCreate = () => {
             projectDeadline: projectDeadline || null,
         };
 
-        if (row) {
+        if (row && !collaborationLocked) {
             if (activeSubjectId) payload.subjectId = activeSubjectId;
             payload.semesterId = row.semester?._id || row.semester || '';
             payload.academicYearId = row.academicYear?._id || row.academicYear || '';
@@ -310,6 +330,10 @@ const CollaborativeAssignmentCreate = () => {
             } else if (row.class?._id) {
                 payload.classId = row.class._id;
             }
+        } else if (row) {
+            payload.semesterId = draft?.semester?._id || draft?.semester || row.semester?._id || row.semester || '';
+            payload.academicYearId =
+                draft?.academicYear?._id || draft?.academicYear || row.academicYear?._id || row.academicYear || '';
         }
 
         if (myDraftRole === 'frontend') {
@@ -573,7 +597,8 @@ const CollaborativeAssignmentCreate = () => {
                                         </p>
                                         <p className="text-[10px] text-slate-500">
                                             {c.myRole ? `You: ${c.myRole}` : ''}
-                                            {c.subject?.code ? ` · ${c.subject.code}` : ''}
+                                            {c.frontendSubject?.code ? ` · FE: ${c.frontendSubject.code}` : ''}
+                                            {c.backendSubject?.code ? ` · BE: ${c.backendSubject.code}` : ''}
                                             {c.class?.code ? ` · ${c.class.code}` : ''}
                                         </p>
                                         <p className="text-[10px] text-slate-500 mt-0.5">
@@ -680,45 +705,29 @@ const CollaborativeAssignmentCreate = () => {
                                 ))}
                             </select>
                         </div>
-                        <div>
-                            <label className={Z_LABEL}>Your role on this assignment *</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <label
-                                    className={`rounded-lg border px-3 py-2 text-[11px] font-semibold cursor-pointer ${
-                                        myRole === 'frontend' ? 'border-sky-400 bg-sky-50 text-sky-900' : 'border-slate-200'
-                                    }`}
-                                >
-                                    <input
-                                        type="radio"
-                                        name="myRole"
-                                        value="frontend"
-                                        checked={myRole === 'frontend'}
-                                        onChange={() => setMyRole('frontend')}
-                                        className="mr-2"
-                                    />
-                                    I handle Frontend requirements
-                                </label>
-                                <label
-                                    className={`rounded-lg border px-3 py-2 text-[11px] font-semibold cursor-pointer ${
-                                        myRole === 'backend' ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200'
-                                    }`}
-                                >
-                                    <input
-                                        type="radio"
-                                        name="myRole"
-                                        value="backend"
-                                        checked={myRole === 'backend'}
-                                        onChange={() => setMyRole('backend')}
-                                        className="mr-2"
-                                    />
-                                    I handle Backend requirements
-                                </label>
+                        {selectedPartner && (
+                            <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 p-3 space-y-1.5 text-[10px] text-slate-600 dark:text-slate-400">
+                                <p>
+                                    Class: <strong>{selectedPartner.class?.code || '—'}</strong>
+                                    {selectedPartner.class?.name ? ` — ${selectedPartner.class.name}` : ''}
+                                </p>
+                                <p>
+                                    Your role: <strong className="capitalize">{selectedPartner.myRole || myRole}</strong>
+                                </p>
+                                {selectedPartner.frontendSubject?.code ? (
+                                    <p>
+                                        Frontend subject: <strong>{selectedPartner.frontendSubject.code} — {selectedPartner.frontendSubject.name}</strong>
+                                    </p>
+                                ) : null}
+                                {selectedPartner.backendSubject?.code ? (
+                                    <p>
+                                        Backend subject: <strong>{selectedPartner.backendSubject.code} — {selectedPartner.backendSubject.name}</strong>
+                                    </p>
+                                ) : null}
+                                <p className="text-slate-500">These were agreed when the collaboration was accepted.</p>
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-1">
-                                Your partner will fill the other tech section. Shared details can be completed by either of you.
-                            </p>
-                        </div>
-                        <button type="button" onClick={handleStartDraft} disabled={startingDraft} className={Z_BTN_INDIGO}>
+                        )}
+                        <button type="button" onClick={handleStartDraft} disabled={startingDraft || !coTeacherId} className={Z_BTN_INDIGO}>
                             {startingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
                             Start collaborative draft
                         </button>
@@ -740,35 +749,70 @@ const CollaborativeAssignmentCreate = () => {
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Shared details (either teacher)</p>
 
                         <div>
-                            <label className={Z_LABEL}>Base class & term</label>
-                            <select
-                                value={catalogIndex}
-                                onChange={(e) => setCatalogIndex(Number(e.target.value))}
-                                className={Z_INPUT}
-                            >
-                                {catalog.map((row, i) => (
-                                    <option key={i} value={i}>
-                                        {row.class?.code} - {row.semester?.name || 'Sem'} ({row.academicYear?.label || 'Year'})
-                                    </option>
-                                ))}
-                            </select>
+                            <label className={Z_LABEL}>Class</label>
+                            {collaborationLocked ? (
+                                <div className={`${Z_INPUT} opacity-80 cursor-not-allowed flex items-center gap-1.5`}>
+                                    <Lock className="h-3 w-3 shrink-0" />
+                                    {selectedCatalogRow?.class?.code || draft?.class?.code || '—'}
+                                    {selectedCatalogRow?.class?.name || draft?.class?.name
+                                        ? ` — ${selectedCatalogRow?.class?.name || draft?.class?.name}`
+                                        : ''}
+                                    {selectedCatalogRow?.semester?.name ? ` · ${selectedCatalogRow.semester.name}` : ''}
+                                </div>
+                            ) : (
+                                <select
+                                    value={catalogIndex}
+                                    onChange={(e) => setCatalogIndex(Number(e.target.value))}
+                                    className={Z_INPUT}
+                                >
+                                    {catalog.map((row, i) => (
+                                        <option key={i} value={i}>
+                                            {row.class?.code} - {row.semester?.name || 'Sem'} ({row.academicYear?.label || 'Year'})
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
                         </div>
 
-                        <div>
-                            <label className={Z_LABEL}>Subject *</label>
-                            <select value={activeSubjectId} onChange={(e) => setSubjectId(e.target.value)} required className={Z_INPUT}>
-                                {(catalog[catalogIndex]?.subjects || []).map((s) => (
-                                    <option key={s._id} value={s._id}>
-                                        {s.code} - {s.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        {collaborationLocked ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className={Z_LABEL}>Frontend subject</label>
+                                    <div className={`${Z_INPUT} opacity-80 cursor-not-allowed flex items-center gap-1.5`}>
+                                        <Lock className="h-3 w-3 shrink-0" />
+                                        {frontendSubject?.code || '—'}
+                                        {frontendSubject?.name ? ` — ${frontendSubject.name}` : ''}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={Z_LABEL}>Backend subject</label>
+                                    <div className={`${Z_INPUT} opacity-80 cursor-not-allowed flex items-center gap-1.5`}>
+                                        <Lock className="h-3 w-3 shrink-0" />
+                                        {backendSubject?.code || '—'}
+                                        {backendSubject?.name ? ` — ${backendSubject.name}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <label className={Z_LABEL}>Subject *</label>
+                                <select value={activeSubjectId} onChange={(e) => setSubjectId(e.target.value)} required className={Z_INPUT}>
+                                    {(catalog[catalogIndex]?.subjects || []).map((s) => (
+                                        <option key={s._id} value={s._id}>
+                                            {s.code} - {s.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div>
                             <label className={Z_LABEL}>Classes for this project *</label>
                             <div className="rounded-lg border border-slate-200 dark:border-white/10 p-2.5 space-y-1.5 bg-white dark:bg-[#0B1120]">
-                                {compatibleClassOptions.map((row) => {
+                                {(collaborationLocked
+                                    ? catalog.filter((row) => activeClassIds.includes(String(row.class?._id || '')))
+                                    : compatibleClassOptions
+                                ).map((row) => {
                                     const classId = String(row.class?._id || '');
                                     return (
                                         <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-slate-700 dark:text-slate-200">
@@ -776,6 +820,7 @@ const CollaborativeAssignmentCreate = () => {
                                                 type="checkbox"
                                                 checked={activeClassIds.includes(classId)}
                                                 onChange={() => handleToggleClass(classId)}
+                                                disabled={collaborationLocked}
                                             />
                                             <span>
                                                 {row.class?.code || row.class?.name} - {row.class?.name || 'Class'}

@@ -50,6 +50,7 @@ const TeacherCollaborationPanel = ({
     const [error, setError] = useState('');
     const [inviteCollapsed, setInviteCollapsed] = useState(false);
     const [inviteManuallyExpanded, setInviteManuallyExpanded] = useState(false);
+    const [acceptForms, setAcceptForms] = useState({});
 
     const selectedCatalogRow = useMemo(
         () => catalog.find((row) => String(row.class?._id) === String(classId)),
@@ -126,6 +127,55 @@ const TeacherCollaborationPanel = ({
         );
     }, [subjectsForRole]);
 
+    useEffect(() => {
+        if (!incoming.length || !catalog.length) return;
+        setAcceptForms((prev) => {
+            const next = { ...prev };
+            for (const row of incoming) {
+                if (next[row._id]) continue;
+                const catalogRow = catalog.find((c) => String(c.class?._id) === String(row.class?._id));
+                const defaultRole = row.partnerRole || (row.requesterRole === 'frontend' ? 'backend' : 'frontend');
+                const subjects = (catalogRow?.subjects || []).filter((s) => inferSubjectSide(s) === defaultRole);
+                next[row._id] = {
+                    myRole: defaultRole,
+                    subjectId: String(subjects[0]?._id || ''),
+                };
+            }
+            return next;
+        });
+    }, [incoming, catalog]);
+
+    const subjectsForAcceptRole = useCallback(
+        (row, role) => {
+            const catalogRow = catalog.find((c) => String(c.class?._id) === String(row.class?._id));
+            return (catalogRow?.subjects || []).filter((s) => inferSubjectSide(s) === role);
+        },
+        [catalog]
+    );
+
+    const updateAcceptForm = (rowId, patch) => {
+        setAcceptForms((prev) => {
+            const current = prev[rowId] || {};
+            const nextRole = patch.myRole ?? current.myRole;
+            const subjects = patch.subjectsForRole || [];
+            let nextSubjectId = patch.subjectId ?? current.subjectId;
+            if (patch.myRole && !patch.subjectId) {
+                const row = incoming.find((r) => String(r._id) === String(rowId));
+                const roleSubjects = row ? subjectsForAcceptRole(row, nextRole) : [];
+                nextSubjectId = String(roleSubjects[0]?._id || '');
+            }
+            return {
+                ...prev,
+                [rowId]: {
+                    ...current,
+                    ...patch,
+                    myRole: nextRole,
+                    subjectId: nextSubjectId,
+                },
+            };
+        });
+    };
+
     const shouldAutoCollapseInvite =
         draftActive || (collapseInviteWhenReady && (accepted.length > 0 || outgoing.length > 0));
     const inviteFormOpen = !inviteCollapsed || inviteManuallyExpanded;
@@ -147,7 +197,11 @@ const TeacherCollaborationPanel = ({
         if (outgoing.length > 0) {
             const row = outgoing[0];
             const name = row.partner?.name || row.partner?.email || 'co-teacher';
-            const meta = [row.class?.code, row.subject?.code, row.requesterRole && `You: ${roleLabel(row.requesterRole)}`]
+            const meta = [
+                row.class?.code,
+                (row.requesterSubject || row.subject)?.code,
+                row.requesterRole && `You: ${roleLabel(row.requesterRole)}`,
+            ]
                 .filter(Boolean)
                 .join(' · ');
             return `Request sent to ${name}${meta ? ` (${meta})` : ''} — waiting for acceptance.`;
@@ -192,11 +246,11 @@ const TeacherCollaborationPanel = ({
         }
     };
 
-    const handleRespond = async (collaborationId, action) => {
+    const handleRespond = async (collaborationId, action, acceptPayload = null) => {
         setBusyId(`${collaborationId}-${action}`);
         setError('');
         try {
-            await teacherService.respondToCollaboration(collaborationId, action);
+            await teacherService.respondToCollaboration(collaborationId, action, acceptPayload || {});
             await reload();
             onAcceptedChange?.();
         } catch (err) {
@@ -204,6 +258,15 @@ const TeacherCollaborationPanel = ({
         } finally {
             setBusyId('');
         }
+    };
+
+    const handleAcceptRequest = async (row) => {
+        const form = acceptForms[row._id] || {};
+        if (!form.subjectId || !form.myRole) {
+            setError('Choose your role and subject before accepting.');
+            return;
+        }
+        await handleRespond(row._id, 'accept', { myRole: form.myRole, subjectId: form.subjectId });
     };
 
     const handleRevokePartnership = async (collaborationId, partnerName) => {
@@ -245,9 +308,11 @@ const TeacherCollaborationPanel = ({
     const renderRequestMeta = (row) => {
         const parts = [];
         if (row.class?.code) parts.push(`Class ${row.class.code}`);
-        if (row.subject?.code) parts.push(row.subject.code);
-        if (row.myRole) parts.push(`You: ${roleLabel(row.myRole)}`);
-        if (row.partnerRole) parts.push(`Partner: ${roleLabel(row.partnerRole)}`);
+        const reqSubject = row.requesterSubject || row.subject;
+        if (reqSubject?.code) parts.push(`Their subject: ${reqSubject.code}`);
+        if (row.partnerSubject?.code) parts.push(`Your subject: ${row.partnerSubject.code}`);
+        if (row.requesterRole) parts.push(`They: ${roleLabel(row.requesterRole)}`);
+        if (row.myRole && row.status === 'accepted') parts.push(`You: ${roleLabel(row.myRole)}`);
         if (!parts.length) return null;
         return <p className="text-[10px] text-slate-500 mt-0.5">{parts.join(' · ')}</p>;
     };
@@ -277,26 +342,88 @@ const TeacherCollaborationPanel = ({
                     <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
                         Requests for you ({incoming.length})
                     </p>
-                    {incoming.map((row) => (
+                    {incoming.map((row) => {
+                        const acceptForm = acceptForms[row._id] || {};
+                        const acceptSubjects = subjectsForAcceptRole(row, acceptForm.myRole || row.partnerRole || 'backend');
+                        const requesterSubject = row.requesterSubject || row.subject;
+                        return (
                         <div
                             key={row._id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-white dark:bg-[#0B1120] border border-amber-100 dark:border-white/10 px-3 py-2"
+                            className="rounded-lg bg-white dark:bg-[#0B1120] border border-amber-100 dark:border-white/10 px-3 py-2 space-y-2"
                         >
                             <div>
                                 <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
                                     {row.partner?.name || row.partner?.email}
                                 </p>
                                 <p className="text-[10px] text-slate-500">{row.partner?.email}</p>
-                                {renderRequestMeta(row)}
                                 {row.notes && (
                                     <p className="text-[10px] text-slate-600 mt-0.5 italic">&ldquo;{row.notes}&rdquo;</p>
                                 )}
                             </div>
+
+                            <div className="rounded-md border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/40 p-2 space-y-2">
+                                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">From their request</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                                    Class: <strong>{row.class?.code || '—'}</strong>
+                                    {row.class?.name ? ` — ${row.class.name}` : ''}
+                                </p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                                    Their role: <strong>{roleLabel(row.requesterRole)}</strong>
+                                    {requesterSubject?.code ? (
+                                        <> · Their subject: <strong>{requesterSubject.code} — {requesterSubject.name}</strong></>
+                                    ) : null}
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">Your choices before accepting</p>
+                                <div>
+                                    <label className={Z_LABEL}>Your role</label>
+                                    <div className="flex gap-2 mt-1">
+                                        {['frontend', 'backend'].map((role) => (
+                                            <button
+                                                key={role}
+                                                type="button"
+                                                disabled={Boolean(busyId) || role === row.requesterRole}
+                                                onClick={() => updateAcceptForm(row._id, { myRole: role })}
+                                                className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold capitalize ${
+                                                    acceptForm.myRole === role
+                                                        ? 'border-indigo-600 bg-indigo-600 text-white'
+                                                        : 'border-slate-200 bg-white text-slate-700 dark:bg-slate-900 dark:border-slate-600'
+                                                } ${role === row.requesterRole ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                            >
+                                                {roleLabel(role)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={Z_LABEL}>Your subject ({roleLabel(acceptForm.myRole || row.partnerRole)})</label>
+                                    {acceptSubjects.length === 0 ? (
+                                        <p className="text-[11px] text-amber-700 mt-1">
+                                            No {acceptForm.myRole || row.partnerRole} subject in this class. Ask admin to assign one.
+                                        </p>
+                                    ) : (
+                                        <select
+                                            value={acceptForm.subjectId || ''}
+                                            onChange={(e) => updateAcceptForm(row._id, { subjectId: e.target.value })}
+                                            className={Z_INPUT}
+                                        >
+                                            {acceptSubjects.map((s) => (
+                                                <option key={String(s._id)} value={String(s._id)}>
+                                                    {s.code} — {s.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            </div>
+
                             <div className="flex gap-1.5">
                                 <button
                                     type="button"
-                                    disabled={Boolean(busyId)}
-                                    onClick={() => handleRespond(row._id, 'accept')}
+                                    disabled={Boolean(busyId) || !acceptForm.subjectId || !acceptSubjects.length}
+                                    onClick={() => handleAcceptRequest(row)}
                                     className={`${actionBtn} border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700`}
                                 >
                                     {busyId === `${row._id}-accept` ? (
@@ -316,7 +443,8 @@ const TeacherCollaborationPanel = ({
                                 </button>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

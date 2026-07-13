@@ -17,7 +17,10 @@ const teacherCollaborationSchema = new mongoose.Schema(
     acceptedAt: { type: Date },
     notes: { type: String, default: '' },
     class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+    /** Subject chosen by the teacher who sent the request. */
     subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
+    /** Subject chosen by the partner when they accept the request. */
+    partnerSubject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
     /** Role the requester will handle (partner gets the opposite). */
     requesterRole: {
       type: String,
