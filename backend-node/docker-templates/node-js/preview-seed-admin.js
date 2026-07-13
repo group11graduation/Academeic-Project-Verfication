@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Ensure preview login credentials exist in the student MERN backend MongoDB.
- * Handles plain-password Mongoose hooks, bcrypt/bcryptjs, and common role enums.
+ * Handles plain-password Mongoose hooks, bcrypt/bcryptjs, select:false passwords, and common role enums.
  */
 (async () => {
   let mongoose;
@@ -34,11 +34,10 @@
       './model/User.js',
     ];
     let User = null;
-    let userModelPath = '';
     for (const p of userModelPaths) {
       try {
         User = require(p);
-        userModelPath = p;
+        console.log('[preview-seed] using User model', p);
         break;
       } catch {
         /* try next */
@@ -108,27 +107,82 @@
       return 'password';
     }
 
-    async function passwordMatches(user, plain) {
+    function passwordSelectPath(field) {
+      const path = User.schema?.paths?.[field];
+      if (path?.options?.select === false) return `+${field}`;
+      return field;
+    }
+
+    async function findUserWithSecrets(query) {
       const field = passwordFieldName();
-      const stored = user[field];
+      const select = `${passwordSelectPath(field)} email username role`;
+      try {
+        return await User.findOne(query).select(select);
+      } catch {
+        return User.findOne(query);
+      }
+    }
+
+    async function reloadUserWithSecrets(id) {
+      const field = passwordFieldName();
+      const select = `${passwordSelectPath(field)} email username role`;
+      try {
+        return await User.findById(id).select(select);
+      } catch {
+        return User.findById(id);
+      }
+    }
+
+    async function passwordMatches(user, plain) {
+      if (!user) return false;
+      const field = passwordFieldName();
+      let stored = user[field];
+      if (!stored && typeof user.get === 'function') {
+        stored = user.get(field);
+      }
+      if (!stored) {
+        const reloaded = await reloadUserWithSecrets(user._id);
+        stored = reloaded?.[field];
+      }
       if (!stored) return false;
+      if (typeof user.comparePassword === 'function') {
+        try {
+          if (await user.comparePassword(plain)) return true;
+        } catch {
+          /* fall through */
+        }
+      }
       return comparePassword(plain, String(stored));
+    }
+
+    async function writePasswordHash(userId, plain) {
+      const field = passwordFieldName();
+      const hashed = await hashPassword(plain);
+      await User.updateOne({ _id: userId }, { $set: { [field]: hashed } });
+      return reloadUserWithSecrets(userId);
     }
 
     async function setPassword(user, plain) {
       const field = passwordFieldName();
       user[field] = plain;
       if (typeof user.markModified === 'function') user.markModified(field);
-      await user.save();
-      const reloaded = await User.findById(user._id);
+      try {
+        await user.save();
+      } catch (err) {
+        console.log('[preview-seed] save with plain password failed:', err.message || err);
+      }
+      let reloaded = await reloadUserWithSecrets(user._id);
       if (await passwordMatches(reloaded, plain)) {
         return reloaded;
       }
-      const hashed = await hashPassword(plain);
-      reloaded[field] = hashed;
-      if (typeof reloaded.markModified === 'function') reloaded.markModified(field);
-      await reloaded.save();
-      return reloaded;
+      return writePasswordHash(user._id, plain);
+    }
+
+    function applyActiveFlags(doc) {
+      if (User.schema?.paths?.isActive && doc.isActive === undefined) doc.isActive = true;
+      if (User.schema?.paths?.status && !doc.status) doc.status = 'active';
+      if (User.schema?.paths?.isVerified && doc.isVerified === undefined) doc.isVerified = true;
+      return doc;
     }
 
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
@@ -136,23 +190,29 @@
 
     const role = pickDefaultRole();
     const lookup = { $or: [{ email }, { username: email }] };
-    let user = await User.findOne(lookup);
+    let user = await findUserWithSecrets(lookup);
     if (!user) {
-      const doc = {
+      const doc = applyActiveFlags({
         name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
         email,
         role,
-      };
-      if (User.schema?.paths?.username && !String(email).includes('@')) {
-        doc.username = email;
-      } else if (User.schema?.paths?.username) {
+      });
+      if (User.schema?.paths?.username) {
         doc.username = email.split('@')[0] || 'previewadmin';
       }
       doc[passwordFieldName()] = rawPass;
       user = new User(doc);
-      await user.save();
-      user = await User.findById(user._id);
-      console.log('[preview-seed] created preview admin', email, 'role=', user.role || role);
+      try {
+        await user.save();
+      } catch (err) {
+        console.log('[preview-seed] create via save failed, trying direct hash:', err.message || err);
+        user = await User.create({
+          ...doc,
+          [passwordFieldName()]: await hashPassword(rawPass),
+        });
+      }
+      user = await reloadUserWithSecrets(user._id);
+      console.log('[preview-seed] created preview admin', email, 'role=', user?.role || role);
     } else {
       console.log('[preview-seed] found existing user', email);
     }
@@ -164,17 +224,19 @@
       console.log('[preview-seed] preview admin password already valid', email);
     }
 
-    if (user.role && role && String(user.role).toLowerCase() !== String(role).toLowerCase()) {
-      const rolePath = User.schema?.paths?.role;
-      const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
-      const adminLike = enumValues.find((v) => /admin|manager/i.test(v));
-      if (adminLike) {
-        user.role = adminLike;
-        await user.save();
-        console.log('[preview-seed] set role to', adminLike);
-      }
+    const rolePath = User.schema?.paths?.role;
+    const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
+    const adminLike = enumValues.find((v) => /admin|manager/i.test(v));
+    if (adminLike && user && String(user.role) !== adminLike) {
+      await User.updateOne({ _id: user._id }, { $set: { role: adminLike } });
+      console.log('[preview-seed] set role to', adminLike);
     }
 
+    const verified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
+    console.log('[preview-seed] password verify:', verified ? 'OK' : 'FAILED');
+    if (!verified) {
+      process.exitCode = 1;
+    }
   } catch (err) {
     console.error('[preview-seed] failed:', err.message || err);
     process.exitCode = 1;

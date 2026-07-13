@@ -195,15 +195,17 @@ write_mern_backend_env() {
       echo "SEED_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
     fi
   } > .env.preview-runtime
-  if [ -f .env ] && [ ! -f .env.preview-backup ]; then
-    cp .env .env.preview-backup
+  if [ -f .env ] && [ ! -f .env.student-original ]; then
+    cp .env .env.student-original
   fi
-  if [ -f .env.preview-backup ]; then
-    cat .env.preview-backup .env.preview-runtime > .env
+  if [ -f .env.student-original ]; then
+    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|CORS_ORIGIN|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.student-original > .env.student-filtered 2>/dev/null || true
+    cat .env.preview-runtime .env.student-filtered > .env
+    rm -f .env.student-filtered
   else
     cat .env.preview-runtime > .env
   fi
-  rm -f .env.preview-runtime
+  rm -f .env.preview-runtime .env.preview-backup
   export PORT="$API_PORT"
   export HOST=0.0.0.0
   export MONGO_URI="$mongo"
@@ -230,10 +232,26 @@ start_mern_backend() {
     echo "[preview] ensuring preview admin account exists…"
   fi
   if [ -n "$PREVIEW_ADMIN_EMAIL" ] && [ -f package.json ]; then
+    echo "[preview] waiting for MongoDB before admin seed…"
+    n=0
+    while [ "$n" -lt 45 ]; do
+      if node -e "
+        const mongoose=require('mongoose');
+        const uri=process.env.MONGO_URI||process.env.MONGODB_URI;
+        if(!uri) process.exit(1);
+        mongoose.connect(uri,{serverSelectionTimeoutMS:2000}).then(()=>mongoose.disconnect()).then(()=>process.exit(0)).catch(()=>process.exit(1));
+      " >> /tmp/preview-backend.log 2>&1; then
+        echo "[preview] MongoDB ready for seed"
+        break
+      fi
+      n=$((n + 1))
+      sleep 2
+    done
     node /preview-seed-admin.js >> /tmp/preview-backend.log 2>&1 || {
       echo "[preview] preview admin seed failed — login may return 401; check /tmp/preview-backend.log"
       tail -20 /tmp/preview-backend.log 2>/dev/null || true
     }
+    grep '\[preview-seed\]' /tmp/preview-backend.log 2>/dev/null | tail -12 || true
   fi
 
   echo "[preview] starting backend on 0.0.0.0:${API_PORT}"
