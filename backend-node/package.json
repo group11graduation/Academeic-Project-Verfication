@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "seed": "node scripts/seed.js",
+    "migrate:collaboration-subjects": "node scripts/migrate-collaboration-subjects.js",
     "preview:smoke": "node scripts/docker-preview-smoke.js",
     "preview:smoke:php": "node scripts/docker-preview-smoke.js php-apache",
     "preview:smoke:jupyter": "node scripts/docker-preview-smoke.js jupyter",
