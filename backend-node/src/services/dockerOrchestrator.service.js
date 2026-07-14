@@ -2110,10 +2110,10 @@ export async function checkPreviewAppHttpReady({
   }
 
   if (!apiOpen) {
-    // Keep polling until Spring listens — early UI-only "ready" caused login
-    // verify while :8311 was still refused (Maven / Spring not up yet).
+    // Unlock Open preview when the React UI is up; track API separately so teachers
+    // are not stuck for hours while Maven/Spring boot. Login verify stays deferred.
     if (stack === 'java-spring-react' && uiReady) {
-      return { ready: false, reason: 'http_ui_spring_api_pending', apiReady: false, uiReady: true };
+      return { ready: true, reason: 'http_ui_spring_api_pending', apiReady: false, uiReady: true };
     }
     return { ready: false, reason: 'api_port_closed' };
   }
@@ -2215,11 +2215,26 @@ export async function waitForPreviewReady({
 
       const logReady = detectPreviewReadyFromLogs(lastLogTail, stack);
       if (logReady?.ready) {
-        // Spring: never unlock on UI-serve logs alone — wait until API TCP is open.
-        if (stack === 'java-spring-react' && apiTarget && !sawApiPortOpen) {
-          // keep polling
+        // Spring UI logs unlock preview immediately; keep a short API wait first when possible.
+        if (stack === 'java-spring-react' && apiTarget && !sawApiPortOpen && logReady.apiReady !== true) {
+          const uiGraceMs = Number(process.env.PREVIEW_SPRING_UI_READY_GRACE_MS || 120_000);
+          if (Date.now() - started < uiGraceMs) {
+            // keep polling API briefly after UI appears
+          } else {
+            return {
+              ready: true,
+              reason: logReady.reason || 'log_spring_ui_api_pending',
+              logs: lastLogTail,
+              apiReady: false,
+            };
+          }
         } else {
-          return { ready: true, reason: logReady.reason, logs: lastLogTail, apiReady: sawApiPortOpen };
+          return {
+            ready: true,
+            reason: logReady.reason,
+            logs: lastLogTail,
+            apiReady: logReady.apiReady !== false && sawApiPortOpen,
+          };
         }
       }
     }
@@ -2320,9 +2335,22 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
 
   if (stack === 'java-spring-react') {
     if (/\[preview\]\s*Spring API is listening/i.test(logText)) {
-      return { ready: true, reason: 'log_spring_api_listening' };
+      return { ready: true, reason: 'log_spring_api_listening', apiReady: true };
     }
-    // UI-only serve logs must not mark Spring previews ready (API still building).
+    // UI serve / HTTP 200 unlocks Open preview; API may still be compiling.
+    if (/\[preview\]\s*serve static:/i.test(logText) && /Accepting connections|Returned\s+200/i.test(logText)) {
+      return { ready: true, reason: 'log_serve_listening', apiReady: false };
+    }
+    const lines = logText.split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (!/GET\s+\/\s*(HTTP|$)/i.test(line) && !/\bGET\s+\/\s*$/.test(line.trim())) continue;
+      for (let j = i; j < Math.min(i + 4, lines.length); j += 1) {
+        if (/Returned\s+200/i.test(lines[j])) {
+          return { ready: true, reason: 'log_http_200', apiReady: false };
+        }
+      }
+    }
     return null;
   }
 

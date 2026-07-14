@@ -1149,11 +1149,35 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
           });
           session.previewAppReady = probe.ready;
           session.previewAppReadyReason = probe.reason;
-          session.previewApiReady = probe.apiReady !== false;
+          session.previewApiReady = probe.apiReady === true;
         } else {
           session.previewAppReady = false;
           session.previewAppReadyReason = 'api_port_closed';
           session.previewApiReady = false;
+        }
+
+        // Spring: if UI responds while readiness job is still waiting on Maven, unlock teachers now.
+        if (
+          session.status === 'starting' &&
+          session.previewAppReady &&
+          running &&
+          stack === 'java-spring-react'
+        ) {
+          session.status = 'running';
+          const alreadyNoted = (session.logs || []).some(
+            (l) => typeof l.message === 'string' && l.message.includes('Preview UI ready')
+          );
+          if (!alreadyNoted) {
+            appendLog(
+              session,
+              'info',
+              session.previewApiReady
+                ? `Preview ready (UI + Spring API) at ${session.previewUrl}.`
+                : `Preview UI ready at ${session.previewUrl}. Spring API on :${apiPort} may still be starting — login can fail until it listens.`
+            );
+          }
+          await schedulePreviewTtl(session);
+          await session.save();
         }
       } else {
         session.previewAppReady = false;

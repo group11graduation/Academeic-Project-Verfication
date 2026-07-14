@@ -52,6 +52,16 @@ function isPreviewOpenReady(sess) {
     if (sess?.previewAppReady === true) {
         return sess?.status === 'running' || sess?.status === 'starting';
     }
+    // Spring UI often serves 200s while API/Maven is still starting — unlock from live logs.
+    if (
+        sess?.previewStack === 'java-spring-react' &&
+        (sess?.status === 'running' || sess?.status === 'starting') &&
+        sess?.previewUrl &&
+        sess?.portReachable !== false &&
+        /Returned\s+200/i.test(String(sess?.liveContainerLog || ''))
+    ) {
+        return true;
+    }
     return sess?.status === 'running' && sess?.previewAppReady === true;
 }
 
