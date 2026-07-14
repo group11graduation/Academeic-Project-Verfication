@@ -88,6 +88,36 @@ find_bootable_jar() {
   echo "$jar"
 }
 
+# Fat jars must include H2 when we force SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.h2.Driver.
+jar_includes_h2() {
+  jar_file="$1"
+  [ -f "$jar_file" ] || return 1
+  if command -v jar >/dev/null 2>&1; then
+    jar tf "$jar_file" 2>/dev/null | grep -qiE 'BOOT-INF/lib/h2-|org/h2/Driver\.class' && return 0
+  fi
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -l "$jar_file" 2>/dev/null | grep -qiE 'BOOT-INF/lib/h2-|org/h2/Driver' && return 0
+  fi
+  return 1
+}
+
+maven_h2_in_local_repo() {
+  [ -d "$HOME/.m2/repository/com/h2database/h2" ]
+}
+
+# Prefer online Maven when H2 was just injected or is missing from the local cache.
+maven_offline_flag() {
+  if [ "${PREVIEW_FORCE_MAVEN_ONLINE:-}" = "1" ]; then
+    echo ""
+    return 0
+  fi
+  if [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ] && maven_h2_in_local_repo; then
+    echo "-o"
+    return 0
+  fi
+  echo ""
+}
+
 # Insert a Maven dependency if missing. Inserts before the LAST </dependencies>
 # (project deps usually follow <dependencyManagement>), or adds a fresh
 # <dependencies> block before </project> when none exist.
@@ -239,16 +269,17 @@ package_spring_jar() {
   ensure_h2_dependency_in_pom ./pom.xml
   case $? in
     2)
-      # Old jars may lack H2 on the classpath — force a fresh package.
       rm -f target/*.jar 2>/dev/null || true
+      export PREVIEW_FORCE_MAVEN_ONLINE=1
       ;;
   esac
 
   build_flags="-q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17"
-  offline=""
-  if [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
-    offline="-o"
+  offline="$(maven_offline_flag)"
+  if [ -n "$offline" ]; then
     echo "[preview] Maven offline mode (using cached repo)…"
+  else
+    echo "[preview] Maven online mode (ensure H2 and deps can download)…"
   fi
 
   if [ -f ./mvnw ]; then
@@ -283,11 +314,19 @@ start_spring_backend_async() {
   case $? in
     2)
       rm -f target/*.jar 2>/dev/null || true
+      export PREVIEW_FORCE_MAVEN_ONLINE=1
       echo "[preview] cleared target/*.jar so Maven rebuilds with H2" >> /tmp/preview-spring.log
       ;;
   esac
 
   jar_path="$(find_bootable_jar)"
+  if [ -n "$jar_path" ] && ! jar_includes_h2 "$jar_path"; then
+    echo "[preview] cached jar $jar_path is missing H2 driver — discarding (would crash with Cannot load driver class)" | tee -a /tmp/preview-spring.log
+    rm -f target/*.jar 2>/dev/null || true
+    jar_path=""
+    export PREVIEW_FORCE_MAVEN_ONLINE=1
+  fi
+
   port_sys="$(spring_java_port_flags)"
   boot_args="$(spring_boot_args)"
 
@@ -298,7 +337,16 @@ start_spring_backend_async() {
     nohup java ${port_sys} -jar "$jar_path" ${boot_args} >> /tmp/preview-spring.log 2>&1 &
     SPRING_BG_PID=$!
     echo "[preview] Spring PID ${SPRING_BG_PID}; tail /tmp/preview-spring.log for output"
-    return 0
+    sleep 6
+    if ! kill -0 "$SPRING_BG_PID" 2>/dev/null && ! tcp_port_open "$API_PORT"; then
+      echo "[preview] reused jar exited quickly — will rebuild with Maven" | tee -a /tmp/preview-spring.log
+      diagnose_spring_startup_failures /tmp/preview-spring.log | tee -a /tmp/preview-spring.log
+      rm -f target/*.jar 2>/dev/null || true
+      jar_path=""
+      export PREVIEW_FORCE_MAVEN_ONLINE=1
+    else
+      return 0
+    fi
   fi
 
   if [ -f ./gradlew ]; then
@@ -315,13 +363,25 @@ start_spring_backend_async() {
     return 1
   fi
 
-  # Package first, then run the JAR — fast subsequent starts (target/*.jar reused).
-  # Helpers are inlined because functions are not available inside `sh -c`.
+  # Package first, then run the JAR — only reuse jars that include H2.
   nohup sh -c '
     set +e
     cd "'"$ROOT/$spring_rel"'" || exit 1
     API_PORT="'"$API_PORT"'"
     PREVIEW_WORKSPACE_CACHED="'"$PREVIEW_WORKSPACE_CACHED"'"
+    PREVIEW_FORCE_MAVEN_ONLINE="'"${PREVIEW_FORCE_MAVEN_ONLINE:-}"'"
+
+    jar_includes_h2() {
+      jar_file="$1"
+      [ -f "$jar_file" ] || return 1
+      if command -v jar >/dev/null 2>&1; then
+        jar tf "$jar_file" 2>/dev/null | grep -qiE "BOOT-INF/lib/h2-|org/h2/Driver\\.class" && return 0
+      fi
+      if command -v unzip >/dev/null 2>&1; then
+        unzip -l "$jar_file" 2>/dev/null | grep -qiE "BOOT-INF/lib/h2-|org/h2/Driver" && return 0
+      fi
+      return 1
+    }
 
     ensure_pom_dependency() {
       group_id="$1"
@@ -370,18 +430,23 @@ start_spring_backend_async() {
     h2_rc=$?
     if [ "$h2_rc" -eq 2 ]; then
       rm -f target/*.jar 2>/dev/null || true
+      PREVIEW_FORCE_MAVEN_ONLINE=1
+    fi
+
+    offline=""
+    if [ "$PREVIEW_FORCE_MAVEN_ONLINE" != "1" ] && [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ] && [ -d "$HOME/.m2/repository/com/h2database/h2" ]; then
+      offline="-o"
+      echo "[preview] Maven offline mode (H2 already cached)" >> /tmp/preview-spring.log
+    else
+      echo "[preview] Maven online mode (download H2 if needed)" >> /tmp/preview-spring.log
     fi
 
     if [ -f ./mvnw ]; then
       chmod +x ./mvnw
-      offline=""
-      if [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then offline="-o"; fi
       echo "[preview] ./mvnw package…" >> /tmp/preview-spring.log
       ./mvnw $offline -q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17 package >> /tmp/preview-spring.log 2>&1
       rc=$?
     elif [ -f pom.xml ]; then
-      offline=""
-      if [ -d "$HOME/.m2/repository" ] && [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then offline="-o"; fi
       echo "[preview] mvn package…" >> /tmp/preview-spring.log
       mvn $offline -q -DskipTests -Dmaven.test.skip=true -Dmaven.compiler.source=17 -Dmaven.compiler.target=17 -Dmaven.compiler.release=17 package >> /tmp/preview-spring.log 2>&1
       rc=$?
@@ -396,10 +461,14 @@ start_spring_backend_async() {
       if [ -f "$candidate" ]; then jar="$candidate"; break; fi
     done
     if [ "$rc" -eq 0 ] && [ -n "$jar" ]; then
-      echo "[preview] Spring jar built: $jar — starting with -Dserver.port=${API_PORT}" >> /tmp/preview-spring.log
-      exec java -Dserver.port="$API_PORT" -jar "$jar" --spring.profiles.active=preview --server.port="$API_PORT"
+      if ! jar_includes_h2 "$jar"; then
+        echo "[preview] ERROR: packaged jar still missing H2 — falling back to spring-boot:run" >> /tmp/preview-spring.log
+      else
+        echo "[preview] Spring jar built: $jar — starting with -Dserver.port=${API_PORT}" >> /tmp/preview-spring.log
+        exec java -Dserver.port="$API_PORT" -jar "$jar" --spring.profiles.active=preview --server.port="$API_PORT"
+      fi
     fi
-    echo "[preview] mvn package failed or no jar — falling back to spring-boot:run" >> /tmp/preview-spring.log
+    echo "[preview] mvn package failed or no H2 jar — falling back to spring-boot:run" >> /tmp/preview-spring.log
     jvm_args="-Dserver.port=${API_PORT}"
     run_args="--spring.profiles.active=preview --server.port=${API_PORT}"
     if [ -f ./mvnw ]; then

@@ -1603,9 +1603,7 @@ const TeacherProposalStudentDetail = () => {
                                                         sess.apiPortReachable === false && (
                                                             <span className="text-sm font-bold text-rose-700">
                                                                 {sess.previewStack === 'java-spring-react'
-                                                                    ? sess.previewWorkspaceCached
-                                                                      ? `Spring API on :${sess.previewApiHostPort} starting — cached build (usually faster).`
-                                                                      : `Spring API on :${sess.previewApiHostPort} still starting — Maven may take several minutes on first preview.`
+                                                                    ? `Spring API on :${sess.previewApiHostPort} is not ready — login will fail until it listens. Wait for Maven (first start) or Stop + Start preview so H2 is rebuilt into the jar. Check session logs for DIAGNOSIS.`
                                                                     : `Student API on :${sess.previewApiHostPort} not ready — wait or check MongoDB.`}
                                                             </span>
                                                         )}

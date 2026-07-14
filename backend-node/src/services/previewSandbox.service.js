@@ -1179,6 +1179,90 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
           await schedulePreviewTtl(session);
           await session.save();
         }
+
+        // Spring: API down for a while → pull diagnosis once so teachers see why login fails.
+        if (
+          stack === 'java-spring-react' &&
+          running &&
+          session.previewAppReady &&
+          !session.previewApiReady &&
+          apiPort > 0
+        ) {
+          const alreadyDiag = (session.logs || []).some(
+            (l) => typeof l.message === 'string' && l.message.includes('[preview] DIAGNOSIS:')
+          );
+          const startedMs = session.startedAt ? new Date(session.startedAt).getTime() : 0;
+          const waitMs = Number(process.env.PREVIEW_SPRING_DIAGNOSE_AFTER_MS || 90_000);
+          if (!alreadyDiag && startedMs > 0 && Date.now() - startedMs > waitMs) {
+            const springTail = await dockerOrchestrator
+              .execInPreviewContainer(
+                dockerOrchestrator.containerNameFor(sessionId.toString()),
+                'tail -n 80 /tmp/preview-spring.log 2>/dev/null; echo "---"; grep -E "DIAGNOSIS:|Cannot load driver|APPLICATION FAILED|COMPILATION ERROR|Could not resolve placeholder|Address already in use|Failed to configure a DataSource" /tmp/preview-spring.log 2>/dev/null | tail -n 20 || true',
+                { timeoutMs: 20_000 }
+              )
+              .catch(() => '');
+            if (springTail?.trim()) {
+              appendLog(
+                session,
+                'warn',
+                `Spring API on :${apiPort} is not listening — login will fail until it starts. Build/runtime log:\n${springTail.trim().slice(-2500)}`
+              );
+              if (/Cannot load driver class/i.test(springTail)) {
+                appendLog(
+                  session,
+                  'warn',
+                  '[preview] DIAGNOSIS: Missing JDBC driver (often H2). Stop preview and Start again so the platform rebuilds the jar with H2.'
+                );
+              } else if (/Could not resolve placeholder/i.test(springTail)) {
+                appendLog(
+                  session,
+                  'warn',
+                  '[preview] DIAGNOSIS: Student project is missing a required config value (JWT secret / env placeholder). That is a project issue, not a preview-platform bug.'
+                );
+              } else if (/APPLICATION FAILED TO START|Failed to configure a DataSource/i.test(springTail)) {
+                appendLog(
+                  session,
+                  'warn',
+                  '[preview] DIAGNOSIS: Spring Boot failed to start. See the Spring build log above.'
+                );
+              } else {
+                appendLog(
+                  session,
+                  'warn',
+                  '[preview] DIAGNOSIS: Spring API still not reachable. Wait for Maven on first start, or Stop and Start preview again.'
+                );
+              }
+              await session.save();
+            }
+          }
+        }
+
+        // Spring: API came up later — verify login once.
+        if (
+          stack === 'java-spring-react' &&
+          running &&
+          session.previewApiReady &&
+          session.previewLoginEmail &&
+          session.previewLoginPassword &&
+          !(session.logs || []).some(
+            (l) => typeof l.message === 'string' && l.message.includes('Login verified')
+          )
+        ) {
+          const loginCheck = await previewLoginVerify
+            .tryPreviewLogin({
+              apiHostPort: apiPort,
+              email: session.previewLoginEmail,
+              password: session.previewLoginPassword,
+              identifierType: session.previewLoginIdentifierType || 'username',
+              probeHost: getPreviewProbeHost(),
+              loginPaths: ['/auth/login', '/api/auth/login', '/api/login', '/login'],
+            })
+            .catch(() => null);
+          if (loginCheck?.ok) {
+            appendLog(session, 'info', `Login verified at ${loginCheck.url}`);
+            await session.save();
+          }
+        }
       } else {
         session.previewAppReady = false;
         session.previewAppReadyReason = 'port_closed';
