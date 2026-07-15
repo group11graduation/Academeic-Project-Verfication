@@ -413,6 +413,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
             identifierType: session.previewLoginIdentifierType,
             loginPaths,
             fallbackCredentials,
+            stack: deployResult.stack || session.previewStack || 'node-js',
           });
           if (loginCheck.ok) {
             appendLog(session, 'info', loginCheck.message);

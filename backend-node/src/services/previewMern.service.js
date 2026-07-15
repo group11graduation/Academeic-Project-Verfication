@@ -50,6 +50,18 @@ const API_URL_LITERALS = [
 /** Any localhost/127.0.0.1 dev API port baked into student source or bundles */
 const LOCALHOST_DEV_ORIGIN_RE = /https?:\/\/(localhost|127\.0\.0\.1):\d+/gi;
 
+/** Same public preview host with a different allocated port (stale cached React builds). */
+function publicHostPortOriginRe(targetApiUrl) {
+  try {
+    const u = new URL(String(targetApiUrl));
+    if (!u.hostname || u.hostname === 'localhost' || u.hostname === '127.0.0.1') return null;
+    const host = u.hostname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`https?:\\/\\/${host}:\\d+`, 'gi');
+  } catch {
+    return null;
+  }
+}
+
 function replaceDevApiOrigins(content, targetApiUrl) {
   const toUrl = String(targetApiUrl || '').replace(/\/$/, '');
   if (!toUrl) return { content, changed: false };
@@ -65,6 +77,13 @@ function replaceDevApiOrigins(content, targetApiUrl) {
     changed = true;
     return toUrl;
   });
+  const publicRe = publicHostPortOriginRe(toUrl);
+  if (publicRe) {
+    next = next.replace(publicRe, () => {
+      changed = true;
+      return toUrl;
+    });
+  }
   return { content: next, changed };
 }
 

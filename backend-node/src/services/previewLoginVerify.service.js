@@ -15,8 +15,11 @@ function loginBodies({ email, password, identifierType }) {
     { username: email, password },
     { identifier: email, password },
   ];
-  if (identifierType === 'username' && email.includes('@')) {
-    bodies.unshift({ username: email.split('@')[0], password });
+  if (identifierType === 'username') {
+    bodies.unshift({ username: email, password });
+    if (email.includes('@')) {
+      bodies.unshift({ username: email.split('@')[0], password });
+    }
   }
   return bodies;
 }
@@ -114,7 +117,9 @@ export function buildFallbackPreviewCredentials(discovered = {}) {
 }
 
 /**
- * After MERN preview is up, verify teacher login works; re-seed admin and retry once on 401.
+ * After preview is up, verify teacher login works.
+ * For Express/MERN: re-seed admin via /preview-seed-admin.js and retry once on 401/403.
+ * For Spring Boot: never run the Node mongoose seeder (script is not in the Spring image).
  */
 export async function verifyAndFixMernPreviewLogin({
   containerName,
@@ -125,9 +130,11 @@ export async function verifyAndFixMernPreviewLogin({
   identifierType,
   loginPaths = [],
   fallbackCredentials = [],
+  stack = 'node-js',
 } = {}) {
   const probeHost = process.env.PREVIEW_PROBE_HOST || '127.0.0.1';
   const paths = mergeLoginPaths(loginPaths);
+  const isSpring = stack === 'java-spring-react';
 
   let attempt = await tryPreviewLogin({
     apiHostPort,
@@ -163,6 +170,31 @@ export async function verifyAndFixMernPreviewLogin({
         attempt.reason === 'login_endpoint_not_found'
           ? 'Could not find a working login API route on the student backend.'
           : `Login check failed (${attempt.reason || 'unknown'}).`,
+      attempt,
+    };
+  }
+
+  // Spring H2 seeding is done by ScholarVerifyPreviewSeed.java at boot — not Node mongoose seed.
+  if (isSpring) {
+    const fallback = await tryFallbackLogins({
+      apiHostPort,
+      identifierType,
+      probeHost,
+      loginPaths: paths,
+      fallbackCredentials,
+      skipKeys: new Set([`${email}:${password}`]),
+    });
+    if (fallback.ok) {
+      return {
+        ok: true,
+        message: `Login verified with project credentials (${fallback.label}) at ${fallback.attempt.url}`,
+        attempt: fallback.attempt,
+        workingCredentials: { email: fallback.email, password: fallback.password },
+      };
+    }
+    return {
+      ok: false,
+      message: `Preview UI is up but Spring login returned ${attempt.status || 401} (invalid username/password). Preview seeds previewadmin into H2 when UserService hooks are detected — check /tmp/preview-spring.log if login still fails.`,
       attempt,
     };
   }

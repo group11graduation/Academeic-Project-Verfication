@@ -101,6 +101,23 @@ jar_includes_h2() {
   return 1
 }
 
+# Host injects ScholarVerifyPreviewSeed.java; a jar packaged before that inject has no previewadmin.
+jar_includes_preview_seed() {
+  jar_file="$1"
+  [ -f "$jar_file" ] || return 1
+  if command -v jar >/dev/null 2>&1; then
+    jar tf "$jar_file" 2>/dev/null | grep -q 'ScholarVerifyPreviewSeed' && return 0
+  fi
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -l "$jar_file" 2>/dev/null | grep -q 'ScholarVerifyPreviewSeed' && return 0
+  fi
+  return 1
+}
+
+preview_seed_java_present() {
+  find src -name 'ScholarVerifyPreviewSeed.java' 2>/dev/null | grep -q .
+}
+
 maven_h2_in_local_repo() {
   [ -d "$HOME/.m2/repository/com/h2database/h2" ]
 }
@@ -334,6 +351,12 @@ start_spring_backend_async() {
     jar_path=""
     export PREVIEW_FORCE_MAVEN_ONLINE=1
   fi
+  if [ -n "$jar_path" ] && preview_seed_java_present && ! jar_includes_preview_seed "$jar_path"; then
+    echo "[preview] cached jar $jar_path is missing ScholarVerifyPreviewSeed — discarding so Maven rebuilds with previewadmin" | tee -a /tmp/preview-spring.log
+    rm -f target/*.jar 2>/dev/null || true
+    jar_path=""
+    export PREVIEW_FORCE_MAVEN_ONLINE=1
+  fi
 
   port_sys="$(spring_java_port_flags)"
   boot_args="$(spring_boot_args)"
@@ -511,6 +534,11 @@ patch_frontend_api_urls() {
   [ -n "$api_url" ] || return 0
   fe_rel="${FRONTEND_SUBDIR:-.}"
   echo "[preview] patching frontend source API base -> ${api_url}"
+  public_host="$(printf '%s' "$api_url" | sed -E 's|^https?://||; s|:[0-9]+$||; s|/.*||')"
+  host_esc=""
+  if [ -n "$public_host" ] && [ "$public_host" != "localhost" ] && [ "$public_host" != "127.0.0.1" ]; then
+    host_esc="$(printf '%s' "$public_host" | sed 's/\./\\./g')"
+  fi
   find "$ROOT/$fe_rel" -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.env*' \) \
     ! -path '*/node_modules/*' ! -path '*/build/*' ! -path '*/dist/*' 2>/dev/null | while read -r f; do
       sed -i "s|http://localhost:8000|${api_url}|g" "$f" 2>/dev/null || true
@@ -519,6 +547,10 @@ patch_frontend_api_urls() {
       sed -i "s|http://127.0.0.1:8080|${api_url}|g" "$f" 2>/dev/null || true
       sed -i "s|http://localhost:5000|${api_url}|g" "$f" 2>/dev/null || true
       sed -i "s|http://127.0.0.1:5000|${api_url}|g" "$f" 2>/dev/null || true
+      if [ -n "$host_esc" ]; then
+        # Cached workspace may still point at a previous preview API port on this host.
+        sed -i -E "s|https?://${host_esc}:[0-9]+|${api_url}|g" "$f" 2>/dev/null || true
+      fi
     done
 }
 
@@ -530,6 +562,11 @@ patch_built_bundle_urls() {
   [ -n "$api_url" ] || return 0
   fe_rel="${FRONTEND_SUBDIR:-.}"
   echo "[preview] patching built frontend API base -> ${api_url}"
+  public_host="$(printf '%s' "$api_url" | sed -E 's|^https?://||; s|:[0-9]+$||; s|/.*||')"
+  host_esc=""
+  if [ -n "$public_host" ] && [ "$public_host" != "localhost" ] && [ "$public_host" != "127.0.0.1" ]; then
+    host_esc="$(printf '%s' "$public_host" | sed 's/\./\\./g')"
+  fi
   for dir in build dist; do
     root="$ROOT/$fe_rel/$dir"
     [ -d "$root" ] || continue
@@ -537,6 +574,10 @@ patch_built_bundle_urls() {
       sed -i "s|http://localhost:[0-9][0-9]*|${api_url}|g" "$f" 2>/dev/null || true
       sed -i "s|http://127.0.0.1:[0-9][0-9]*|${api_url}|g" "$f" 2>/dev/null || true
       sed -i "s|https://localhost:[0-9][0-9]*|${api_url}|g" "$f" 2>/dev/null || true
+      if [ -n "$host_esc" ]; then
+        # Rewrite stale public API ports from prior sessions (e.g. :8311 → current :8867).
+        sed -i -E "s|https?://${host_esc}:[0-9]+|${api_url}|g" "$f" 2>/dev/null || true
+      fi
     done
   done
 }
