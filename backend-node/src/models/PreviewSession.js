@@ -31,6 +31,8 @@ const previewSessionSchema = new mongoose.Schema(
     previewStackLabel: { type: String, default: '' },
     /** Demo admin login for teacher review inside student app */
     previewLoginEmail: { type: String, default: '' },
+    /** Username alternate when the student app accepts username (or email forms that also seed username). */
+    previewLoginUsername: { type: String, default: '' },
     previewLoginPassword: { type: String, default: '' },
     /** email | username | id | student_id | employee_id | identifier */
     previewLoginIdentifierType: { type: String, default: 'email' },

@@ -69,6 +69,13 @@ function loadPreviewEnv() {
     )
       .toLowerCase()
       .trim();
+    const seedUsername = String(
+      process.env.PREVIEW_SEED_USERNAME ||
+        process.env.ADMIN_USERNAME ||
+        process.env.LOGIN_USERNAME ||
+        email.split('@')[0] ||
+        'previewadmin'
+    ).trim();
     const rawPass = String(
       process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!'
     );
@@ -144,11 +151,11 @@ function loadPreviewEnv() {
         try {
           // eslint-disable-next-line no-await-in-loop
           await db.collection(collName).updateOne(
-            { $or: [{ email }, { username: email }] },
+            { $or: [{ email }, { username: email }, { username: seedUsername }] },
             {
               $set: {
                 email,
-                username: email.split('@')[0] || 'previewadmin',
+                username: seedUsername || email.split('@')[0] || 'previewadmin',
                 password: hashed,
                 name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
                 role: 'admin',
@@ -323,7 +330,7 @@ function loadPreviewEnv() {
     console.log('[preview-seed] connected to mongo');
 
     const role = pickDefaultRole();
-    const lookup = { $or: [{ email }, { username: email }] };
+    const lookup = { $or: [{ email }, { username: email }, { username: seedUsername }] };
     let user = await findUserWithSecrets(lookup);
     if (!user) {
       const doc = applyRequiredFields({
@@ -332,7 +339,7 @@ function loadPreviewEnv() {
         role,
       });
       if (User.schema?.paths?.username) {
-        doc.username = email.split('@')[0] || 'previewadmin';
+        doc.username = seedUsername || email.split('@')[0] || 'previewadmin';
       }
       doc[passwordFieldName()] = rawPass;
       user = new User(doc);
@@ -376,11 +383,11 @@ function loadPreviewEnv() {
         try {
           // eslint-disable-next-line no-await-in-loop
           await db.collection(collName).updateOne(
-            { $or: [{ email }, { username: email }] },
+            { $or: [{ email }, { username: email }, { username: seedUsername }] },
             {
               $set: {
                 email,
-                username: email.split('@')[0] || 'previewadmin',
+                username: seedUsername || email.split('@')[0] || 'previewadmin',
                 password: hashed,
                 name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
                 role: 'admin',

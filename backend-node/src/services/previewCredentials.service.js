@@ -142,11 +142,54 @@ export async function discoverSeedScriptCredentials(extractDir) {
 }
 
 const LOGIN_FORM_FIELD_RULES = [
-  { type: 'student_id', label: 'Student ID', patterns: [/student[_-]?id/i, /student[_-]?number/i, /matric/i] },
-  { type: 'employee_id', label: 'Employee ID', patterns: [/employee[_-]?id/i, /staff[_-]?id/i, /emp[_-]?id/i] },
-  { type: 'username', label: 'Username', patterns: [/username/i, /\buser_name\b/i, /\blogin_name\b/i] },
-  { type: 'email', label: 'Email', patterns: [/type=["']email["']/i, /\bemail\b/i] },
-  { type: 'id', label: 'ID', patterns: [/name=["']id["']/i, /\bidentifier\b/i, /\buser_id\b/i] },
+  // Strong HTML/JS signals first — weak /username/i must not beat type="email".
+  {
+    type: 'email',
+    label: 'Email',
+    score: 100,
+    patterns: [
+      /type\s*=\s*["']email["']/i,
+      /name\s*=\s*["']email["']/i,
+      /htmlFor\s*=\s*["']email["']/i,
+      /id\s*=\s*["']email["']/i,
+      /\$_POST\[['"]email['"]\]/i,
+      /placeholder\s*=\s*["'][^"']*email[^"']*["']/i,
+    ],
+  },
+  {
+    type: 'username',
+    label: 'Username',
+    score: 90,
+    patterns: [
+      /type\s*=\s*["']text["'][^>]*(name|id)\s*=\s*["']username["']/i,
+      /name\s*=\s*["']username["']/i,
+      /htmlFor\s*=\s*["']username["']/i,
+      /id\s*=\s*["']username["']/i,
+      /\$_POST\[['"]username['"]\]/i,
+      /placeholder\s*=\s*["'][^"']*username[^"']*["']/i,
+    ],
+  },
+  {
+    type: 'student_id',
+    label: 'Student ID',
+    score: 85,
+    patterns: [/name\s*=\s*["']student[_-]?id["']/i, /student[_-]?id/i, /matric/i],
+  },
+  {
+    type: 'employee_id',
+    label: 'Employee ID',
+    score: 85,
+    patterns: [/name\s*=\s*["']employee[_-]?id["']/i, /employee[_-]?id/i, /staff[_-]?id/i],
+  },
+  {
+    type: 'id',
+    label: 'ID',
+    score: 40,
+    patterns: [/name\s*=\s*["']id["']/i, /\bidentifier\b/i],
+  },
+  // Weak fallbacks (last resort — many apps mention "username" in copy without using it)
+  { type: 'email', label: 'Email', score: 20, patterns: [/\bemail address\b/i, /\bemail\b/i] },
+  { type: 'username', label: 'Username', score: 15, patterns: [/\busername\b/i] },
 ];
 
 function parseEnvFile(content) {
@@ -203,17 +246,21 @@ function pickFromEnvMap(envMap) {
 
 function parseReadmeHints(text) {
   const emailMatch = text.match(
-    /(?:admin|default|demo|test)\s*(?:user|account|login)?\s*(?:email)?\s*[:=]\s*([^\s<>"']+@[^\s<>"']+)/i
+    /(?:admin|default|demo|test|staff)\s*(?:user|account|login)?\s*(?:email)?\s*[:=]\s*([^\s<>"']+@[^\s<>"']+)/i
   );
   const passMatch = text.match(
-    /(?:admin|default|demo|test)\s*(?:user|account|login)?\s*password\s*[:=]\s*([^\s<>"'\n]+)/i
+    /(?:admin|default|demo|test|staff)\s*(?:user|account|login)?\s*password\s*[:=]\s*([^\s<>"'\n]+)/i
   );
   const userPassMatch = text.match(
     /(?:User|Username|Login)\s*[:=]\s*['"]?([^\s<>"',]+)['"]?[^\n]{0,50}(?:Pass|Password)\s*[:=]\s*['"]?([^\s<>"'\n]+)/i
   );
+  // UI callouts: "admin@syada.org / 123456" or "email / password"
+  const slashCredMatch = text.match(
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*\/\s*([^\s<>"'`]{4,64})/
+  );
   return {
-    email: emailMatch?.[1]?.trim() || '',
-    password: passMatch?.[1]?.trim() || userPassMatch?.[2]?.trim() || '',
+    email: emailMatch?.[1]?.trim() || slashCredMatch?.[1]?.trim() || '',
+    password: passMatch?.[1]?.trim() || userPassMatch?.[2]?.trim() || slashCredMatch?.[2]?.trim() || '',
     username: userPassMatch?.[1]?.trim() || '',
   };
 }
@@ -314,29 +361,37 @@ async function collectLoginCandidateFiles(extractDir, loginPath = '') {
 
 /**
  * Detect whether the student login form expects email, username, student ID, etc.
+ * Scores strong signals (type="email", name="username") above weak text mentions.
  */
 export async function discoverProjectLoginFormField(extractDir, loginPath = '') {
   const files = await collectLoginCandidateFiles(extractDir, loginPath);
+  let best = { identifierType: 'email', identifierLabel: 'Email', score: 0 };
+
   for (const filePath of files) {
+    let content = '';
     try {
-      const content = await fs.readFile(filePath, 'utf8');
-      for (const rule of LOGIN_FORM_FIELD_RULES) {
-        if (rule.patterns.some((pattern) => pattern.test(content))) {
-          return { identifierType: rule.type, identifierLabel: rule.label };
-        }
-      }
-      if (/\$_POST\[['"]username['"]\]/i.test(content) || /name=["']username["']/i.test(content)) {
-        return { identifierType: 'username', identifierLabel: 'Username' };
-      }
-      if (/\$_POST\[['"]email['"]\]/i.test(content) || /name=["']email["']/i.test(content)) {
-        return { identifierType: 'email', identifierLabel: 'Email' };
-      }
+      content = await fs.readFile(filePath, 'utf8');
     } catch {
-      /* ignore */
+      continue;
+    }
+    for (const rule of LOGIN_FORM_FIELD_RULES) {
+      if (!rule.patterns.some((pattern) => pattern.test(content))) continue;
+      if (rule.score > best.score) {
+        best = {
+          identifierType: rule.type,
+          identifierLabel: rule.label,
+          score: rule.score,
+        };
+      }
     }
   }
-  return { identifierType: 'email', identifierLabel: 'Email' };
+
+  return {
+    identifierType: best.identifierType,
+    identifierLabel: best.identifierLabel,
+  };
 }
+
 
 function isExplicitTeacherOverride(teacherEmail, teacherPassword) {
   const defaults = platformDefaultLogin();
@@ -445,6 +500,26 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
 
   const formField = await discoverProjectLoginFormField(extractDir, loginPath);
 
+  // Pull email/password callouts from login UI source (e.g. "admin@syada.org / 123456").
+  if (!email || !password) {
+    const loginFiles = await collectLoginCandidateFiles(extractDir, loginPath);
+    for (const filePath of loginFiles.slice(0, 12)) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const text = await fs.readFile(filePath, 'utf8');
+        const picked = parseReadmeHints(text);
+        if (picked.email && !email) email = picked.email;
+        if (picked.username && !username) username = picked.username;
+        if (picked.password && !password) password = picked.password;
+        if ((picked.email || picked.password) && !hint) {
+          hint = `Found in ${path.basename(filePath)}`;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   return {
     email,
     username,
@@ -483,46 +558,72 @@ export function resolvePreviewLoginCredentials({
     };
   }
 
-  let identifier = pickIdentifierForForm(discovered, formField);
   let password = discovered.password || '';
   let source = 'platform_default';
   let hint = discovered.hint || '';
 
+  // Always prepare BOTH email and username so teachers / seeds work for either form type.
+  let email =
+    discovered.email ||
+    discovered.seedScriptEmail ||
+    (/@/.test(String(discovered.username || '')) ? discovered.username : '') ||
+    '';
+  let username =
+    discovered.username ||
+    discovered.phpUsername ||
+    discovered.seedScriptUsername ||
+    '';
+
   if (teacherOverride) {
-    identifier = String(teacherEmail || identifier || defaults.email).trim();
+    const teacherId = String(teacherEmail || '').trim();
+    if (teacherId.includes('@')) email = teacherId;
+    else if (teacherId) username = teacherId;
     password = String(teacherPassword || password || defaults.password).trim();
     source = 'teacher_provided';
   } else if (springAdmin?.username && springAdmin?.password) {
-    identifier = springAdmin.username;
+    username = springAdmin.username;
     password = springAdmin.password;
     source = 'project_spring_seed';
     hint = hint || springAdmin.hint || 'Preview admin auto-seeded in Spring H2 database on first start.';
-  } else if (identifier && password) {
+  } else if ((email || username) && password) {
     source = discovered.phpUsername ? 'project_php_setup' : 'project_files';
-  } else if (identifier || password) {
-    identifier =
-      identifier ||
-      (formField.identifierType === 'username' ? defaults.username : defaults.email);
+  } else if (email || username || password) {
     password = password || defaults.password;
     source = discovered.phpUsername ? 'project_php_setup' : 'project_files';
     hint = hint || 'Partial credentials found in project files; fill in missing value if login fails.';
   } else {
-    identifier = formField.identifierType === 'username' ? defaults.username : defaults.email;
     password = defaults.password;
     hint =
       hint ||
-      (formField.identifierType === 'username'
-        ? 'Default preview username (set PREVIEW_DEFAULT_ADMIN_USERNAME in server .env to change).'
-        : 'Default preview login (set PREVIEW_DEFAULT_ADMIN_* in server .env to change platform default).');
+      'Uses preview defaults for both email and username — enter whichever the student login form asks for.';
   }
 
-  if (formField.identifierType === 'username' && /@/.test(identifier)) {
-    identifier = discovered.username || defaults.username;
-  } else if (formField.identifierType !== 'email' && !/@/.test(identifier)) {
-    /* keep username / student id label from discovery */
+  if (!email) email = defaults.email;
+  if (!username) username = defaults.username;
+  if (!password) password = defaults.password;
+
+  // Primary identifier follows the detected form (email input → show email first).
+  let identifier = pickIdentifierForForm({ ...discovered, email, username }, formField);
+  if (!identifier) {
+    identifier = formField.identifierType === 'username' ? username : email;
+  }
+
+  if (formField.identifierType === 'username' && /@/.test(identifier) && username) {
+    identifier = username;
   } else if (/@/.test(identifier) && formField.identifierType !== 'email' && !discovered.username) {
     formField.identifierType = 'email';
     formField.identifierLabel = 'Email';
+  }
+
+  if (!discovered.hint && source === 'platform_default') {
+    hint =
+      formField.identifierType === 'email'
+        ? `Student login expects an email. Use Email=${email}. Username=${username} is also seeded.`
+        : formField.identifierType === 'username'
+          ? `Student login expects a username. Use Username=${username}. Email=${email} is also seeded.`
+          : `Try ${formField.identifierLabel}=${identifier} on the student login page.`;
+  } else if (!hint) {
+    hint = `Preferred: ${formField.identifierLabel}=${identifier}. Email=${email}, Username=${username}.`;
   }
 
   return {
@@ -532,13 +633,24 @@ export function resolvePreviewLoginCredentials({
     identifierLabel: formField.identifierLabel,
     source,
     hint,
-    email: identifier,
+    email,
+    username,
   };
 }
 
 export function applyResolvedLoginCredentials(session, resolved) {
   if (!session || !resolved) return session;
-  session.previewLoginEmail = resolved.identifier || resolved.email || '';
+  const email = resolved.email || '';
+  const username = resolved.username || '';
+  // Store both always. previewLoginEmail keeps the real email when present;
+  // primary login value for the detected form is also reflected in identifier fields.
+  if (resolved.identifierType === 'username') {
+    session.previewLoginEmail = email || resolved.identifier || '';
+    session.previewLoginUsername = username || resolved.identifier || '';
+  } else {
+    session.previewLoginEmail = email || resolved.identifier || '';
+    session.previewLoginUsername = username || '';
+  }
   session.previewLoginPassword = resolved.password || '';
   session.previewLoginIdentifierType = resolved.identifierType || 'email';
   session.previewLoginIdentifierLabel = resolved.identifierLabel || 'Email';
@@ -573,22 +685,26 @@ export async function buildPreviewLoginCredentials({
 
 /** Env vars injected into preview containers (many student apps read different names). */
 export function buildPreviewCredentialEnvVars({ email, password, username, mongoUri = null }) {
-  const seedUsername = username || process.env.PREVIEW_DEFAULT_ADMIN_USERNAME || 'previewadmin';
+  const defaults = platformDefaultLogin();
+  const seedEmail = String(email || '').trim() || defaults.email;
+  const seedUsername = String(username || '').trim() || defaults.username;
+  const seedPassword = String(password || '').trim() || defaults.password;
   const pairs = {
-    PREVIEW_ADMIN_EMAIL: email,
-    PREVIEW_ADMIN_PASSWORD: password,
+    PREVIEW_ADMIN_EMAIL: seedEmail,
+    PREVIEW_ADMIN_PASSWORD: seedPassword,
     PREVIEW_SEED_USERNAME: seedUsername,
-    PREVIEW_SEED_PASSWORD: password,
-    ADMIN_EMAIL: email,
-    ADMIN_PASSWORD: password,
+    PREVIEW_SEED_PASSWORD: seedPassword,
+    ADMIN_EMAIL: seedEmail,
+    ADMIN_PASSWORD: seedPassword,
     ADMIN_USERNAME: seedUsername,
     LOGIN_USERNAME: seedUsername,
-    SEED_ADMIN_EMAIL: email,
-    SEED_ADMIN_PASSWORD: password,
-    DEMO_ADMIN_EMAIL: email,
-    DEMO_ADMIN_PASSWORD: password,
-    DEFAULT_ADMIN_EMAIL: email,
-    DEFAULT_ADMIN_PASSWORD: password,
+    LOGIN_EMAIL: seedEmail,
+    SEED_ADMIN_EMAIL: seedEmail,
+    SEED_ADMIN_PASSWORD: seedPassword,
+    DEMO_ADMIN_EMAIL: seedEmail,
+    DEMO_ADMIN_PASSWORD: seedPassword,
+    DEFAULT_ADMIN_EMAIL: seedEmail,
+    DEFAULT_ADMIN_PASSWORD: seedPassword,
     DEFAULT_ADMIN_USERNAME: seedUsername,
     // Common dev secrets so JWT auth can boot in sandbox
     // Standard Base64 ("preview-sandbox-jwt-secret-change-me-please") — jjwt-safe

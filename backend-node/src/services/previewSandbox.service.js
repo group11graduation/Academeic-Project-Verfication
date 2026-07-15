@@ -816,10 +816,16 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   const containerName = dockerOrchestrator.containerNameFor(session._id.toString());
   try {
     const credentialEnv = previewCredentials.buildPreviewCredentialEnvVars({
-      email: session.previewLoginEmail,
+      email:
+        session.previewLoginIdentifierType === 'email'
+          ? session.previewLoginEmail
+          : session.previewLoginEmail || process.env.PREVIEW_DEFAULT_ADMIN_EMAIL || 'admin@preview.demo',
       password: session.previewLoginPassword,
       username:
-        session.previewLoginIdentifierType === 'username' ? session.previewLoginEmail : '',
+        session.previewLoginUsername ||
+        (session.previewLoginIdentifierType === 'username' ? session.previewLoginEmail : '') ||
+        process.env.PREVIEW_DEFAULT_ADMIN_USERNAME ||
+        'previewadmin',
       mongoUri: previewMern.buildPreviewMongoUri(session._id.toString()),
     });
 

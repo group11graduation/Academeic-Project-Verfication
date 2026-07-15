@@ -1339,17 +1339,24 @@ const TeacherProposalStudentDetail = () => {
                                     const previewRunning = sess?.status === 'running';
                                     const previewStarting = sess?.status === 'starting';
                                     const previewOpenReady = isPreviewOpenReady(sess);
-                                    const displayIdentifier =
+                                    const displayEmail =
                                         previewOpenReady && (sess?.previewLoginEmail || previewAdminEmail)
                                             ? sess?.previewLoginEmail || previewAdminEmail
+                                            : '';
+                                    const displayUsername =
+                                        previewOpenReady
+                                            ? sess?.previewLoginUsername ||
+                                              (sess?.previewLoginIdentifierType === 'username'
+                                                  ? sess?.previewLoginEmail
+                                                  : '') ||
+                                              ''
                                             : '';
                                     const displayPassword =
                                         previewOpenReady && (sess?.previewLoginPassword || previewAdminPassword)
                                             ? sess?.previewLoginPassword || previewAdminPassword
                                             : '';
-                                    const identifierLabel = sess?.previewLoginIdentifierLabel || 'Email';
-                                    const identifierType =
-                                        sess?.previewLoginIdentifierType === 'email' ? 'email' : 'text';
+                                    const preferredType = sess?.previewLoginIdentifierType || 'email';
+                                    const preferredLabel = sess?.previewLoginIdentifierLabel || 'Email';
                                     const loginSource = sess?.previewLoginSource || '';
                                     const fromProject =
                                         loginSource === 'project_files' || loginSource === 'project_php_setup';
@@ -1385,38 +1392,71 @@ const TeacherProposalStudentDetail = () => {
                                         <div className="mb-4 rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-sm">
                                             <p className="text-sm font-black text-emerald-900">Preview ready — sign in to the student app</p>
                                             <p className="mt-1 mb-4 text-xs font-semibold text-slate-600">
-                                                {fromProject
-                                                    ? `Open preview, then use this ${identifierLabel.toLowerCase()} and password from the student project on the login page.`
-                                                    : `Open preview, then use this ${identifierLabel.toLowerCase()} and password on the student login page.`}
+                                                This app prefers <strong>{preferredLabel}</strong>
+                                                {preferredType === 'email'
+                                                    ? ' (type an email address on the login form).'
+                                                    : preferredType === 'username'
+                                                      ? ' (use the username field if the form asks for it).'
+                                                      : '.'}{' '}
+                                                Both email and username are shown so you can use whichever field the student form has.
                                             </p>
                                             <div className="space-y-3">
-                                                <div>
-                                                    <label
-                                                        className="text-[10px] font-black uppercase tracking-widest text-slate-500"
-                                                        htmlFor="preview-admin-identifier"
-                                                    >
-                                                        {identifierLabel}
-                                                    </label>
-                                                    <div className="mt-1 flex gap-2">
-                                                        <input
-                                                            id="preview-admin-identifier"
-                                                            type={identifierType}
-                                                            value={displayIdentifier}
-                                                            onChange={(e) => setPreviewAdminEmail(e.target.value)}
-                                                            disabled={!!previewBusyId}
-                                                            readOnly={fromProject && !!sess?.previewLoginEmail}
-                                                            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => copyText(identifierLabel, displayIdentifier)}
-                                                            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                                                            title={`Copy ${identifierLabel.toLowerCase()}`}
+                                                {displayEmail ? (
+                                                    <div>
+                                                        <label
+                                                            className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+                                                            htmlFor="preview-admin-email"
                                                         >
-                                                            <Copy className="h-4 w-4" />
-                                                        </button>
+                                                            Email{preferredType === 'email' ? ' (use this)' : ''}
+                                                        </label>
+                                                        <div className="mt-1 flex gap-2">
+                                                            <input
+                                                                id="preview-admin-email"
+                                                                type="text"
+                                                                value={displayEmail}
+                                                                onChange={(e) => setPreviewAdminEmail(e.target.value)}
+                                                                disabled={!!previewBusyId}
+                                                                readOnly={fromProject && !!sess?.previewLoginEmail}
+                                                                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyText('Email', displayEmail)}
+                                                                className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                                                title="Copy email"
+                                                            >
+                                                                <Copy className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                ) : null}
+                                                {displayUsername ? (
+                                                    <div>
+                                                        <label
+                                                            className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+                                                            htmlFor="preview-admin-username"
+                                                        >
+                                                            Username{preferredType === 'username' ? ' (use this)' : ''}
+                                                        </label>
+                                                        <div className="mt-1 flex gap-2">
+                                                            <input
+                                                                id="preview-admin-username"
+                                                                type="text"
+                                                                value={displayUsername}
+                                                                readOnly
+                                                                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => copyText('Username', displayUsername)}
+                                                                className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                                                title="Copy username"
+                                                            >
+                                                                <Copy className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : null}
                                                 <div>
                                                     <label
                                                         className="text-[10px] font-black uppercase tracking-widest text-slate-500"
