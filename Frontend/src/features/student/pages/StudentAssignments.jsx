@@ -375,11 +375,15 @@ const StudentAssignments = () => {
                                 <button
                                     type="button"
                                     onClick={() => {
+                                        if (selectedCollabKey) {
+                                            resetModuleSelection();
+                                            return;
+                                        }
                                         setSelectedCategory(null);
                                         setQuery('');
                                     }}
                                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
-                                    aria-label="Back to categories"
+                                    aria-label={selectedCollabKey ? 'Back to collab subjects' : 'Back to categories'}
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </button>
@@ -529,7 +533,8 @@ const StudentAssignments = () => {
                                         onClick={() => {
                                             setSelectedCollabKey(module.key);
                                             setSelectedSubjectId(null);
-                                            setSelectedCategory(null);
+                                            // Collab pairings are final-project only — skip the category step.
+                                            setSelectedCategory('final');
                                             setQuery('');
                                         }}
                                         className={`${Z_CARD} p-4 text-left transition hover:border-indigo-300 hover:shadow-md`}
@@ -601,7 +606,7 @@ const StudentAssignments = () => {
                                 ) : null}
                             </div>
                         ) : null}
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className={`grid grid-cols-1 gap-3 ${selectedCollabModule ? '' : 'md:grid-cols-2'}`}>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -621,23 +626,25 @@ const StudentAssignments = () => {
                                     {finalRows.length} assignments
                                 </p>
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSelectedCategory('normal');
-                                    setQuery('');
-                                }}
-                                className={`${Z_CARD} p-4 text-left transition hover:border-[#1e56e3]/30 hover:shadow-md`}
-                            >
-                                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                                    <FileText className="h-4 w-4" />
-                                </div>
-                                <h3 className="text-sm font-bold text-slate-900">Normal assignments</h3>
-                                <p className="mt-1.5 text-[12px] text-slate-600">Regular uploads for this subject.</p>
-                                <p className="mt-3 text-[10px] font-bold uppercase text-slate-500">
-                                    {normalRows.length} assignments
-                                </p>
-                            </button>
+                            {!selectedCollabModule ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedCategory('normal');
+                                        setQuery('');
+                                    }}
+                                    className={`${Z_CARD} p-4 text-left transition hover:border-[#1e56e3]/30 hover:shadow-md`}
+                                >
+                                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                                        <FileText className="h-4 w-4" />
+                                    </div>
+                                    <h3 className="text-sm font-bold text-slate-900">Normal assignments</h3>
+                                    <p className="mt-1.5 text-[12px] text-slate-600">Regular uploads for this subject.</p>
+                                    <p className="mt-3 text-[10px] font-bold uppercase text-slate-500">
+                                        {normalRows.length} assignments
+                                    </p>
+                                </button>
+                            ) : null}
                         </div>
                     </div>
                 ) : (
