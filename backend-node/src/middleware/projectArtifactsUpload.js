@@ -9,7 +9,8 @@ if (!fs.existsSync(staging)) {
   fs.mkdirSync(staging, { recursive: true });
 }
 
-const maxZipBytes = Number(process.env.MAX_PROJECT_ZIP_BYTES || 52_428_800);
+/** Default 250 MB — full student MERN/Spring ZIPs often exceed the old 50 MB cap. */
+const maxZipBytes = Number(process.env.MAX_PROJECT_ZIP_BYTES || 262_144_000);
 const maxImageBytes = Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 5_242_880);
 
 const storage = multer.diskStorage({

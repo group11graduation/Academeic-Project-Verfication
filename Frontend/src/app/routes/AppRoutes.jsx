@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminRoutes from './AdminRoutes';
 import DashboardLayout from '../../shared/layouts/DashboardLayout';
 import LoginPage from '../../features/Auth/pages/LoginPage';
+import ForgotPasswordPage from '../../features/Auth/pages/ForgotPasswordPage';
+import ResetPasswordPage from '../../features/Auth/pages/ResetPasswordPage';
 import LandingPage from '../../features/student/pages/LandingPage';
 import StudentAbout from '../../features/student/pages/StudentAbout';
 import StudentGallery from '../../features/student/pages/StudentGallery';
@@ -60,6 +62,8 @@ const AppRoutes = () => {
             <Route path="/assignments/:id" element={<StudentAssignmentDetail />} />
 
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Admin — nested layout matches pattern used in AdminRoutes (Outlet inside AdminLayout) */}
             <Route

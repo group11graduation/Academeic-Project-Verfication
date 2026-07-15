@@ -1,5 +1,10 @@
 import axios from 'axios';
 import { getApiErrorMessage } from '../shared/utils/apiErrors.js';
+import {
+  AUTH_TOKEN_KEY,
+  clearStoredAuthToken,
+  getStoredAuthToken,
+} from './authStorage';
 
 function resolveApiBase() {
   if (typeof window !== 'undefined') {
@@ -29,8 +34,8 @@ const base = resolveApiBase();
 /** Default for JSON/list requests — fail fast instead of hanging. */
 export const API_TIMEOUT_MS = 12_000;
 
-/** Used automatically for FormData / file uploads. */
-export const UPLOAD_TIMEOUT_MS = 120_000;
+/** Used automatically for FormData / file uploads (large project ZIPs can take several minutes). */
+export const UPLOAD_TIMEOUT_MS = 600_000;
 
 /** Bulk import (many bcrypt hashes + DB writes) can take several minutes. */
 export const IMPORT_TIMEOUT_MS = 300_000;
@@ -41,13 +46,8 @@ export const PROPOSAL_AI_SUBMIT_TIMEOUT_MS = 180_000;
 /** Preview start can extract ZIP, audit, and start Docker (several minutes). */
 export const PREVIEW_TIMEOUT_MS = 600_000;
 
-/** Axios instance: base URL includes `/api`; sends Bearer token from localStorage */
-export const AUTH_TOKEN_KEY = 'token';
+export { AUTH_TOKEN_KEY, clearStoredAuthToken, getStoredAuthToken };
 export const AUTH_LOGOUT_EVENT = 'auth:logout';
-
-export function clearStoredAuthToken() {
-  localStorage.removeItem(AUTH_TOKEN_KEY);
-}
 
 export const api = axios.create({
   baseURL: `${base.replace(/\/$/, '')}/api`,
@@ -56,7 +56,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = getStoredAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -74,9 +74,12 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
     const url = String(error.config?.url || '');
-    const isLoginRequest = url.includes('/auth/login');
+    const isAuthPublic =
+      url.includes('/auth/login') ||
+      url.includes('/auth/forgot-password') ||
+      url.includes('/auth/reset-password');
 
-    if (status === 401 && !isLoginRequest && localStorage.getItem(AUTH_TOKEN_KEY)) {
+    if (status === 401 && !isAuthPublic && getStoredAuthToken()) {
       clearStoredAuthToken();
       window.dispatchEvent(new Event(AUTH_LOGOUT_EVENT));
     }

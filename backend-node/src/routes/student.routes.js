@@ -8,6 +8,23 @@ import { uploadNormalAssignmentFile } from '../middleware/normalAssignmentUpload
 
 const router = Router();
 
+const PROJECT_ZIP_MAX_MB = Math.round(
+  Number(process.env.MAX_PROJECT_ZIP_BYTES || 262_144_000) / (1024 * 1024)
+);
+
+function mapMulterError(err, { projectZip = false } = {}) {
+  if (!err) return err;
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    err.status = 413;
+    err.message = projectZip
+      ? `Project ZIP is too large. Maximum allowed size is ${PROJECT_ZIP_MAX_MB} MB. Exclude node_modules, target, dist, and .git before zipping.`
+      : 'Uploaded file is too large for this endpoint.';
+  } else {
+    err.status = err.status || 400;
+  }
+  return err;
+}
+
 router.use(requireRoles('student'));
 
 router.get('/profile', student.profile);
@@ -18,10 +35,7 @@ router.post(
   '/assignments/:assignmentId/proposals/parse-file',
   (req, res, next) => {
     uploadProposalFile.single('proposalFile')(req, res, (err) => {
-      if (err) {
-        err.status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
-        return next(err);
-      }
+      if (err) return next(mapMulterError(err));
       next();
     });
   },
@@ -31,10 +45,7 @@ router.post(
   '/assignments/:assignmentId/proposals',
   (req, res, next) => {
     uploadProposalFile.single('proposalFile')(req, res, (err) => {
-      if (err) {
-        err.status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
-        return next(err);
-      }
+      if (err) return next(mapMulterError(err));
       next();
     });
   },
@@ -45,10 +56,7 @@ router.post(
   '/assignments/:assignmentId/project-code',
   (req, res, next) => {
     uploadProjectArtifacts(req, res, (err) => {
-      if (err) {
-        err.status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
-        return next(err);
-      }
+      if (err) return next(mapMulterError(err, { projectZip: true }));
       next();
     });
   },
@@ -58,10 +66,7 @@ router.post(
   '/assignments/:assignmentId/project-screenshot',
   (req, res, next) => {
     uploadProjectScreenshotOnly(req, res, (err) => {
-      if (err) {
-        err.status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
-        return next(err);
-      }
+      if (err) return next(mapMulterError(err));
       next();
     });
   },
@@ -71,10 +76,7 @@ router.post(
   '/assignments/:assignmentId/normal-submission',
   (req, res, next) => {
     uploadNormalAssignmentFile.single('assignmentFile')(req, res, (err) => {
-      if (err) {
-        err.status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
-        return next(err);
-      }
+      if (err) return next(mapMulterError(err));
       next();
     });
   },

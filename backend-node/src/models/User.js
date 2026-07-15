@@ -18,6 +18,9 @@ const userSchema = new mongoose.Schema(
     handoffPasscode: { type: String, default: '', select: true },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
+    /** SHA-256 of one-time password reset token (select:false) */
+    passwordResetToken: { type: String, default: '', select: false },
+    passwordResetExpires: { type: Date, default: null, select: false },
   },
   { timestamps: true }
 );

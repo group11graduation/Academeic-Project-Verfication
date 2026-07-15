@@ -456,7 +456,7 @@ const StudentMyProjectDetail = () => {
                                     <h3 className="text-sm font-bold text-[#0F172A] tracking-tight">Project code (.zip)</h3>
                                     <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">
                                         Select your ZIP, then click Upload. You can replace the file until the project deadline (same
-                                        submission id, version increments).
+                                        submission id, version increments). Max 250 MB — exclude node_modules, target, dist, and .git.
                                     </p>
                                     <p className="mt-2 text-xs font-bold text-slate-600">
                                         Submitting as: <span className="text-emerald-800">{user?.name || 'You'}</span>
@@ -644,7 +644,7 @@ const StudentMyProjectDetail = () => {
                                             Drag and drop source code or documentation
                                         </div>
                                         <div className="text-[13px] font-medium text-slate-400">
-                                            Accepted formats: .ZIP, .PDF, .MD (Max 50MB)
+                                            Accepted formats: .ZIP, .PDF, .MD (Max 250MB for project ZIP — exclude node_modules / target / .git)
                                         </div>
                                         <div className="text-[11px] font-bold text-slate-500 mt-3 max-w-md mx-auto">
                                             Optional local-only placeholder. Use “Project code (.zip)” above for the real submission used in teacher preview.

@@ -144,6 +144,23 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173}
 
+      # Password reset email (set in .env / runtime.env for production)
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      APP_NAME: ${APP_NAME:-Project Verify}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      AUTH_RETURN_RESET_TOKEN: ${AUTH_RETURN_RESET_TOKEN:-false}
+
+      # Student project ZIP upload limit (default 250 MB)
+      MAX_PROJECT_ZIP_BYTES: ${MAX_PROJECT_ZIP_BYTES:-262144000}
+      MAX_PROJECT_SCREENSHOT_BYTES: ${MAX_PROJECT_SCREENSHOT_BYTES:-5242880}
+      PREVIEW_MAX_EXTRACT_FILES: ${PREVIEW_MAX_EXTRACT_FILES:-5000}
+      PREVIEW_MAX_EXTRACT_BYTES: ${PREVIEW_MAX_EXTRACT_BYTES:-524288000}
+
       # Docker preview sandbox (host daemon via socket mount)
       DOCKER_PREVIEW_ENABLED: ${DOCKER_PREVIEW_ENABLED:-true}
       DOCKER_SOCKET: /var/run/docker.sock
