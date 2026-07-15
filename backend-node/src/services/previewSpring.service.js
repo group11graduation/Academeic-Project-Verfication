@@ -152,7 +152,13 @@ export async function resolveSpringReactPair(buildContext) {
   let frontend = null;
   if (frontendCandidates.length) {
     frontend = [...frontendCandidates]
-      .filter((f) => f.rel !== spring.rel)
+      .filter((f) => {
+        if (f.rel === spring.rel) return false;
+        // Never treat a pure Express/Node API package as the Spring React frontend.
+        if (f.role === 'backend' && f.hasExpress && !f.hasFrontend) return false;
+        if (f.hasExpress && !f.hasFrontend && (f.frontendScore || 0) < 8) return false;
+        return true;
+      })
       .sort(
         (a, b) =>
           b.frontendScore +

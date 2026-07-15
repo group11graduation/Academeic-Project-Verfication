@@ -928,16 +928,16 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     appendLog(
       session,
       'info',
-      `Spring+React preview: UI :${deployResult.hostPort}, Spring API :${deployResult.apiHostPort} (${deployResult.springPair.springSubdir} + ${deployResult.springPair.frontendSubdir})`
+      `React + Spring Boot preview: UI :${deployResult.hostPort}, Spring API :${deployResult.apiHostPort} (${deployResult.springPair.springSubdir} + ${deployResult.springPair.frontendSubdir})`
     );
   } else if (deployResult.mernPair && deployResult.apiHostPort) {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
     session.previewLoginHint =
-      `${baseHint}Full-stack preview: UI on port ${deployResult.hostPort}, student API on port ${deployResult.apiHostPort}. MongoDB runs in a sidecar container for preview (no host Mongo setup required).`;
+      `${baseHint}React + Express preview: UI on port ${deployResult.hostPort}, Express API on port ${deployResult.apiHostPort}. MongoDB runs in a sidecar container for preview (no host Mongo setup required).`;
     appendLog(
       session,
       'info',
-      `MERN preview: frontend :${deployResult.hostPort}, API :${deployResult.apiHostPort}`
+      `React + Express preview: frontend :${deployResult.hostPort}, API :${deployResult.apiHostPort}`
     );
   }
   session.previewImage = deployResult.imageTag;

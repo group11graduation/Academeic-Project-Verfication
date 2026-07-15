@@ -36,7 +36,7 @@ import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 const PREVIEW_STACK_LABELS = {
     'static-html': 'HTML + CSS',
     'static-html-js': 'HTML + CSS + JavaScript',
-    'node-js': 'Full-stack JavaScript',
+    'node-js': 'React + Express',
     'java-spring-react': 'React + Spring Boot',
     'php-apache': 'PHP / Apache',
     jupyter: 'Jupyter notebook',

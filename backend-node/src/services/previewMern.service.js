@@ -77,6 +77,19 @@ async function pathExists(p) {
   }
 }
 
+/** True when this folder is a Spring Boot module (not an Express/Node API). */
+async function looksLikeSpringModule(absDir) {
+  for (const name of ['pom.xml', 'build.gradle', 'build.gradle.kts']) {
+    const p = path.join(absDir, name);
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await pathExists(p))) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const text = await fs.readFile(p, 'utf8').catch(() => '');
+    if (/spring-boot|springframework|org\.springframework/i.test(text)) return true;
+  }
+  return false;
+}
+
 function dirNameHintScore(rel, hints) {
   const base = rel.split('/').pop()?.toLowerCase() || '';
   const full = rel.toLowerCase();
@@ -287,49 +300,83 @@ export function splitStackDisplayLabel(pair) {
   const fe = pair.frontendFramework || 'Frontend';
   const be = pair.backendFramework || 'API';
   if (pair.staticFrontend) return `${fe} + ${be}`;
+  if (/react/i.test(fe) && /express|node\s*api|nest/i.test(be)) {
+    return 'React + Express';
+  }
   return `${fe} + ${be}`;
+}
+
+/** Teacher-facing label for React + Express (Node) MERN-style pairs. */
+export function reactExpressDisplayLabel(pair) {
+  if (!pair) return 'React + Express';
+  const base = splitStackDisplayLabel(pair) || 'React + Express';
+  if (pair.frontendSubdir && pair.backendSubdir) {
+    return `${base} (${pair.frontendSubdir} + ${pair.backendSubdir})`;
+  }
+  return base;
 }
 
 /**
  * Detect separate frontend + backend (any common framework / folder naming).
+ * Skips Spring Boot modules so React+Spring ZIPs never resolve as React+Express.
  */
 export async function resolveMernPair(buildContext) {
   const found = [];
   await collectPackages(buildContext, buildContext, found);
   if (found.length === 0) return null;
 
-  let frontend = pickBestFrontend(found);
-  let backend = pickBestBackend(found, frontend?.rel);
+  const filtered = [];
+  for (const pkg of found) {
+    const abs = path.join(buildContext, pkg.rel === '.' ? '' : pkg.rel);
+    // eslint-disable-next-line no-await-in-loop
+    if (await looksLikeSpringModule(abs)) continue;
+    filtered.push(pkg);
+  }
+  if (filtered.length === 0) return null;
+
+  let frontend = pickBestFrontend(filtered);
+  let backend = pickBestBackend(filtered, frontend?.rel);
 
   if (frontend?.role === 'fullstack' && !backend) {
     return null;
   }
 
   if (frontend && backend && frontend.rel !== backend.rel) {
+    const frontendFramework = frontend.frontendFramework || 'Frontend';
+    const backendFramework = backend.backendFramework || 'Express';
     return {
       frontendSubdir: frontend.rel,
       backendSubdir: backend.rel,
-      frontendFramework: frontend.frontendFramework || 'Frontend',
-      backendFramework: backend.backendFramework || 'Node API',
+      frontendFramework,
+      backendFramework,
       staticFrontend: false,
-      detectionNote: `${splitStackDisplayLabel({
-        frontendFramework: frontend.frontendFramework,
-        backendFramework: backend.backendFramework,
-      })} (${frontend.rel} + ${backend.rel})`,
+      detectionNote: `${reactExpressDisplayLabel({
+        frontendFramework,
+        backendFramework,
+        frontendSubdir: frontend.rel,
+        backendSubdir: backend.rel,
+      })}`,
     };
   }
 
-  if (found.length === 1 && found[0].role === 'backend') {
-    const only = found[0];
+  if (filtered.length === 1 && filtered[0].role === 'backend') {
+    const only = filtered[0];
     const companion = await findCompanionFrontendDir(buildContext, only.rel);
     if (companion) {
+      const frontendFramework = companion.frontendFramework || 'Static build';
+      const backendFramework = only.backendFramework || 'Express';
       return {
         frontendSubdir: companion.rel,
         backendSubdir: only.rel,
-        frontendFramework: companion.frontendFramework || 'Static build',
-        backendFramework: only.backendFramework || 'Node API',
+        frontendFramework,
+        backendFramework,
         staticFrontend: true,
-        detectionNote: `${companion.frontendFramework || 'Static UI'} + ${only.backendFramework || 'API'} (${companion.rel} + ${only.rel})`,
+        detectionNote: reactExpressDisplayLabel({
+          frontendFramework,
+          backendFramework,
+          frontendSubdir: companion.rel,
+          backendSubdir: only.rel,
+        }),
       };
     }
   }

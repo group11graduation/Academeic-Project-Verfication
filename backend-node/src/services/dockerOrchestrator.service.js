@@ -201,6 +201,7 @@ async function stagePreviewBaseBuildDir(templateDirName) {
   const templateDir = path.join(TEMPLATES_ROOT, templateDirName);
   const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
   const stageDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sv-preview-base-'));
+  const isSpringTemplate = templateDirName === 'java-spring-react';
 
   await fs.copyFile(path.join(templateDir, 'Dockerfile'), path.join(stageDir, 'Dockerfile'));
 
@@ -215,16 +216,19 @@ async function stagePreviewBaseBuildDir(templateDirName) {
   const script = await fs.readFile(entrypointSrc, 'utf8');
   await fs.writeFile(path.join(stageDir, 'entrypoint.sh'), script.replace(/\r\n/g, '\n'));
 
-  const seedScriptSrc = path.join(sharedNodeDir, 'preview-seed-admin.js');
-  if (fsSync.existsSync(seedScriptSrc)) {
-    const seedScript = await fs.readFile(seedScriptSrc, 'utf8');
-    await fs.writeFile(path.join(stageDir, 'preview-seed-admin.js'), seedScript.replace(/\r\n/g, '\n'));
-  }
+  // Node seed/verify scripts are Express/MERN-only — never bake them into Spring images.
+  if (!isSpringTemplate) {
+    const seedScriptSrc = path.join(sharedNodeDir, 'preview-seed-admin.js');
+    if (fsSync.existsSync(seedScriptSrc)) {
+      const seedScript = await fs.readFile(seedScriptSrc, 'utf8');
+      await fs.writeFile(path.join(stageDir, 'preview-seed-admin.js'), seedScript.replace(/\r\n/g, '\n'));
+    }
 
-  const verifyScriptSrc = path.join(sharedNodeDir, 'preview-verify-login.js');
-  if (fsSync.existsSync(verifyScriptSrc)) {
-    const verifyScript = await fs.readFile(verifyScriptSrc, 'utf8');
-    await fs.writeFile(path.join(stageDir, 'preview-verify-login.js'), verifyScript.replace(/\r\n/g, '\n'));
+    const verifyScriptSrc = path.join(sharedNodeDir, 'preview-verify-login.js');
+    if (fsSync.existsSync(verifyScriptSrc)) {
+      const verifyScript = await fs.readFile(verifyScriptSrc, 'utf8');
+      await fs.writeFile(path.join(stageDir, 'preview-verify-login.js'), verifyScript.replace(/\r\n/g, '\n'));
+    }
   }
 
   const fallbackSrc = fsSync.existsSync(path.join(templateDir, 'preview-fallback'))
@@ -248,8 +252,8 @@ function previewBaseImageFailureMessage(stack) {
   const messages = {
     'php-apache': 'PHP preview is temporarily unavailable',
     jupyter: 'Jupyter preview is temporarily unavailable',
-    'java-spring-react': 'Spring/React preview is temporarily unavailable',
-    'node-js': 'Node preview is temporarily unavailable',
+    'java-spring-react': 'React + Spring Boot preview is temporarily unavailable',
+    'node-js': 'React + Express preview is temporarily unavailable',
     'static-html': 'Static HTML preview is temporarily unavailable',
     'static-html-js': 'Static HTML preview is temporarily unavailable',
   };
@@ -671,11 +675,20 @@ function previewProjectMountPath(stack) {
 
 /** Human-readable label for logs and teacher UI */
 export function previewStackDisplayName(stack, splitPair = null) {
+  if (stack === 'java-spring-react') {
+    return 'React + Spring Boot';
+  }
+  if (stack === 'node-js') {
+    if (splitPair?.frontendFramework || splitPair?.backendFramework) {
+      return splitStackDisplayLabel(splitPair) || 'React + Express';
+    }
+    return 'React + Express';
+  }
   if (splitPair?.frontendFramework || splitPair?.backendFramework) {
     return splitStackDisplayLabel(splitPair);
   }
   const map = {
-    'node-js': 'Full-stack JavaScript',
+    'node-js': 'React + Express',
     'php-apache': 'PHP / Apache',
     jupyter: 'Jupyter notebook',
     'static-html': 'HTML + CSS',
@@ -805,10 +818,18 @@ export function inferStackHintFromAssignment(assignment) {
   if (/html\s*\+\s*css|static\s+html|html\s*css\s*only|web\s+design/.test(text)) {
     return 'static-html';
   }
-  if (/spring\s*boot|springboot|java\s*\+\s*react|react\s*\+\s*spring/.test(text)) {
+  // Spring before generic React so "React + Spring" never maps to Express/Node.
+  if (
+    /spring\s*boot|springboot|java\s*\+\s*react|react\s*\+\s*spring|react\s+with\s+spring|spring\s*\+\s*react/.test(
+      text
+    )
+  ) {
     return 'java-spring-react';
   }
-  if (/react|node\.?js|vite|mern|next\.?js|vue|angular|frontend/.test(text)) {
+  if (/mern|express|react\s*\+\s*express|react\s+with\s+express|node\.?js|nest\.?js/.test(text)) {
+    return 'node-js';
+  }
+  if (/react|vite|next\.?js|vue|angular|frontend/.test(text)) {
     return 'node-js';
   }
   if (/javascript/.test(text) && !/react|node|vue|angular/.test(text)) return 'static-html-js';
@@ -917,6 +938,8 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     pomXmlCount: 0,
     gradleBuild: false,
     springBootJava: false,
+    springBootPom: false,
+    springBootGradle: false,
     javaSampled: 0,
   };
   let scanned = 0;
@@ -928,6 +951,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
       if (scanned >= MAX_SCAN_FILES) return;
       if (entry.name === 'node_modules' || entry.name === '.git') continue;
       if (entry.name === 'vendor' && entry.isDirectory()) continue;
+      if (entry.name === 'target' && entry.isDirectory()) continue;
 
       const full = path.join(dir, entry.name);
       const lower = entry.name.toLowerCase();
@@ -940,8 +964,24 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
 
       scanned += 1;
       if (lower === 'package.json') signals.packageJsonPaths.push(full);
-      if (lower === 'pom.xml') signals.pomXmlCount += 1;
-      if (lower === 'build.gradle' || lower === 'build.gradle.kts') signals.gradleBuild = true;
+      if (lower === 'pom.xml') {
+        signals.pomXmlCount += 1;
+        try {
+          const snippet = (await fs.readFile(full, 'utf8')).slice(0, 12_000);
+          if (/spring-boot|springframework/i.test(snippet)) signals.springBootPom = true;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (lower === 'build.gradle' || lower === 'build.gradle.kts') {
+        signals.gradleBuild = true;
+        try {
+          const snippet = (await fs.readFile(full, 'utf8')).slice(0, 12_000);
+          if (/spring-boot|org\.springframework/i.test(snippet)) signals.springBootGradle = true;
+        } catch {
+          /* ignore */
+        }
+      }
       if (lower.endsWith('.java') && signals.javaSampled < 20) {
         signals.javaSampled += 1;
         try {
@@ -1006,7 +1046,15 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   }
 
   const hasJupyter = signals.ipynbFiles > 0;
-  const hasSpring = signals.pomXmlCount > 0 || signals.gradleBuild || signals.springBootJava;
+  // Require Spring Boot markers — a stray pom.xml must not steal React+Express ZIPs.
+  const hasStrongSpring =
+    signals.springBootJava || signals.springBootPom || signals.springBootGradle;
+  const hasReactOrJsFrontend =
+    hasNode ||
+    signals.jsxTsxFiles > 0 ||
+    reactStatic.reactStatic ||
+    signals.packageJsonPaths.length > 0 ||
+    signals.viteConfig;
 
   const reasons = [];
   let stack = null;
@@ -1069,19 +1117,19 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
       if (signals.htmlFiles) reasons.push(`${signals.htmlFiles} HTML file(s)`);
       if (signals.cssFiles) reasons.push(`${signals.cssFiles} CSS file(s)`);
     }
-  } else if (
-    hasSpring &&
-    (hasNode || signals.jsxTsxFiles > 0 || reactStatic.reactStatic || signals.packageJsonPaths.length > 0)
-  ) {
+  } else if (hasStrongSpring && hasReactOrJsFrontend) {
+    // React + Spring Boot — never treat as Express/Node even if FE has package.json.
     stack = 'java-spring-react';
     reasons.push('Spring Boot Java backend with React/JavaScript frontend');
     if (signals.pomXmlCount) reasons.push(`${signals.pomXmlCount} pom.xml`);
     if (signals.gradleBuild) reasons.push('Gradle build');
     if (signals.springBootJava) reasons.push('@SpringBootApplication');
+    if (signals.springBootPom) reasons.push('spring-boot in pom.xml');
     if (signals.jsxTsxFiles) reasons.push(`${signals.jsxTsxFiles} JSX/TSX file(s)`);
     if (nodePkgCount) reasons.push(`${nodePkgCount} JavaScript package.json`);
     if (reactStatic.reactStatic) reasons.push(reactStatic.reason);
-  } else if (hasNode && !hasPhp) {
+  } else if (hasNode && !hasPhp && !hasStrongSpring) {
+    // React + Express / Node only when there is no Spring Boot backend.
     stack = 'node-js';
     if (nodePkgCount) reasons.push(`${nodePkgCount} package.json`);
     if (signals.pubspecYaml) reasons.push('pubspec.yaml (Flutter + Node)');
@@ -1099,15 +1147,34 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     if (signals.composerJson || signals.artisanPhp) {
       stack = 'php-apache';
       reasons.push('PHP framework (composer/artisan) with npm assets');
+    } else if (hasStrongSpring) {
+      stack = 'java-spring-react';
+      reasons.push('Spring Boot preferred over stray PHP beside React/Node frontend');
     } else {
       stack = 'node-js';
       reasons.push('Node/React detected; ignoring stray .php files');
     }
   }
 
+  // ZIP file signals beat assignment hints: never force Node when Spring Boot is present.
+  if (stack === 'node-js' && hasStrongSpring && hasReactOrJsFrontend) {
+    stack = 'java-spring-react';
+    reasons.push('overrode Node hint — Spring Boot + React frontend detected in ZIP');
+  }
+  if (hint === 'java-spring-react' && !stack && hasReactOrJsFrontend && (signals.pomXmlCount || signals.gradleBuild)) {
+    stack = 'java-spring-react';
+    reasons.push('assignment hint (java-spring-react) with Java build files');
+  }
+
   if (!stack && hint && STACK_BLUEPRINTS[hint]) {
-    stack = hint;
-    reasons.push(`assignment hint (${hint}) — no strong file signals`);
+    // Generic "react" hint must not force Node when Spring files exist.
+    if (hint === 'node-js' && hasStrongSpring && hasReactOrJsFrontend) {
+      stack = 'java-spring-react';
+      reasons.push('assignment hinted Node/React but ZIP has Spring Boot — using React + Spring Boot');
+    } else {
+      stack = hint;
+      reasons.push(`assignment hint (${hint}) — no strong file signals`);
+    }
   }
 
   if (!stack) {
