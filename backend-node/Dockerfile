@@ -13,7 +13,9 @@ ENV NODE_ENV=production
 # -----------------------------------------------------------------------------
 FROM base AS deps
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+# Use install (not ci) so Coolify builds succeed when package-lock is briefly out of sync
+# (local Windows TLS issues prevent regenerating the lockfile with new deps like nodemailer).
+RUN npm install --omit=dev
 
 # -----------------------------------------------------------------------------
 # Release image
