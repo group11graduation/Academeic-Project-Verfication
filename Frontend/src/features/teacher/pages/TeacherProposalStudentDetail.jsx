@@ -1339,17 +1339,21 @@ const TeacherProposalStudentDetail = () => {
                                     const previewRunning = sess?.status === 'running';
                                     const previewStarting = sess?.status === 'starting';
                                     const previewOpenReady = isPreviewOpenReady(sess);
-                                    const displayEmail =
+                                    const rawEmail =
                                         previewOpenReady && (sess?.previewLoginEmail || previewAdminEmail)
                                             ? sess?.previewLoginEmail || previewAdminEmail
                                             : '';
+                                    const displayEmail =
+                                        rawEmail && String(rawEmail).includes('@')
+                                            ? rawEmail
+                                            : previewOpenReady
+                                              ? 'admin@preview.demo'
+                                              : '';
                                     const displayUsername =
                                         previewOpenReady
                                             ? sess?.previewLoginUsername ||
-                                              (sess?.previewLoginIdentifierType === 'username'
-                                                  ? sess?.previewLoginEmail
-                                                  : '') ||
-                                              ''
+                                              (rawEmail && !String(rawEmail).includes('@') ? rawEmail : '') ||
+                                              'previewadmin'
                                             : '';
                                     const displayPassword =
                                         previewOpenReady && (sess?.previewLoginPassword || previewAdminPassword)

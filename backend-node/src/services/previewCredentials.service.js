@@ -51,6 +51,27 @@ function platformDefaultLogin() {
   };
 }
 
+/** True when value looks like an email address (must include @). */
+function looksLikeEmail(value) {
+  const v = String(value || '').trim();
+  return Boolean(v && v.includes('@') && /^[^\s@]+@[^\s@]+$/.test(v));
+}
+
+/** Keep only real emails; demote username-like values to the username slot. */
+function normalizeDiscoveredEmailUsername(email, username) {
+  let nextEmail = String(email || '').trim();
+  let nextUsername = String(username || '').trim();
+  if (nextEmail && !looksLikeEmail(nextEmail)) {
+    if (!nextUsername) nextUsername = nextEmail;
+    nextEmail = '';
+  }
+  if (nextUsername && looksLikeEmail(nextUsername) && !nextEmail) {
+    nextEmail = nextUsername;
+    nextUsername = nextEmail.split('@')[0] || nextUsername;
+  }
+  return { email: nextEmail, username: nextUsername };
+}
+
 function isPlatformPlaceholderCredential(email, password) {
   const defaults = platformDefaultLogin();
   const normalizedEmail = String(email || '').toLowerCase().trim();
@@ -403,15 +424,24 @@ function isExplicitTeacherOverride(teacherEmail, teacherPassword) {
 
 function pickIdentifierForForm(discovered, formField) {
   const type = formField.identifierType || 'email';
-  if (type === 'email' && discovered.email) return discovered.email;
+  if (type === 'email') {
+    if (looksLikeEmail(discovered.email)) return discovered.email;
+    if (looksLikeEmail(discovered.username)) return discovered.username;
+    return '';
+  }
   if (type === 'username' && (discovered.username || discovered.phpUsername)) {
-    return discovered.username || discovered.phpUsername;
+    const candidate = discovered.username || discovered.phpUsername;
+    // Prefer non-email username when the form wants username.
+    if (candidate && !looksLikeEmail(candidate)) return candidate;
+    return candidate || '';
   }
   if ((type === 'student_id' || type === 'employee_id' || type === 'id') && discovered.identifierId) {
     return discovered.identifierId;
   }
-  if (discovered.username || discovered.phpUsername) return discovered.username || discovered.phpUsername;
-  if (discovered.email) return discovered.email;
+  if (discovered.username || discovered.phpUsername) {
+    return discovered.username || discovered.phpUsername;
+  }
+  if (looksLikeEmail(discovered.email)) return discovered.email;
   if (discovered.identifierId) return discovered.identifierId;
   return '';
 }
@@ -444,19 +474,20 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
     try {
       const content = await fs.readFile(envPath, 'utf8');
       const picked = pickFromEnvMap(parseEnvFile(content));
-      if (picked.email && !email && !isPlatformPlaceholderCredential(picked.email, picked.password)) {
-        email = picked.email;
+      const normalized = normalizeDiscoveredEmailUsername(picked.email, picked.username);
+      if (normalized.email && !email && !isPlatformPlaceholderCredential(normalized.email, picked.password)) {
+        email = normalized.email;
       }
-      if (picked.username && !username) username = picked.username;
+      if (normalized.username && !username) username = normalized.username;
       if (picked.identifierId && !identifierId) identifierId = picked.identifierId;
       if (
         picked.password &&
         !password &&
-        !isPlatformPlaceholderCredential(picked.email, picked.password)
+        !isPlatformPlaceholderCredential(normalized.email || picked.email, picked.password)
       ) {
         password = picked.password;
       }
-      if ((picked.email || picked.username || picked.password) && !hint) {
+      if ((normalized.email || normalized.username || picked.password) && !hint) {
         hint = `Found in ${path.basename(envPath)}`;
       }
     } catch {
@@ -573,10 +604,11 @@ export function resolvePreviewLoginCredentials({
     discovered.phpUsername ||
     discovered.seedScriptUsername ||
     '';
+  ({ email, username } = normalizeDiscoveredEmailUsername(email, username));
 
   if (teacherOverride) {
     const teacherId = String(teacherEmail || '').trim();
-    if (teacherId.includes('@')) email = teacherId;
+    if (looksLikeEmail(teacherId)) email = teacherId;
     else if (teacherId) username = teacherId;
     password = String(teacherPassword || password || defaults.password).trim();
     source = 'teacher_provided';
@@ -598,7 +630,8 @@ export function resolvePreviewLoginCredentials({
       'Uses preview defaults for both email and username — enter whichever the student login form asks for.';
   }
 
-  if (!email) email = defaults.email;
+  // Email field must always be a real address (student HTML type=email rejects "previewadmin").
+  if (!looksLikeEmail(email)) email = defaults.email;
   if (!username) username = defaults.username;
   if (!password) password = defaults.password;
 
@@ -607,10 +640,13 @@ export function resolvePreviewLoginCredentials({
   if (!identifier) {
     identifier = formField.identifierType === 'username' ? username : email;
   }
+  if (formField.identifierType === 'email' && !looksLikeEmail(identifier)) {
+    identifier = email;
+  }
 
-  if (formField.identifierType === 'username' && /@/.test(identifier) && username) {
+  if (formField.identifierType === 'username' && looksLikeEmail(identifier) && username && !looksLikeEmail(username)) {
     identifier = username;
-  } else if (/@/.test(identifier) && formField.identifierType !== 'email' && !discovered.username) {
+  } else if (looksLikeEmail(identifier) && formField.identifierType !== 'email' && !discovered.username) {
     formField.identifierType = 'email';
     formField.identifierLabel = 'Email';
   }
@@ -640,18 +676,17 @@ export function resolvePreviewLoginCredentials({
 
 export function applyResolvedLoginCredentials(session, resolved) {
   if (!session || !resolved) return session;
-  const email = resolved.email || '';
-  const username = resolved.username || '';
-  // Store both always. previewLoginEmail keeps the real email when present;
-  // primary login value for the detected form is also reflected in identifier fields.
-  if (resolved.identifierType === 'username') {
-    session.previewLoginEmail = email || resolved.identifier || '';
-    session.previewLoginUsername = username || resolved.identifier || '';
-  } else {
-    session.previewLoginEmail = email || resolved.identifier || '';
-    session.previewLoginUsername = username || '';
-  }
-  session.previewLoginPassword = resolved.password || '';
+  const defaults = platformDefaultLogin();
+  let email = resolved.email || '';
+  let username = resolved.username || '';
+  ({ email, username } = normalizeDiscoveredEmailUsername(email, username));
+  if (!looksLikeEmail(email)) email = defaults.email;
+  if (!username) username = defaults.username;
+
+  // Always store a real email separately from username.
+  session.previewLoginEmail = email;
+  session.previewLoginUsername = username;
+  session.previewLoginPassword = resolved.password || defaults.password;
   session.previewLoginIdentifierType = resolved.identifierType || 'email';
   session.previewLoginIdentifierLabel = resolved.identifierLabel || 'Email';
   session.previewLoginSource = resolved.source || session.previewLoginSource || '';
@@ -686,8 +721,11 @@ export async function buildPreviewLoginCredentials({
 /** Env vars injected into preview containers (many student apps read different names). */
 export function buildPreviewCredentialEnvVars({ email, password, username, mongoUri = null }) {
   const defaults = platformDefaultLogin();
-  const seedEmail = String(email || '').trim() || defaults.email;
-  const seedUsername = String(username || '').trim() || defaults.username;
+  let seedEmail = String(email || '').trim();
+  let seedUsername = String(username || '').trim();
+  ({ email: seedEmail, username: seedUsername } = normalizeDiscoveredEmailUsername(seedEmail, seedUsername));
+  if (!looksLikeEmail(seedEmail)) seedEmail = defaults.email;
+  if (!seedUsername) seedUsername = defaults.username;
   const seedPassword = String(password || '').trim() || defaults.password;
   const pairs = {
     PREVIEW_ADMIN_EMAIL: seedEmail,
