@@ -28,6 +28,16 @@ import {
   validateDeadlinesOnUpdate,
 } from './assignmentDeadline.service.js';
 
+function resolveViewerSubject(assignment, viewerTeacherId = null) {
+  if (!assignment?.isCollaborative || !viewerTeacherId) {
+    return assignment?.subject || null;
+  }
+  const role = resolveCollaborativeReviewRole(viewerTeacherId, assignment);
+  if (role === 'frontend' && assignment.frontendSubject) return assignment.frontendSubject;
+  if (role === 'backend' && assignment.backendSubject) return assignment.backendSubject;
+  return assignment?.subject || null;
+}
+
 function normalizeAssignmentClasses(assignment, viewerTeacherId = null) {
   const rawClasses = Array.isArray(assignment?.classes) && assignment.classes.length
     ? assignment.classes
@@ -35,6 +45,10 @@ function normalizeAssignmentClasses(assignment, viewerTeacherId = null) {
       ? [assignment.class]
       : [];
   const classes = rawClasses.filter(Boolean);
+  const collaborationReviewRole = viewerTeacherId
+    ? resolveCollaborativeReviewRole(viewerTeacherId, assignment)
+    : null;
+  const viewerSubject = resolveViewerSubject(assignment, viewerTeacherId);
   return {
     ...assignment,
     classes,
@@ -44,8 +58,11 @@ function normalizeAssignmentClasses(assignment, viewerTeacherId = null) {
     classAssignmentMode: assignment?.classAssignmentMode || (classes.length > 1 ? 'multiple' : 'single'),
     assignmentType: assignment?.assignmentType || 'normal',
     isCollaborative: Boolean(assignment?.isCollaborative),
+    // Collaborations store a single primary `subject` (historically backend). Remap so each
+    // teacher sees only their FE/BE subject on assignment lists and detail pages.
+    subject: viewerSubject || assignment?.subject || null,
     collaborationRole: viewerTeacherId ? resolveCollaborationRole(viewerTeacherId, assignment) : null,
-    collaborationReviewRole: viewerTeacherId ? resolveCollaborativeReviewRole(viewerTeacherId, assignment) : null,
+    collaborationReviewRole,
     primaryTeacherId: assignment?.teacher?._id || assignment?.teacher || null,
     frontendTeacherId: assignment?.frontendTeacherId?._id || assignment?.frontendTeacherId || null,
     backendTeacherId: assignment?.backendTeacherId?._id || assignment?.backendTeacherId || null,
@@ -222,11 +239,15 @@ export async function listAssignmentsForTeacher(teacherId, { semesterId: semeste
   const rows = await Assignment.find(q)
     .populate('class', 'code name')
     .populate('classes', 'code name')
-    .populate('subject', 'code name')
+    .populate('subject', 'code name collaborationSide')
+    .populate('frontendSubject', 'code name collaborationSide')
+    .populate('backendSubject', 'code name collaborationSide')
     .populate('semester', 'name')
     .populate('academicYear', 'label')
     .populate('teacher', 'name email')
     .populate('coTeacherId', 'name email')
+    .populate('frontendTeacherId', 'name email')
+    .populate('backendTeacherId', 'name email')
     .sort({ createdAt: -1 })
     .lean();
   return rows.map((row) => normalizeAssignmentClasses(row, teacherId));
@@ -237,6 +258,8 @@ export async function getAssignmentForTeacher(teacherId, assignmentId) {
     .populate('class')
     .populate('classes')
     .populate('subject')
+    .populate('frontendSubject', 'code name collaborationSide')
+    .populate('backendSubject', 'code name collaborationSide')
     .populate('semester')
     .populate('academicYear')
     .populate('teacher', 'name email')

@@ -92,6 +92,11 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-[#1D68E3] dark:bg-blue-500/10">
                     {a.subject?.code || '—'}
                 </span>
+                {a.isCollaborative && a.collaborationReviewRole && (
+                    <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                        Your role: {a.collaborationReviewRole}
+                    </span>
+                )}
                 {a.semester?.name && (
                     <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                         {a.semester.name}
