@@ -427,7 +427,12 @@ const LOCAL_MONGO_PATTERNS = [
 export async function patchBackendForPreview(
   extractDir,
   backendSubdir,
-  { mongoUri, hostPort, publicUiUrl, jwtSecret = 'preview-sandbox-jwt-secret-change-me' }
+  {
+    mongoUri,
+    hostPort,
+    publicUiUrl,
+    jwtSecret = 'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ==',
+  }
 ) {
   const backendRoot = path.join(extractDir, backendSubdir);
   if (!(await pathExists(backendRoot))) return { files: 0 };

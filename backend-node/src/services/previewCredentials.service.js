@@ -591,7 +591,10 @@ export function buildPreviewCredentialEnvVars({ email, password, username, mongo
     DEFAULT_ADMIN_PASSWORD: password,
     DEFAULT_ADMIN_USERNAME: seedUsername,
     // Common dev secrets so JWT auth can boot in sandbox
-    JWT_SECRET: process.env.PREVIEW_JWT_SECRET || 'preview-sandbox-jwt-secret-change-me',
+    // Standard Base64 ("preview-sandbox-jwt-secret-change-me-please") — jjwt-safe
+    JWT_SECRET:
+      process.env.PREVIEW_JWT_SECRET ||
+      'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ==',
     NODE_ENV: 'development',
   };
   if (mongoUri) {

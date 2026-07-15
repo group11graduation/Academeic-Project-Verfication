@@ -168,7 +168,8 @@ write_mern_backend_env() {
   if [ -z "$mongo" ]; then
     mongo="mongodb://host.docker.internal:27017/scholarverify_preview"
   fi
-  jwt="${JWT_SECRET:-preview-sandbox-jwt-secret-change-me}"
+  # Standard Base64 ("preview-sandbox-jwt-secret-change-me-please") — safe for jjwt Decoders.BASE64.decode
+  jwt="${JWT_SECRET:-cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ==}"
   cors="${CORS_ORIGIN:-}"
   if [ -z "$cors" ] && [ -n "$PREVIEW_PUBLIC_UI_URL" ]; then
     cors="$PREVIEW_PUBLIC_UI_URL"
