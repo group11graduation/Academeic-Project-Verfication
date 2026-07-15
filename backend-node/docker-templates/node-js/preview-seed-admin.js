@@ -2,12 +2,59 @@
 /**
  * Ensure preview login credentials exist in the student MERN backend MongoDB.
  * Handles plain-password Mongoose hooks, bcrypt/bcryptjs, select:false passwords, and common role enums.
+ *
+ * Lives at /preview-seed-admin.js in the image; student deps are under process.cwd()/node_modules
+ * (entrypoint cds into the backend). Resolve packages via createRequire(cwd) — never from /.
  */
+const fs = require('fs');
+const path = require('path');
+const { createRequire } = require('module');
+
+const requireFromCwd = createRequire(path.join(process.cwd(), 'package.json'));
+
+/** Load KEY=VALUE from .env without requiring the dotenv package. Never overrides existing env. */
+function loadEnvFileManual(envPath) {
+  if (!fs.existsSync(envPath)) return;
+  let text;
+  try {
+    text = fs.readFileSync(envPath, 'utf8');
+  } catch {
+    return;
+  }
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    if (process.env[key] !== undefined) continue;
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+function loadPreviewEnv() {
+  const envPath = path.join(process.cwd(), '.env');
+  // Prefer student dotenv if present; else a tiny parser. Entrypoint already exports MONGO_URI/JWT_*.
+  try {
+    requireFromCwd('dotenv').config({ path: envPath });
+  } catch {
+    loadEnvFileManual(envPath);
+  }
+}
+
 (async () => {
   let mongoose;
   try {
-    require('dotenv').config({ path: '.env' });
-    mongoose = require('mongoose');
+    loadPreviewEnv();
+    mongoose = requireFromCwd('mongoose');
     for (const key of Object.keys(mongoose.models || {})) {
       delete mongoose.models[key];
     }
@@ -44,15 +91,13 @@
       './model/User.js',
     ];
     const discovered = [];
-    const fs = require('fs');
-    const path = require('path');
     for (const dir of ['src/models', 'models', 'model', 'src/model']) {
       const abs = path.join(process.cwd(), dir);
       if (!fs.existsSync(abs)) continue;
       try {
         for (const file of fs.readdirSync(abs)) {
           if (/user|admin/i.test(file) && /\.(js|cjs|mjs)$/i.test(file)) {
-            discovered.push(path.join(dir, file).replace(/\\/g, '/'));
+            discovered.push(`./${path.join(dir, file).replace(/\\/g, '/')}`);
           }
         }
       } catch {
@@ -65,12 +110,12 @@
     let bcrypt;
     let bcryptjs;
     try {
-      bcrypt = require('bcrypt');
+      bcrypt = requireFromCwd('bcrypt');
     } catch {
       bcrypt = null;
     }
     try {
-      bcryptjs = require('bcryptjs');
+      bcryptjs = requireFromCwd('bcryptjs');
     } catch {
       bcryptjs = null;
     }
@@ -83,7 +128,7 @@
 
     for (const p of userModelPaths) {
       try {
-        User = require(p);
+        User = requireFromCwd(p);
         console.log('[preview-seed] using User model', p);
         break;
       } catch {
