@@ -162,14 +162,39 @@ async function previewNodeTemplateContentHash(templateDirName) {
 
 async function dockerImageLabel(imageTag, labelKey) {
   try {
-    const { stdout } = await runCommand(
-      `docker image inspect ${imageTag} --format "{{index .Config.Labels \\"${labelKey}\\"}}"`,
+    // Prefer execFile-style argv via spawnProcess to avoid shell quoting issues on Windows.
+    const { stdout } = await spawnProcess(
+      'docker',
+      ['image', 'inspect', imageTag, '--format', `{{index .Config.Labels "${labelKey}"}}`],
       { timeoutMs: 15_000 }
     );
-    return String(stdout || '').trim();
+    const value = String(stdout || '').trim();
+    // Docker prints <no value> when the label is missing.
+    if (!value || value === '<no value>') return '';
+    return value;
   } catch {
     return '';
   }
+}
+
+/**
+ * If a content-hash rebuild fails but an older image still exists, keep previewing
+ * with the stale image instead of blocking teachers with a hard 503.
+ */
+async function finishBaseImageBuildOrFallback({
+  imageTag,
+  hadExistingImage,
+  buildResult,
+  label,
+}) {
+  if (!buildResult?.failed) return buildResult;
+  if (hadExistingImage && (await dockerImageExists(imageTag))) {
+    logger.warn(
+      `Preview base image rebuild failed (${label}): ${buildResult.error || 'unknown'}; reusing existing ${imageTag}`
+    );
+    return { imageTag, reused: true, stale: true, rebuildError: buildResult.error };
+  }
+  return buildResult;
 }
 
 async function stagePreviewBaseBuildDir(templateDirName) {
@@ -256,20 +281,28 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
   const templateDirName = previewNodeTemplateDir(flutterPair);
   const imageTag = previewNodeBaseImageTag(flutterPair);
   const contentHash = await previewNodeTemplateContentHash(templateDirName);
-  if (!forceRebuild && (await dockerImageExists(imageTag))) {
+  const hadExistingImage = await dockerImageExists(imageTag);
+  if (!forceRebuild && hadExistingImage) {
     const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
-    if (existingHash && existingHash === contentHash) {
+    // Missing label (legacy image) or matching hash → reuse without blocking on rebuild.
+    if (!existingHash || existingHash === contentHash) {
       return { imageTag, reused: true };
     }
   }
 
   const stageDir = await stagePreviewBaseBuildDir(templateDirName);
-  return runPreviewBaseImageBuild({
+  const buildResult = await runPreviewBaseImageBuild({
     imageTag,
     stageDir,
     timeoutMs: flutterPair ? FLUTTER_BUILD_TIMEOUT_MS : BUILD_TIMEOUT_MS,
     label: templateDirName,
     contentHash,
+  });
+  return finishBaseImageBuildOrFallback({
+    imageTag,
+    hadExistingImage,
+    buildResult,
+    label: templateDirName,
   });
 }
 
@@ -696,23 +729,36 @@ async function ensurePreviewJavaBaseImage() {
 async function ensurePreviewSpringReactBaseImage({ forceRebuild = false } = {}) {
   const imageTag = PREVIEW_SPRING_REACT_BASE_IMAGE;
   const contentHash = await previewTemplateContentHash('java-spring-react');
-  if (!forceRebuild && (await dockerImageExists(imageTag))) {
+  const hadExistingImage = await dockerImageExists(imageTag);
+  if (!forceRebuild && hadExistingImage) {
     const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
-    if (existingHash && existingHash === contentHash) {
+    if (!existingHash || existingHash === contentHash) {
       return { imageTag, reused: true };
     }
   }
   const javaMeta = await ensurePreviewJavaBaseImage();
   if (javaMeta.failed) {
+    if (hadExistingImage) {
+      logger.warn(
+        `Preview Java base pull failed; reusing existing Spring image ${imageTag}: ${javaMeta.error || 'unknown'}`
+      );
+      return { imageTag, reused: true, stale: true, rebuildError: javaMeta.error };
+    }
     return { imageTag, reused: false, failed: true, error: javaMeta.error };
   }
   const stageDir = await stagePreviewBaseBuildDir('java-spring-react');
-  return runPreviewBaseImageBuild({
+  const buildResult = await runPreviewBaseImageBuild({
     imageTag,
     stageDir,
     timeoutMs: SPRING_BUILD_TIMEOUT_MS,
     label: 'java-spring-react',
     contentHash,
+  });
+  return finishBaseImageBuildOrFallback({
+    imageTag,
+    hadExistingImage,
+    buildResult,
+    label: 'java-spring-react',
   });
 }
 
@@ -1806,9 +1852,19 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   try {
     const baseMeta = await baseMetaPromise;
     if (baseMeta?.failed) {
-      const err = new Error(previewBaseImageFailureMessage(stack));
+      const detail = String(baseMeta.error || '').trim().slice(0, 280);
+      const err = new Error(
+        detail
+          ? `${previewBaseImageFailureMessage(stack)} (${detail})`
+          : previewBaseImageFailureMessage(stack)
+      );
       err.status = 503;
       throw err;
+    }
+    if (baseMeta?.stale) {
+      logger.warn(
+        `Using stale preview base image ${baseMeta.imageTag} after rebuild failure: ${baseMeta.rebuildError || 'unknown'}`
+      );
     }
     imageTag = baseMeta.imageTag;
     imageReused = Boolean(baseMeta.reused);
