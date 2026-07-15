@@ -201,7 +201,6 @@ async function stagePreviewBaseBuildDir(templateDirName) {
   const templateDir = path.join(TEMPLATES_ROOT, templateDirName);
   const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
   const stageDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sv-preview-base-'));
-  const isSpringTemplate = templateDirName === 'java-spring-react';
 
   await fs.copyFile(path.join(templateDir, 'Dockerfile'), path.join(stageDir, 'Dockerfile'));
 
@@ -216,8 +215,10 @@ async function stagePreviewBaseBuildDir(templateDirName) {
   const script = await fs.readFile(entrypointSrc, 'utf8');
   await fs.writeFile(path.join(stageDir, 'entrypoint.sh'), script.replace(/\r\n/g, '\n'));
 
-  // Node seed/verify scripts are Express/MERN-only — never bake them into Spring images.
-  if (!isSpringTemplate) {
+  // Node Express/Flutter seed+verify scripts only — not Spring/PHP/Jupyter images.
+  const needsNodePreviewScripts =
+    templateDirName === 'node-js' || templateDirName === 'node-js-flutter';
+  if (needsNodePreviewScripts) {
     const seedScriptSrc = path.join(sharedNodeDir, 'preview-seed-admin.js');
     if (fsSync.existsSync(seedScriptSrc)) {
       const seedScript = await fs.readFile(seedScriptSrc, 'utf8');
