@@ -8,10 +8,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { BRAND, PROJECT_NAME } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import {
-  clearRememberedIdentifier,
-  getRememberedIdentifier,
+  clearRememberedCredentials,
+  getRememberedCredentials,
   getRememberMePreference,
-  saveRememberedIdentifier,
+  saveRememberedCredentials,
 } from '../../../lib/authStorage';
 
 const loginSchema = z.object({
@@ -46,20 +46,18 @@ const LoginPage = () => {
           : '/';
 
   useEffect(() => {
-    const saved = getRememberedIdentifier();
     const preferRemember = getRememberMePreference();
-    setRememberMe(preferRemember);
-    if (saved) {
-      setValue('identifier', saved);
-      setRememberMe(true);
-    }
+    const { identifier, password } = getRememberedCredentials();
+    setRememberMe(preferRemember || Boolean(identifier));
+    if (identifier) setValue('identifier', identifier);
+    if (password) setValue('password', password);
   }, [setValue]);
 
   const onSubmit = async (values) => {
     if (rememberMe) {
-      saveRememberedIdentifier(values.identifier);
+      saveRememberedCredentials(values.identifier, values.password);
     } else {
-      clearRememberedIdentifier();
+      clearRememberedCredentials();
     }
 
     const result = await login(values.identifier, values.password, { rememberMe });
@@ -146,7 +144,7 @@ const LoginPage = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" autoComplete="on">
             {rootMsg && (
               <div className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-4 py-3 text-sm font-semibold text-rose-100">
                 {rootMsg}
@@ -160,6 +158,7 @@ const LoginPage = () => {
               <input
                 id="login-identifier"
                 type="text"
+                name="username"
                 autoComplete="username"
                 {...register('identifier')}
                 disabled={isSubmitting}
@@ -200,7 +199,7 @@ const LoginPage = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-1">
+            <div className="flex items-center pt-1">
               <label className="flex cursor-pointer select-none items-center gap-2.5 text-sm font-medium text-white/70">
                 <input
                   type="checkbox"
@@ -210,12 +209,6 @@ const LoginPage = () => {
                 />
                 Remember me
               </label>
-              <Link
-                to="/forgot-password"
-                className="text-sm font-semibold text-white/75 transition-colors hover:text-white"
-              >
-                Forgot password?
-              </Link>
             </div>
 
             <button
