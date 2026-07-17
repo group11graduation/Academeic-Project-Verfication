@@ -139,9 +139,6 @@ const LoginPage = () => {
           <div className="mb-4 flex flex-col items-center text-center">
             <ProjectVerifyLogo onDark size="lg" showText={false} className="mb-3 justify-center" />
             <h1 className="text-xl font-bold tracking-tight text-white sm:text-[1.375rem]">Welcome back!</h1>
-            <p className="mt-1.5 max-w-[300px] text-xs font-medium leading-snug text-white/70 sm:text-sm">
-              Sign in to {PROJECT_NAME} — your assignments, project submissions, and verification dashboard.
-            </p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" autoComplete="on">
