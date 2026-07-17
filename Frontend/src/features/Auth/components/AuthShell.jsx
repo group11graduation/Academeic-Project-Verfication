@@ -17,7 +17,7 @@ export default function AuthShell({ title, subtitle, children, footer }) {
       <div className="relative z-10 flex min-h-full items-center justify-center px-4 py-10 sm:px-6 sm:py-12">
         <div className="auth-page-card" style={{ WebkitBackdropFilter: 'blur(20px)' }}>
           <div className="mb-7 flex flex-col items-center text-center">
-            <ProjectVerifyLogo onDark size="lg" showText={false} className="mb-5 justify-center" />
+            <ProjectVerifyLogo onDark size="xl" showText={false} className="mb-5 justify-center" />
             {title ? (
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-[1.625rem]">{title}</h1>
             ) : null}

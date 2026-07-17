@@ -36,7 +36,7 @@ const StudentSidebar = () => {
             style={{ background: RAIL_GRADIENT }}
         >
             <Link to="/student" className="px-2 mb-5">
-                <ProjectVerifyLogo onDark size="sm" tagline="Student console" />
+                <ProjectVerifyLogo onDark size="md" tagline="Student console" />
             </Link>
 
             <nav className="flex-1 space-y-1 px-1">

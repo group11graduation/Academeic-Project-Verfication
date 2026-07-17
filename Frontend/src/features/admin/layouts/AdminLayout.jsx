@@ -154,7 +154,7 @@ const AdminLayoutInner = () => {
                 className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px dark:border-white/10 dark:bg-[#0b1220] lg:hidden"
             >
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
-                    <ProjectVerifyLogo size="sm" tagline="Admin console" />
+                    <ProjectVerifyLogo size="md" tagline="Admin console" />
                 </button>
                 <div className="flex items-center gap-2">
                     <ThemeToggle compact />
@@ -265,7 +265,7 @@ const AdminLayoutInner = () => {
                                 onClick={() => navigate('/admin')}
                                 className="mx-2 mb-1.5 mt-3 flex items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:opacity-90"
                             >
-                                <ProjectVerifyLogo size="sm" tagline="Admin console" />
+                                <ProjectVerifyLogo size="md" tagline="Admin console" />
                             </button>
 
                             <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto pb-3 pl-0.5 pr-0.5">

@@ -89,7 +89,7 @@ const LoginPage = () => {
         <div className="relative z-10 flex min-h-full items-center justify-center px-4 py-10 sm:px-6 sm:py-12">
           <div className="auth-page-card" style={{ WebkitBackdropFilter: 'blur(20px)' }}>
             <div className="mb-7 flex flex-col items-center text-center">
-              <ProjectVerifyLogo onDark size="lg" showText={false} className="mb-5 justify-center" />
+              <ProjectVerifyLogo onDark size="xl" showText={false} className="mb-5 justify-center" />
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-[1.625rem]">Already signed in</h1>
               <p className="mt-2.5 max-w-[360px] text-sm font-medium leading-relaxed text-white/70">
                 You are signed in as <span className="font-bold text-white">{user.name || user.email}</span>.
@@ -139,7 +139,7 @@ const LoginPage = () => {
       <div className="relative z-10 flex min-h-full items-center justify-center px-4 py-10 sm:px-6 sm:py-12">
         <div className="auth-page-card" style={{ WebkitBackdropFilter: 'blur(20px)' }}>
           <div className="mb-7 flex flex-col items-center text-center">
-            <ProjectVerifyLogo onDark size="lg" showText={false} className="mb-5 justify-center" />
+            <ProjectVerifyLogo onDark size="xl" showText={false} className="mb-5 justify-center" />
             <h1 className="text-2xl font-bold tracking-tight text-white sm:text-[1.625rem]">Welcome back!</h1>
             <p className="mt-2.5 max-w-[320px] text-sm font-medium leading-relaxed text-white/70">
               Sign in to {PROJECT_NAME} — your assignments, project submissions, and verification dashboard.

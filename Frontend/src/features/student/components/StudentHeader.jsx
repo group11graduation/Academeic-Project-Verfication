@@ -108,7 +108,7 @@ const StudentHeader = ({ forcePublic = false }) => {
             <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex h-16 items-center justify-between gap-4">
                     <Link to="/" className="group shrink-0">
-                        <ProjectVerifyLogo hideTextOnMobile className="transition-transform hover:opacity-95" />
+                        <ProjectVerifyLogo size="md" hideTextOnMobile className="transition-transform hover:opacity-95" />
                     </Link>
 
                     <nav className="hidden lg:flex items-center gap-6 xl:gap-8 flex-1 justify-center max-w-3xl">
