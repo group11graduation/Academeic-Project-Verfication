@@ -334,6 +334,10 @@ async function detectAndApplyApiLoginRouteHint(session, {
   previewApiUrl = '',
   stack = '',
   discoveredPaths = [],
+  extractDir = '',
+  frontendSubdir = '',
+  backendSubdir = '',
+  containerName = '',
 } = {}) {
   if (!session || !apiHostPort) return { found: false, path: '', loginPaths: discoveredPaths };
 
@@ -361,6 +365,46 @@ async function detectAndApplyApiLoginRouteHint(session, {
       'info',
       `Login route auto-detected: POST ${probe.path} (HTTP ${probe.status})`
     );
+
+    // Fix the student UI (and Express aliases) so /auth/login stops 404ing.
+    if (extractDir && frontendSubdir) {
+      const fePatch = await previewMern
+        .patchFrontendLoginApiPath(extractDir, frontendSubdir, probe.path)
+        .catch(() => ({ files: 0 }));
+      if (fePatch.files > 0) {
+        appendLog(
+          session,
+          'info',
+          `Rewrote ${fePatch.files} frontend file(s) to use login path ${probe.path}`
+        );
+      }
+    }
+    if (extractDir && backendSubdir && stack !== 'java-spring-react') {
+      const aliasPatch = await previewMern
+        .installPreviewLoginPathAliases(extractDir, backendSubdir, probe.path)
+        .catch(() => ({ files: 0 }));
+      if (aliasPatch.files > 0) {
+        appendLog(
+          session,
+          'info',
+          `Installed Express login path aliases → ${probe.path} (restart preview if UI still 404s)`
+        );
+      }
+    }
+    // Hot-patch already-served bundles inside the running container (bind mount usually covers this).
+    if (containerName && frontendSubdir && probe.path) {
+      const safeFront = String(frontendSubdir).replace(/[^a-zA-Z0-9_./-]/g, '');
+      const safePath = String(probe.path).replace(/[^a-zA-Z0-9_/-]/g, '');
+      if (safeFront && safePath) {
+        await dockerOrchestrator
+          .execInPreviewContainer(
+            containerName,
+            `cd "/app/${safeFront}" 2>/dev/null || cd /app; for d in dist build build/web; do [ -d "$d" ] || continue; find "$d" -type f \\( -name '*.js' -o -name '*.html' \\) 2>/dev/null | while read -r f; do sed -i 's|"/auth/login"|"${safePath}"|g; s|'"'"'/auth/login'"'"'|'"'"'${safePath}'"'"'|g; s|"/api/login"|"${safePath}"|g; s|"/users/login"|"${safePath}"|g' "$f" 2>/dev/null || true; done; done; echo patched`,
+            { timeoutMs: 30_000 }
+          )
+          .catch(() => '');
+      }
+    }
   } else {
     appendLog(session, 'warn', routeHint);
   }
@@ -454,6 +498,16 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
             previewApiUrl: session.previewApiUrl || deployResult.previewApiUrl,
             stack: deployResult.stack || session.previewStack,
             discoveredPaths: loginPaths,
+            extractDir,
+            frontendSubdir:
+              deployResult.mernPair?.frontendSubdir ||
+              deployResult.springPair?.frontendSubdir ||
+              '',
+            backendSubdir:
+              deployResult.mernPair?.backendSubdir ||
+              deployResult.springPair?.springSubdir ||
+              'backend',
+            containerName: deployResult.containerName,
           });
           loginPaths = routeProbe.loginPaths;
 
@@ -1323,6 +1377,10 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             previewApiUrl: session.previewApiUrl,
             stack,
             discoveredPaths: previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES,
+            extractDir: session.extractDirPath || '',
+            frontendSubdir: '',
+            backendSubdir: '',
+            containerName: dockerOrchestrator.containerNameFor(session._id.toString()),
           });
           const loginCheck = await previewLoginVerify
             .tryPreviewLogin({

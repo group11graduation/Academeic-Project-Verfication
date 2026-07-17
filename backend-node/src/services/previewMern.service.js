@@ -451,6 +451,7 @@ export async function patchBackendForPreview(
     hostPort,
     publicUiUrl,
     jwtSecret = 'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ==',
+    loginApiPath = '',
   }
 ) {
   const backendRoot = path.join(extractDir, backendSubdir);
@@ -488,6 +489,9 @@ export async function patchBackendForPreview(
     'NODE_ENV=development',
     'PREVIEW_SANDBOX=1',
   ];
+  if (loginApiPath) {
+    previewEnv.push(`PREVIEW_LOGIN_API_PATH=${loginApiPath}`);
+  }
   if (publicUiUrl || hostPort) {
     const corsOrigin = publicUiUrl || `http://localhost:${hostPort}`;
     previewEnv.push(`CORS_ORIGIN=${corsOrigin}`);
@@ -502,6 +506,11 @@ export async function patchBackendForPreview(
 
   files += await patchDbNoExitOnPreviewFail(backendRoot);
   files += await walkRelaxCors(backendRoot);
+
+  if (loginApiPath) {
+    const aliases = await installPreviewLoginPathAliases(extractDir, backendSubdir, loginApiPath);
+    files += aliases.files || 0;
+  }
 
   return { files };
 }
@@ -625,7 +634,266 @@ async function walkReplaceApiUrlInArtifacts(dir, targetApiUrl, depth = 0) {
   return { files };
 }
 
-export async function patchFrontendApiPort(extractDir, frontendSubdir, apiHostPort, { publicApiUrl } = {}) {
+/**
+ * Rewrite wrong login path literals to the confirmed backend route.
+ * Skips bare `/login` (SPA page). Avoids turning `/api/auth/login` into `/api/api/auth/login`.
+ */
+export function rewriteLoginPathLiterals(content, confirmedPath, candidatePaths = []) {
+  const confirmed = String(confirmedPath || '').trim();
+  if (!confirmed || confirmed === '/login') {
+    return { content, changed: false };
+  }
+  const candidates = [
+    ...new Set(
+      [...(candidatePaths || []), ...LOGIN_PATH_REWRITE_CANDIDATES]
+        .map((p) => String(p || '').trim())
+        .filter((p) => p && p !== confirmed && p !== '/login')
+    ),
+  ].sort((a, b) => b.length - a.length);
+
+  let next = String(content);
+  let changed = false;
+
+  for (const wrong of candidates) {
+    for (const q of ['"', "'", '`']) {
+      const from = `${q}${wrong}${q}`;
+      const to = `${q}${confirmed}${q}`;
+      if (next.includes(from)) {
+        next = next.split(from).join(to);
+        changed = true;
+      }
+    }
+    // Unquoted URL path: only when wrong is not already prefixed (e.g. /auth/login vs /api/auth/login)
+    if (confirmed.endsWith(wrong) && confirmed.length > wrong.length) {
+      const prefix = confirmed.slice(0, confirmed.length - wrong.length);
+      const escapedWrong = wrong.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`(?<!${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})${escapedWrong}`, 'g');
+      const replaced = next.replace(re, confirmed);
+      if (replaced !== next) {
+        next = replaced;
+        changed = true;
+      }
+    }
+  }
+  return { content: next, changed };
+}
+
+async function walkReplaceLoginPaths(dir, confirmedPath, { artifactsOnly = false, depth = 0 } = {}) {
+  if (depth > 10) return { files: 0 };
+  let files = 0;
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!artifactsOnly && (entry.name === 'dist' || entry.name === 'build')) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const sub = await walkReplaceLoginPaths(full, confirmedPath, { artifactsOnly, depth: depth + 1 });
+      files += sub.files;
+      continue;
+    }
+    const ext = path.extname(entry.name).toLowerCase();
+    if (artifactsOnly) {
+      if (!['.js', '.css', '.html', '.map', '.json'].includes(ext)) continue;
+    } else if (!SOURCE_EXT.has(ext) && !entry.name.startsWith('.env')) {
+      continue;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(full, 'utf8').catch(() => null);
+    if (content == null) continue;
+    const replaced = rewriteLoginPathLiterals(content, confirmedPath);
+    if (replaced.changed) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(full, replaced.content, 'utf8');
+      files += 1;
+    }
+  }
+  return { files };
+}
+
+/**
+ * After the real login API path is known, rewrite student frontend source + built bundles
+ * so the browser stops POSTing a 404 path like /auth/login.
+ */
+export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, confirmedPath) {
+  const confirmed = String(confirmedPath || '').trim();
+  if (!confirmed || confirmed === '/login') return { files: 0, confirmedPath: confirmed };
+  const frontendRoot = path.join(extractDir, frontendSubdir || '');
+  if (!(await pathExists(frontendRoot))) return { files: 0, confirmedPath: confirmed };
+
+  let files = 0;
+  const source = await walkReplaceLoginPaths(frontendRoot, confirmed, { artifactsOnly: false });
+  files += source.files;
+  for (const artifactDir of ['build', 'dist', path.join('build', 'web')]) {
+    const abs = path.join(frontendRoot, artifactDir);
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await pathExists(abs))) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const patched = await walkReplaceLoginPaths(abs, confirmed, { artifactsOnly: true });
+    files += patched.files;
+  }
+  return { files, confirmedPath: confirmed };
+}
+
+const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.js';
+const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases';
+
+function buildLoginAliasModule(realPath) {
+  const real = String(realPath || '/api/auth/login').replace(/\\/g, '/');
+  const aliases = LOGIN_PATH_REWRITE_CANDIDATES.filter((p) => p !== real);
+  return `/* ${LOGIN_ALIAS_MARKER} — auto-injected for ScholarVerify preview */
+'use strict';
+const http = require('http');
+let expressJson;
+try { expressJson = require('express').json({ limit: '2mb' }); } catch (_e) { expressJson = null; }
+
+const REAL = process.env.PREVIEW_LOGIN_API_PATH || ${JSON.stringify(real)};
+const ALIASES = ${JSON.stringify(aliases)}.filter((p) => p && p !== REAL);
+
+function installPreviewLoginAliases(app) {
+  if (!app || typeof app.post !== 'function' || app.__scholarVerifyLoginAliases) return;
+  app.__scholarVerifyLoginAliases = true;
+  const handlers = [];
+  if (expressJson) handlers.push(expressJson);
+  handlers.push((req, res) => {
+      const port = Number(process.env.PORT || process.env.API_PORT || 5000);
+      const payload = JSON.stringify(req.body || {});
+      const headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      };
+      if (req.headers.authorization) headers.Authorization = req.headers.authorization;
+      const proxy = http.request(
+        { hostname: '127.0.0.1', port, path: REAL, method: 'POST', headers },
+        (pr) => {
+          const chunks = [];
+          pr.on('data', (c) => chunks.push(c));
+          pr.on('end', () => {
+            res.status(pr.statusCode || 502);
+            const ct = pr.headers['content-type'];
+            if (ct) res.setHeader('Content-Type', ct);
+            res.send(Buffer.concat(chunks));
+          });
+        }
+      );
+      proxy.on('error', (err) => {
+        res.status(502).json({ message: err.message || 'preview login alias proxy failed' });
+      });
+      proxy.write(payload);
+      proxy.end();
+  });
+  for (const alias of ALIASES) {
+    app.post(alias, ...handlers);
+  }
+  console.log('[preview] login path aliases → POST ' + REAL);
+}
+
+module.exports = { installPreviewLoginAliases };
+`;
+}
+
+function injectLoginAliasRequire(content, requirePath) {
+  if (content.includes(LOGIN_ALIAS_MARKER) && content.includes('installPreviewLoginAliases')) {
+    return { content, changed: false };
+  }
+  const line = `try { require(${JSON.stringify(requirePath)}).installPreviewLoginAliases(app); } catch (_sv) { /* ${LOGIN_ALIAS_MARKER} */ }\n`;
+
+  // Prefer immediately before the catch-all 404 so body parsers already ran.
+  const notFoundRe = /(\n)((?:\/\/[^\n]*404[^\n]*\n)?)(app\.use\(\s*\(\s*req\s*,\s*res)/;
+  if (notFoundRe.test(content)) {
+    return { content: content.replace(notFoundRe, `$1${line}$2$3`), changed: true };
+  }
+
+  const jsonRe = /(app\.use\(\s*express\.json\([^)]*\)\s*\)\s*;?)/;
+  if (jsonRe.test(content)) {
+    return { content: content.replace(jsonRe, `$1\n${line}`), changed: true };
+  }
+
+  const listenRe = /(\n)((?:const|let|var)\s+\w+\s*=\s*)?app\.listen\(/;
+  if (listenRe.test(content)) {
+    return { content: content.replace(listenRe, `$1${line}$2app.listen(`), changed: true };
+  }
+
+  return { content: `${content}\n${line}`, changed: true };
+}
+
+async function findExpressEntryFiles(backendRoot) {
+  const candidates = [
+    'server.js',
+    'index.js',
+    'app.js',
+    'src/server.js',
+    'src/index.js',
+    'src/app.js',
+    'backend/server.js',
+    'backend/index.js',
+  ];
+  const found = [];
+  for (const rel of candidates) {
+    const full = path.join(backendRoot, rel);
+    // eslint-disable-next-line no-await-in-loop
+    if (await pathExists(full)) found.push(full);
+  }
+  if (found.length) return found;
+
+  // Fallback: shallow scan for app.listen
+  const entries = await fs.readdir(backendRoot, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isFile() || !/\.(js|cjs)$/i.test(entry.name)) continue;
+    const full = path.join(backendRoot, entry.name);
+    // eslint-disable-next-line no-await-in-loop
+    const text = await fs.readFile(full, 'utf8').catch(() => '');
+    if (/\bapp\.listen\s*\(/.test(text) && /\bexpress\s*\(/.test(text)) found.push(full);
+  }
+  return found;
+}
+
+/**
+ * Mount POST aliases for common wrong login paths onto the real Express route
+ * (e.g. /auth/login → /api/auth/login) so student UIs stop getting "Route not found".
+ */
+export async function installPreviewLoginPathAliases(extractDir, backendSubdir, realLoginPath) {
+  const real = String(realLoginPath || '').trim();
+  if (!real || real === '/login') return { files: 0, realPath: real };
+  const backendRoot = path.join(extractDir, backendSubdir || '');
+  if (!(await pathExists(backendRoot))) return { files: 0, realPath: real };
+
+  const pkgPath = path.join(backendRoot, 'package.json');
+  if (await pathExists(pkgPath)) {
+    const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8').catch(() => '{}'));
+    if (pkg.type === 'module') {
+      // ESM student apps: skip require() injection; frontend rewrite still applies.
+      return { files: 0, realPath: real, skipped: 'esm' };
+    }
+  }
+
+  const aliasAbs = path.join(backendRoot, LOGIN_ALIAS_FILE);
+  await fs.writeFile(aliasAbs, buildLoginAliasModule(real), 'utf8');
+  let files = 1;
+
+  const entries = await findExpressEntryFiles(backendRoot);
+  for (const entryFile of entries) {
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(entryFile, 'utf8').catch(() => null);
+    if (content == null || !/\bapp\b/.test(content)) continue;
+    let rel = path.relative(path.dirname(entryFile), aliasAbs).replace(/\\/g, '/');
+    if (!rel.startsWith('.')) rel = `./${rel}`;
+    const injected = injectLoginAliasRequire(content, rel);
+    if (injected.changed) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(entryFile, injected.content, 'utf8');
+      files += 1;
+    }
+  }
+  return { files, realPath: real };
+}
+
+export async function patchFrontendApiPort(
+  extractDir,
+  frontendSubdir,
+  apiHostPort,
+  { publicApiUrl, loginApiPath = '' } = {}
+) {
   const frontendRoot = path.join(extractDir, frontendSubdir);
   if (!(await pathExists(frontendRoot))) return { files: 0 };
 
@@ -656,8 +924,19 @@ export async function patchFrontendApiPort(extractDir, frontendSubdir, apiHostPo
       artifactFiles += patched.files;
     }
   }
+
+  let loginPathFiles = 0;
+  if (loginApiPath) {
+    const loginPatched = await patchFrontendLoginApiPath(extractDir, frontendSubdir, loginApiPath);
+    loginPathFiles = loginPatched.files || 0;
+  }
+
   return {
-    files: replaced.files + artifactFiles + (await pathExists(path.join(frontendRoot, 'package.json')) ? 1 : 0),
+    files:
+      replaced.files +
+      artifactFiles +
+      loginPathFiles +
+      (await pathExists(path.join(frontendRoot, 'package.json')) ? 1 : 0),
   };
 }
 
@@ -688,7 +967,33 @@ const DEFAULT_LOGIN_PATHS = [
   '/api/v1/auth/login',
 ];
 
+/** Candidates safe to rewrite in frontend JS (excludes bare /login SPA route). */
+const LOGIN_PATH_REWRITE_CANDIDATES = DEFAULT_LOGIN_PATHS.filter((p) => p !== '/login');
+
 const LOGIN_PATH_LITERAL_RE = /['"`](\/(?:api\/)?[^'"`]*login[^'"`]*)['"`]/gi;
+
+/**
+ * Pick the best login API path from source discovery / probe results.
+ * Prefers the shared candidate order (api/auth/login before auth/login, etc.).
+ */
+export function preferLoginApiPath(discoveredPaths = []) {
+  const found = new Set(
+    (discoveredPaths || [])
+      .map((p) => String(p || '').trim())
+      .filter(Boolean)
+      .map((p) => (p.startsWith('/') ? p : `/${p}`))
+  );
+  for (const candidate of DEFAULT_LOGIN_PATHS) {
+    if (found.has(candidate)) return candidate;
+  }
+  for (const p of found) {
+    if (/login/i.test(p) && p.includes('/api/')) return p;
+  }
+  for (const p of found) {
+    if (/login/i.test(p) && p !== '/login') return p;
+  }
+  return '';
+}
 
 /**
  * Scan backend route files for login POST paths (e.g. /api/users/login).

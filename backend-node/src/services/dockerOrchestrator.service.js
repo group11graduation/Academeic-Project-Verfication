@@ -15,6 +15,8 @@ import {
   buildPreviewMongoUri,
   splitStackDisplayLabel,
   classifyPackageJson,
+  discoverLoginApiPaths,
+  preferLoginApiPath,
 } from './previewMern.service.js';
 import {
   patchPhpForPreview,
@@ -1898,10 +1900,19 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   if (splitStackPair && !springPair) {
     const publicApiUrl = apiHostPort ? buildPublicPreviewOrigin(apiHostPort) : '';
     const publicUiUrl = buildPublicPreviewOrigin(hostPort);
+    const discoveredLoginPaths = await discoverLoginApiPaths(
+      buildContext,
+      splitStackPair.backendSubdir || ''
+    ).catch(() => []);
+    const loginApiPath =
+      preferLoginApiPath(discoveredLoginPaths) || '/api/auth/login';
     if (flutterPair) {
       await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort, { publicApiUrl });
     } else if (mernPair) {
-      await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort, { publicApiUrl });
+      await patchFrontendApiPort(buildContext, mernPair.frontendSubdir, apiHostPort, {
+        publicApiUrl,
+        loginApiPath,
+      });
     }
     const mongoUri =
       mergedCredentialEnv.MONGO_URI ||
@@ -1912,6 +1923,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       hostPort,
       publicUiUrl,
       jwtSecret: mergedCredentialEnv.JWT_SECRET,
+      loginApiPath,
     });
   }
 
