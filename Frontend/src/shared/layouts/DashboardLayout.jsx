@@ -157,14 +157,14 @@ const DashboardLayoutInner = ({ children }) => {
                             <button
                                 type="button"
                                 onClick={() => navigate('/teacher')}
-                                className="flex h-14 w-14 items-center justify-center overflow-hidden"
+                                className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-white/50 shadow-sm"
                                 title="Teacher home"
                                 aria-label="Project Verify — Teacher home"
                             >
                                 <img
                                     src="/logo.png"
                                     alt=""
-                                    className="h-14 w-14 object-contain"
+                                    className="h-10 w-10 object-contain"
                                 />
                             </button>
 
