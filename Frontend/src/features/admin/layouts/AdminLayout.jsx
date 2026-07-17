@@ -14,7 +14,6 @@ import {
     Bell,
     CalendarRange,
     FileSpreadsheet,
-    Activity,
     Workflow,
     Menu,
 } from 'lucide-react';
@@ -154,7 +153,7 @@ const AdminLayoutInner = () => {
                 className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px dark:border-white/10 dark:bg-[#0b1220] lg:hidden"
             >
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
-                    <ProjectVerifyLogo size="md" tagline="Admin console" />
+                    <ProjectVerifyLogo showMark={false} size="md" tagline="Admin console" />
                 </button>
                 <div className="flex items-center gap-2">
                     <ThemeToggle compact />
@@ -187,10 +186,15 @@ const AdminLayoutInner = () => {
                             <button
                                 type="button"
                                 onClick={() => navigate('/admin')}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/30"
+                                className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-white/50 shadow-sm"
                                 title="Admin home"
+                                aria-label="Project Verify — Admin home"
                             >
-                                <Activity className="h-[16px] w-[16px]" strokeWidth={2.2} />
+                                <img
+                                    src="/logo.png"
+                                    alt=""
+                                    className="h-10 w-10 object-contain"
+                                />
                             </button>
 
                             <nav
@@ -265,7 +269,7 @@ const AdminLayoutInner = () => {
                                 onClick={() => navigate('/admin')}
                                 className="mx-2 mb-1.5 mt-3 flex items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:opacity-90"
                             >
-                                <ProjectVerifyLogo size="md" tagline="Admin console" />
+                                <ProjectVerifyLogo showMark={false} size="md" tagline="Admin console" />
                             </button>
 
                             <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto pb-3 pl-0.5 pr-0.5">
