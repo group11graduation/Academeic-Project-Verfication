@@ -21,7 +21,7 @@ export default function ProjectVerifyLogo({
     return (
         <div className={`flex items-center gap-3 shrink-0 ${className}`}>
             <img
-                src="/project-verify-logo.svg"
+                src="/logo.png"
                 alt=""
                 className={`${img} object-contain shrink-0`}
             />

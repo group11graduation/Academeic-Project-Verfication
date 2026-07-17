@@ -162,7 +162,7 @@ const DashboardLayoutInner = ({ children }) => {
                                 aria-label="Project Verify — Teacher home"
                             >
                                 <img
-                                    src="/project-verify-logo.svg"
+                                    src="/logo.png"
                                     alt=""
                                     className="h-7 w-7 object-contain"
                                 />
