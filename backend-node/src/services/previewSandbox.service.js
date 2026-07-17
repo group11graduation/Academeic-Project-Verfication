@@ -531,9 +531,13 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
               if (loginCheck.workingCredentials) {
                 session.previewLoginEmail = loginCheck.workingCredentials.email;
                 session.previewLoginPassword = loginCheck.workingCredentials.password;
+                if (String(loginCheck.workingCredentials.email || '').includes('@')) {
+                  session.previewLoginIdentifierType = 'email';
+                  session.previewLoginIdentifierLabel = 'Email';
+                }
                 session.previewLoginSource = 'project_seed_fallback';
                 session.previewLoginHint = previewLoginVerify.mergePreviewLoginRouteHint(
-                  'Preview admin account could not be seeded; using credentials from the student project seed/setup script.',
+                  `Use project login ${loginCheck.workingCredentials.email} / ${loginCheck.workingCredentials.password} (platform preview admin was rejected by this app).`,
                   previewLoginVerify.buildApiLoginRouteHint({
                     previewApiUrl: session.previewApiUrl,
                     apiHostPort: deployResult.apiHostPort || session.previewApiHostPort,
@@ -550,6 +554,16 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
               }
             } else {
               appendLog(session, 'warn', loginCheck.message);
+              if (fallbackCredentials.length) {
+                const tip = fallbackCredentials
+                  .slice(0, 2)
+                  .map((c) => `${c.email} / ${c.password}`)
+                  .join(' or ');
+                session.previewLoginHint = previewLoginVerify.mergePreviewLoginRouteHint(
+                  session.previewLoginHint,
+                  `Platform admin login returned 401 — try project credentials shown on the student login page (${tip}).`
+                );
+              }
               if (loginCheck.seedTail) {
                 appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
               } else if (loginCheck.seedOutput) {

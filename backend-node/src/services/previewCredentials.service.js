@@ -336,13 +336,58 @@ async function walkForAuthPages(dir, found, depth = 0) {
   for (const entry of entries) {
     if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'target') continue;
     const full = path.join(dir, entry.name);
-    if (entry.isFile() && /^(auth|Auth|Login|login)\.(jsx|tsx|js|vue|php|html)$/i.test(entry.name)) {
+    if (
+      entry.isFile() &&
+      /^(auth|Auth|Login|login|SignIn|signin|Signin|Register)\.(jsx|tsx|js|vue|php|html)$/i.test(entry.name)
+    ) {
       found.push(full);
       continue;
     }
     if (entry.isDirectory() && depth < 5) {
       // eslint-disable-next-line no-await-in-loop
       await walkForAuthPages(full, found, depth + 1);
+    }
+  }
+}
+
+/**
+ * Walk frontend/src (and similar) for UI credential callouts like "admin@syada.org / 123456".
+ */
+async function walkForCredentialCalloutFiles(dir, found, depth = 0, maxDepth = 6) {
+  if (depth > maxDepth || found.length >= 24) return;
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (
+      entry.name === 'node_modules' ||
+      entry.name === '.git' ||
+      entry.name === 'dist' ||
+      entry.name === 'build' ||
+      entry.name === 'coverage' ||
+      entry.name === 'vendor' ||
+      entry.name === 'target'
+    ) {
+      continue;
+    }
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // eslint-disable-next-line no-await-in-loop
+      await walkForCredentialCalloutFiles(full, found, depth + 1, maxDepth);
+      continue;
+    }
+    if (!/\.(jsx?|tsx?|vue|md|txt|html)$/i.test(entry.name)) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const text = await fs.readFile(full, 'utf8').catch(() => '');
+    if (!text) continue;
+    if (
+      /fresh\s*DB|default\s*staff|default\s*admin/i.test(text) ||
+      /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\s*\/\s*[^\s<>"'`,;]{4,64}/.test(text)
+    ) {
+      found.push(full);
     }
   }
 }
@@ -543,11 +588,45 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
   // Prefer these over .env username-only values when the UI documents staff login.
   {
     const loginFiles = await collectLoginCandidateFiles(extractDir, loginPath);
-    for (const filePath of loginFiles.slice(0, 16)) {
+    const calloutFiles = [];
+    for (const hintDir of [
+      'frontend',
+      'Frontend',
+      'client',
+      'Client',
+      'web',
+      'src',
+      'bms-frontend',
+    ]) {
+      const abs = path.join(extractDir, hintDir);
+      // eslint-disable-next-line no-await-in-loop
+      if (await pathExists(abs)) {
+        // eslint-disable-next-line no-await-in-loop
+        await walkForCredentialCalloutFiles(abs, calloutFiles);
+      }
+    }
+    await walkForCredentialCalloutFiles(extractDir, calloutFiles, 0, 3);
+
+    const files = [...new Set([...loginFiles, ...calloutFiles])];
+    let uiEmail = '';
+    let uiPassword = '';
+    let uiHint = '';
+    for (const filePath of files.slice(0, 40)) {
       try {
         // eslint-disable-next-line no-await-in-loop
         const text = await fs.readFile(filePath, 'utf8');
         const picked = parseReadmeHints(text);
+        if (picked.email && looksLikeEmail(picked.email) && picked.password) {
+          // Prefer explicit "fresh DB" / "default staff" callouts from the login UI.
+          if (
+            !uiEmail ||
+            /fresh\s*DB|default\s*staff|default\s*admin/i.test(text)
+          ) {
+            uiEmail = picked.email;
+            uiPassword = picked.password;
+            uiHint = `Found in ${path.relative(extractDir, filePath).replace(/\\/g, '/')}`;
+          }
+        }
         if (picked.email && looksLikeEmail(picked.email)) {
           if (!email || !looksLikeEmail(email) || /fresh\s*DB|default\s*staff/i.test(text)) {
             email = picked.email;
@@ -560,6 +639,12 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
       } catch {
         /* ignore */
       }
+    }
+    // UI-documented staff login wins over .env / platform placeholders.
+    if (uiEmail && uiPassword) {
+      email = uiEmail;
+      password = uiPassword;
+      hint = uiHint || hint;
     }
   }
 

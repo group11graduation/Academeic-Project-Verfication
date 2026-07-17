@@ -1363,7 +1363,9 @@ const TeacherProposalStudentDetail = () => {
                                     const preferredLabel = sess?.previewLoginIdentifierLabel || 'Email';
                                     const loginSource = sess?.previewLoginSource || '';
                                     const fromProject =
-                                        loginSource === 'project_files' || loginSource === 'project_php_setup';
+                                        loginSource === 'project_files' ||
+                                        loginSource === 'project_php_setup' ||
+                                        loginSource === 'project_seed_fallback';
                                     const loginUrl =
                                         sess?.previewLoginUrl ||
                                         (sess?.previewUrl ? `${String(sess.previewUrl).replace(/\/$/, '')}/login` : '');

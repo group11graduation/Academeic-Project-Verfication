@@ -41,7 +41,15 @@ const previewSessionSchema = new mongoose.Schema(
     previewLoginUrl: { type: String, default: '' },
     previewLoginSource: {
       type: String,
-      enum: ['', 'platform_default', 'teacher_provided', 'project_files', 'project_php_setup', 'project_spring_seed'],
+      enum: [
+        '',
+        'platform_default',
+        'teacher_provided',
+        'project_files',
+        'project_php_setup',
+        'project_spring_seed',
+        'project_seed_fallback',
+      ],
       default: '',
     },
     previewLoginHint: { type: String, default: '' },

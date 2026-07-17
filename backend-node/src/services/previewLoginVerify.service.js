@@ -181,8 +181,24 @@ function backendExecDir(backendSubdir) {
   return `cd "/app/${rel}"`;
 }
 
-export async function reseedPreviewAdminInContainer(containerName, backendSubdir = 'backend') {
-  const cmd = `${backendExecDir(backendSubdir)} && node /preview-seed-admin.js 2>&1 | tail -30`;
+export async function reseedPreviewAdminInContainer(
+  containerName,
+  backendSubdir = 'backend',
+  { email = '', password = '' } = {}
+) {
+  const envParts = [];
+  if (email) {
+    envParts.push(`PREVIEW_ADMIN_EMAIL=${JSON.stringify(String(email))}`);
+    envParts.push(`ADMIN_EMAIL=${JSON.stringify(String(email))}`);
+    envParts.push(`SEED_ADMIN_EMAIL=${JSON.stringify(String(email))}`);
+  }
+  if (password) {
+    envParts.push(`PREVIEW_ADMIN_PASSWORD=${JSON.stringify(String(password))}`);
+    envParts.push(`ADMIN_PASSWORD=${JSON.stringify(String(password))}`);
+    envParts.push(`SEED_ADMIN_PASSWORD=${JSON.stringify(String(password))}`);
+  }
+  const envPrefix = envParts.length ? `${envParts.join(' ')} ` : '';
+  const cmd = `${backendExecDir(backendSubdir)} && ${envPrefix}node /preview-seed-admin.js 2>&1 | tail -30`;
   try {
     const out = await dockerOrchestrator.execInPreviewContainer(containerName, cmd, { timeoutMs: 120_000 });
     return { success: !/password verify:\s*FAILED/i.test(out), output: out };
@@ -240,6 +256,27 @@ export async function verifyAndFixMernPreviewLogin({
   if (attempt.ok) {
     return { ok: true, message: `Login verified at ${attempt.url}`, attempt };
   }
+
+  // Prefer project-documented credentials (e.g. admin@syada.org / 123456) before reseeding.
+  if (attempt.reason === 'invalid_credentials' && fallbackCredentials?.length) {
+    const earlyFallback = await tryFallbackLogins({
+      apiHostPort,
+      identifierType,
+      probeHost,
+      loginPaths: paths,
+      fallbackCredentials,
+      skipKeys: new Set([`${email}:${password}`]),
+    });
+    if (earlyFallback.ok) {
+      return {
+        ok: true,
+        message: `Login verified with project credentials (${earlyFallback.label}) at ${earlyFallback.attempt.url}`,
+        attempt: earlyFallback.attempt,
+        workingCredentials: { email: earlyFallback.email, password: earlyFallback.password },
+      };
+    }
+  }
+
   if (attempt.reason !== 'invalid_credentials' || !containerName) {
     const fallback = await tryFallbackLogins({
       apiHostPort,
@@ -292,7 +329,7 @@ export async function verifyAndFixMernPreviewLogin({
     };
   }
 
-  const seed = await reseedPreviewAdminInContainer(containerName, backendSubdir);
+  const seed = await reseedPreviewAdminInContainer(containerName, backendSubdir, { email, password });
   await new Promise((r) => setTimeout(r, 2500));
   attempt = await tryPreviewLogin({
     apiHostPort,
@@ -309,6 +346,37 @@ export async function verifyAndFixMernPreviewLogin({
       attempt,
       seedOutput: seed.output,
     };
+  }
+
+  // Re-seed using each project credential pair, then retry that pair.
+  for (const cred of fallbackCredentials || []) {
+    if (!cred?.email || !cred?.password) continue;
+    if (`${cred.email}:${cred.password}` === `${email}:${password}`) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const altSeed = await reseedPreviewAdminInContainer(containerName, backendSubdir, {
+      email: cred.email,
+      password: cred.password,
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 1500));
+    // eslint-disable-next-line no-await-in-loop
+    const altAttempt = await tryPreviewLogin({
+      apiHostPort,
+      email: cred.email,
+      password: cred.password,
+      identifierType,
+      probeHost,
+      loginPaths: paths,
+    });
+    if (altAttempt.ok) {
+      return {
+        ok: true,
+        message: `Login verified with project credentials (${cred.label}) after re-seed at ${altAttempt.url}`,
+        attempt: altAttempt,
+        seedOutput: altSeed.output || seed.output,
+        workingCredentials: { email: cred.email, password: cred.password },
+      };
+    }
   }
 
   const fallback = await tryFallbackLogins({
