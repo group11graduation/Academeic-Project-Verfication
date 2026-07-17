@@ -1,12 +1,28 @@
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
+import { getPreviewProbeHost } from '../config/previewProbe.js';
 
-const DEFAULT_LOGIN_PATHS = [
-  '/api/users/login',
+/**
+ * Common Express/MERN (and Spring) login POST paths, ordered by how often
+ * student projects use them. Used for live route detection and credential verify.
+ */
+export const LOGIN_ROUTE_PROBE_CANDIDATES = [
   '/api/auth/login',
-  '/api/login',
-  '/users/login',
   '/auth/login',
+  '/api/login',
+  '/login',
+  '/api/users/login',
+  '/users/login',
+  '/api/user/login',
+  '/api/v1/auth/login',
 ];
+
+const DEFAULT_LOGIN_PATHS = LOGIN_ROUTE_PROBE_CANDIDATES;
+
+const LOGIN_ROUTE_MISS_HINT =
+  "Could not auto-detect the login route on this project's backend — check the student's Express route definitions directly (look for app.post inside their routes/ or controllers/ folder).";
+
+const LOGIN_ROUTE_MISS_HINT_SPRING =
+  "Could not auto-detect the login route on this project's backend — check the student's Spring controllers for @PostMapping / @RequestMapping login endpoints.";
 
 function loginBodies({ email, password, identifierType }) {
   const bodies = [
@@ -29,6 +45,18 @@ function mergeLoginPaths(customPaths = []) {
   return merged.filter(Boolean);
 }
 
+function orderedProbePaths(extraPaths = []) {
+  const ordered = [];
+  const seen = new Set();
+  for (const p of [...LOGIN_ROUTE_PROBE_CANDIDATES, ...(extraPaths || [])]) {
+    const path = String(p || '').trim();
+    if (!path || seen.has(path)) continue;
+    seen.add(path);
+    ordered.push(path.startsWith('/') ? path : `/${path}`);
+  }
+  return ordered;
+}
+
 async function postLogin(baseUrl, loginPath, body) {
   const url = `${String(baseUrl).replace(/\/$/, '')}${loginPath}`;
   const controller = new AbortController();
@@ -48,12 +76,77 @@ async function postLogin(baseUrl, loginPath, body) {
   }
 }
 
+/**
+ * Probe the running API with throwaway credentials to find which login route exists.
+ * 404 → route missing (try next). Any other HTTP status → route exists (validation/auth rejected the probe).
+ */
+export async function detectPreviewLoginApiRoute({
+  apiHostPort,
+  probeHost = getPreviewProbeHost(),
+  extraPaths = [],
+} = {}) {
+  if (!apiHostPort) {
+    return { found: false, path: '', status: 0, reason: 'missing_api_port' };
+  }
+  const baseUrl = `http://${probeHost}:${apiHostPort}`;
+  const body = { email: '__probe__', password: '__probe__' };
+  const paths = orderedProbePaths(extraPaths);
+
+  for (const loginPath of paths) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await postLogin(baseUrl, loginPath, body);
+    if (result.status === 404 || result.status === 0) continue;
+    return {
+      found: true,
+      path: loginPath,
+      status: result.status,
+      probeUrl: result.url,
+    };
+  }
+  return { found: false, path: '', status: 0, reason: 'all_candidates_404' };
+}
+
+/**
+ * Teacher-facing hint for Node/MERN (and Spring) — mirrors buildPhpPreviewLoginHint().
+ */
+export function buildApiLoginRouteHint({
+  previewApiUrl = '',
+  apiHostPort = '',
+  detectedPath = '',
+  found = false,
+  stack = 'node-js',
+} = {}) {
+  if (found && detectedPath) {
+    const base =
+      String(previewApiUrl || '')
+        .replace(/\/$/, '')
+        .trim() || (apiHostPort ? `http://localhost:${apiHostPort}` : '');
+    return `Login endpoint detected: POST ${base}${detectedPath}`;
+  }
+  return stack === 'java-spring-react' ? LOGIN_ROUTE_MISS_HINT_SPRING : LOGIN_ROUTE_MISS_HINT;
+}
+
+/** Merge stack description with the confirmed (or fallback) login-route hint. */
+export function mergePreviewLoginRouteHint(existingHint, routeHint) {
+  const route = String(routeHint || '').trim();
+  if (!route) return String(existingHint || '').trim();
+  let base = String(existingHint || '').trim();
+  base = base
+    .replace(/\s*Login endpoint detected: POST \S+/gi, '')
+    .replace(
+      /\s*Could not auto-detect the login route on this project's backend[\s\S]*?(?:folder|endpoints)\./gi,
+      ''
+    )
+    .trim();
+  return base ? `${base} ${route}` : route;
+}
+
 export async function tryPreviewLogin({
   apiHostPort,
   email,
   password,
   identifierType = 'email',
-  probeHost = '127.0.0.1',
+  probeHost = getPreviewProbeHost(),
   loginPaths = [],
 } = {}) {
   if (!apiHostPort || !email || !password) {
@@ -132,7 +225,7 @@ export async function verifyAndFixMernPreviewLogin({
   fallbackCredentials = [],
   stack = 'node-js',
 } = {}) {
-  const probeHost = process.env.PREVIEW_PROBE_HOST || '127.0.0.1';
+  const probeHost = getPreviewProbeHost();
   const paths = mergeLoginPaths(loginPaths);
   const isSpring = stack === 'java-spring-react';
 

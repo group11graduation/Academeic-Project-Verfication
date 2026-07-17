@@ -325,6 +325,53 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
   }
 }
 
+/**
+ * After the API is up, POST-probe common login paths and update the teacher hint
+ * with the confirmed route (same timing as PHP bootstrap credential refresh).
+ */
+async function detectAndApplyApiLoginRouteHint(session, {
+  apiHostPort,
+  previewApiUrl = '',
+  stack = '',
+  discoveredPaths = [],
+} = {}) {
+  if (!session || !apiHostPort) return { found: false, path: '', loginPaths: discoveredPaths };
+
+  const probe = await previewLoginVerify.detectPreviewLoginApiRoute({
+    apiHostPort: Number(apiHostPort),
+    probeHost: getPreviewProbeHost(),
+    extraPaths: discoveredPaths,
+  });
+
+  const routeHint = previewLoginVerify.buildApiLoginRouteHint({
+    previewApiUrl: previewApiUrl || session.previewApiUrl,
+    apiHostPort,
+    detectedPath: probe.path,
+    found: probe.found,
+    stack: stack || session.previewStack || 'node-js',
+  });
+  session.previewLoginHint = previewLoginVerify.mergePreviewLoginRouteHint(
+    session.previewLoginHint,
+    routeHint
+  );
+
+  if (probe.found) {
+    appendLog(
+      session,
+      'info',
+      `Login route auto-detected: POST ${probe.path} (HTTP ${probe.status})`
+    );
+  } else {
+    appendLog(session, 'warn', routeHint);
+  }
+
+  const loginPaths = probe.found
+    ? [probe.path, ...(discoveredPaths || []).filter((p) => p !== probe.path)]
+    : discoveredPaths || [];
+
+  return { ...probe, loginPaths };
+}
+
 async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
   const jobKey = sessionId.toString();
   if (readinessJobs.has(jobKey)) return;
@@ -354,7 +401,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
       if (deployResult.stack === 'php-apache') {
         await refreshPhpPreviewLoginHint(session, deployResult);
       }
-      if (deployResult.apiHostPort && session.previewLoginEmail && session.previewLoginPassword) {
+      if (deployResult.apiHostPort) {
         const backendLog = await dockerOrchestrator.readPreviewBackendLog(deployResult.containerName, 40);
         const seedLines = backendLog
           .split('\n')
@@ -401,41 +448,60 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
             const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
             fallbackCredentials = previewLoginVerify.buildFallbackPreviewCredentials(discovered);
           }
-          const loginCheck = await previewLoginVerify.verifyAndFixMernPreviewLogin({
-            containerName: deployResult.containerName,
+
+          const routeProbe = await detectAndApplyApiLoginRouteHint(session, {
             apiHostPort: Number(deployResult.apiHostPort || session.previewApiHostPort),
-            backendSubdir:
-              deployResult.mernPair?.backendSubdir ||
-              deployResult.springPair?.springSubdir ||
-              'backend',
-            email: session.previewLoginEmail,
-            password: session.previewLoginPassword,
-            identifierType: session.previewLoginIdentifierType,
-            loginPaths,
-            fallbackCredentials,
-            stack: deployResult.stack || session.previewStack || 'node-js',
+            previewApiUrl: session.previewApiUrl || deployResult.previewApiUrl,
+            stack: deployResult.stack || session.previewStack,
+            discoveredPaths: loginPaths,
           });
-          if (loginCheck.ok) {
-            appendLog(session, 'info', loginCheck.message);
-            if (loginCheck.workingCredentials) {
-              session.previewLoginEmail = loginCheck.workingCredentials.email;
-              session.previewLoginPassword = loginCheck.workingCredentials.password;
-              session.previewLoginSource = 'project_seed_fallback';
-              session.previewLoginHint =
-                'Preview admin account could not be seeded; using credentials from the student project seed/setup script.';
-              appendLog(
-                session,
-                'info',
-                `Use these working credentials: ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail}`
-              );
-            }
-          } else {
-            appendLog(session, 'warn', loginCheck.message);
-            if (loginCheck.seedTail) {
-              appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
-            } else if (loginCheck.seedOutput) {
-              const tail = String(loginCheck.seedOutput).split('\n').slice(-6).join('\n');
-              if (tail) appendLog(session, 'warn', `Admin seed output:\n${tail}`);
+          loginPaths = routeProbe.loginPaths;
+
+          if (session.previewLoginEmail && session.previewLoginPassword) {
+            const loginCheck = await previewLoginVerify.verifyAndFixMernPreviewLogin({
+              containerName: deployResult.containerName,
+              apiHostPort: Number(deployResult.apiHostPort || session.previewApiHostPort),
+              backendSubdir:
+                deployResult.mernPair?.backendSubdir ||
+                deployResult.springPair?.springSubdir ||
+                'backend',
+              email: session.previewLoginEmail,
+              password: session.previewLoginPassword,
+              identifierType: session.previewLoginIdentifierType,
+              loginPaths,
+              fallbackCredentials,
+              stack: deployResult.stack || session.previewStack || 'node-js',
+            });
+            if (loginCheck.ok) {
+              appendLog(session, 'info', loginCheck.message);
+              if (loginCheck.workingCredentials) {
+                session.previewLoginEmail = loginCheck.workingCredentials.email;
+                session.previewLoginPassword = loginCheck.workingCredentials.password;
+                session.previewLoginSource = 'project_seed_fallback';
+                session.previewLoginHint = previewLoginVerify.mergePreviewLoginRouteHint(
+                  'Preview admin account could not be seeded; using credentials from the student project seed/setup script.',
+                  previewLoginVerify.buildApiLoginRouteHint({
+                    previewApiUrl: session.previewApiUrl,
+                    apiHostPort: deployResult.apiHostPort || session.previewApiHostPort,
+                    detectedPath: routeProbe.path,
+                    found: routeProbe.found,
+                    stack: deployResult.stack || session.previewStack,
+                  })
+                );
+                appendLog(
+                  session,
+                  'info',
+                  `Use these working credentials: ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail}`
+                );
+              }
+            } else {
+              appendLog(session, 'warn', loginCheck.message);
+              if (loginCheck.seedTail) {
+                appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
+              } else if (loginCheck.seedOutput) {
+                const tail = String(loginCheck.seedOutput).split('\n').slice(-6).join('\n');
+                if (tail) appendLog(session, 'warn', `Admin seed output:\n${tail}`);
+              }
             }
           }
         }
@@ -1237,7 +1303,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
           }
         }
 
-        // Spring: API came up later — verify login once.
+        // Spring: API came up later — detect login route then verify credentials.
         if (
           stack === 'java-spring-react' &&
           running &&
@@ -1245,9 +1311,19 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
           session.previewLoginEmail &&
           session.previewLoginPassword &&
           !(session.logs || []).some(
-            (l) => typeof l.message === 'string' && l.message.includes('Login verified')
+            (l) =>
+              typeof l.message === 'string' &&
+              (l.message.includes('Login verified') ||
+                l.message.includes('Login route auto-detected') ||
+                l.message.includes('Could not auto-detect the login route'))
           )
         ) {
+          const routeProbe = await detectAndApplyApiLoginRouteHint(session, {
+            apiHostPort: apiPort,
+            previewApiUrl: session.previewApiUrl,
+            stack,
+            discoveredPaths: previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES,
+          });
           const loginCheck = await previewLoginVerify
             .tryPreviewLogin({
               apiHostPort: apiPort,
@@ -1255,13 +1331,13 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
               password: session.previewLoginPassword,
               identifierType: session.previewLoginIdentifierType || 'username',
               probeHost: getPreviewProbeHost(),
-              loginPaths: ['/auth/login', '/api/auth/login', '/api/login', '/login'],
+              loginPaths: routeProbe.loginPaths,
             })
             .catch(() => null);
           if (loginCheck?.ok) {
             appendLog(session, 'info', `Login verified at ${loginCheck.url}`);
-            await session.save();
           }
+          await session.save();
         }
       } else {
         session.previewAppReady = false;

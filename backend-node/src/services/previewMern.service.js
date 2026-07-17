@@ -678,11 +678,14 @@ export function buildPreviewMongoUri(sessionId, { sidecarHost = null } = {}) {
 }
 
 const DEFAULT_LOGIN_PATHS = [
-  '/api/users/login',
   '/api/auth/login',
-  '/api/login',
-  '/users/login',
   '/auth/login',
+  '/api/login',
+  '/login',
+  '/api/users/login',
+  '/users/login',
+  '/api/user/login',
+  '/api/v1/auth/login',
 ];
 
 const LOGIN_PATH_LITERAL_RE = /['"`](\/(?:api\/)?[^'"`]*login[^'"`]*)['"`]/gi;

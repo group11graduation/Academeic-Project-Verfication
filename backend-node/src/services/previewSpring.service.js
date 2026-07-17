@@ -542,12 +542,14 @@ export async function patchSpringForPreview(extractDir, springSubdir, { apiHostP
 }
 
 const SPRING_DEFAULT_LOGIN_PATHS = [
-  '/auth/login',
   '/api/auth/login',
+  '/auth/login',
   '/api/login',
   '/login',
   '/api/users/login',
   '/users/login',
+  '/api/user/login',
+  '/api/v1/auth/login',
 ];
 
 /**

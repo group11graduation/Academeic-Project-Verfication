@@ -275,13 +275,21 @@ function parseReadmeHints(text) {
   const userPassMatch = text.match(
     /(?:User|Username|Login)\s*[:=]\s*['"]?([^\s<>"',]+)['"]?[^\n]{0,50}(?:Pass|Password)\s*[:=]\s*['"]?([^\s<>"'\n]+)/i
   );
-  // UI callouts: "admin@syada.org / 123456" or "email / password"
+  // UI callouts: "admin@syada.org / 123456", "Default staff (fresh DB): admin@x / 123456"
   const slashCredMatch = text.match(
-    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*\/\s*([^\s<>"'`]{4,64})/
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*\/\s*([^\s<>"'`,;]{4,64})/
+  );
+  const freshDbMatch = text.match(
+    /(?:fresh\s*DB|default\s*staff|default\s*admin)[^@\n]{0,80}([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*\/\s*([^\s<>"'`,;]{4,64})/i
   );
   return {
-    email: emailMatch?.[1]?.trim() || slashCredMatch?.[1]?.trim() || '',
-    password: passMatch?.[1]?.trim() || userPassMatch?.[2]?.trim() || slashCredMatch?.[2]?.trim() || '',
+    email: freshDbMatch?.[1]?.trim() || emailMatch?.[1]?.trim() || slashCredMatch?.[1]?.trim() || '',
+    password:
+      freshDbMatch?.[2]?.trim() ||
+      passMatch?.[1]?.trim() ||
+      userPassMatch?.[2]?.trim() ||
+      slashCredMatch?.[2]?.trim() ||
+      '',
     username: userPassMatch?.[1]?.trim() || '',
   };
 }
@@ -532,19 +540,23 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
   const formField = await discoverProjectLoginFormField(extractDir, loginPath);
 
   // Pull email/password callouts from login UI source (e.g. "admin@syada.org / 123456").
-  if (!email || !password) {
+  // Prefer these over .env username-only values when the UI documents staff login.
+  {
     const loginFiles = await collectLoginCandidateFiles(extractDir, loginPath);
-    for (const filePath of loginFiles.slice(0, 12)) {
+    for (const filePath of loginFiles.slice(0, 16)) {
       try {
         // eslint-disable-next-line no-await-in-loop
         const text = await fs.readFile(filePath, 'utf8');
         const picked = parseReadmeHints(text);
-        if (picked.email && !email) email = picked.email;
+        if (picked.email && looksLikeEmail(picked.email)) {
+          if (!email || !looksLikeEmail(email) || /fresh\s*DB|default\s*staff/i.test(text)) {
+            email = picked.email;
+            if (picked.password) password = picked.password;
+            hint = `Found in ${path.basename(filePath)}`;
+          }
+        }
         if (picked.username && !username) username = picked.username;
         if (picked.password && !password) password = picked.password;
-        if ((picked.email || picked.password) && !hint) {
-          hint = `Found in ${path.basename(filePath)}`;
-        }
       } catch {
         /* ignore */
       }
