@@ -450,7 +450,7 @@ export async function patchBackendForPreview(
     mongoUri,
     hostPort,
     publicUiUrl,
-    jwtSecret = 'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ==',
+    jwtSecret = 'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==',
     loginApiPath = '',
   }
 ) {

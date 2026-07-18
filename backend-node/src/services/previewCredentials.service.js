@@ -713,6 +713,9 @@ export function resolvePreviewLoginCredentials({
     username = springAdmin.username;
     password = springAdmin.password;
     source = 'project_spring_seed';
+    // Spring preview seed always logs in by username (CustomUserDetailsService / DaoAuth).
+    formField.identifierType = 'username';
+    formField.identifierLabel = 'Username';
     hint = hint || springAdmin.hint || 'Preview admin auto-seeded in Spring H2 database on first start.';
   } else if ((email || username) && password) {
     source = discovered.phpUsername ? 'project_php_setup' : 'project_files';
@@ -841,11 +844,11 @@ export function buildPreviewCredentialEnvVars({ email, password, username, mongo
     DEFAULT_ADMIN_EMAIL: seedEmail,
     DEFAULT_ADMIN_PASSWORD: seedPassword,
     DEFAULT_ADMIN_USERNAME: seedUsername,
-    // Common dev secrets so JWT auth can boot in sandbox
-    // Standard Base64 ("preview-sandbox-jwt-secret-change-me-please") — jjwt-safe
+    // Must decode to >= 512 bits: student apps often sign with HS512 (jjwt WeakKeyException otherwise).
+    // Base64 of "preview-sandbox-jwt-secret-for-HS512-needs-64-byte-key-minimum!!"
     JWT_SECRET:
       process.env.PREVIEW_JWT_SECRET ||
-      'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ==',
+      'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==',
     NODE_ENV: 'development',
   };
   if (mongoUri) {

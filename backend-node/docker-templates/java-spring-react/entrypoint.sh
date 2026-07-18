@@ -325,14 +325,18 @@ start_spring_backend_async() {
   export SPRING_DATASOURCE_USERNAME="${SPRING_DATASOURCE_USERNAME:-sa}"
   export SPRING_DATASOURCE_PASSWORD="${SPRING_DATASOURCE_PASSWORD:-}"
   export MAVEN_OPTS="${MAVEN_OPTS:--Xmx768m -XX:+TieredCompilation -XX:TieredStopAtLevel=1}"
-  # jjwt Decoders.BASE64.decode rejects '-' (illegal in standard Base64). Use a Base64-safe default
-  # ("preview-sandbox-jwt-secret-change-me-please"). Also replace the legacy hyphenated placeholder
-  # if the host still injects it.
-  _jwt_default='cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ=='
-  if [ -z "${JWT_SECRET:-}" ] || [ "$JWT_SECRET" = "preview-sandbox-jwt-secret-change-me" ]; then
+  # jjwt Decoders.BASE64.decode rejects '-' (illegal in standard Base64).
+  # HS512 requires decoded key >= 512 bits — shorter secrets make login auth succeed then
+  # throw WeakKeyException, which AuthController often maps to a misleading 401.
+  # Default = Base64("preview-sandbox-jwt-secret-for-HS512-needs-64-byte-key-minimum!!")
+  _jwt_default='cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ=='
+  _jwt_legacy_short='cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtY2hhbmdlLW1lLXBsZWFzZQ=='
+  if [ -z "${JWT_SECRET:-}" ] \
+    || [ "$JWT_SECRET" = "preview-sandbox-jwt-secret-change-me" ] \
+    || [ "$JWT_SECRET" = "$_jwt_legacy_short" ]; then
     export JWT_SECRET="$_jwt_default"
   fi
-  unset _jwt_default
+  unset _jwt_default _jwt_legacy_short
 
   # Ensure H2 is on the classpath before we reuse or build a jar.
   ensure_h2_dependency_in_pom ./pom.xml

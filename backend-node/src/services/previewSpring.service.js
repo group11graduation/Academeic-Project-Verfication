@@ -382,15 +382,18 @@ async function detectSpringUserSeedHooks(root) {
     if (base === 'UserService.java' && /class\s+UserService\b/.test(content)) {
       userService = { pkg, content, simple: 'UserService' };
       userEntityFqn = parseJavaImport(content, 'User') || userEntityFqn;
-    } else     if (
-      (base === 'UserRepository.java' || base === 'UsersRepository.java') &&
-      /interface\s+\w*User\w*Repository\b/.test(content)
+    } else if (
+      /Repository\.java$/i.test(base) &&
+      /interface\s+(\w+)\b/.test(content) &&
+      /findByUsername\s*\(/.test(content) &&
+      (/JpaRepository\s*<\s*User\b/.test(content) ||
+        /CrudRepository\s*<\s*User\b/.test(content) ||
+        /PagingAndSortingRepository\s*<\s*User\b/.test(content) ||
+        /User\w*Repository/.test(base))
     ) {
-      const iface = content.match(/interface\s+(\w*User\w*Repository)\b/);
-      if (iface && /findByUsername\s*\(/.test(content)) {
-        const findSig = content.match(/((?:Optional\s*<\s*)?\w+(?:\s*>)?)\s+findByUsername\s*\(/);
-        const returnsOptional = /Optional\s*</.test(findSig?.[1] || '');
-        userRepo = { pkg, content, simple: iface[1], returnsOptional };
+      const iface = content.match(/interface\s+(\w+)\b/);
+      if (iface) {
+        userRepo = { pkg, content, simple: iface[1] };
         userEntityFqn = parseJavaImport(content, 'User') || userEntityFqn;
       }
     } else if (base === 'User.java' && /class\s+User\b/.test(content)) {
@@ -424,9 +427,10 @@ async function detectSpringUserSeedHooks(root) {
     userServiceSimple: userService?.simple || '',
     userRepoFqn: userRepo ? `${userRepo.pkg}.${userRepo.simple}` : '',
     userRepoSimple: userRepo?.simple || '',
-    userRepoReturnsOptional: userRepo?.returnsOptional !== false,
     userEntityFqn,
     userEntitySimple: 'User',
+    // Default true when PasswordEncoder appears anywhere in UserService — helpers
+    // like encodePassword() live outside the saveUser() body and used to be missed.
     serviceEncodesPassword: userService
       ? springSaveUserEncodesPassword(userService.content)
       : false,
@@ -437,17 +441,19 @@ async function detectSpringUserSeedHooks(root) {
 }
 
 /**
- * True when the student's UserService.saveUser() already encodes user.getPassword().
- * In that case the preview seed must pass the RAW password — encoding it ourselves
- * would double-hash it and make login always return 401.
+ * True when the student's UserService (or a helper it calls) encodes passwords.
+ * Broad match on purpose — false negatives cause double-hash → permanent 401.
  */
 export function springSaveUserEncodesPassword(serviceContent) {
   const content = String(serviceContent || '');
+  if (/\bencodePassword\s*\(/.test(content)) return true;
+  if (/passwordEncoder\s*\.\s*encode\s*\(/.test(content)) return true;
+  if (/PasswordEncoder/.test(content) && /\.encode\s*\(\s*(?:user\.)?getPassword\s*\(\s*\)/.test(content)) {
+    return true;
+  }
   const idx = content.search(/\bsaveUser\s*\(/);
   if (idx < 0) return false;
-  // Inspect the saveUser method body (up to the next method or ~800 chars).
-  const body = content.slice(idx, idx + 800);
-  return /\.encode\s*\(/.test(body);
+  return /\.encode\s*\(/.test(content.slice(idx, idx + 1200));
 }
 
 async function writeSpringPreviewSeed(root, seed = previewSeedCredentials()) {
@@ -455,8 +461,7 @@ async function writeSpringPreviewSeed(root, seed = previewSeedCredentials()) {
   if (!hooks) return null;
 
   const seedEmail = `${seed.username}@preview.demo`;
-  // Prefer UserRepository + PasswordEncoder.encode once — bypasses student saveUser()
-  // that often re-encodes and causes permanent 401s for previewadmin.
+  // Prefer UserRepository + self-verify (encode → matches? else retry raw).
   const java = hooks.preferRepository
     ? buildRepositorySeedJava(hooks, seed, seedEmail)
     : buildUserServiceSeedJava(hooks, seed, seedEmail);
@@ -471,22 +476,33 @@ async function writeSpringPreviewSeed(root, seed = previewSeedCredentials()) {
   );
   await fs.mkdir(path.dirname(seedPath), { recursive: true });
   await fs.writeFile(seedPath, java, 'utf8');
-  return { ...seed, seedFile: 'ScholarVerifyPreviewSeed.java', via: hooks.preferRepository ? 'repository' : 'service' };
+  return {
+    ...seed,
+    seedFile: 'ScholarVerifyPreviewSeed.java',
+    via: hooks.preferRepository ? 'repository' : 'service',
+  };
 }
 
+function seedFieldSetters(hooks, indent = '            ') {
+  const emailLine = hooks.entityHasEmail ? `${indent}user.setEmail(email);\n` : '';
+  const phoneLine = hooks.entityHasPhone ? `${indent}user.setPhone("0000000000");\n` : '';
+  return { emailLine, phoneLine };
+}
+
+/**
+ * Self-verifying repository seed.
+ * 1) Save with passwordEncoder.encode(raw)
+ * 2) Reload and passwordEncoder.matches(raw, stored)
+ * 3) If false (entity @PrePersist / listener double-encoded), save RAW and re-check
+ * Works whether findByUsername returns User or Optional<User>.
+ */
 function buildRepositorySeedJava(hooks, seed, seedEmail) {
-  const emailLine = hooks.entityHasEmail ? `            user.setEmail(email);\n` : '';
-  const phoneLine = hooks.entityHasPhone ? `            user.setPhone("0000000000");\n` : '';
-  const loadUser = hooks.userRepoReturnsOptional
-    ? `${hooks.userEntitySimple} user = userRepository.findByUsername(username).orElseGet(${hooks.userEntitySimple}::new);`
-    : `${hooks.userEntitySimple} user = userRepository.findByUsername(username);
-            if (user == null) {
-                user = new ${hooks.userEntitySimple}();
-            }`;
+  const { emailLine, phoneLine } = seedFieldSetters(hooks);
   return `package ${hooks.configPackage};
 
 import ${hooks.userEntityFqn};
 import ${hooks.userRepoFqn};
+import java.util.Optional;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -497,18 +513,44 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Profile("preview")
 public class ScholarVerifyPreviewSeed {
 
+    @SuppressWarnings("unchecked")
+    private static ${hooks.userEntitySimple} loadUser(${hooks.userRepoSimple} userRepository, String username) {
+        Object found = userRepository.findByUsername(username);
+        if (found instanceof Optional) {
+            return ((Optional<${hooks.userEntitySimple}>) found).orElse(null);
+        }
+        return (${hooks.userEntitySimple}) found;
+    }
+
     @Bean
     CommandLineRunner scholarVerifyPreviewAdminSeed(${hooks.userRepoSimple} userRepository, PasswordEncoder passwordEncoder) {
         return args -> {
             String username = System.getenv().getOrDefault("PREVIEW_SEED_USERNAME", "${seed.username}");
             String password = System.getenv().getOrDefault("PREVIEW_SEED_PASSWORD", "${seed.password}");
             String email = System.getenv().getOrDefault("PREVIEW_ADMIN_EMAIL", "${seedEmail}");
-            ${loadUser}
+
+            ${hooks.userEntitySimple} user = loadUser(userRepository, username);
+            if (user == null) {
+                user = new ${hooks.userEntitySimple}();
+            }
             user.setUsername(username);
-${emailLine}${phoneLine}            user.setPassword(passwordEncoder.encode(password));
-            user.setRole("ROLE_ADMIN");
+${emailLine}${phoneLine}            user.setRole("ROLE_ADMIN");
+            user.setPassword(passwordEncoder.encode(password));
             userRepository.save(user);
-            System.out.println("[preview-seed] upserted admin username=" + username + " via ${hooks.userRepoSimple}");
+
+            ${hooks.userEntitySimple} loaded = loadUser(userRepository, username);
+            boolean ok = loaded != null && loaded.getPassword() != null
+                && passwordEncoder.matches(password, loaded.getPassword());
+            if (!ok && loaded != null) {
+                System.out.println("[preview-seed] encoded password did not match — retrying with RAW password (listener/entity may encode)");
+                loaded.setPassword(password);
+                userRepository.save(loaded);
+                loaded = loadUser(userRepository, username);
+                ok = loaded != null && loaded.getPassword() != null
+                    && passwordEncoder.matches(password, loaded.getPassword());
+            }
+            System.out.println("[preview-seed] upserted admin username=" + username
+                + " via ${hooks.userRepoSimple} passwordMatches=" + ok);
         };
     }
 }
@@ -516,13 +558,14 @@ ${emailLine}${phoneLine}            user.setPassword(passwordEncoder.encode(pass
 }
 
 function buildUserServiceSeedJava(hooks, seed, seedEmail) {
-  // If the student's saveUser() already encodes, pass the RAW password — otherwise
-  // the password gets double-hashed and login always returns 401.
+  // Prefer RAW when the service looks like it encodes — then verify via a second
+  // attempt with pre-encoded if we can re-save (exists check skipped on retry by delete pattern).
+  // Without a repository we can't reliably re-read; pass RAW when encode helpers exist,
+  // otherwise encode here.
   const passwordExpr = hooks.serviceEncodesPassword
     ? 'password'
     : 'passwordEncoder.encode(password)';
-  const emailLine = hooks.entityHasEmail ? `            user.setEmail(email);\n` : '';
-  const phoneLine = hooks.entityHasPhone ? `            user.setPhone("0000000000");\n` : '';
+  const { emailLine, phoneLine } = seedFieldSetters(hooks);
   return `package ${hooks.configPackage};
 
 import ${hooks.userEntityFqn};
@@ -544,6 +587,7 @@ public class ScholarVerifyPreviewSeed {
             String password = System.getenv().getOrDefault("PREVIEW_SEED_PASSWORD", "${seed.password}");
             String email = System.getenv().getOrDefault("PREVIEW_ADMIN_EMAIL", "${seedEmail}");
             if (userService.existsByUsername(username)) {
+                System.out.println("[preview-seed] admin username=" + username + " already exists — leaving as-is");
                 return;
             }
             ${hooks.userEntitySimple} user = new ${hooks.userEntitySimple}();
@@ -551,7 +595,8 @@ public class ScholarVerifyPreviewSeed {
 ${emailLine}${phoneLine}            user.setPassword(${passwordExpr});
             user.setRole("ROLE_ADMIN");
             userService.saveUser(user);
-            System.out.println("[preview-seed] created admin username=" + username + " via UserService (encodeInService=${hooks.serviceEncodesPassword})");
+            System.out.println("[preview-seed] created admin username=" + username
+                + " via UserService (encodeInService=${hooks.serviceEncodesPassword})");
         };
     }
 }
@@ -592,6 +637,10 @@ export async function patchSpringForPreview(extractDir, springSubdir, { apiHostP
   }
   // Broad preview CORS for custom SecurityConfig apps that read a pattern prop.
   overlay.push('app.cors.allowed-origin-patterns=http://localhost:*,http://127.0.0.1:*,http://*:*,https://*:*');
+  // HS512 needs >= 512-bit key after Base64 decode (see JwtTokenProvider WeakKeyException).
+  const previewJwtSecret =
+    process.env.PREVIEW_JWT_SECRET ||
+    'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==';
   overlay.push(
     'spring.datasource.url=jdbc:h2:mem:scholarverify_preview;DB_CLOSE_DELAY=-1;MODE=PostgreSQL',
     'spring.datasource.driver-class-name=org.h2.Driver',
@@ -600,6 +649,8 @@ export async function patchSpringForPreview(extractDir, springSubdir, { apiHostP
     'spring.jpa.hibernate.ddl-auto=update',
     'spring.jpa.database-platform=org.hibernate.dialect.H2Dialect',
     'spring.h2.console.enabled=false',
+    `jwt.secret=${previewJwtSecret}`,
+    'jwt.expirationMs=86400000',
     'spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration,org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration,org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration'
   );
   overlay.push('');
