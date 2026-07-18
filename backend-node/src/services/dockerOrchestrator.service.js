@@ -291,8 +291,8 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
     const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
-    // Missing label (legacy image) or matching hash → reuse without blocking on rebuild.
-    if (!existingHash || existingHash === contentHash) {
+    // Only reuse when stamped hash matches (missing label → rebuild once to stamp it).
+    if (existingHash && existingHash === contentHash) {
       return { imageTag, reused: true };
     }
   }
@@ -748,7 +748,9 @@ async function ensurePreviewSpringReactBaseImage({ forceRebuild = false } = {}) 
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
     const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
-    if (!existingHash || existingHash === contentHash) {
+    // Only reuse when the stamped hash matches. Missing labels used to skip rebuilds
+    // forever, so entrypoint.sh fixes never reached running containers.
+    if (existingHash && existingHash === contentHash) {
       return { imageTag, reused: true };
     }
   }
@@ -2476,6 +2478,17 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
     // UI serve / HTTP 200 unlocks Open preview; API may still be compiling.
     if (/\[preview\]\s*serve static:/i.test(logText) && /Accepting connections|Returned\s+200/i.test(logText)) {
       return { ready: true, reason: 'log_serve_listening', apiReady: false };
+    }
+    // CRA finished building — Open preview should unlock even if HTTP probe from
+    // the API container can't reach the published host port (Coolify networking).
+    if (
+      /The build folder is ready to be deployed/i.test(logText) ||
+      (/\[preview\]\s*serve static:/i.test(logText) && /build folder is ready|Compiled successfully|File sizes after gzip/i.test(logText))
+    ) {
+      return { ready: true, reason: 'log_cra_build_ready', apiReady: false };
+    }
+    if (/\[preview\]\s*reusing cached React build/i.test(logText) || /\[preview\]\s*serve static:/i.test(logText)) {
+      return { ready: true, reason: 'log_serve_static_started', apiReady: false };
     }
     const lines = logText.split('\n');
     for (let i = 0; i < lines.length; i += 1) {

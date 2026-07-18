@@ -357,6 +357,17 @@ start_spring_backend_async() {
     jar_path=""
     export PREVIEW_FORCE_MAVEN_ONLINE=1
   fi
+  # If the platform rewrote ScholarVerifyPreviewSeed.java after the jar was built,
+  # the cached jar still has the old (often double-hashed) seed — force rebuild.
+  if [ -n "$jar_path" ] && preview_seed_java_present; then
+    seed_java="$(find src -name 'ScholarVerifyPreviewSeed.java' 2>/dev/null | head -n 1)"
+    if [ -n "$seed_java" ] && [ -n "$(find "$seed_java" -newer "$jar_path" 2>/dev/null)" ]; then
+      echo "[preview] ScholarVerifyPreviewSeed.java is newer than $jar_path — discarding jar so Maven rebuilds with updated seed" | tee -a /tmp/preview-spring.log
+      rm -f target/*.jar 2>/dev/null || true
+      jar_path=""
+      export PREVIEW_FORCE_MAVEN_ONLINE=1
+    fi
+  fi
 
   port_sys="$(spring_java_port_flags)"
   boot_args="$(spring_boot_args)"

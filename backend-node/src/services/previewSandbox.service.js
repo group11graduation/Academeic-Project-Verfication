@@ -1112,10 +1112,14 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     `Container started (app folder: ${deployResult.appSubdir || '.'}); preview URL host:${deployResult.hostPort}`
   );
   if (deployResult.stack !== 'static-html' && deployResult.stack !== 'static-html-js') {
+      const loginId =
+        session.previewLoginIdentifierType === 'username'
+          ? session.previewLoginUsername || session.previewLoginEmail
+          : session.previewLoginEmail;
       appendLog(
         session,
         'info',
-        `Use login ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail} at ${session.previewLoginUrl || session.previewUrl}`
+        `Use login ${session.previewLoginIdentifierLabel || 'Email'}=${loginId} at ${session.previewLoginUrl || session.previewUrl}`
       );
   }
   await session.save();
@@ -1210,7 +1214,9 @@ async function maybeFailPreviewFromContainerLogs(session) {
 export async function getPreviewSessionForTeacher(teacherId, sessionId) {
   await reconcileStalePreviewSession(sessionId);
 
-  const session = await PreviewSession.findById(sessionId).lean();
+  // Use a real Mongoose document — Spring unlock / diagnosis / login-verify all call .save().
+  // A .lean() plain object silently broke "Open preview" (session.save is not a function).
+  const session = await PreviewSession.findById(sessionId);
   if (!session) {
     const err = new Error('Session not found');
     err.status = 404;
@@ -1222,14 +1228,11 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
     err.status = 403;
     throw err;
   }
-  delete session.extractDirPath;
+
+  const extractDirForPatch = session.extractDirPath || '';
 
   if (session.status === 'running') {
-    const live = await PreviewSession.findById(sessionId);
-    if (live) {
-      await touchPreviewTtl(live);
-      session.expiresAt = live.expiresAt;
-    }
+    await touchPreviewTtl(session);
   }
 
   if (['starting', 'running'].includes(session.status)) {
@@ -1287,16 +1290,25 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
         const needsApi = apiPort > 0;
         const apiOk = !needsApi || session.apiPortReachable === true;
         const springUiWithoutApi = stack === 'java-spring-react' && !apiOk;
+        // Prefer log-based unlock when the container is clearly serving (avoids
+        // false placeholder_or_empty when the API container cannot HTTP-probe the host port).
+        const logAlreadyReady = session.previewAppReady === true;
         if (apiOk || springUiWithoutApi) {
           const probe = await dockerOrchestrator.checkPreviewAppHttpReady({
             previewUrl: session.previewUrl,
             apiPreviewUrl: session.previewApiUrl || '',
             stack,
           });
-          session.previewAppReady = probe.ready;
-          session.previewAppReadyReason = probe.reason;
-          session.previewApiReady = probe.apiReady === true;
-        } else {
+          if (probe.ready || !logAlreadyReady) {
+            session.previewAppReady = probe.ready || logAlreadyReady;
+            session.previewAppReadyReason = probe.ready
+              ? probe.reason
+              : session.previewAppReadyReason || probe.reason;
+            session.previewApiReady = probe.apiReady === true;
+          } else if (probe.apiReady === true) {
+            session.previewApiReady = true;
+          }
+        } else if (!logAlreadyReady) {
           session.previewAppReady = false;
           session.previewAppReadyReason = 'api_port_closed';
           session.previewApiReady = false;
@@ -1395,7 +1407,8 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
               typeof l.message === 'string' &&
               (l.message.includes('Login verified') ||
                 l.message.includes('Login route auto-detected') ||
-                l.message.includes('Could not auto-detect the login route'))
+                l.message.includes('Could not auto-detect the login route') ||
+                l.message.includes('Login path fix applied'))
           )
         ) {
           const routeProbe = await detectAndApplyApiLoginRouteHint(session, {
@@ -1403,7 +1416,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             previewApiUrl: session.previewApiUrl,
             stack,
             discoveredPaths: previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES,
-            extractDir: session.extractDirPath || '',
+            extractDir: extractDirForPatch,
             frontendSubdir: '',
             backendSubdir: '',
             containerName: dockerOrchestrator.containerNameFor(session._id.toString()),
@@ -1425,6 +1438,12 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             .catch(() => null);
           if (loginCheck?.ok) {
             appendLog(session, 'info', `Login verified at ${loginCheck.url}`);
+          } else if (loginCheck && !loginCheck.ok) {
+            appendLog(
+              session,
+              'warn',
+              `Preview UI is up but Spring login returned ${loginCheck.status || 401} (invalid username/password). Preview seeds previewadmin into H2 when UserService hooks are detected — check /tmp/preview-spring.log if login still fails.`
+            );
           }
           await session.save();
         }
@@ -1442,7 +1461,16 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
     }
   }
 
-  return session;
+  // Preserve ephemeral probe fields set above; strip internal paths for the client.
+  const publicSession = toPublicSession(session);
+  publicSession.portReachable = session.portReachable;
+  publicSession.apiPortReachable = session.apiPortReachable;
+  publicSession.containerRunning = session.containerRunning;
+  publicSession.previewAppReady = session.previewAppReady;
+  publicSession.previewAppReadyReason = session.previewAppReadyReason;
+  publicSession.previewApiReady = session.previewApiReady;
+  publicSession.liveContainerLog = session.liveContainerLog;
+  return publicSession;
 }
 
 export async function getActivePreviewSessionForProposal(teacherId, proposalId) {

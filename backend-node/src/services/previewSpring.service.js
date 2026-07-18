@@ -363,6 +363,8 @@ async function detectSpringUserSeedHooks(root) {
 
   const javaFiles = await walkJavaFiles(srcRoot, 500);
   let userService = null;
+  let userRepo = null;
+  let userEntity = null;
   let userEntityFqn = '';
   let configPackage = '';
 
@@ -379,9 +381,21 @@ async function detectSpringUserSeedHooks(root) {
 
     if (base === 'UserService.java' && /class\s+UserService\b/.test(content)) {
       userService = { pkg, content, simple: 'UserService' };
-      userEntityFqn = parseJavaImport(content, 'User');
-    } else if (base === 'User.java' && /class\s+User\b/.test(content) && !userEntityFqn) {
-      userEntityFqn = `${pkg}.User`;
+      userEntityFqn = parseJavaImport(content, 'User') || userEntityFqn;
+    } else     if (
+      (base === 'UserRepository.java' || base === 'UsersRepository.java') &&
+      /interface\s+\w*User\w*Repository\b/.test(content)
+    ) {
+      const iface = content.match(/interface\s+(\w*User\w*Repository)\b/);
+      if (iface && /findByUsername\s*\(/.test(content)) {
+        const findSig = content.match(/((?:Optional\s*<\s*)?\w+(?:\s*>)?)\s+findByUsername\s*\(/);
+        const returnsOptional = /Optional\s*</.test(findSig?.[1] || '');
+        userRepo = { pkg, content, simple: iface[1], returnsOptional };
+        userEntityFqn = parseJavaImport(content, 'User') || userEntityFqn;
+      }
+    } else if (base === 'User.java' && /class\s+User\b/.test(content)) {
+      userEntity = { pkg, content };
+      if (!userEntityFqn) userEntityFqn = `${pkg}.User`;
     } else if (
       !configPackage &&
       /@Configuration/.test(content) &&
@@ -391,18 +405,34 @@ async function detectSpringUserSeedHooks(root) {
     }
   }
 
-  if (!userService || !userEntityFqn) return null;
-  if (!/existsByUsername\s*\(/.test(userService.content) || !/saveUser\s*\(/.test(userService.content)) {
-    return null;
-  }
+  if (!userEntityFqn) return null;
+  const canUseRepo = Boolean(userRepo);
+  const canUseService =
+    userService &&
+    /existsByUsername\s*\(/.test(userService.content) &&
+    /saveUser\s*\(/.test(userService.content);
+  if (!canUseRepo && !canUseService) return null;
 
+  const entityContent = userEntity?.content || '';
   return {
-    configPackage: configPackage || userService.pkg.replace(/\.[^.]+$/, '.Configuration'),
-    userServiceFqn: `${userService.pkg}.UserService`,
-    userServiceSimple: userService.simple,
+    configPackage:
+      configPackage ||
+      userRepo?.pkg ||
+      userService?.pkg?.replace(/\.[^.]+$/, '.Configuration') ||
+      'com.preview',
+    userServiceFqn: userService ? `${userService.pkg}.UserService` : '',
+    userServiceSimple: userService?.simple || '',
+    userRepoFqn: userRepo ? `${userRepo.pkg}.${userRepo.simple}` : '',
+    userRepoSimple: userRepo?.simple || '',
+    userRepoReturnsOptional: userRepo?.returnsOptional !== false,
     userEntityFqn,
     userEntitySimple: 'User',
-    serviceEncodesPassword: springSaveUserEncodesPassword(userService.content),
+    serviceEncodesPassword: userService
+      ? springSaveUserEncodesPassword(userService.content)
+      : false,
+    entityHasEmail: /\bsetEmail\s*\(/.test(entityContent),
+    entityHasPhone: /\bsetPhone\s*\(/.test(entityContent),
+    preferRepository: canUseRepo,
   };
 }
 
@@ -424,13 +454,76 @@ async function writeSpringPreviewSeed(root, seed = previewSeedCredentials()) {
   const hooks = await detectSpringUserSeedHooks(root);
   if (!hooks) return null;
 
+  const seedEmail = `${seed.username}@preview.demo`;
+  // Prefer UserRepository + PasswordEncoder.encode once — bypasses student saveUser()
+  // that often re-encodes and causes permanent 401s for previewadmin.
+  const java = hooks.preferRepository
+    ? buildRepositorySeedJava(hooks, seed, seedEmail)
+    : buildUserServiceSeedJava(hooks, seed, seedEmail);
+
+  const seedPath = path.join(
+    root,
+    'src',
+    'main',
+    'java',
+    ...hooks.configPackage.split('.'),
+    'ScholarVerifyPreviewSeed.java'
+  );
+  await fs.mkdir(path.dirname(seedPath), { recursive: true });
+  await fs.writeFile(seedPath, java, 'utf8');
+  return { ...seed, seedFile: 'ScholarVerifyPreviewSeed.java', via: hooks.preferRepository ? 'repository' : 'service' };
+}
+
+function buildRepositorySeedJava(hooks, seed, seedEmail) {
+  const emailLine = hooks.entityHasEmail ? `            user.setEmail(email);\n` : '';
+  const phoneLine = hooks.entityHasPhone ? `            user.setPhone("0000000000");\n` : '';
+  const loadUser = hooks.userRepoReturnsOptional
+    ? `${hooks.userEntitySimple} user = userRepository.findByUsername(username).orElseGet(${hooks.userEntitySimple}::new);`
+    : `${hooks.userEntitySimple} user = userRepository.findByUsername(username);
+            if (user == null) {
+                user = new ${hooks.userEntitySimple}();
+            }`;
+  return `package ${hooks.configPackage};
+
+import ${hooks.userEntityFqn};
+import ${hooks.userRepoFqn};
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+@Profile("preview")
+public class ScholarVerifyPreviewSeed {
+
+    @Bean
+    CommandLineRunner scholarVerifyPreviewAdminSeed(${hooks.userRepoSimple} userRepository, PasswordEncoder passwordEncoder) {
+        return args -> {
+            String username = System.getenv().getOrDefault("PREVIEW_SEED_USERNAME", "${seed.username}");
+            String password = System.getenv().getOrDefault("PREVIEW_SEED_PASSWORD", "${seed.password}");
+            String email = System.getenv().getOrDefault("PREVIEW_ADMIN_EMAIL", "${seedEmail}");
+            ${loadUser}
+            user.setUsername(username);
+${emailLine}${phoneLine}            user.setPassword(passwordEncoder.encode(password));
+            user.setRole("ROLE_ADMIN");
+            userRepository.save(user);
+            System.out.println("[preview-seed] upserted admin username=" + username + " via ${hooks.userRepoSimple}");
+        };
+    }
+}
+`;
+}
+
+function buildUserServiceSeedJava(hooks, seed, seedEmail) {
   // If the student's saveUser() already encodes, pass the RAW password — otherwise
   // the password gets double-hashed and login always returns 401.
   const passwordExpr = hooks.serviceEncodesPassword
     ? 'password'
     : 'passwordEncoder.encode(password)';
-
-  const java = `package ${hooks.configPackage};
+  const emailLine = hooks.entityHasEmail ? `            user.setEmail(email);\n` : '';
+  const phoneLine = hooks.entityHasPhone ? `            user.setPhone("0000000000");\n` : '';
+  return `package ${hooks.configPackage};
 
 import ${hooks.userEntityFqn};
 import ${hooks.userServiceFqn};
@@ -449,30 +542,20 @@ public class ScholarVerifyPreviewSeed {
         return args -> {
             String username = System.getenv().getOrDefault("PREVIEW_SEED_USERNAME", "${seed.username}");
             String password = System.getenv().getOrDefault("PREVIEW_SEED_PASSWORD", "${seed.password}");
+            String email = System.getenv().getOrDefault("PREVIEW_ADMIN_EMAIL", "${seedEmail}");
             if (userService.existsByUsername(username)) {
                 return;
             }
             ${hooks.userEntitySimple} user = new ${hooks.userEntitySimple}();
             user.setUsername(username);
-            user.setPassword(${passwordExpr});
+${emailLine}${phoneLine}            user.setPassword(${passwordExpr});
             user.setRole("ROLE_ADMIN");
             userService.saveUser(user);
+            System.out.println("[preview-seed] created admin username=" + username + " via UserService (encodeInService=${hooks.serviceEncodesPassword})");
         };
     }
 }
 `;
-
-  const seedPath = path.join(
-    root,
-    'src',
-    'main',
-    'java',
-    ...hooks.configPackage.split('.'),
-    'ScholarVerifyPreviewSeed.java'
-  );
-  await fs.mkdir(path.dirname(seedPath), { recursive: true });
-  await fs.writeFile(seedPath, java, 'utf8');
-  return { ...seed, seedFile: 'ScholarVerifyPreviewSeed.java' };
 }
 
 export async function patchSpringForPreview(extractDir, springSubdir, { apiHostPort, uiHostPort, publicUiUrl } = {}) {
