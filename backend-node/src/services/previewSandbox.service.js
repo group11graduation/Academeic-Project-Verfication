@@ -415,6 +415,8 @@ async function detectAndApplyApiLoginRouteHint(session, {
           .catch(() => '');
       }
     }
+    // Marker so heartbeat knows the frontend/bundle patch actually ran (not just the hint).
+    appendLog(session, 'info', `Login path fix applied for ${probe.path}`);
   } else {
     appendLog(session, 'warn', routeHint);
   }

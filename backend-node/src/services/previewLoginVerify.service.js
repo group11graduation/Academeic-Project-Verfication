@@ -76,9 +76,16 @@ async function postLogin(baseUrl, loginPath, body) {
   }
 }
 
+// Statuses that clearly mean "a login handler processed this request and rejected
+// the throwaway credentials" — not just a security filter denying an unknown path.
+const LOGIN_PROBE_STRONG_STATUSES = new Set([400, 401, 415, 422]);
+
 /**
  * Probe the running API with throwaway credentials to find which login route exists.
- * 404 → route missing (try next). Any other HTTP status → route exists (validation/auth rejected the probe).
+ * 404 → route missing. 400/401/415/422 → a login handler rejected the probe (strong match).
+ * Other statuses (e.g. 403) count as weak matches — but if EVERY candidate returns the
+ * same weak status, the backend is blanket-rejecting (Spring Security often 403s unknown
+ * paths instead of 404), so the result is inconclusive and we must not patch anything.
  */
 export async function detectPreviewLoginApiRoute({
   apiHostPort,
@@ -92,18 +99,34 @@ export async function detectPreviewLoginApiRoute({
   const body = { email: '__probe__', password: '__probe__' };
   const paths = orderedProbePaths(extraPaths);
 
+  const results = [];
   for (const loginPath of paths) {
     // eslint-disable-next-line no-await-in-loop
     const result = await postLogin(baseUrl, loginPath, body);
-    if (result.status === 404 || result.status === 0) continue;
+    results.push({ path: loginPath, status: result.status, url: result.url });
+    if (LOGIN_PROBE_STRONG_STATUSES.has(result.status)) {
+      return { found: true, path: loginPath, status: result.status, probeUrl: result.url };
+    }
+  }
+
+  const weak = results.filter((r) => r.status !== 404 && r.status !== 0);
+  if (!weak.length) {
+    return { found: false, path: '', status: 0, reason: 'all_candidates_404' };
+  }
+  const reachable = results.filter((r) => r.status !== 0);
+  const uniformStatuses = new Set(weak.map((r) => r.status));
+  const blanketReject =
+    weak.length > 1 && weak.length === reachable.length && uniformStatuses.size === 1;
+  if (blanketReject) {
     return {
-      found: true,
-      path: loginPath,
-      status: result.status,
-      probeUrl: result.url,
+      found: false,
+      path: '',
+      status: weak[0].status,
+      reason: `blanket_status_${weak[0].status}`,
     };
   }
-  return { found: false, path: '', status: 0, reason: 'all_candidates_404' };
+  const best = weak[0];
+  return { found: true, path: best.path, status: best.status, probeUrl: best.url };
 }
 
 /**

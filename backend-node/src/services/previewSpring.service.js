@@ -402,12 +402,33 @@ async function detectSpringUserSeedHooks(root) {
     userServiceSimple: userService.simple,
     userEntityFqn,
     userEntitySimple: 'User',
+    serviceEncodesPassword: springSaveUserEncodesPassword(userService.content),
   };
+}
+
+/**
+ * True when the student's UserService.saveUser() already encodes user.getPassword().
+ * In that case the preview seed must pass the RAW password — encoding it ourselves
+ * would double-hash it and make login always return 401.
+ */
+export function springSaveUserEncodesPassword(serviceContent) {
+  const content = String(serviceContent || '');
+  const idx = content.search(/\bsaveUser\s*\(/);
+  if (idx < 0) return false;
+  // Inspect the saveUser method body (up to the next method or ~800 chars).
+  const body = content.slice(idx, idx + 800);
+  return /\.encode\s*\(/.test(body);
 }
 
 async function writeSpringPreviewSeed(root, seed = previewSeedCredentials()) {
   const hooks = await detectSpringUserSeedHooks(root);
   if (!hooks) return null;
+
+  // If the student's saveUser() already encodes, pass the RAW password — otherwise
+  // the password gets double-hashed and login always returns 401.
+  const passwordExpr = hooks.serviceEncodesPassword
+    ? 'password'
+    : 'passwordEncoder.encode(password)';
 
   const java = `package ${hooks.configPackage};
 
@@ -433,7 +454,7 @@ public class ScholarVerifyPreviewSeed {
             }
             ${hooks.userEntitySimple} user = new ${hooks.userEntitySimple}();
             user.setUsername(username);
-            user.setPassword(passwordEncoder.encode(password));
+            user.setPassword(${passwordExpr});
             user.setRole("ROLE_ADMIN");
             userService.saveUser(user);
         };
