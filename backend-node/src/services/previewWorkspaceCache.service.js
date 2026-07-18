@@ -9,6 +9,14 @@ const BACKEND_ROOT = path.resolve(__dirname, '../..');
 
 const MANIFEST_NAME = '.scholarverify-preview-manifest.json';
 
+/**
+ * Bump this whenever the platform's project patchers change (seed classes, CORS/security
+ * patches, login-path rewrites, …). Cached workspaces contain patched sources AND built
+ * artifacts (Maven target/, npm build/), so stale patch output survives a normal cache hit
+ * and the container skips rebuilds. A version mismatch forces a clean re-extract + rebuild.
+ */
+const PREVIEW_PATCHER_VERSION = 2;
+
 function cacheEnabled() {
   return process.env.PREVIEW_WORKSPACE_CACHE !== 'false';
 }
@@ -85,6 +93,7 @@ export async function writeWorkspaceManifest(workspaceDir, patch = {}) {
 
 function fingerprintMatches(manifest, fingerprint) {
   if (!manifest?.zipSha256 || !fingerprint?.sha256) return false;
+  if ((manifest.patcherVersion || 0) !== PREVIEW_PATCHER_VERSION) return false;
   return manifest.zipSha256 === fingerprint.sha256 && manifest.zipSize === fingerprint.size;
 }
 
@@ -132,6 +141,7 @@ export async function prepareSubmissionWorkspace({ submissionId, zipAbs }) {
     zipSha256: fingerprint.sha256,
     zipSize: fingerprint.size,
     zipMtimeMs: fingerprint.mtimeMs,
+    patcherVersion: PREVIEW_PATCHER_VERSION,
     auditPassed: false,
     readyAt: null,
   });
