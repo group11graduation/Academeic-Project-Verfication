@@ -678,24 +678,24 @@ export function rewriteLoginPathLiterals(content, confirmedPath, candidatePaths 
   return { content: next, changed };
 }
 
-async function walkReplaceLoginPaths(dir, confirmedPath, { artifactsOnly = false, depth = 0 } = {}) {
+const LOGIN_PATCH_ARTIFACT_EXT = new Set(['.js', '.css', '.html', '.map', '.json']);
+
+async function walkReplaceLoginPaths(dir, confirmedPath, { depth = 0 } = {}) {
   if (depth > 10) return { files: 0 };
   let files = 0;
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
   for (const entry of entries) {
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'target') continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!artifactsOnly && (entry.name === 'dist' || entry.name === 'build')) continue;
+      // Recurse everywhere (including dist/build) so built bundles get fixed too.
       // eslint-disable-next-line no-await-in-loop
-      const sub = await walkReplaceLoginPaths(full, confirmedPath, { artifactsOnly, depth: depth + 1 });
+      const sub = await walkReplaceLoginPaths(full, confirmedPath, { depth: depth + 1 });
       files += sub.files;
       continue;
     }
     const ext = path.extname(entry.name).toLowerCase();
-    if (artifactsOnly) {
-      if (!['.js', '.css', '.html', '.map', '.json'].includes(ext)) continue;
-    } else if (!SOURCE_EXT.has(ext) && !entry.name.startsWith('.env')) {
+    if (!SOURCE_EXT.has(ext) && !LOGIN_PATCH_ARTIFACT_EXT.has(ext) && !entry.name.startsWith('.env')) {
       continue;
     }
     // eslint-disable-next-line no-await-in-loop
@@ -714,6 +714,7 @@ async function walkReplaceLoginPaths(dir, confirmedPath, { artifactsOnly = false
 /**
  * After the real login API path is known, rewrite student frontend source + built bundles
  * so the browser stops POSTing a 404 path like /auth/login.
+ * Pass frontendSubdir='' to patch the whole extract tree (e.g. Spring pair, unknown layout).
  */
 export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, confirmedPath) {
   const confirmed = String(confirmedPath || '').trim();
@@ -721,18 +722,8 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
   const frontendRoot = path.join(extractDir, frontendSubdir || '');
   if (!(await pathExists(frontendRoot))) return { files: 0, confirmedPath: confirmed };
 
-  let files = 0;
-  const source = await walkReplaceLoginPaths(frontendRoot, confirmed, { artifactsOnly: false });
-  files += source.files;
-  for (const artifactDir of ['build', 'dist', path.join('build', 'web')]) {
-    const abs = path.join(frontendRoot, artifactDir);
-    // eslint-disable-next-line no-await-in-loop
-    if (!(await pathExists(abs))) continue;
-    // eslint-disable-next-line no-await-in-loop
-    const patched = await walkReplaceLoginPaths(abs, confirmed, { artifactsOnly: true });
-    files += patched.files;
-  }
-  return { files, confirmedPath: confirmed };
+  const patched = await walkReplaceLoginPaths(frontendRoot, confirmed);
+  return { files: patched.files, confirmedPath: confirmed };
 }
 
 const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.js';

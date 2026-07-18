@@ -367,7 +367,8 @@ async function detectAndApplyApiLoginRouteHint(session, {
     );
 
     // Fix the student UI (and Express aliases) so /auth/login stops 404ing.
-    if (extractDir && frontendSubdir) {
+    // frontendSubdir='' → patch whole extract tree (Spring pair / unknown layout).
+    if (extractDir) {
       const fePatch = await previewMern
         .patchFrontendLoginApiPath(extractDir, frontendSubdir, probe.path)
         .catch(() => ({ files: 0 }));
@@ -391,17 +392,26 @@ async function detectAndApplyApiLoginRouteHint(session, {
         );
       }
     }
-    // Hot-patch already-served bundles inside the running container (bind mount usually covers this).
-    if (containerName && frontendSubdir && probe.path) {
-      const safeFront = String(frontendSubdir).replace(/[^a-zA-Z0-9_./-]/g, '');
+    // Hot-patch already-served bundles inside the running container so the fix
+    // applies immediately, without waiting for a frontend rebuild.
+    if (containerName && probe.path) {
       const safePath = String(probe.path).replace(/[^a-zA-Z0-9_/-]/g, '');
-      if (safeFront && safePath) {
-        await dockerOrchestrator
-          .execInPreviewContainer(
-            containerName,
-            `cd "/app/${safeFront}" 2>/dev/null || cd /app; for d in dist build build/web; do [ -d "$d" ] || continue; find "$d" -type f \\( -name '*.js' -o -name '*.html' \\) 2>/dev/null | while read -r f; do sed -i 's|"/auth/login"|"${safePath}"|g; s|'"'"'/auth/login'"'"'|'"'"'${safePath}'"'"'|g; s|"/api/login"|"${safePath}"|g; s|"/users/login"|"${safePath}"|g' "$f" 2>/dev/null || true; done; done; echo patched`,
-            { timeoutMs: 30_000 }
+      const wrongPaths = previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES.filter(
+        (p) => p !== probe.path && p !== '/login'
+      ).map((p) => String(p).replace(/[^a-zA-Z0-9_/-]/g, ''));
+      if (safePath && wrongPaths.length) {
+        const sedArgs = wrongPaths
+          .map(
+            (w) =>
+              `-e 's|"${w}"|"${safePath}"|g' -e "s|'${w}'|'${safePath}'|g"`
           )
+          .join(' ');
+        const cmd =
+          `find /app -maxdepth 5 -type d \\( -name dist -o -name build \\) -not -path '*/node_modules/*' 2>/dev/null | ` +
+          `while read -r d; do find "$d" -type f \\( -name '*.js' -o -name '*.html' \\) 2>/dev/null | ` +
+          `while read -r f; do sed -i ${sedArgs} "$f" 2>/dev/null || true; done; done; echo login-path-patched`;
+        await dockerOrchestrator
+          .execInPreviewContainer(containerName, cmd, { timeoutMs: 45_000 })
           .catch(() => '');
       }
     }
@@ -1396,12 +1406,17 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             backendSubdir: '',
             containerName: dockerOrchestrator.containerNameFor(session._id.toString()),
           });
+          const springIdType = session.previewLoginIdentifierType || 'username';
+          const springLoginId =
+            springIdType === 'username'
+              ? session.previewLoginUsername || session.previewLoginEmail
+              : session.previewLoginEmail;
           const loginCheck = await previewLoginVerify
             .tryPreviewLogin({
               apiHostPort: apiPort,
-              email: session.previewLoginEmail,
+              email: springLoginId,
               password: session.previewLoginPassword,
-              identifierType: session.previewLoginIdentifierType || 'username',
+              identifierType: springIdType,
               probeHost: getPreviewProbeHost(),
               loginPaths: routeProbe.loginPaths,
             })
