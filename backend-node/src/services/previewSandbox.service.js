@@ -1248,6 +1248,9 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
           session.previewAppReady = true;
           session.previewAppReadyReason = logReady.reason;
         }
+        if (logReady?.apiReady === true) {
+          session.previewApiReady = true;
+        }
       }
     } catch {
       /* ignore */
@@ -1290,8 +1293,8 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
         const needsApi = apiPort > 0;
         const apiOk = !needsApi || session.apiPortReachable === true;
         const springUiWithoutApi = stack === 'java-spring-react' && !apiOk;
-        // Prefer log-based unlock when the container is clearly serving (avoids
-        // false placeholder_or_empty when the API container cannot HTTP-probe the host port).
+        // Prefer log-based unlock when the container is clearly serving the student app.
+        // Never keep a log-based "ready" if HTTP still returns the install placeholder.
         const logAlreadyReady = session.previewAppReady === true;
         if (apiOk || springUiWithoutApi) {
           const probe = await dockerOrchestrator.checkPreviewAppHttpReady({
@@ -1299,14 +1302,22 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             apiPreviewUrl: session.previewApiUrl || '',
             stack,
           });
-          if (probe.ready || !logAlreadyReady) {
-            session.previewAppReady = probe.ready || logAlreadyReady;
-            session.previewAppReadyReason = probe.ready
-              ? probe.reason
-              : session.previewAppReadyReason || probe.reason;
+          if (probe.reason === 'placeholder_or_empty') {
+            // Still the install holder page — keep Open preview locked.
+            session.previewAppReady = false;
+            session.previewAppReadyReason = 'placeholder_or_empty';
             session.previewApiReady = probe.apiReady === true;
-          } else if (probe.apiReady === true) {
-            session.previewApiReady = true;
+          } else if (probe.ready) {
+            session.previewAppReady = true;
+            session.previewAppReadyReason = probe.reason;
+            session.previewApiReady = probe.apiReady === true;
+          } else if (logAlreadyReady) {
+            // HTTP probe inconclusive (Coolify networking) but logs show real serve static.
+            session.previewApiReady = probe.apiReady === true || session.previewApiReady === true;
+          } else {
+            session.previewAppReady = false;
+            session.previewAppReadyReason = probe.reason;
+            session.previewApiReady = probe.apiReady === true;
           }
         } else if (!logAlreadyReady) {
           session.previewAppReady = false;

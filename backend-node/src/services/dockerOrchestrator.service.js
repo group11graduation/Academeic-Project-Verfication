@@ -2467,67 +2467,29 @@ export async function waitForPreviewReady({
 /**
  * Detect UI readiness from docker logs (serve access log, static server started).
  * Used when host HTTP probes fail on Windows Docker but the container is clearly serving.
+ *
+ * Do NOT treat CRA "build folder is ready" or bare GET 200 as ready — the placeholder
+ * holder page also returns 200 while npm/Maven still run. Unlock only after the
+ * entrypoint switches to the real student build (`[preview] serve static:`).
  */
 export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
   if (!logText?.trim()) return null;
 
   if (stack === 'java-spring-react') {
-    if (/\[preview\]\s*Spring API is listening/i.test(logText)) {
-      return { ready: true, reason: 'log_spring_api_listening', apiReady: true };
+    const springApiUp = /\[preview\]\s*Spring API is listening/i.test(logText);
+    // Real student UI is served only after the placeholder holder is released.
+    if (/\[preview\]\s*serve static:/i.test(logText)) {
+      return { ready: true, reason: 'log_serve_static', apiReady: springApiUp };
     }
-    // UI serve / HTTP 200 unlocks Open preview; API may still be compiling.
-    if (/\[preview\]\s*serve static:/i.test(logText) && /Accepting connections|Returned\s+200/i.test(logText)) {
-      return { ready: true, reason: 'log_serve_listening', apiReady: false };
-    }
-    // CRA finished building — Open preview should unlock even if HTTP probe from
-    // the API container can't reach the published host port (Coolify networking).
-    if (
-      /The build folder is ready to be deployed/i.test(logText) ||
-      (/\[preview\]\s*serve static:/i.test(logText) && /build folder is ready|Compiled successfully|File sizes after gzip/i.test(logText))
-    ) {
-      return { ready: true, reason: 'log_cra_build_ready', apiReady: false };
-    }
-    if (/\[preview\]\s*reusing cached React build/i.test(logText) || /\[preview\]\s*serve static:/i.test(logText)) {
-      return { ready: true, reason: 'log_serve_static_started', apiReady: false };
-    }
-    const lines = logText.split('\n');
-    for (let i = 0; i < lines.length; i += 1) {
-      const line = lines[i];
-      if (!/GET\s+\/\s*(HTTP|$)/i.test(line) && !/\bGET\s+\/\s*$/.test(line.trim())) continue;
-      for (let j = i; j < Math.min(i + 4, lines.length); j += 1) {
-        if (/Returned\s+200/i.test(lines[j])) {
-          return { ready: true, reason: 'log_http_200', apiReady: false };
-        }
-      }
+    // API-only signal — do not unlock Open preview (UI may still be the placeholder).
+    if (springApiUp) {
+      return { ready: false, reason: 'log_spring_api_listening', apiReady: true };
     }
     return null;
   }
 
-  if (/\[preview\]\s*serve static:/i.test(logText) && /Accepting connections/i.test(logText)) {
-    return { ready: true, reason: 'log_serve_listening' };
-  }
-
-  if (/\[preview\]\s*serve static:/i.test(logText) && /Returned\s+200/i.test(logText)) {
+  if (/\[preview\]\s*serve static:/i.test(logText)) {
     return { ready: true, reason: 'log_serve_static' };
-  }
-
-  const lines = logText.split('\n');
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (!/GET\s+\/\s*(HTTP|$)/i.test(line) && !/\bGET\s+\/\s*$/.test(line.trim())) continue;
-    for (let j = i; j < Math.min(i + 4, lines.length); j += 1) {
-      if (/Returned\s+200/i.test(lines[j])) {
-        return { ready: true, reason: 'log_http_200' };
-      }
-    }
-  }
-
-  if (
-    (stack === 'node-js' || stack.startsWith('static')) &&
-    /Accepted/i.test(logText) &&
-    /Returned\s+200/i.test(logText)
-  ) {
-    return { ready: true, reason: 'log_serve_200' };
   }
 
   return null;
@@ -2546,8 +2508,8 @@ export function diagnosePreviewFailure({ wait, session = {}, logs = '' } = {}) {
     };
   }
 
-  if (detectPreviewReadyFromLogs(logs, session.previewStack || 'node-js')) {
-    return { failed: false, ready: true, reason: 'log_serve_200' };
+  if (detectPreviewReadyFromLogs(logs, session.previewStack || 'node-js')?.ready) {
+    return { failed: false, ready: true, reason: 'log_serve_static' };
   }
 
   if (wait?.reason === 'container_exited') {

@@ -47,22 +47,14 @@ function previewStackLabel(stack, sess) {
     return PREVIEW_STACK_LABELS[stack] || stack || 'Detecting…';
 }
 
-/** Teacher can open the preview URL when the student app responds (HTTP probe or container log). */
+/** Teacher can open the preview URL only when the real student app is served (not the install placeholder). */
 function isPreviewOpenReady(sess) {
+    if (!sess?.previewUrl) return false;
+    if (sess?.previewAppReadyReason === 'placeholder_or_empty') return false;
     if (sess?.previewAppReady === true) {
         return sess?.status === 'running' || sess?.status === 'starting';
     }
-    // Spring UI often serves 200s while API/Maven is still starting — unlock from live logs.
-    if (
-        sess?.previewStack === 'java-spring-react' &&
-        (sess?.status === 'running' || sess?.status === 'starting') &&
-        sess?.previewUrl &&
-        sess?.portReachable !== false &&
-        /Returned\s+200/i.test(String(sess?.liveContainerLog || ''))
-    ) {
-        return true;
-    }
-    return sess?.status === 'running' && sess?.previewAppReady === true;
+    return false;
 }
 
 
