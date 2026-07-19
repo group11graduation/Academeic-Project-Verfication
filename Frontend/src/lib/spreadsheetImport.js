@@ -287,16 +287,20 @@ export function normalizeTeacherImportRow(raw) {
         }
         return '';
     };
+    const faculty = val('faculty', 'school', 'college');
+    const department = val('department', 'dept', 'programme', 'program');
     return {
-        name: val('name', 'fullname', 'teachername', 'instructor'),
-        email: val('email', 'emailaddress', 'mail'),
+        name: val('name', 'fullname', 'teachername', 'instructor', 'teacher'),
+        email: val('email', 'emailaddress', 'mail', 'e-mail'),
         teacherId: val('teacherid', 'employeeid', 'staffid', 'id'),
         employeeId: val('employeeid', 'teacherid', 'staffid'),
         password: val('password'),
         passcode: val('passcode', 'pin'),
-        department: val('department', 'faculty', 'school'),
-        phone: val('phone', 'mobile', 'tel', 'telephone'),
-        skills: val('skills', 'subjects', 'expertise'),
+        faculty,
+        // Do not fall back to faculty here — keep them separate for structure sync.
+        department: department || '',
+        phone: val('phone', 'phonenumber', 'mobile', 'tel', 'telephone', 'phoneno'),
+        skills: val('skills', 'skills&expertise', 'skillsexpertise', 'expertise', 'subjects'),
     };
 }
 

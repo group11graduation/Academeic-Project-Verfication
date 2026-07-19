@@ -42,6 +42,7 @@ const AdminTeacherImport = () => {
                 employeeId: n.employeeId || n.teacherId,
                 password: n.password,
                 passcode: n.passcode,
+                faculty: n.faculty,
                 department: n.department,
                 phone: n.phone,
                 skills: n.skills,
@@ -81,9 +82,10 @@ const AdminTeacherImport = () => {
             <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
                 Upload CSV/Excel or paste rows below. Columns:{' '}
                 <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
-                    name, email, teacherId, department, phone, skills
+                    name, email, teacherId, faculty, department, phone, skills
                 </code>
-                . If <code className="text-[10px]">teacherId</code> or <code className="text-[10px]">password</code> are omitted,
+                . Missing faculties and departments are added automatically to Academic Structure.
+                If <code className="text-[10px]">teacherId</code> or <code className="text-[10px]">password</code> are omitted,
                 the system auto-generates them.
             </p>
 
@@ -107,8 +109,8 @@ const AdminTeacherImport = () => {
                             setError('');
                         }}
                         rows={10}
-                        placeholder={`name,email,teacherId,department,phone,skills
-John Doe,john@school.edu,T-1001,Computer Science,+20111111111,AI|Web`}
+                        placeholder={`name,email,teacherId,faculty,department,phone,skills
+Dr. Amina Cali,amina@academy.edu,TC-2026-0002,Business Administration,Accounting,+252611000002,Accounting|Finance`}
                         className="w-full rounded-lg border border-slate-200 p-3 text-[12px] font-mono text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/30"
                     />
                 </div>
@@ -127,6 +129,14 @@ John Doe,john@school.edu,T-1001,Computer Science,+20111111111,AI|Web`}
                             Import finished: {result.created?.length ?? 0} created, {result.failed?.length ?? 0} failed (of{' '}
                             {result.total ?? 0} rows)
                         </div>
+                        {(result.structure?.facultiesAdded > 0 || result.structure?.departmentsAdded > 0) && (
+                            <p className="mb-2 text-[11px] font-semibold text-emerald-800">
+                                Academic structure updated: {result.structure.facultiesAdded || 0} facult
+                                {(result.structure.facultiesAdded || 0) === 1 ? 'y' : 'ies'},{' '}
+                                {result.structure.departmentsAdded || 0} department
+                                {(result.structure.departmentsAdded || 0) === 1 ? '' : 's'} added.
+                            </p>
+                        )}
                         {result.failed?.length > 0 && (
                             <ul className="list-disc pl-5 mt-2 space-y-1 text-[13px] font-medium text-red-800">
                                 {result.failed.slice(0, 15).map((f, i) => (

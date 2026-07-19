@@ -5,6 +5,7 @@ import { Class } from '../models/Class.js';
 import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 import { removeStudentFromGroupsForClassCode } from './teacherClassGroups.service.js';
+import { ensureAcademicStructureEntries } from './adminAcademic.service.js';
 
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -675,6 +676,18 @@ export async function importTeachers(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const created = [];
   const failed = [];
+
+  const structureEntries = list.map((row) => ({
+    faculty: String(row?.faculty || '').trim(),
+    department: String(row?.department || '').trim(),
+  }));
+  let structureSync = { facultiesAdded: 0, departmentsAdded: 0 };
+  try {
+    structureSync = await ensureAcademicStructureEntries(structureEntries);
+  } catch (e) {
+    console.error('Failed to sync academic structure during teacher import:', e);
+  }
+
   for (let i = 0; i < list.length; i++) {
     const row = list[i] || {};
     try {
@@ -685,11 +698,14 @@ export async function importTeachers(rows) {
       if (!row.email || !String(row.email).trim()) {
         throw new Error('email is required');
       }
+      const faculty = String(row.faculty || '').trim();
+      const department = String(row.department || '').trim();
       const teacher = await createTeacher({
         name: row.name,
         email: row.email,
         username: row.username,
-        department: row.department || row.faculty || '',
+        faculty,
+        department,
         teacherId: row.teacherId || row.employeeId || row.teacher_id,
         employeeId: row.employeeId || row.teacherId || row.employee_id,
         phone: row.phone || '',
@@ -708,6 +724,8 @@ export async function importTeachers(rows) {
         _id: teacher._id,
         loginPasscode: plain,
         email: row.email,
+        faculty,
+        department,
       });
     } catch (e) {
       failed.push({
@@ -718,7 +736,15 @@ export async function importTeachers(rows) {
       });
     }
   }
-  return { created, failed, total: list.length };
+  return {
+    created,
+    failed,
+    total: list.length,
+    structure: {
+      facultiesAdded: structureSync.facultiesAdded || 0,
+      departmentsAdded: structureSync.departmentsAdded || 0,
+    },
+  };
 }
 
 function csvEscape(value) {

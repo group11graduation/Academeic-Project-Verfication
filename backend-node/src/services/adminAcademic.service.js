@@ -786,3 +786,65 @@ export async function listFacultyNames() {
 
   return [...names].sort((a, b) => a.localeCompare(b));
 }
+
+/**
+ * Ensure faculties (and optional departments) exist in platform academicStructure.
+ * Used by teacher/student imports so new org units appear in Semesters structure filters.
+ */
+export async function ensureAcademicStructureEntries(entries = []) {
+  const pairs = [];
+  for (const entry of entries || []) {
+    const faculty = String(entry?.faculty || '').trim();
+    if (!faculty) continue;
+    const department = String(entry?.department || '').trim();
+    pairs.push({ faculty, department });
+  }
+  if (!pairs.length) {
+    return { facultiesAdded: 0, departmentsAdded: 0, structure: null };
+  }
+
+  const settings = (await getSettings()) || {};
+  const faculties = Array.isArray(settings.academicStructure?.faculties)
+    ? settings.academicStructure.faculties.map((f) => ({
+        name: String(f?.name || '').trim(),
+        departments: Array.isArray(f?.departments)
+          ? f.departments.map((d) => String(d || '').trim()).filter(Boolean)
+          : [],
+      }))
+    : [];
+
+  let facultiesAdded = 0;
+  let departmentsAdded = 0;
+
+  for (const { faculty, department } of pairs) {
+    let row = faculties.find((f) => f.name.toLowerCase() === faculty.toLowerCase());
+    if (!row) {
+      row = { name: faculty, departments: [] };
+      faculties.push(row);
+      facultiesAdded += 1;
+    }
+    if (department) {
+      const exists = row.departments.some((d) => d.toLowerCase() === department.toLowerCase());
+      if (!exists) {
+        row.departments.push(department);
+        departmentsAdded += 1;
+      }
+    }
+  }
+
+  if (facultiesAdded === 0 && departmentsAdded === 0) {
+    return {
+      facultiesAdded: 0,
+      departmentsAdded: 0,
+      structure: settings.academicStructure || { faculties },
+    };
+  }
+
+  const nextStructure = { faculties };
+  await setSettings({
+    ...settings,
+    academicStructure: nextStructure,
+  });
+
+  return { facultiesAdded, departmentsAdded, structure: nextStructure };
+}
