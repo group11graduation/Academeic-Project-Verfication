@@ -84,9 +84,8 @@ const AdminTeacherImport = () => {
                 <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
                     name, email, teacherId, faculty, department, phone, skills
                 </code>
-                . Missing faculties and departments are added automatically to Academic Structure.
-                If <code className="text-[10px]">teacherId</code> or <code className="text-[10px]">password</code> are omitted,
-                the system auto-generates them.
+                . Missing or duplicate rows (name, email, teacherId) are fully rejected — nothing is saved for those rows.
+                Faculties/departments are added only for successfully imported teachers.
             </p>
 
             <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/60 p-4 space-y-3">

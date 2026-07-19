@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarRange, Check, Edit2, Loader2, Plus, X } from 'lucide-react';
+import { CalendarRange, Check, Edit2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { adminAcademicService } from '../../../services/adminAcademicService';
-import { appError, appWarning } from '../../../lib/appDialog';
+import { appConfirm, appError, appWarning } from '../../../lib/appDialog';
 
 function toDateInputValue(value) {
     if (!value) return '';
@@ -213,6 +213,53 @@ const AdminSemesters = () => {
         };
         await saveStructure(next);
         setEditingDepartment(null);
+    };
+
+    const handleDeleteFaculty = async (facultyName) => {
+        const ok = await appConfirm(
+            `Delete faculty "${facultyName}" and all its departments from Academic Structure?`,
+            { danger: true, confirmLabel: 'Delete faculty' },
+        );
+        if (!ok) return;
+        const next = {
+            faculties: (structure.faculties || []).filter(
+                (f) => String(f.name).toLowerCase() !== String(facultyName).toLowerCase()
+            ),
+        };
+        await saveStructure(next);
+        setDepartmentDrafts((prev) => {
+            const nextDrafts = { ...prev };
+            delete nextDrafts[facultyName];
+            return nextDrafts;
+        });
+        if (editingFaculty?.oldName === facultyName) setEditingFaculty(null);
+        if (editingDepartment?.facultyName === facultyName) setEditingDepartment(null);
+    };
+
+    const handleDeleteDepartment = async (facultyName, departmentName) => {
+        const ok = await appConfirm(
+            `Delete department "${departmentName}" from ${facultyName}?`,
+            { danger: true, confirmLabel: 'Delete department' },
+        );
+        if (!ok) return;
+        const next = {
+            faculties: (structure.faculties || []).map((f) => {
+                if (f.name !== facultyName) return f;
+                return {
+                    ...f,
+                    departments: (f.departments || []).filter(
+                        (d) => String(d).toLowerCase() !== String(departmentName).toLowerCase()
+                    ),
+                };
+            }),
+        };
+        await saveStructure(next);
+        if (
+            editingDepartment?.facultyName === facultyName &&
+            editingDepartment?.oldName === departmentName
+        ) {
+            setEditingDepartment(null);
+        }
     };
 
     const resetYearForm = () => {
@@ -580,14 +627,25 @@ const AdminSemesters = () => {
                                 ) : (
                                     <>
                                         <h3 className="text-[13px] font-black text-slate-900">{f.name}</h3>
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditingFaculty({ oldName: f.name, value: f.name })}
-                                            className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
-                                            title="Edit faculty"
-                                        >
-                                            <Edit2 className="h-3.5 w-3.5" />
-                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingFaculty({ oldName: f.name, value: f.name })}
+                                                className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                                                title="Edit faculty"
+                                            >
+                                                <Edit2 className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteFaculty(f.name)}
+                                                disabled={structureSaving}
+                                                className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                                                title="Delete faculty"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
                                     </>
                                 )}
                             </div>
@@ -637,6 +695,15 @@ const AdminSemesters = () => {
                                                 title="Edit department"
                                             >
                                                 <Edit2 className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteDepartment(f.name, d)}
+                                                disabled={structureSaving}
+                                                className="text-rose-500 hover:text-rose-700 disabled:opacity-60"
+                                                title="Delete department"
+                                            >
+                                                <Trash2 className="h-3 w-3" />
                                             </button>
                                         </span>
                                     );

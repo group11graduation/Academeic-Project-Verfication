@@ -788,6 +788,61 @@ export async function listFacultyNames() {
 }
 
 /**
+ * Create Class documents for codes that appear in student import but are missing.
+ * Name defaults to the class code; faculty/department are taken from the import row when present.
+ */
+export async function ensureClassesFromImport(entries = []) {
+  const byCode = new Map();
+  for (const entry of entries || []) {
+    const code = normalizeClassCode(entry?.code || entry?.classCode || entry?.classId);
+    if (!code) continue;
+    const faculty = String(entry?.faculty || '').trim();
+    const department = String(entry?.department || '').trim();
+    const name = String(entry?.name || entry?.className || '').trim() || code;
+    const prev = byCode.get(code);
+    if (!prev) {
+      byCode.set(code, { code, name, faculty, department });
+      continue;
+    }
+    if (!prev.faculty && faculty) prev.faculty = faculty;
+    if (!prev.department && department) prev.department = department;
+    if (prev.name === prev.code && name !== code) prev.name = name;
+  }
+
+  if (!byCode.size) {
+    return { classesAdded: 0, codes: [] };
+  }
+
+  const codes = [...byCode.keys()];
+  const existing = await Class.find({ code: { $in: codes } }).select('code').lean();
+  const existingSet = new Set(existing.map((c) => normalizeClassCode(c.code)));
+  const toCreate = [...byCode.values()].filter((e) => !existingSet.has(e.code));
+
+  const createdCodes = [];
+  for (const entry of toCreate) {
+    try {
+      await Class.create({
+        code: entry.code,
+        name: entry.name,
+        description: 'Auto-created from student import',
+        faculty: entry.faculty,
+        department: entry.department,
+        category: 'ACADEMIC',
+        subjects: [],
+        teacherAssignments: [],
+      });
+      createdCodes.push(entry.code);
+    } catch (e) {
+      // Concurrent import may create the same code — treat as already present.
+      if (e?.code === 11000) continue;
+      throw e;
+    }
+  }
+
+  return { classesAdded: createdCodes.length, codes: createdCodes };
+}
+
+/**
  * Ensure faculties (and optional departments) exist in platform academicStructure.
  * Used by teacher/student imports so new org units appear in Semesters structure filters.
  */

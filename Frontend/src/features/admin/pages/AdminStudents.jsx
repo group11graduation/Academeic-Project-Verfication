@@ -651,7 +651,12 @@ const AdminStudents = () => {
                         {importResult && (
                             <div className="flex items-start gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-800">
                                 <CheckCircle2 className="h-4 w-4 mt-0.5" />
-                                Created {importResult.created?.length || 0} / Failed {importResult.failed?.length || 0}
+                                <span>
+                                    Created {importResult.created?.length || 0} / Failed {importResult.failed?.length || 0}
+                                    {importResult.classes?.classesAdded > 0
+                                        ? ` · ${importResult.classes.classesAdded} class(es) auto-created (${(importResult.classes.codes || []).join(', ')})`
+                                        : ''}
+                                </span>
                             </div>
                         )}
                         <div className="flex justify-end">

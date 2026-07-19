@@ -5,7 +5,10 @@ import { Class } from '../models/Class.js';
 import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 import { removeStudentFromGroupsForClassCode } from './teacherClassGroups.service.js';
-import { ensureAcademicStructureEntries } from './adminAcademic.service.js';
+import {
+  ensureAcademicStructureEntries,
+  ensureClassesFromImport,
+} from './adminAcademic.service.js';
 
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -589,6 +592,32 @@ export async function importStudents(rows) {
   const failed = [];
   const concurrency = Math.min(5, Math.max(1, Number(process.env.IMPORT_CONCURRENCY) || 5));
 
+  const resolveClassCode = (row) =>
+    normalizeStudentClassCodeValue(
+      row?.classCode || row?.classId || row?.academicInfo?.classId || row?.academicInfo?.classCode || ''
+    );
+  const resolveFaculty = (row) =>
+    String(row?.faculty || row?.academicInfo?.faculty || '').trim();
+  const resolveDepartment = (row) =>
+    String(row?.department || row?.academicInfo?.department || '').trim();
+
+  // Auto-create missing classes (and academic structure) before saving students.
+  let classesSync = { classesAdded: 0, codes: [] };
+  let structureSync = { facultiesAdded: 0, departmentsAdded: 0 };
+  try {
+    const classEntries = list.map((row) => ({
+      classCode: resolveClassCode(row),
+      faculty: resolveFaculty(row),
+      department: resolveDepartment(row),
+    }));
+    classesSync = await ensureClassesFromImport(classEntries);
+    structureSync = await ensureAcademicStructureEntries(
+      classEntries.filter((e) => e.classCode && (e.faculty || e.department))
+    );
+  } catch (e) {
+    console.error('Failed to sync classes/structure during student import:', e);
+  }
+
   const importOne = async (row, i) => {
     try {
       if (!row.name || !String(row.name).trim()) {
@@ -609,6 +638,9 @@ export async function importStudents(rows) {
       const parentDetails = row.parentDetails || {};
       const educationalBackground = row.educationalBackground || {};
       const academicInfo = row.academicInfo || {};
+      const classCode = resolveClassCode(row);
+      const faculty = resolveFaculty(row);
+      const department = resolveDepartment(row);
       const stu = await createStudent({
         name: row.name,
         email: row.email,
@@ -617,9 +649,9 @@ export async function importStudents(rows) {
         password: plain,
         passcode: row.passcode || plain,
         photo: row.photo || '',
-        classId: row.classId || row.classCode || academicInfo.classId || '',
-        classCode: row.classCode || row.classId || '',
-        faculty: row.faculty || academicInfo.faculty || '',
+        classId: classCode,
+        classCode,
+        faculty,
         program: row.program || '',
         currentScore: row.currentScore ?? row.score,
         currentGpa: row.currentGpa ?? row.gpa,
@@ -640,8 +672,8 @@ export async function importStudents(rows) {
           certificateUrl: row.certificateUrl || educationalBackground.certificateUrl || '',
         },
         academicInfo: {
-          faculty: row.faculty || academicInfo.faculty || '',
-          department: row.department || academicInfo.department || '',
+          faculty,
+          department,
           campus: row.campus || academicInfo.campus || '',
           studyMode: row.studyMode || academicInfo.studyMode || '',
           entryDate: row.entryDate || academicInfo.entryDate || null,
@@ -653,6 +685,7 @@ export async function importStudents(rows) {
         _id: stu._id,
         loginPasscode: plain,
         email: row.email,
+        classCode,
       });
     } catch (e) {
       failed.push({
@@ -669,7 +702,13 @@ export async function importStudents(rows) {
     await Promise.all(slice.map((row, j) => importOne(row, offset + j)));
   }
 
-  return { created, failed, total: list.length };
+  return {
+    created,
+    failed,
+    total: list.length,
+    classes: classesSync,
+    structure: structureSync,
+  };
 }
 
 export async function importTeachers(rows) {
@@ -677,65 +716,198 @@ export async function importTeachers(rows) {
   const created = [];
   const failed = [];
 
-  const structureEntries = list.map((row) => ({
-    faculty: String(row?.faculty || '').trim(),
-    department: String(row?.department || '').trim(),
-  }));
+  const normalizeEmail = (v) => String(v || '').trim().toLowerCase();
+  const normalizeId = (v) => String(v || '').trim().toUpperCase();
+  const normalizeName = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const prepared = list.map((row, index) => {
+    const name = String(row?.name || '').trim();
+    const email = normalizeEmail(row?.email);
+    const teacherId = normalizeId(row?.teacherId || row?.employeeId || row?.teacher_id || row?.employee_id);
+    const faculty = String(row?.faculty || '').trim();
+    const department = String(row?.department || '').trim();
+    const phone = String(row?.phone || '').trim();
+    const skills = Array.isArray(row?.skills)
+      ? row.skills.map((s) => String(s || '').trim()).filter(Boolean)
+      : String(row?.skills || '')
+          .split(/[|,]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+    return {
+      index,
+      name,
+      email,
+      teacherId,
+      faculty,
+      department,
+      phone,
+      skills,
+      username: String(row?.username || '').trim(),
+      password: row?.password || row?.passcode || '',
+      raw: row,
+    };
+  });
+
+  // Mark incomplete rows first — never create structure or accounts for these.
+  const incompleteIndexes = new Set();
+  for (const row of prepared) {
+    const missing = [];
+    if (!row.name) missing.push('name');
+    if (!row.email) missing.push('email');
+    if (!row.teacherId) missing.push('teacherId');
+    if (!row.faculty) missing.push('faculty');
+    if (!row.department) missing.push('department');
+    if (missing.length) {
+      incompleteIndexes.add(row.index);
+      failed.push({
+        index: row.index,
+        teacherId: row.teacherId || row.raw?.teacherId || row.raw?.employeeId,
+        email: row.email || row.raw?.email,
+        message: `Incomplete row — missing ${missing.join(', ')}. Entire row rejected.`,
+      });
+    }
+  }
+
+  // File-level duplicates (email / teacherId / name) — reject ALL rows that share the value.
+  const emailGroups = new Map();
+  const idGroups = new Map();
+  const nameGroups = new Map();
+  for (const row of prepared) {
+    if (incompleteIndexes.has(row.index)) continue;
+    if (row.email) {
+      if (!emailGroups.has(row.email)) emailGroups.set(row.email, []);
+      emailGroups.get(row.email).push(row.index);
+    }
+    if (row.teacherId) {
+      if (!idGroups.has(row.teacherId)) idGroups.set(row.teacherId, []);
+      idGroups.get(row.teacherId).push(row.index);
+    }
+    if (row.name) {
+      const key = normalizeName(row.name);
+      if (!nameGroups.has(key)) nameGroups.set(key, []);
+      nameGroups.get(key).push(row.index);
+    }
+  }
+
+  const fileDupIndexes = new Set();
+  const markFileDups = (groups, label) => {
+    for (const [value, indexes] of groups.entries()) {
+      if (indexes.length < 2) continue;
+      for (const idx of indexes) {
+        fileDupIndexes.add(idx);
+        if (failed.some((f) => f.index === idx && String(f.message || '').includes(label))) continue;
+        failed.push({
+          index: idx,
+          teacherId: prepared[idx]?.teacherId,
+          email: prepared[idx]?.email,
+          message: `Duplicate ${label} "${value}" in import file. Entire row rejected.`,
+        });
+      }
+    }
+  };
+  markFileDups(emailGroups, 'email');
+  markFileDups(idGroups, 'teacher ID');
+  markFileDups(nameGroups, 'name');
+
+  const candidateRows = prepared.filter(
+    (row) => !incompleteIndexes.has(row.index) && !fileDupIndexes.has(row.index)
+  );
+
+  // DB-level duplicates
+  const emails = candidateRows.map((r) => r.email).filter(Boolean);
+  const ids = candidateRows.map((r) => r.teacherId).filter(Boolean);
+  const names = candidateRows.map((r) => r.name).filter(Boolean);
+
+  const [existingUsers, existingProfiles, existingNameUsers] = await Promise.all([
+    emails.length
+      ? User.find({ email: { $in: emails } }).select('email').lean()
+      : Promise.resolve([]),
+    ids.length
+      ? TeacherProfile.find({
+          $or: [{ employeeId: { $in: ids } }, { employeeId: { $in: ids.map((id) => id.toLowerCase()) } }],
+        })
+          .select('employeeId')
+          .lean()
+      : Promise.resolve([]),
+    names.length
+      ? User.find({
+          role: 'teacher',
+          name: { $in: names },
+        })
+          .select('name')
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const existingEmailSet = new Set(existingUsers.map((u) => normalizeEmail(u.email)));
+  const existingIdSet = new Set(existingProfiles.map((p) => normalizeId(p.employeeId)));
+  const existingNameSet = new Set(existingNameUsers.map((u) => normalizeName(u.name)));
+
+  const dbDupIndexes = new Set();
+  for (const row of candidateRows) {
+    const reasons = [];
+    if (row.email && existingEmailSet.has(row.email)) reasons.push(`email "${row.email}"`);
+    if (row.teacherId && existingIdSet.has(row.teacherId)) reasons.push(`teacher ID "${row.teacherId}"`);
+    if (row.name && existingNameSet.has(normalizeName(row.name))) reasons.push(`name "${row.name}"`);
+    if (reasons.length) {
+      dbDupIndexes.add(row.index);
+      failed.push({
+        index: row.index,
+        teacherId: row.teacherId,
+        email: row.email,
+        message: `Already exists (${reasons.join(', ')}). Entire row rejected.`,
+      });
+    }
+  }
+
+  const accepted = candidateRows.filter((row) => !dbDupIndexes.has(row.index));
+
+  // Only create faculties/departments from rows that will actually be saved.
   let structureSync = { facultiesAdded: 0, departmentsAdded: 0 };
   try {
-    structureSync = await ensureAcademicStructureEntries(structureEntries);
+    structureSync = await ensureAcademicStructureEntries(
+      accepted.map((row) => ({ faculty: row.faculty, department: row.department }))
+    );
   } catch (e) {
     console.error('Failed to sync academic structure during teacher import:', e);
   }
 
-  for (let i = 0; i < list.length; i++) {
-    const row = list[i] || {};
+  for (const row of accepted) {
     try {
-      const plain = row.password || row.passcode || randomPasscode();
-      if (!row.name || !String(row.name).trim()) {
-        throw new Error('name is required');
-      }
-      if (!row.email || !String(row.email).trim()) {
-        throw new Error('email is required');
-      }
-      const faculty = String(row.faculty || '').trim();
-      const department = String(row.department || '').trim();
+      const plain = row.password || randomPasscode();
       const teacher = await createTeacher({
         name: row.name,
         email: row.email,
         username: row.username,
-        faculty,
-        department,
-        teacherId: row.teacherId || row.employeeId || row.teacher_id,
-        employeeId: row.employeeId || row.teacherId || row.employee_id,
-        phone: row.phone || '',
-        skills: Array.isArray(row.skills)
-          ? row.skills
-          : String(row.skills || '')
-              .split(/[|,]/)
-              .map((s) => s.trim())
-              .filter(Boolean),
-        classCodes: row.assignedClassCodes || row.classCodes || '',
+        faculty: row.faculty,
+        department: row.department,
+        teacherId: row.teacherId,
+        employeeId: row.teacherId,
+        phone: row.phone,
+        skills: row.skills,
         password: plain,
       });
       created.push({
-        index: i,
+        index: row.index,
         teacherId: teacher.teacherId,
         _id: teacher._id,
         loginPasscode: plain,
         email: row.email,
-        faculty,
-        department,
+        faculty: row.faculty,
+        department: row.department,
       });
     } catch (e) {
       failed.push({
-        index: i,
-        teacherId: row.teacherId || row.employeeId,
+        index: row.index,
+        teacherId: row.teacherId,
         email: row.email,
         message: e.message || 'Failed',
       });
     }
   }
+
+  failed.sort((a, b) => a.index - b.index);
+
   return {
     created,
     failed,

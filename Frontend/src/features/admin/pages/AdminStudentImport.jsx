@@ -77,11 +77,12 @@ const AdminStudentImport = () => {
                 <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">name, email, studentId</code>.
                 Recommended optional columns:{' '}
                 <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
-                    classCode, phone, dob, gender, fatherName, fatherContact, motherName, motherContact,
-                    highSchoolName, graduationYear
+                    classCode, faculty, department, phone, dob, gender, fatherName, fatherContact, motherName,
+                    motherContact, highSchoolName, graduationYear
                 </code>
-                . Use <strong>fatherName</strong> / <strong>motherName</strong> (or &quot;Father&apos;s Name&quot;) and{' '}
-                <strong>dob</strong> (or &quot;Date of Birth&quot;). Dates: YYYY-MM-DD or DD/MM/YYYY.
+                . If <code className="text-[10px]">classCode</code> is not in the system yet, it is created
+                automatically and the student is assigned to it. Optional faculty/department are attached to the
+                new class and Academic Structure. Dates: YYYY-MM-DD or DD/MM/YYYY.
             </p>
 
             <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/60 p-4 space-y-3">
@@ -125,6 +126,31 @@ John Smith,john@school.edu,S-1002`}
                             Import finished: {result.created?.length ?? 0} created, {result.failed?.length ?? 0} failed (of{' '}
                             {result.total ?? 0} rows)
                         </div>
+                        {(result.classes?.classesAdded > 0 ||
+                            result.structure?.facultiesAdded > 0 ||
+                            result.structure?.departmentsAdded > 0) && (
+                            <p className="text-[12px] font-semibold text-emerald-800 mb-2">
+                                {result.classes?.classesAdded > 0 && (
+                                    <>
+                                        {result.classes.classesAdded} class
+                                        {result.classes.classesAdded === 1 ? '' : 'es'} created
+                                        {result.classes.codes?.length
+                                            ? ` (${result.classes.codes.join(', ')})`
+                                            : ''}
+                                        .
+                                    </>
+                                )}{' '}
+                                {(result.structure?.facultiesAdded > 0 ||
+                                    result.structure?.departmentsAdded > 0) && (
+                                    <>
+                                        {result.structure.facultiesAdded || 0} faculty /{' '}
+                                        {result.structure.departmentsAdded || 0} department
+                                        {(result.structure.departmentsAdded || 0) === 1 ? '' : 's'} added to
+                                        Academic Structure.
+                                    </>
+                                )}
+                            </p>
+                        )}
                         {result.failed?.length > 0 && (
                             <ul className="list-disc pl-5 mt-2 space-y-1 text-[13px] font-medium text-red-800">
                                 {result.failed.slice(0, 15).map((f, i) => (
