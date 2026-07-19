@@ -16,6 +16,7 @@ router.get('/classes/:classRef/students/:studentUserId', teacher.getClassStudent
 router.get('/classes/:classRef/students', teacher.listClassStudents);
 router.get('/classes/:classRef/groups', teacher.listClassGroupsDisplay);
 router.get('/classes/:classRef/group-assignments', teacher.listClassGroupAssignments);
+router.get('/classes/:classRef/class-groups/editor', teacher.getClassTemplateGroupsEditor);
 router.post('/classes/:classRef/class-groups/generate', teacher.generateClassTemplateGroups);
 router.get('/classes/:classRef/class-groups/export', teacher.exportClassTemplateGroupsCsv);
 router.post('/classes/:classRef/class-groups/import-preview', teacher.previewClassTemplateGroups);

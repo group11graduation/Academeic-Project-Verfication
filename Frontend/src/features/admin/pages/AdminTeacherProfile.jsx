@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
+import { appError } from '../../../lib/appDialog';
 import {
     ArrowLeft, MapPin, Mail, MessageSquare, Edit2,
     User, Phone, Building2, BarChart2, CheckCircle2,
     Clock, RefreshCw, BookOpen, Users, ArrowRight,
-    Eye, EyeOff, Shield, Loader2, GraduationCap, Edit3, ShieldCheck, Copy, Check
+    Eye, EyeOff, Shield, Loader2, GraduationCap, Edit3, Copy, Check
 } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
 import adminClassService from '../../../services/adminClassService';
@@ -23,7 +23,6 @@ const AdminTeacherProfile = () => {
     const [allClasses, setAllClasses] = useState([]);
     const [loadingAssignments, setLoadingAssignments] = useState(false);
     const [selectedClasses, setSelectedClasses] = useState([]);
-    const [isPromoting, setIsPromoting] = useState(false);
     const [copiedPasscode, setCopiedPasscode] = useState(false);
 
     useEffect(() => {
@@ -85,28 +84,6 @@ const AdminTeacherProfile = () => {
             await appError("Failed to save assignments.");
         } finally {
             setLoadingAssignments(false);
-        }
-    };
-
-    const handleToggleAdmin = async () => {
-        if (!(await appConfirm(`Are you sure you want to ${teacher.userId?.roles?.includes('admin') ? 'revoke' : 'grant'} administrative privileges for this teacher?`))) return;
-
-        setIsPromoting(true);
-        try {
-            const res = await adminTeacherService.toggleAdmin(id);
-            if (res.success) {
-                // Refresh teacher data
-                const response = await adminTeacherService.getTeacher(id);
-                if (response.success) {
-                    setTeacher(response.data);
-                }
-                await appSuccess(res.message);
-            }
-        } catch (error) {
-            console.error("Failed to toggle admin status:", error);
-            await appError("Failed to update administrative status.");
-        } finally {
-            setIsPromoting(false);
         }
     };
 
@@ -257,7 +234,7 @@ const AdminTeacherProfile = () => {
                         </div>
 
                         <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 rounded-lg p-4 transition-all">
-                            <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1 transition-colors">Administrative Passcode</p>
                                     <div className="flex items-center gap-3">
@@ -290,20 +267,6 @@ const AdminTeacherProfile = () => {
                                 <div className="bg-blue-100/50 dark:bg-blue-500/10 p-2 rounded-lg text-[#1D68E3] transition-colors">
                                     <Shield className="h-4 w-4" />
                                 </div>
-                            </div>
-
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleToggleAdmin}
-                                    disabled={isPromoting}
-                                    className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold text-[12px] transition-all border ${teacher.userId?.roles?.includes('admin')
-                                        ? 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'
-                                        : 'bg-blue-50 border-blue-200 text-[#1D68E3] hover:bg-blue-100'
-                                        }`}
-                                >
-                                    {isPromoting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                                    {teacher.userId?.roles?.includes('admin') ? 'Revoke Admin' : 'Grant Admin'}
-                                </button>
                             </div>
                         </div>
                     </div>

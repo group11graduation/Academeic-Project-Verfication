@@ -10,8 +10,6 @@ import adminClassService from '../../../services/adminClassService';
 import adminTeacherService from '../../../services/adminTeacherService';
 import adminStudentService from '../../../services/adminStudentService';
 import adminSubjectService from '../../../services/adminSubjectService';
-import adminSemesterService from '../../../services/adminSemesterService';
-import { adminAcademicService } from '../../../services/adminAcademicService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
@@ -32,8 +30,6 @@ const AdminClassDetail = () => {
     const [allTeachers, setAllTeachers] = useState([]);
     const [allStudents, setAllStudents] = useState([]);
     const [allSubjects, setAllSubjects] = useState([]);
-    const [allSemesters, setAllSemesters] = useState([]);
-    const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
     const [selectedTeacherId, setSelectedTeacherId] = useState('');
     const [selectedTeacherSubjectIds, setSelectedTeacherSubjectIds] = useState([]);
     const [pickedStudentProfileIds, setPickedStudentProfileIds] = useState(() => new Set());
@@ -47,15 +43,7 @@ const AdminClassDetail = () => {
     const [savingClassInfo, setSavingClassInfo] = useState(false);
     const [generatingStudentPasscodeFor, setGeneratingStudentPasscodeFor] = useState('');
     const [generatedPasscodes, setGeneratedPasscodes] = useState({});
-    const [classForm, setClassForm] = useState({
-        name: '',
-        description: '',
-        faculty: '',
-        department: '',
-        category: 'ACADEMIC',
-        semester: '',
-        subjectIds: [],
-    });
+    const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
 
     const handleGenerateAccounts = async () => {
         if (!(await appConfirm('This will create User login accounts for all students in this class. Proceed?'))) return;
@@ -85,15 +73,9 @@ const AdminClassDetail = () => {
             setClassInfo(res.data);
             setStudents(res.data.enrolledStudents || []);
             setTeachers(res.data.assignedTeachers || []);
-            setClassForm({
-                name: res.data.name || '',
-                description: res.data.description || '',
-                faculty: res.data.faculty || '',
-                department: res.data.department || '',
-                category: res.data.category || 'ACADEMIC',
-                semester: res.data.semesterId || '',
-                subjectIds: Array.isArray(res.data.subjectIds) ? res.data.subjectIds.map(String) : [],
-            });
+            setSelectedSubjectIds(
+                Array.isArray(res.data.subjectIds) ? res.data.subjectIds.map(String) : []
+            );
         }
     };
 
@@ -101,18 +83,14 @@ const AdminClassDetail = () => {
         const load = async () => {
             try {
                 await fetchClassDetails();
-                const [tRes, sRes, subRes, semRes, structureRes] = await Promise.all([
+                const [tRes, sRes, subRes] = await Promise.all([
                     adminTeacherService.getTeachers(),
                     adminStudentService.getStudents(),
                     adminSubjectService.getSubjects(),
-                    adminSemesterService.getSemesters(),
-                    adminAcademicService.getAcademicStructure(),
                 ]);
                 if (tRes.success) setAllTeachers(tRes.data || []);
                 if (sRes.success) setAllStudents(sRes.data || []);
                 if (subRes.success) setAllSubjects(subRes.data || []);
-                if (semRes.success) setAllSemesters(semRes.data || []);
-                if (structureRes.success) setAcademicStructure(structureRes.data || { faculties: [] });
             } catch (error) {
                 console.error("Error fetching class details:", error);
             } finally {
@@ -353,24 +331,26 @@ const AdminClassDetail = () => {
     };
 
     const clearPickedStudents = () => setPickedStudentProfileIds(new Set());
-    const availableSubjects = (allSubjects || []).filter((sub) => {
-        const subFaculty = String(sub.faculty || '').trim().toLowerCase();
-        const subDepartment = String(sub.department || '').trim().toLowerCase();
-        const facultyOk = classForm.faculty ? (subFaculty ? subFaculty === String(classForm.faculty).toLowerCase() : true) : true;
-        const departmentOk = classForm.department
-            ? (subDepartment ? subDepartment === String(classForm.department).toLowerCase() : true)
-            : true;
-        return facultyOk && departmentOk;
-    });
-    const departmentOptions = ((academicStructure.faculties || []).find((f) => f.name === classForm.faculty)?.departments) || [];
+    const availableSubjects = useMemo(() => {
+        const faculty = String(classInfo?.faculty || '').trim().toLowerCase();
+        const department = String(classInfo?.department || '').trim().toLowerCase();
+        const source = allSubjects || [];
+        if (!faculty) return source;
+        const facultySubjects = source.filter(
+            (sub) => String(sub.faculty || '').trim().toLowerCase() === faculty
+        );
+        if (!department) return facultySubjects;
+        const deptSubjects = facultySubjects.filter(
+            (sub) => String(sub.department || '').trim().toLowerCase() === department
+        );
+        return deptSubjects.length > 0 ? deptSubjects : facultySubjects;
+    }, [allSubjects, classInfo?.faculty, classInfo?.department]);
 
     const handleToggleSubject = (subjectId) => {
-        setClassForm((prev) => ({
-            ...prev,
-            subjectIds: prev.subjectIds.includes(String(subjectId))
-                ? prev.subjectIds.filter((id) => id !== String(subjectId))
-                : [...prev.subjectIds, String(subjectId)],
-        }));
+        const id = String(subjectId);
+        setSelectedSubjectIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
     };
     const handleToggleTeacherSubject = (subjectId) => {
         setSelectedTeacherSubjectIds((prev) =>
@@ -384,20 +364,14 @@ const AdminClassDetail = () => {
         try {
             setSavingClassInfo(true);
             const res = await adminClassService.updateClass(id, {
-                name: classForm.name,
-                description: classForm.description,
-                faculty: classForm.faculty,
-                department: classForm.department,
-                category: classForm.category,
-                semester: classForm.semester || null,
-                subjectIds: classForm.subjectIds,
+                subjectIds: selectedSubjectIds,
             });
             if (!res.success) throw new Error(res.message || 'Failed to update class');
             await fetchClassDetails();
-            await appSuccess('Class information updated successfully.');
+            await appSuccess('Class subjects updated successfully.');
         } catch (error) {
-            console.error('Error updating class info:', error);
-            await appError(error.response?.data?.message || error.message || 'Could not update class');
+            console.error('Error updating class subjects:', error);
+            await appError(error.response?.data?.message || error.message || 'Could not update subjects');
         } finally {
             setSavingClassInfo(false);
         }
@@ -500,81 +474,28 @@ const AdminClassDetail = () => {
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 mb-4">
-                <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Information & Subjects</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
-                    <input
-                        value={classForm.name}
-                        onChange={(e) => setClassForm((p) => ({ ...p, name: e.target.value }))}
-                        placeholder="Class name"
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
-                    />
-                    <select
-                        value={classForm.faculty}
-                        onChange={(e) =>
-                            setClassForm((p) => ({ ...p, faculty: e.target.value, department: '', subjectIds: [] }))
-                        }
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
-                    >
-                        <option value="">Select faculty</option>
-                        {(academicStructure.faculties || []).map((f) => (
-                            <option key={f.name} value={f.name}>{f.name}</option>
-                        ))}
-                    </select>
-                    <select
-                        value={classForm.department}
-                        onChange={(e) => setClassForm((p) => ({ ...p, department: e.target.value, subjectIds: [] }))}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
-                        disabled={!classForm.faculty}
-                    >
-                        <option value="">Select department</option>
-                        {departmentOptions.map((d) => (
-                            <option key={d} value={d}>{d}</option>
-                        ))}
-                    </select>
-                    <select
-                        value={classForm.category}
-                        onChange={(e) => setClassForm((p) => ({ ...p, category: e.target.value }))}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
-                    >
-                        <option value="ACADEMIC">Academic</option>
-                        <option value="LAB BASED">Lab Based</option>
-                        <option value="THEORY">Theory</option>
-                        <option value="WORKSHOP">Workshop</option>
-                        <option value="SEMINAR">Seminar</option>
-                    </select>
-                    <select
-                        value={classForm.semester}
-                        onChange={(e) => setClassForm((p) => ({ ...p, semester: e.target.value }))}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none"
-                    >
-                        <option value="">Select semester</option>
-                        {allSemesters.map((s) => (
-                            <option key={s._id} value={s._id}>
-                                {s.academicYearLabel ? `${s.academicYearLabel} - ` : ''}{s.name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                <textarea
-                    value={classForm.description}
-                    onChange={(e) => setClassForm((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="Class notes / description"
-                    rows={2}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none mb-3"
-                />
+                <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Subjects</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                    Select subjects for this class from the faculty subjects list.
+                </p>
                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-2 max-h-36 overflow-y-auto mb-3">
                     {availableSubjects.map((s) => (
-                        <label key={s._id} className="flex items-center gap-2 text-[11px] py-0.5">
+                        <label key={s._id} className="flex items-center gap-2 text-[11px] py-0.5 cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={classForm.subjectIds.includes(String(s._id))}
+                                checked={selectedSubjectIds.includes(String(s._id))}
                                 onChange={() => handleToggleSubject(s._id)}
                             />
-                            <span className="text-slate-700 dark:text-slate-300">{s.name} ({s.code})</span>
+                            <span className="text-slate-700 dark:text-slate-300">
+                                {s.name} ({s.code})
+                                {s.department ? (
+                                    <span className="text-slate-400"> — {s.department}</span>
+                                ) : null}
+                            </span>
                         </label>
                     ))}
                     {availableSubjects.length === 0 && (
-                        <p className="text-[11px] text-slate-500">No subjects available for selected faculty/department.</p>
+                        <p className="text-[11px] text-slate-500">No subjects available for this class faculty.</p>
                     )}
                 </div>
                 <button
@@ -582,7 +503,7 @@ const AdminClassDetail = () => {
                     disabled={savingClassInfo}
                     className="px-3 py-1.5 bg-[#1D68E3] text-white rounded-lg text-[12px] font-bold hover:bg-blue-600 disabled:opacity-50"
                 >
-                    {savingClassInfo ? 'Saving...' : 'Save Class Updates'}
+                    {savingClassInfo ? 'Saving...' : 'Save Subjects'}
                 </button>
             </div>
 

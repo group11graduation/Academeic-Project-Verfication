@@ -283,29 +283,102 @@ const AssignmentDetail = () => {
                     {data.assignmentFile ? (
                         <a
                             href={`${apiOrigin}${data.assignmentFile}`}
-                            download
+                            download={data.originalFileName || true}
                             target="_blank"
                             rel="noreferrer"
                             className="flex items-center gap-2 bg-[#1D68E3] text-white font-bold text-sm px-5 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 whitespace-nowrap self-start"
                         >
-                            <Download className="h-4 w-4" /> Download File
+                            <Download className="h-4 w-4" /> Download requirements
                         </a>
                     ) : null}
                 </div>
-                <div className="mt-4 flex items-center gap-3">
-                    <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5">
-                        {uploadingRequirement ? 'Uploading...' : (data.assignmentFile ? 'Replace requirements file' : 'Upload requirements file')}
-                        <input
-                            type="file"
-                            className="hidden"
-                            onChange={(e) => handleUploadRequirementFile(e.target.files?.[0])}
-                        />
-                    </label>
-                    {data.originalFileName ? (
-                        <span className="text-xs font-bold text-slate-500">Current file: {data.originalFileName}</span>
-                    ) : (
-                        <span className="text-xs font-bold text-slate-400">No requirements file uploaded yet.</span>
-                    )}
+
+                {/* Assignment content the teacher created (same info students see) */}
+                <div className="mt-6 rounded-2xl border border-slate-100 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.03] p-4 md:p-5 space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">Your assignment details</h2>
+                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                            {isNormalAssignment ? 'Normal' : 'Final'}
+                        </span>
+                        {data.submissionMode ? (
+                            <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-300">
+                                {data.submissionMode === 'group' ? 'Group' : 'Single'}
+                            </span>
+                        ) : null}
+                    </div>
+
+                    {data.description ? (
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Description</p>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{data.description}</p>
+                        </div>
+                    ) : null}
+
+                    {data.requirementText ? (
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                {isNormalAssignment ? 'Instructions for students' : 'Teacher requirements'}
+                            </p>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{data.requirementText}</p>
+                        </div>
+                    ) : null}
+
+                    {!isNormalAssignment && Array.isArray(data.allowedTechnologies) && data.allowedTechnologies.length > 0 ? (
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Allowed technologies</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{data.allowedTechnologies.join(', ')}</p>
+                        </div>
+                    ) : null}
+
+                    {!isNormalAssignment && Array.isArray(data.requiredKeywords) && data.requiredKeywords.length > 0 ? (
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Required keywords</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{data.requiredKeywords.join(', ')}</p>
+                        </div>
+                    ) : null}
+
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Requirements file</p>
+                        {data.assignmentFile ? (
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-[#1D68E3]">
+                                    <FileText className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                                        {data.originalFileName || 'Requirements document'}
+                                    </p>
+                                    <p className="text-xs font-medium text-slate-500">Attached when you created / updated this assignment</p>
+                                </div>
+                                <a
+                                    href={`${apiOrigin}${data.assignmentFile}`}
+                                    download={data.originalFileName || true}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#1D68E3] px-3.5 py-2 text-xs font-black text-white hover:bg-blue-700"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download
+                                </a>
+                            </div>
+                        ) : (
+                            <p className="text-xs font-bold text-slate-400">No requirements file uploaded yet.</p>
+                        )}
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-white dark:hover:bg-white/5">
+                                {uploadingRequirement
+                                    ? 'Uploading...'
+                                    : data.assignmentFile
+                                      ? 'Replace file'
+                                      : 'Upload requirements file'}
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    onChange={(e) => handleUploadRequirementFile(e.target.files?.[0])}
+                                />
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 {isNormalAssignment && normalBundle?.plagiarismExplained && (

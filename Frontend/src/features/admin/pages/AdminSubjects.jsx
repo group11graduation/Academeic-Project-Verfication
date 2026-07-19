@@ -103,6 +103,23 @@ const AdminSubjects = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const newName = String(formData.name || '').trim().toLowerCase();
+        const newCode = String(formData.code || '').trim().toLowerCase();
+        const duplicate = subjects.find((s) => {
+            if (formData._id && String(s._id) === String(formData._id)) return false;
+            const existingName = String(s.name || '').trim().toLowerCase();
+            const existingCode = String(s.code || '').trim().toLowerCase();
+            return (newName && existingName === newName) || (newCode && existingCode === newCode);
+        });
+        if (duplicate) {
+            const sameCode = String(duplicate.code || '').trim().toLowerCase() === newCode;
+            await appWarning(
+                sameCode
+                    ? `A subject with code "${duplicate.code}" already exists (${duplicate.name}).`
+                    : `A subject named "${duplicate.name}" already exists (code ${duplicate.code}).`
+            );
+            return;
+        }
         setSubmitting(true);
         try {
             const payload = {

@@ -9,7 +9,11 @@ import {
     ChevronDown,
     Layout,
     Download,
-    FileUp
+    FileUp,
+    Pencil,
+    Plus,
+    Trash2,
+    X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
@@ -37,6 +41,11 @@ const ProjectsOverview = () => {
     const [importPreview, setImportPreview] = useState(null);
     const [importSummary, setImportSummary] = useState(null);
     const [generateSummary, setGenerateSummary] = useState(null);
+    const [teamEditorOpen, setTeamEditorOpen] = useState(false);
+    const [teamEditorLoading, setTeamEditorLoading] = useState(false);
+    const [teamEditorSaving, setTeamEditorSaving] = useState(false);
+    const [teamEditorStudents, setTeamEditorStudents] = useState([]);
+    const [teamEditorGroups, setTeamEditorGroups] = useState([]);
     const importInputRef = useRef(null);
     const createFormSectionRef = useRef(null);
 
@@ -68,6 +77,7 @@ const ProjectsOverview = () => {
         setImportPreview(null);
         setImportSummary(null);
         setGenerateSummary(null);
+        setTeamEditorOpen(false);
     }, [createForm.classCode]);
 
     const scrollToCreateForm = () => {
@@ -85,6 +95,144 @@ const ProjectsOverview = () => {
     const refreshProjectsList = async () => {
         const response = await teacherService.getAllGroups();
         if (response.success) setGroupedData(response.data || []);
+    };
+
+    const openTeamEditor = async () => {
+        if (!createForm.classCode) {
+            await appWarning('Select a class first.');
+            return;
+        }
+        try {
+            setTeamEditorOpen(true);
+            setTeamEditorLoading(true);
+            const res = await teacherService.getClassTemplateGroupsEditor(createForm.classCode);
+            if (!res.success) throw new Error(res.message || 'Could not load class teams');
+            const data = res.data || {};
+            setTeamEditorStudents(data.students || []);
+            setTeamEditorGroups(
+                (data.groups || []).map((group, index) => ({
+                    id: group._id || `team-${Date.now()}-${index}`,
+                    name: group.name || `Group ${index + 1}`,
+                    members: (group.members || []).map((member) => ({
+                        ...member,
+                        role: member.role === 'leader' ? 'leader' : 'member',
+                    })),
+                })),
+            );
+        } catch (error) {
+            setTeamEditorOpen(false);
+            await appError(error.response?.data?.message || error.message || 'Could not load class teams');
+        } finally {
+            setTeamEditorLoading(false);
+        }
+    };
+
+    const addEditorTeam = () => {
+        setTeamEditorGroups((groups) => [
+            ...groups,
+            {
+                id: `new-${Date.now()}-${groups.length}`,
+                name: `Group ${groups.length + 1}`,
+                members: [],
+            },
+        ]);
+    };
+
+    const renameEditorTeam = (groupId, name) => {
+        setTeamEditorGroups((groups) =>
+            groups.map((group) => (group.id === groupId ? { ...group, name } : group)),
+        );
+    };
+
+    const moveEditorStudent = (userId, targetGroupId) => {
+        const student = teamEditorStudents.find((row) => String(row.userId) === String(userId));
+        if (!student) return;
+        setTeamEditorGroups((groups) => {
+            const removed = groups.map((group) => {
+                const members = group.members.filter((member) => String(member.userId) !== String(userId));
+                if (members.length && !members.some((member) => member.role === 'leader')) {
+                    members[0] = { ...members[0], role: 'leader' };
+                }
+                return { ...group, members };
+            });
+            if (!targetGroupId) return removed;
+            return removed.map((group) => {
+                if (group.id !== targetGroupId) return group;
+                return {
+                    ...group,
+                    members: [
+                        ...group.members,
+                        {
+                            ...student,
+                            role: group.members.length === 0 ? 'leader' : 'member',
+                        },
+                    ],
+                };
+            });
+        });
+    };
+
+    const setEditorLeader = (groupId, userId) => {
+        setTeamEditorGroups((groups) =>
+            groups.map((group) =>
+                group.id === groupId
+                    ? {
+                          ...group,
+                          members: group.members.map((member) => ({
+                              ...member,
+                              role: String(member.userId) === String(userId) ? 'leader' : 'member',
+                          })),
+                      }
+                    : group,
+            ),
+        );
+    };
+
+    const removeEditorTeam = async (groupId) => {
+        const group = teamEditorGroups.find((row) => row.id === groupId);
+        const ok = await appConfirm(
+            group?.members?.length
+                ? `Remove ${group.name || 'this team'}? Its students will become unassigned and can be moved or generated into new teams.`
+                : `Remove ${group?.name || 'this empty team'}?`,
+        );
+        if (!ok) return;
+        setTeamEditorGroups((groups) => groups.filter((row) => row.id !== groupId));
+    };
+
+    const saveTeamEditor = async () => {
+        const nonEmptyGroups = teamEditorGroups.filter((group) => group.members.length > 0);
+        const names = nonEmptyGroups.map((group) => group.name.trim().toLowerCase());
+        if (new Set(names).size !== names.length) {
+            await appWarning('Every team must have a unique name.');
+            return;
+        }
+        try {
+            setTeamEditorSaving(true);
+            const proposedGroups = nonEmptyGroups.map((group, index) => ({
+                groupName: group.name.trim() || `Group ${index + 1}`,
+                members: group.members.map((member) => ({
+                    studentId: member.studentId,
+                    role: member.role === 'leader' ? 'leader' : 'member',
+                })),
+            }));
+            const res = await teacherService.commitClassTemplateGroups(
+                createForm.classCode,
+                proposedGroups,
+            );
+            if (!res.success) throw new Error(res.message || 'Could not save teams');
+            await refreshProjectsList();
+            setTeamEditorOpen(false);
+            setImportPreview(null);
+            setImportSummary(null);
+            setGenerateSummary(null);
+            await appSuccess(
+                `Saved ${res.data?.createdGroups?.length ?? proposedGroups.length} team(s). Existing assignment/project groups were kept unchanged.`,
+            );
+        } catch (error) {
+            await appError(error.response?.data?.message || error.message || 'Could not save teams');
+        } finally {
+            setTeamEditorSaving(false);
+        }
     };
 
     const handleExportCsv = async () => {
@@ -205,6 +353,24 @@ const ProjectsOverview = () => {
             setCreating(false);
         }
     };
+
+    const editorGroupByUser = useMemo(() => {
+        const map = new Map();
+        for (const group of teamEditorGroups) {
+            for (const member of group.members) {
+                map.set(String(member.userId), group.id);
+            }
+        }
+        return map;
+    }, [teamEditorGroups]);
+
+    const editorUnassignedStudents = useMemo(
+        () =>
+            teamEditorStudents.filter(
+                (student) => !editorGroupByUser.has(String(student.userId)),
+            ),
+        [teamEditorStudents, editorGroupByUser],
+    );
 
     if (loading) {
         return (
@@ -363,6 +529,15 @@ const ProjectsOverview = () => {
                         >
                             {importingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
                             Preview import
+                        </button>
+                        <button
+                            type="button"
+                            onClick={openTeamEditor}
+                            disabled={!createForm.classCode || teamEditorLoading || creating || applyingImport}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#1D68E3] dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50"
+                        >
+                            {teamEditorLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                            Edit teams
                         </button>
                     </div>
 
@@ -671,6 +846,188 @@ const ProjectsOverview = () => {
                             )}
                         </section>
                     ))}
+                </div>
+            )}
+
+            {teamEditorOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+                    <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0F172A]">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4 dark:border-white/10">
+                            <div>
+                                <h2 className="text-base font-black text-slate-900 dark:text-white">
+                                    Edit class teams — {createForm.classCode}
+                                </h2>
+                                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                    Rename teams, move students, and choose leaders. Existing assignment/project groups remain unchanged; these teams are used for future assignments.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => !teamEditorSaving && setTeamEditorOpen(false)}
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:hover:text-white"
+                                aria-label="Close team editor"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                            {teamEditorLoading ? (
+                                <div className="flex min-h-56 items-center justify-center gap-2 text-sm font-bold text-slate-500">
+                                    <Loader2 className="h-5 w-5 animate-spin text-[#1D68E3]" />
+                                    Loading class teams…
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                        {teamEditorGroups.map((group) => (
+                                            <section
+                                                key={group.id}
+                                                className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-[#0B1120]"
+                                            >
+                                                <div className="mb-3 flex items-center gap-2">
+                                                    <input
+                                                        value={group.name}
+                                                        onChange={(event) => renameEditorTeam(group.id, event.target.value)}
+                                                        maxLength={80}
+                                                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-900 dark:border-white/10 dark:bg-[#0F172A] dark:text-white"
+                                                        aria-label="Team name"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeEditorTeam(group.id)}
+                                                        className="rounded-lg p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                                        title="Remove team"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+
+                                                {group.members.length === 0 ? (
+                                                    <p className="rounded-lg border border-dashed border-slate-200 p-3 text-center text-xs font-medium text-slate-400 dark:border-white/10">
+                                                        Empty team — move an unassigned student here.
+                                                    </p>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {group.members.map((member) => (
+                                                            <div
+                                                                key={member.userId}
+                                                                className="rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#0F172A]"
+                                                            >
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-xs font-black text-slate-800 dark:text-slate-100">
+                                                                            {member.name}
+                                                                        </p>
+                                                                        <p className="truncate text-[10px] font-mono text-slate-400">
+                                                                            {member.studentId || member.email}
+                                                                        </p>
+                                                                    </div>
+                                                                    <label className="flex shrink-0 items-center gap-1 text-[10px] font-black uppercase tracking-wide text-[#1D68E3]">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={`leader-${group.id}`}
+                                                                            checked={member.role === 'leader'}
+                                                                            onChange={() => setEditorLeader(group.id, member.userId)}
+                                                                        />
+                                                                        Leader
+                                                                    </label>
+                                                                </div>
+                                                                <select
+                                                                    value={group.id}
+                                                                    onChange={(event) => {
+                                                                        if (event.target.value !== group.id) {
+                                                                            moveEditorStudent(member.userId, event.target.value);
+                                                                        }
+                                                                    }}
+                                                                    className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 dark:border-white/10 dark:bg-[#0B1120] dark:text-slate-200"
+                                                                    aria-label={`Move ${member.name}`}
+                                                                >
+                                                                    <option value="">Unassigned</option>
+                                                                    {teamEditorGroups.map((target) => (
+                                                                        <option key={target.id} value={target.id}>
+                                                                            {target.name || 'Unnamed team'}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </section>
+                                        ))}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={addEditorTeam}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#1D68E3]/40 px-3 py-2 text-xs font-black text-[#1D68E3] hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add team
+                                    </button>
+
+                                    <section className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+                                        <h3 className="text-xs font-black text-amber-900 dark:text-amber-100">
+                                            Unassigned students ({editorUnassignedStudents.length})
+                                        </h3>
+                                        <p className="mt-1 text-[11px] text-amber-800/80 dark:text-amber-200/70">
+                                            Assign them manually below, or save and use Generate teams later. Generating adds only these students and preserves existing teams.
+                                        </p>
+                                        {editorUnassignedStudents.length > 0 && (
+                                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                                {editorUnassignedStudents.map((student) => (
+                                                    <div
+                                                        key={student.userId}
+                                                        className="rounded-lg border border-amber-200 bg-white p-2 dark:border-amber-800/30 dark:bg-[#0F172A]"
+                                                    >
+                                                        <p className="truncate text-xs font-black text-slate-800 dark:text-slate-100">
+                                                            {student.name}
+                                                        </p>
+                                                        <p className="truncate text-[10px] font-mono text-slate-400">
+                                                            {student.studentId || student.email}
+                                                        </p>
+                                                        <select
+                                                            value=""
+                                                            onChange={(event) => moveEditorStudent(student.userId, event.target.value)}
+                                                            className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 dark:border-white/10 dark:bg-[#0B1120] dark:text-slate-200"
+                                                        >
+                                                            <option value="">Choose team…</option>
+                                                            {teamEditorGroups.map((group) => (
+                                                                <option key={group.id} value={group.id}>
+                                                                    {group.name || 'Unnamed team'}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </section>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 p-4 dark:border-white/10">
+                            <button
+                                type="button"
+                                onClick={() => setTeamEditorOpen(false)}
+                                disabled={teamEditorSaving}
+                                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={saveTeamEditor}
+                                disabled={teamEditorLoading || teamEditorSaving}
+                                className="inline-flex items-center gap-2 rounded-lg bg-[#1D68E3] px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {teamEditorSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                                Save teams
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

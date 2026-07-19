@@ -499,16 +499,6 @@ const AdminSemesters = () => {
                         </div>
                     </div>
 
-                    <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                        <input
-                            type="checkbox"
-                            checked={yearForm.isCurrent}
-                            onChange={(e) => setYearForm((f) => ({ ...f, isCurrent: e.target.checked }))}
-                            className="h-3.5 w-3.5 rounded border-slate-300"
-                        />
-                        Set as current academic year
-                    </label>
-
                     <div className="flex items-center justify-end gap-2 pt-1">
                         <button
                             type="button"

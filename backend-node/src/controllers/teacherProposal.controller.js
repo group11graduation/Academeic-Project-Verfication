@@ -153,6 +153,18 @@ export const listClassGroupsDisplay = asyncHandler(async (req, res) => {
   }
 });
 
+export const getClassTemplateGroupsEditor = asyncHandler(async (req, res) => {
+  try {
+    const data = await teacherClassGroups.getClassTemplateGroupsEditor(
+      req.userId,
+      req.params.classRef,
+    );
+    return success(res, data);
+  } catch (e) {
+    return fail(res, e.message || 'Failed to load editable class teams', e.status || 500);
+  }
+});
+
 export const listClassGroupAssignments = asyncHandler(async (req, res) => {
   try {
     const data = await teacherClassGroups.listGroupAssignmentsForClass(req.userId, req.params.classRef);

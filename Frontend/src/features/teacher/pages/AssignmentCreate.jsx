@@ -51,8 +51,11 @@ const AssignmentCreate = () => {
     const hasExistingRequirementsFile = isEdit && Boolean(existingAssignment?.assignmentFile);
     const hideFinalTypedRequirements = isFinal && (Boolean(requirementsFile) || hasExistingRequirementsFile);
 
+    const prevAssignmentTypeRef = useRef(assignmentType);
     useEffect(() => {
         if (isEdit && !formPopulated) return;
+        const typeChanged = prevAssignmentTypeRef.current !== assignmentType;
+        prevAssignmentTypeRef.current = assignmentType;
         if (assignmentType === 'normal') {
             setSubmissionMode('single');
             setClassAssignmentMode('single');
@@ -60,7 +63,9 @@ const AssignmentCreate = () => {
             setProjectDeadline('');
             setRequiredKeywordsText('');
             setAllowedTechnologiesText('');
-            if (!isEdit) {
+            // Only clear the chosen file when actually switching type,
+            // otherwise picking a file would immediately reset it.
+            if (!isEdit && typeChanged) {
                 setDescription('');
                 setRequirementsFile(null);
                 if (requirementsFileInputRef.current) requirementsFileInputRef.current.value = '';
@@ -556,9 +561,21 @@ const AssignmentCreate = () => {
                                         className={Z_INPUT}
                                     />
                                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                        Optional PDF or document. You can also upload later from the assignment detail page.
+                                        Optional PDF or document. Students can download it from their assignment page.
                                     </p>
-                                    {hasExistingRequirementsFile && (
+                                    {requirementsFile && (
+                                        <p className="mt-1 flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                            Selected: {requirementsFile.name}
+                                            <button
+                                                type="button"
+                                                onClick={clearRequirementsFileChoice}
+                                                className="font-bold text-rose-600 hover:underline"
+                                            >
+                                                Remove
+                                            </button>
+                                        </p>
+                                    )}
+                                    {hasExistingRequirementsFile && !requirementsFile && (
                                         <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                                             Current file: {existingAssignment?.originalFileName || 'requirements document'}
                                         </p>

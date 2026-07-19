@@ -88,6 +88,11 @@ const generateClassTemplateGroups = async (classId, config) => {
     return response.data;
 };
 
+const getClassTemplateGroupsEditor = async (classId) => {
+    const response = await api.get(`${base}/classes/${enc(classId)}/class-groups/editor`);
+    return response.data;
+};
+
 const exportClassTemplateGroups = async (classId, format = 'csv') => {
     const response = await api.get(`${base}/classes/${enc(classId)}/class-groups/export`, {
         params: format === 'xlsx' ? { format: 'xlsx' } : {},
@@ -149,6 +154,7 @@ const teacherService = {
     getGroupAssignmentsForClass,
     generateGroups,
     generateClassTemplateGroups,
+    getClassTemplateGroupsEditor,
     exportClassTemplateGroups,
     importClassTemplateGroups,
     previewClassTemplateGroups,

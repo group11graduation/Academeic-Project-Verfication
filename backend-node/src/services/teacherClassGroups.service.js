@@ -364,6 +364,13 @@ async function loadRosterForClassTemplate(cls) {
   const codeUpper = rawCode.toUpperCase();
   const rosterCodes = [...new Set([codeUpper, rawCode].filter(Boolean))];
   const roster = await studentIdToUserIdMapForClassCodes(rosterCodes);
+  // Enrollment-only students may not have a StudentProfile/studentId yet. Accept the
+  // user ObjectId used by the editor so moving those students remains saveable.
+  const { userIds } = await collectRosterUserIdsForClassTemplate(cls);
+  for (const userId of userIds) {
+    const id = String(userId);
+    if (id) roster.set(id.toUpperCase(), new mongoose.Types.ObjectId(id));
+  }
   return { roster, rosterCodes };
 }
 
@@ -525,6 +532,78 @@ export async function listClassStudentsForTeacher(teacherId, classRef) {
       avatarColor: 'bg-blue-500/10',
     };
   });
+}
+
+/**
+ * Editable class-team snapshot for the teacher UI.
+ * Includes every current roster student, existing class templates, and students that
+ * are not yet assigned. Assignment-bound project groups are intentionally untouched.
+ */
+export async function getClassTemplateGroupsEditor(teacherId, classRef) {
+  const cls = await resolveClassForTeacher(teacherId, classRef);
+  if (!cls) {
+    const err = new Error('Class not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const [students, groups] = await Promise.all([
+    listClassStudentsForTeacher(teacherId, classRef),
+    Group.find({ assignment: null, hostClass: cls._id })
+      .select('name leader members createdAt')
+      .sort({ createdAt: 1, _id: 1 })
+      .lean(),
+  ]);
+
+  const studentByUser = new Map(students.map((student) => [String(student.userId), student]));
+  const assigned = new Set();
+  const editableGroups = groups.map((group) => {
+    const leaderId = String(group.leader || '');
+    const userIds = [
+      leaderId,
+      ...(group.members || []).map((member) => String(member.user || '')),
+    ].filter(Boolean);
+    const members = [];
+    const seen = new Set();
+    for (const userId of userIds) {
+      if (seen.has(userId)) continue;
+      seen.add(userId);
+      const student = studentByUser.get(userId);
+      if (!student) continue;
+      assigned.add(userId);
+      members.push({
+        userId,
+        studentId: student.studentId || student.id,
+        name: student.name,
+        email: student.email,
+        photo: student.photo,
+        role: userId === leaderId ? 'leader' : 'member',
+      });
+    }
+    return {
+      _id: String(group._id),
+      name: group.name || 'Group',
+      members,
+    };
+  });
+
+  return {
+    class: {
+      _id: String(cls._id),
+      code: cls.code,
+      title: cls.name || cls.code,
+    },
+    groups: editableGroups,
+    students: students.map((student) => ({
+      userId: student.userId,
+      studentId: student.studentId || student.id,
+      name: student.name,
+      email: student.email,
+      photo: student.photo,
+      assigned: assigned.has(String(student.userId)),
+    })),
+    unassignedCount: students.filter((student) => !assigned.has(String(student.userId))).length,
+  };
 }
 
 export async function getClassStudentDetailForTeacher(teacherId, classRef, studentUserId) {

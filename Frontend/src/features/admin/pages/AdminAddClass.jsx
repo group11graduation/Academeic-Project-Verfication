@@ -5,7 +5,7 @@ import adminClassService from '../../../services/adminClassService';
 import adminSemesterService from '../../../services/adminSemesterService';
 import adminSubjectService from '../../../services/adminSubjectService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
-import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
+import { appError, appWarning } from '../../../lib/appDialog';
 
 const AdminAddClass = () => {
     const navigate = useNavigate();
@@ -17,9 +17,8 @@ const AdminAddClass = () => {
     const [semesters, setSemesters] = useState([]);
     const [subjects, setSubjects] = useState([]);
     const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
-    const [selectedSubjectId, setSelectedSubjectId] = useState('');
+    const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
     const [saving, setSaving] = useState(false);
-    const [description, setDescription] = useState('');
 
     useEffect(() => {
         const loadSemesters = async () => {
@@ -58,17 +57,29 @@ const AdminAddClass = () => {
         return row?.departments || [];
     }, [academicStructure, selectedFaculty]);
 
+    /** Subjects for the selected faculty; if a department is chosen, prefer that department. */
     const availableSubjects = useMemo(() => {
-        if (!selectedFaculty || !selectedDepartment) return [];
+        if (!selectedFaculty) return [];
         const source = subjects || [];
-        return source.filter((s) => {
-            const subFaculty = String(s.faculty || '').trim().toLowerCase();
-            const subDepartment = String(s.department || '').trim().toLowerCase();
-            const facultyOk = subFaculty === selectedFaculty.toLowerCase();
-            const departmentOk = subDepartment === selectedDepartment.toLowerCase();
-            return facultyOk && departmentOk;
-        });
+        const facultyName = selectedFaculty.toLowerCase();
+        const facultySubjects = source.filter(
+            (s) => String(s.faculty || '').trim().toLowerCase() === facultyName
+        );
+        if (!selectedDepartment) return facultySubjects;
+
+        const deptName = selectedDepartment.toLowerCase();
+        const deptSubjects = facultySubjects.filter(
+            (s) => String(s.department || '').trim().toLowerCase() === deptName
+        );
+        return deptSubjects.length > 0 ? deptSubjects : facultySubjects;
     }, [subjects, selectedFaculty, selectedDepartment]);
+
+    const handleToggleSubject = (subjectId) => {
+        const id = String(subjectId);
+        setSelectedSubjectIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+    };
 
     const handleRegisterClass = async () => {
         if (!className.trim() || !classCode.trim() || !selectedFaculty || !selectedDepartment || !selectedSemester) {
@@ -83,8 +94,7 @@ const AdminAddClass = () => {
                 faculty: selectedFaculty,
                 department: selectedDepartment,
                 semester: selectedSemester,
-                description: description.trim(),
-                subjectIds: selectedSubjectId ? [selectedSubjectId] : [],
+                subjectIds: selectedSubjectIds,
             };
             const res = await adminClassService.createClass(payload);
             if (!res.success) {
@@ -154,7 +164,7 @@ const AdminAddClass = () => {
                             onChange={(e) => {
                                 setSelectedFaculty(e.target.value);
                                 setSelectedDepartment('');
-                                setSelectedSubjectId('');
+                                setSelectedSubjectIds([]);
                             }}
                             className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none"
                         >
@@ -170,7 +180,7 @@ const AdminAddClass = () => {
                             value={selectedDepartment}
                             onChange={(e) => {
                                 setSelectedDepartment(e.target.value);
-                                setSelectedSubjectId('');
+                                setSelectedSubjectIds([]);
                             }}
                             disabled={!selectedFaculty}
                             className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none disabled:bg-slate-100 disabled:text-slate-400"
@@ -198,46 +208,44 @@ const AdminAddClass = () => {
 
                 <div>
                     <label className="block text-[14px] font-bold text-[#0F172A] mb-2">
-                        Subject for this class (optional)
+                        Subjects for this class (optional)
                     </label>
                     <div className="rounded-[12px] border border-slate-200 bg-white p-3 max-h-56 overflow-y-auto space-y-2">
-                        {!selectedFaculty || !selectedDepartment ? (
+                        {!selectedFaculty ? (
                             <p className="text-[13px] text-slate-500">
-                                Select faculty and department first.
+                                Select a faculty to see its subjects.
                             </p>
                         ) : availableSubjects.length === 0 ? (
                             <p className="text-[13px] text-slate-500">
-                                No subjects found for selected faculty/department yet.
+                                No subjects found for this faculty yet. Create them on the Subjects page first.
                             </p>
                         ) : (
                             availableSubjects.map((s) => (
                                 <label
                                     key={s._id}
-                                    className="flex items-center gap-2 text-[13px] text-slate-700 font-medium"
+                                    className="flex items-center gap-2 text-[13px] text-slate-700 font-medium cursor-pointer"
                                 >
                                     <input
-                                        type="radio"
-                                        name="class-subject"
-                                        checked={selectedSubjectId === s._id}
-                                        onChange={() => setSelectedSubjectId(s._id)}
+                                        type="checkbox"
+                                        checked={selectedSubjectIds.includes(String(s._id))}
+                                        onChange={() => handleToggleSubject(s._id)}
                                         className="rounded border-slate-300"
                                     />
-                                    <span>{s.name} ({s.code})</span>
+                                    <span>
+                                        {s.name} ({s.code})
+                                        {s.department ? (
+                                            <span className="text-slate-400 font-medium"> — {s.department}</span>
+                                        ) : null}
+                                    </span>
                                 </label>
                             ))
                         )}
                     </div>
-                </div>
-
-                <div>
-                    <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Notes / Description (optional)</label>
-                    <textarea
-                        rows={4}
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="e.g. Morning section for practical labs."
-                        className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-medium text-black outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
+                    {selectedSubjectIds.length > 0 && (
+                        <p className="mt-2 text-[12px] font-semibold text-slate-500">
+                            {selectedSubjectIds.length} subject{selectedSubjectIds.length === 1 ? '' : 's'} selected
+                        </p>
+                    )}
                 </div>
             </div>
         </div>

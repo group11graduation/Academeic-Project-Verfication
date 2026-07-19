@@ -422,11 +422,39 @@ export async function getSubject(id) {
   return Subject.findById(id).lean();
 }
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function assertSubjectUnique({ name, code, excludeId }) {
+  const conditions = [];
+  if (code) conditions.push({ code: new RegExp(`^${escapeRegex(code)}$`, 'i') });
+  if (name) conditions.push({ name: new RegExp(`^${escapeRegex(name)}$`, 'i') });
+  if (conditions.length === 0) return;
+
+  const query = { $or: conditions };
+  if (excludeId) query._id = { $ne: excludeId };
+  const existing = await Subject.findOne(query).lean();
+  if (!existing) return;
+
+  const codeClash = code && String(existing.code || '').toUpperCase() === String(code).toUpperCase();
+  const err = new Error(
+    codeClash
+      ? `A subject with code "${code}" already exists (${existing.name}).`
+      : `A subject named "${name}" already exists (code ${existing.code}).`
+  );
+  err.status = 409;
+  throw err;
+}
+
 export async function createSubject(body) {
   const side = String(body.collaborationSide || '').trim().toLowerCase();
+  const code = String(body.code || '').trim().toUpperCase();
+  const name = String(body.name || '').trim();
+  await assertSubjectUnique({ name, code });
   const doc = await Subject.create({
-    code: String(body.code || '').trim().toUpperCase(),
-    name: String(body.name || '').trim(),
+    code,
+    name,
     description: String(body.description || '').trim(),
     faculty: String(body.faculty || body.department || '').trim(),
     department: String(body.department || '').trim(),
@@ -442,8 +470,13 @@ export async function updateSubject(id, body) {
     err.status = 404;
     throw err;
   }
-  if (body.code !== undefined) doc.code = String(body.code || '').trim().toUpperCase();
-  if (body.name !== undefined) doc.name = String(body.name || '').trim();
+  const nextCode = body.code !== undefined ? String(body.code || '').trim().toUpperCase() : doc.code;
+  const nextName = body.name !== undefined ? String(body.name || '').trim() : doc.name;
+  if (body.code !== undefined || body.name !== undefined) {
+    await assertSubjectUnique({ name: nextName, code: nextCode, excludeId: doc._id });
+  }
+  doc.code = nextCode;
+  doc.name = nextName;
   if (body.description !== undefined) doc.description = String(body.description || '').trim();
   if (body.collaborationSide !== undefined) {
     const side = String(body.collaborationSide || '').trim().toLowerCase();
