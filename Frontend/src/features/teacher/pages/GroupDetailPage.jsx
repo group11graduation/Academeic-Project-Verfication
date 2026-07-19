@@ -17,11 +17,13 @@ import {
     ChevronDown,
     Globe,
     Terminal,
-    Search
+    Search,
+    Trash2
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
 import { getApiOrigin } from '../../../lib/api';
+import { appConfirm, appError, appSuccess } from '../../../lib/appDialog';
 
 const formatSubmissionStatus = (status) =>
     String(status || 'Unknown')
@@ -40,6 +42,7 @@ const GroupDetailPage = () => {
     const navigate = useNavigate();
     const [group, setGroup] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [deleting, setDeleting] = useState(false);
     const [activeTab, setActiveTab] = useState('documentation');
 
     const apiOrigin = getApiOrigin();
@@ -83,6 +86,25 @@ const GroupDetailPage = () => {
         };
         fetchDetails();
     }, [id]);
+
+    const handleDeleteGroup = async () => {
+        const ok = await appConfirm(
+            'Delete this group? Its students will become unassigned and can be placed into other teams.',
+            { danger: true, confirmLabel: 'Delete group' },
+        );
+        if (!ok) return;
+        try {
+            setDeleting(true);
+            const res = await teacherService.deleteGroup(id);
+            if (!res.success) throw new Error(res.message || 'Could not delete group');
+            await appSuccess(res.data?.message || 'Group deleted. Students are now unassigned.');
+            navigate('/teacher/group-management');
+        } catch (error) {
+            await appError(error.response?.data?.message || error.message || 'Could not delete group');
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -531,6 +553,15 @@ const GroupDetailPage = () => {
                     </div>
 
                     <div className="flex items-center gap-4 w-full lg:w-auto">
+                        <button
+                            type="button"
+                            onClick={handleDeleteGroup}
+                            disabled={deleting}
+                            className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-300 px-5 py-4 rounded-2xl font-black text-[13px] hover:bg-rose-100 disabled:opacity-60"
+                        >
+                            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            Delete group
+                        </button>
                         {(docUrl || fullReviewUrl) ? (
                             docUrl ? (
                             <a 

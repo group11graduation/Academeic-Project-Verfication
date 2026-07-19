@@ -179,6 +179,11 @@ const teacherService = {
         return response.data;
     },
 
+    deleteGroup: async (id) => {
+        const response = await api.delete(`${base}/groups/${enc(id)}`);
+        return response.data;
+    },
+
     createAssignment: async (formData) => {
         const response = await api.post(`${base}/assignments`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }

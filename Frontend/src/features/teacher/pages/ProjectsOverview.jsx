@@ -214,8 +214,8 @@ const ProjectsOverview = () => {
         const group = teamEditorGroups.find((row) => row.id === groupId);
         const ok = await appConfirm(
             group?.members?.length
-                ? `Remove ${group.name || 'this team'}? Its students will become unassigned and can be moved or generated into new teams.`
-                : `Remove ${group?.name || 'this empty team'}?`,
+                ? `Remove ${group.name || 'this team'}? Its students will become unassigned. Click Save teams to apply — they can then be moved or generated into new teams.`
+                : `Remove ${group?.name || 'this empty team'}? Click Save teams to apply.`,
         );
         if (!ok) return;
         setTeamEditorGroups((groups) => groups.filter((row) => row.id !== groupId));
@@ -248,7 +248,10 @@ const ProjectsOverview = () => {
             setImportSummary(null);
             setGenerateSummary(null);
             await appSuccess(
-                `Saved ${res.data?.createdGroups?.length ?? proposedGroups.length} team(s). Existing assignment groups were updated in place when students were added — no duplicate teams.`,
+                `Saved ${res.data?.createdGroups?.length ?? proposedGroups.length} team(s).` +
+                    (res.data?.assignmentGroupsDeleted
+                        ? ` Removed ${res.data.assignmentGroupsDeleted} deleted team(s); their students are unassigned.`
+                        : ' Existing assignment groups were updated in place when students were added.'),
             );
         } catch (error) {
             await appError(error.response?.data?.message || error.message || 'Could not save teams');
@@ -344,11 +347,22 @@ const ProjectsOverview = () => {
         }
     };
 
-    const toggleClassExpansion = (classCode) => {
-        setExpandedClasses(prev => ({
-            ...prev,
-            [classCode]: !prev[classCode]
-        }));
+    const handleDeleteGroupCard = async (group, event) => {
+        event?.stopPropagation?.();
+        const label = group?.title || `Group ${group?.assignmentNumber || ''}`.trim() || 'this group';
+        const ok = await appConfirm(
+            `Delete ${label}? Its students will become unassigned and can be moved into other teams.`,
+            { danger: true, confirmLabel: 'Delete group' },
+        );
+        if (!ok) return;
+        try {
+            const res = await teacherService.deleteGroup(group._id);
+            if (!res.success) throw new Error(res.message || 'Could not delete group');
+            await refreshProjectsList();
+            await appSuccess(res.data?.message || 'Group deleted. Students are now unassigned.');
+        } catch (error) {
+            await appError(error.response?.data?.message || error.message || 'Could not delete group');
+        }
     };
 
     const handleCreateGroups = async () => {
@@ -848,19 +862,30 @@ const ProjectsOverview = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="mt-auto px-3 py-2 bg-slate-50/50 dark:bg-[#0B1120] border-t border-slate-50 dark:border-white/5 flex items-center justify-between">
+                                            <div className="mt-auto px-3 py-2 bg-slate-50/50 dark:bg-[#0B1120] border-t border-slate-50 dark:border-white/5 flex items-center justify-between gap-2">
                                                 <div className="flex flex-col">
                                                     <span className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-wider">SIMILARITY</span>
                                                     <span className={`text-sm font-black ${group.similarityLevel === 'High' ? 'text-rose-600' : 'text-emerald-500'}`}>
                                                         {group.similarity}%
                                                     </span>
                                                 </div>
-                                                <button 
-                                                    onClick={() => navigate(`/teacher/groups/${group._id}`)}
-                                                    className="p-2 bg-white dark:bg-[#0F172A] rounded-lg border border-slate-100 dark:border-white/5 text-[#1D68E3] dark:text-blue-400 hover:bg-[#1D68E3] hover:text-white transition-all"
-                                                >
-                                                    <ArrowRight className="h-4 w-4" />
-                                                </button>
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => handleDeleteGroupCard(group, e)}
+                                                        className="p-2 bg-white dark:bg-[#0F172A] rounded-lg border border-slate-100 dark:border-white/5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all"
+                                                        title="Delete group"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate(`/teacher/groups/${group._id}`)}
+                                                        className="p-2 bg-white dark:bg-[#0F172A] rounded-lg border border-slate-100 dark:border-white/5 text-[#1D68E3] dark:text-blue-400 hover:bg-[#1D68E3] hover:text-white transition-all"
+                                                    >
+                                                        <ArrowRight className="h-4 w-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}

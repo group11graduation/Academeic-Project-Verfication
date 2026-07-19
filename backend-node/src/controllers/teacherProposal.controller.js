@@ -127,6 +127,15 @@ export const getGroupDetails = asyncHandler(async (req, res) => {
   return success(res, data);
 });
 
+export const deleteGroup = asyncHandler(async (req, res) => {
+  try {
+    const data = await teacherClassGroups.deleteGroupForTeacher(req.userId, req.params.id);
+    return success(res, data);
+  } catch (e) {
+    return fail(res, e.message || 'Failed to delete group', e.status || 500);
+  }
+});
+
 export const listClassStudents = asyncHandler(async (req, res) => {
   try {
     const data = await teacherClassGroups.listClassStudentsForTeacher(req.userId, req.params.classRef);

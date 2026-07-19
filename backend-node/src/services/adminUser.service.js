@@ -4,6 +4,7 @@ import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
 import mongoose from 'mongoose';
 import XLSX from 'xlsx';
+import { removeStudentFromGroupsForClassCode } from './teacherClassGroups.service.js';
 
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -566,6 +567,17 @@ export async function updateStudent(profileId, body) {
   }
   await u.save();
   await profile.save();
+
+  const nextClassCode = normalizeStudentClassCodeValue(profile.classCode);
+  if (
+    (body.classCode !== undefined || body.classId !== undefined) &&
+    previousClassCode &&
+    previousClassCode !== nextClassCode
+  ) {
+    const userId = profile.user?._id || profile.user || u._id;
+    await removeStudentFromGroupsForClassCode(userId, previousClassCode);
+  }
+
   await profile.populate('user');
   return formatStudent(profile, classMeta);
 }

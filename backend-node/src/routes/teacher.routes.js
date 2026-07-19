@@ -35,6 +35,7 @@ router.patch('/collaborations/:id/respond', teacherCollaborative.respondCollabor
 router.patch('/collaborations/:id/revoke', teacherCollaborative.revokeCollaborationRequest);
 router.get('/groups', teacher.listAllGroups);
 router.get('/groups/:id', teacher.getGroupDetails);
+router.delete('/groups/:id', teacher.deleteGroup);
 router.get('/assignments', teacher.listAssignments);
 router.get('/assignments/collaborative/drafts', teacherCollaborative.listCollaborativeDrafts);
 router.post('/assignments/collaborative/drafts', teacherCollaborative.createCollaborativeDraftHandler);

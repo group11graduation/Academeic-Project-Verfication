@@ -127,6 +127,7 @@ async function syncNewClassTemplatesToAssignments(teacherId, hostClassId) {
  * Keep assignment-bound groups aligned with class team templates after edit/save.
  * - Same name or overlapping members → update that assignment group in place (no duplicate).
  * - Brand-new template with no overlapping members → create a new assignment group.
+ * - Assignment groups that no longer match any template → delete (students become unassigned).
  */
 async function reconcileAssignmentGroupsWithClassTemplates(teacherId, hostClassId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
@@ -144,12 +145,13 @@ async function reconcileAssignmentGroupsWithClassTemplates(teacherId, hostClassI
     Group.find({ assignment: null, hostClass: cid }).lean(),
   ]);
 
-  if (!assignments.length || !templates.length) {
-    return { updated: 0, created: 0 };
+  if (!assignments.length) {
+    return { updated: 0, created: 0, deleted: 0 };
   }
 
   let updated = 0;
   let created = 0;
+  let deleted = 0;
 
   for (const a of assignments) {
     const existingGroups = await Group.find({ assignment: a._id });
@@ -180,7 +182,6 @@ async function reconcileAssignmentGroupsWithClassTemplates(teacherId, hostClassI
         const groupIds = memberUserIdsFromGroupLean(g);
         const overlap = templateUserIds.filter((id) => groupIds.includes(id)).length;
         const nameMatch = templateName && String(g.name || '').trim().toLowerCase() === templateName;
-        // Prefer shared members; name match is a strong secondary signal.
         const score = overlap * 10 + (nameMatch ? 5 : 0);
         if (score > bestScore) {
           bestScore = score;
@@ -219,9 +220,17 @@ async function reconcileAssignmentGroupsWithClassTemplates(teacherId, hostClassI
       templateUserIds.forEach((id) => assignedUserIds.add(id));
       created += 1;
     }
+
+    // Delete assignment groups that were removed from the class team editor.
+    for (const g of existingGroups) {
+      if (claimedGroupIds.has(String(g._id))) continue;
+      await Proposal.updateMany({ group: g._id }, { $set: { group: null } });
+      await Group.deleteOne({ _id: g._id });
+      deleted += 1;
+    }
   }
 
-  return { updated, created };
+  return { updated, created, deleted };
 }
 
 function csvEscapeCell(s) {
@@ -1162,6 +1171,7 @@ export async function commitClassTemplateProposals(teacherId, classRef, proposed
     createdGroups,
     assignmentGroupsUpdated: reconcile.updated,
     assignmentGroupsCreated: reconcile.created,
+    assignmentGroupsDeleted: reconcile.deleted,
     rejectedStudentRows: [],
     skippedGroups,
     rosterClassCodes: rosterCodes,
@@ -1515,4 +1525,125 @@ export async function generateGroupsForClassRoute(teacherId, classRef, body) {
   }
 
   return autoGenerateGroupsForAssignment(teacherId, aidBody, { type, groupSize });
+}
+
+/**
+ * Remove a student from every class template and assignment group tied to a class code.
+ * Used when admin moves/removes the student from that class.
+ */
+export async function removeStudentFromGroupsForClassCode(userId, classCode) {
+  const uid = String(userId || '').trim();
+  const code = String(classCode || '').trim().toUpperCase();
+  if (!uid || !mongoose.Types.ObjectId.isValid(uid) || !code) {
+    return { removedFrom: 0, deletedGroups: 0 };
+  }
+
+  const cls = await Class.findOne({ code }).select('_id code').lean();
+  if (!cls) return { removedFrom: 0, deletedGroups: 0 };
+
+  const assignments = await Assignment.find({
+    isActive: true,
+    submissionMode: 'group',
+    $or: [{ class: cls._id }, { classes: cls._id }],
+  })
+    .select('_id')
+    .lean();
+  const assignmentIds = assignments.map((a) => a._id);
+
+  const groups = await Group.find({
+    $or: [
+      { assignment: null, hostClass: cls._id },
+      ...(assignmentIds.length ? [{ assignment: { $in: assignmentIds } }] : []),
+    ],
+  });
+
+  let removedFrom = 0;
+  let deletedGroups = 0;
+
+  for (const group of groups) {
+    const memberIds = memberUserIdsFromGroupLean(group);
+    if (!memberIds.includes(uid)) continue;
+
+    const leaderId = String(group.leader?._id || group.leader || '');
+    let members = (group.members || []).filter((m) => String(m.user?._id || m.user) !== uid);
+
+    if (leaderId === uid) {
+      if (members.length === 0) {
+        await Proposal.updateMany({ group: group._id }, { $set: { group: null } });
+        await Group.deleteOne({ _id: group._id });
+        deletedGroups += 1;
+        removedFrom += 1;
+        continue;
+      }
+      group.leader = members[0].user;
+      members = members.slice(1);
+    }
+
+    group.members = members.map((m) => ({ user: m.user?._id || m.user || m }));
+    // Ensure leader is not also listed in members
+    group.members = group.members.filter((m) => String(m.user) !== String(group.leader));
+    await group.save();
+    removedFrom += 1;
+  }
+
+  return { removedFrom, deletedGroups, classCode: code, userId: uid };
+}
+
+/**
+ * Delete a class team template or assignment group. Remaining students become unassigned.
+ */
+export async function deleteGroupForTeacher(teacherId, groupId) {
+  const tid = new mongoose.Types.ObjectId(teacherId);
+  const gid = String(groupId || '').trim();
+  if (!mongoose.Types.ObjectId.isValid(gid)) {
+    const err = new Error('Invalid group');
+    err.status = 400;
+    throw err;
+  }
+
+  const group = await Group.findById(gid).populate('assignment', 'teacher class classes submissionMode');
+  if (!group) {
+    const err = new Error('Group not found');
+    err.status = 404;
+    throw err;
+  }
+
+  if (group.hostClass) {
+    const cls = await Class.findOne({
+      _id: group.hostClass,
+      'teacherAssignments.teacher': tid,
+    }).lean();
+    if (!cls) {
+      const err = new Error('Forbidden');
+      err.status = 403;
+      throw err;
+    }
+  } else if (group.assignment) {
+    const a = group.assignment;
+    if (String(a.teacher) !== String(teacherId) && !a.teacher?.equals?.(teacherId)) {
+      const err = new Error('Forbidden');
+      err.status = 403;
+      throw err;
+    }
+  } else {
+    const err = new Error('Invalid group');
+    err.status = 400;
+    throw err;
+  }
+
+  const memberCount = memberUserIdsFromGroupLean(group).length;
+  await Proposal.updateMany({ group: group._id }, { $set: { group: null } });
+  await Group.deleteOne({ _id: group._id });
+
+  // If this was a class template, also drop matching assignment copies for this class.
+  if (group.hostClass) {
+    await reconcileAssignmentGroupsWithClassTemplates(teacherId, group.hostClass);
+  }
+
+  return {
+    deleted: true,
+    groupId: gid,
+    formerMemberCount: memberCount,
+    message: 'Group deleted. Its students are now unassigned and can be placed into other teams.',
+  };
 }
