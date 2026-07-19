@@ -40,6 +40,7 @@ import NormalAssignmentStudentDetail from '../../features/teacher/pages/NormalAs
 import StudentProposalSubmit from '../../features/student/pages/StudentProposalSubmit';
 import StudentMessages from '../../features/student/pages/StudentMessages';
 import TeacherStudentMessages from '../../features/teacher/pages/TeacherStudentMessages';
+import TeacherMyProfile from '../../features/teacher/pages/TeacherMyProfile';
 
 const AppRoutes = () => {
     const { loading } = useAuth();
@@ -105,6 +106,7 @@ const AppRoutes = () => {
                 <Route path="assignments/:id/proposals" element={<TeacherAssignmentProposals />} />
                 <Route path="assignments/:id" element={<AssignmentDetail />} />
                 <Route path="messages" element={<TeacherStudentMessages />} />
+                <Route path="profile" element={<TeacherMyProfile />} />
             </Route>
 
             {/* Student app — sidebar + Outlet */}

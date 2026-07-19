@@ -128,14 +128,36 @@ const ProjectsOverview = () => {
     };
 
     const addEditorTeam = () => {
+        const id = `new-${Date.now()}-${teamEditorGroups.length}`;
         setTeamEditorGroups((groups) => [
             ...groups,
             {
-                id: `new-${Date.now()}-${groups.length}`,
+                id,
                 name: `Group ${groups.length + 1}`,
                 members: [],
             },
         ]);
+        return id;
+    };
+
+    const assignUnassignedToNewTeam = (userId) => {
+        const student = teamEditorStudents.find((row) => String(row.userId) === String(userId));
+        if (!student) return;
+        const newId = `new-${Date.now()}-${teamEditorGroups.length}`;
+        setTeamEditorGroups((groups) => {
+            const removed = groups.map((group) => ({
+                ...group,
+                members: group.members.filter((member) => String(member.userId) !== String(userId)),
+            }));
+            return [
+                ...removed,
+                {
+                    id: newId,
+                    name: `Group ${removed.length + 1}`,
+                    members: [{ ...student, role: 'leader' }],
+                },
+            ];
+        });
     };
 
     const renameEditorTeam = (groupId, name) => {
@@ -226,7 +248,7 @@ const ProjectsOverview = () => {
             setImportSummary(null);
             setGenerateSummary(null);
             await appSuccess(
-                `Saved ${res.data?.createdGroups?.length ?? proposedGroups.length} team(s). Existing assignment/project groups were kept unchanged.`,
+                `Saved ${res.data?.createdGroups?.length ?? proposedGroups.length} team(s). Existing assignment groups were updated in place when students were added — no duplicate teams.`,
             );
         } catch (error) {
             await appError(error.response?.data?.message || error.message || 'Could not save teams');
@@ -972,7 +994,7 @@ const ProjectsOverview = () => {
                                             Unassigned students ({editorUnassignedStudents.length})
                                         </h3>
                                         <p className="mt-1 text-[11px] text-amber-800/80 dark:text-amber-200/70">
-                                            Assign them manually below, or save and use Generate teams later. Generating adds only these students and preserves existing teams.
+                                            Choose an existing team to add the student there, or create a new team for them. Saving updates the original team — it does not copy members into a duplicate group.
                                         </p>
                                         {editorUnassignedStudents.length > 0 && (
                                             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -989,13 +1011,22 @@ const ProjectsOverview = () => {
                                                         </p>
                                                         <select
                                                             value=""
-                                                            onChange={(event) => moveEditorStudent(student.userId, event.target.value)}
+                                                            onChange={(event) => {
+                                                                const value = event.target.value;
+                                                                if (!value) return;
+                                                                if (value === '__new__') {
+                                                                    assignUnassignedToNewTeam(student.userId);
+                                                                    return;
+                                                                }
+                                                                moveEditorStudent(student.userId, value);
+                                                            }}
                                                             className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 dark:border-white/10 dark:bg-[#0B1120] dark:text-slate-200"
                                                         >
                                                             <option value="">Choose team…</option>
+                                                            <option value="__new__">+ Create new team</option>
                                                             {teamEditorGroups.map((group) => (
                                                                 <option key={group.id} value={group.id}>
-                                                                    {group.name || 'Unnamed team'}
+                                                                    Add to {group.name || 'Unnamed team'}
                                                                 </option>
                                                             ))}
                                                         </select>

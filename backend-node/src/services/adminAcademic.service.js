@@ -20,6 +20,31 @@ function normalizeClassCode(code) {
   return String(code || '').trim().toUpperCase();
 }
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function assertClassUnique({ name, code, excludeId }) {
+  const conditions = [];
+  if (code) conditions.push({ code: new RegExp(`^${escapeRegex(code)}$`, 'i') });
+  if (name) conditions.push({ name: new RegExp(`^${escapeRegex(name)}$`, 'i') });
+  if (conditions.length === 0) return;
+
+  const query = { $or: conditions };
+  if (excludeId) query._id = { $ne: excludeId };
+  const existing = await Class.findOne(query).lean();
+  if (!existing) return;
+
+  const codeClash = code && String(existing.code || '').toUpperCase() === String(code).toUpperCase();
+  const err = new Error(
+    codeClash
+      ? `A class with code "${code}" already exists (${existing.name}).`
+      : `A class named "${name}" already exists (code ${existing.code}).`
+  );
+  err.status = 409;
+  throw err;
+}
+
 function toDayStart(value) {
   if (!value) return null;
   const d = new Date(value);
@@ -186,8 +211,10 @@ export async function getClassByCode(code) {
 
 export async function createClass(body) {
   const code = normalizeClassCode(body.code);
+  const name = String(body.name || '').trim();
   if (!code) throw new Error('Class code is required');
-  if (!String(body.name || '').trim()) throw new Error('Class name is required');
+  if (!name) throw new Error('Class name is required');
+  await assertClassUnique({ name, code });
 
   const subjectIds = Array.isArray(body.subjectIds)
     ? body.subjectIds.map((id) => toObjectId(id)).filter(Boolean)
@@ -195,7 +222,7 @@ export async function createClass(body) {
 
   const doc = await Class.create({
     code,
-    name: String(body.name || '').trim(),
+    name,
     description: String(body.description || '').trim(),
     faculty: String(body.faculty || '').trim(),
     department: String(body.department || '').trim(),
@@ -216,7 +243,19 @@ export async function updateClass(code, body) {
     err.status = 404;
     throw err;
   }
-  if (body.name !== undefined) doc.name = String(body.name || '').trim();
+
+  const previousCode = doc.code;
+  const nextName = body.name !== undefined ? String(body.name || '').trim() : doc.name;
+  const nextCode = body.code !== undefined ? normalizeClassCode(body.code) : doc.code;
+  if (!nextName) throw new Error('Class name is required');
+  if (!nextCode) throw new Error('Class code is required');
+
+  if (body.name !== undefined || body.code !== undefined) {
+    await assertClassUnique({ name: nextName, code: nextCode, excludeId: doc._id });
+  }
+
+  doc.name = nextName;
+  doc.code = nextCode;
   if (body.description !== undefined) doc.description = String(body.description || '').trim();
   if (body.faculty !== undefined) doc.faculty = String(body.faculty || '').trim();
   if (body.department !== undefined) doc.department = String(body.department || '').trim();
@@ -240,14 +279,12 @@ export async function updateClass(code, body) {
   }
   await doc.save();
 
-  // Keep enrolled students' faculty/department aligned with this class.
-  if (body.faculty !== undefined || body.department !== undefined) {
-    const studentPatch = {};
-    if (body.faculty !== undefined) studentPatch.faculty = String(doc.faculty || '').trim();
-    if (body.department !== undefined) studentPatch.department = String(doc.department || '').trim();
-    if (Object.keys(studentPatch).length) {
-      await StudentProfile.updateMany({ classCode: doc.code }, { $set: studentPatch });
-    }
+  const studentPatch = {};
+  if (previousCode !== doc.code) studentPatch.classCode = doc.code;
+  if (body.faculty !== undefined) studentPatch.faculty = String(doc.faculty || '').trim();
+  if (body.department !== undefined) studentPatch.department = String(doc.department || '').trim();
+  if (Object.keys(studentPatch).length) {
+    await StudentProfile.updateMany({ classCode: previousCode }, { $set: studentPatch });
   }
 
   const withSubjects = await Class.findById(doc._id).populate('subjects').lean();
@@ -420,10 +457,6 @@ export async function listSubjects() {
 
 export async function getSubject(id) {
   return Subject.findById(id).lean();
-}
-
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function assertSubjectUnique({ name, code, excludeId }) {

@@ -44,6 +44,9 @@ const AdminClassDetail = () => {
     const [generatingStudentPasscodeFor, setGeneratingStudentPasscodeFor] = useState('');
     const [generatedPasscodes, setGeneratedPasscodes] = useState({});
     const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
+    const [editClassName, setEditClassName] = useState('');
+    const [editClassCode, setEditClassCode] = useState('');
+    const [allClasses, setAllClasses] = useState([]);
 
     const handleGenerateAccounts = async () => {
         if (!(await appConfirm('This will create User login accounts for all students in this class. Proceed?'))) return;
@@ -76,6 +79,8 @@ const AdminClassDetail = () => {
             setSelectedSubjectIds(
                 Array.isArray(res.data.subjectIds) ? res.data.subjectIds.map(String) : []
             );
+            setEditClassName(res.data.name || '');
+            setEditClassCode(res.data.code || '');
         }
     };
 
@@ -83,14 +88,16 @@ const AdminClassDetail = () => {
         const load = async () => {
             try {
                 await fetchClassDetails();
-                const [tRes, sRes, subRes] = await Promise.all([
+                const [tRes, sRes, subRes, clsRes] = await Promise.all([
                     adminTeacherService.getTeachers(),
                     adminStudentService.getStudents(),
                     adminSubjectService.getSubjects(),
+                    adminClassService.getClasses(),
                 ]);
                 if (tRes.success) setAllTeachers(tRes.data || []);
                 if (sRes.success) setAllStudents(sRes.data || []);
                 if (subRes.success) setAllSubjects(subRes.data || []);
+                if (clsRes.success) setAllClasses(clsRes.data || []);
             } catch (error) {
                 console.error("Error fetching class details:", error);
             } finally {
@@ -361,17 +368,53 @@ const AdminClassDetail = () => {
     };
 
     const handleSaveClassInfo = async () => {
+        const name = editClassName.trim();
+        const code = normalizeClassCode(editClassCode);
+        if (!name || !code) {
+            await appWarning('Class name and class code are required.');
+            return;
+        }
+
+        const currentId = String(classInfo?._id || '');
+        const duplicate = (allClasses || []).find((c) => {
+            if (currentId && String(c._id) === currentId) return false;
+            const sameName = String(c.name || '').trim().toLowerCase() === name.toLowerCase();
+            const sameCode = normalizeClassCode(c.code) === code;
+            return sameName || sameCode;
+        });
+        if (duplicate) {
+            const sameCode = normalizeClassCode(duplicate.code) === code;
+            await appWarning(
+                sameCode
+                    ? `A class with code "${duplicate.code}" already exists (${duplicate.name}).`
+                    : `A class named "${duplicate.name}" already exists (code ${duplicate.code}).`
+            );
+            return;
+        }
+
         try {
             setSavingClassInfo(true);
+            const previousCode = normalizeClassCode(classInfo?.code || id);
             const res = await adminClassService.updateClass(id, {
+                name,
+                code,
                 subjectIds: selectedSubjectIds,
             });
             if (!res.success) throw new Error(res.message || 'Failed to update class');
+
+            if (code !== previousCode) {
+                await appSuccess('Class updated successfully.');
+                navigate(`/admin/classes/${encodeURIComponent(code)}`, { replace: true });
+                return;
+            }
+
+            const classesRes = await adminClassService.getClasses();
+            if (classesRes.success) setAllClasses(classesRes.data || []);
             await fetchClassDetails();
-            await appSuccess('Class subjects updated successfully.');
+            await appSuccess('Class updated successfully.');
         } catch (error) {
-            console.error('Error updating class subjects:', error);
-            await appError(error.response?.data?.message || error.message || 'Could not update subjects');
+            console.error('Error updating class:', error);
+            await appError(error.response?.data?.message || error.message || 'Could not update class');
         } finally {
             setSavingClassInfo(false);
         }
@@ -474,10 +517,37 @@ const AdminClassDetail = () => {
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 mb-4">
-                <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Subjects</h3>
+                <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Information & Subjects</h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
-                    Select subjects for this class from the faculty subjects list.
+                    Update class name, code, and subjects. Duplicate names or codes are not allowed.
                 </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                    <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                            Class Name
+                        </label>
+                        <input
+                            value={editClassName}
+                            onChange={(e) => setEditClassName(e.target.value)}
+                            placeholder="e.g. CS 2nd Year Section A"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none dark:text-white"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                            Class Code
+                        </label>
+                        <input
+                            value={editClassCode}
+                            onChange={(e) => setEditClassCode(e.target.value)}
+                            placeholder="e.g. CA222"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] font-semibold outline-none uppercase dark:text-white"
+                        />
+                    </div>
+                </div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Subjects
+                </label>
                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-2 max-h-36 overflow-y-auto mb-3">
                     {availableSubjects.map((s) => (
                         <label key={s._id} className="flex items-center gap-2 text-[11px] py-0.5 cursor-pointer">
@@ -503,7 +573,7 @@ const AdminClassDetail = () => {
                     disabled={savingClassInfo}
                     className="px-3 py-1.5 bg-[#1D68E3] text-white rounded-lg text-[12px] font-bold hover:bg-blue-600 disabled:opacity-50"
                 >
-                    {savingClassInfo ? 'Saving...' : 'Save Subjects'}
+                    {savingClassInfo ? 'Saving...' : 'Save Class Updates'}
                 </button>
             </div>
 

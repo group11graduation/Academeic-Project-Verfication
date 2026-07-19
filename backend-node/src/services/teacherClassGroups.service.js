@@ -119,6 +119,16 @@ async function collectAlreadyGroupedUserIdsForClass(cls, teacherId) {
 
 /** Copy new class templates onto group-mode assignments without duplicating member sets. */
 async function syncNewClassTemplatesToAssignments(teacherId, hostClassId) {
+  const result = await reconcileAssignmentGroupsWithClassTemplates(teacherId, hostClassId);
+  return { synced: (result.created || 0) + (result.updated || 0) };
+}
+
+/**
+ * Keep assignment-bound groups aligned with class team templates after edit/save.
+ * - Same name or overlapping members → update that assignment group in place (no duplicate).
+ * - Brand-new template with no overlapping members → create a new assignment group.
+ */
+async function reconcileAssignmentGroupsWithClassTemplates(teacherId, hostClassId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
   const cid = hostClassId;
 
@@ -134,22 +144,68 @@ async function syncNewClassTemplatesToAssignments(teacherId, hostClassId) {
     Group.find({ assignment: null, hostClass: cid }).lean(),
   ]);
 
-  if (!assignments.length || !templates.length) return { synced: 0 };
+  if (!assignments.length || !templates.length) {
+    return { updated: 0, created: 0 };
+  }
 
-  let synced = 0;
+  let updated = 0;
+  let created = 0;
+
   for (const a of assignments) {
-    const existingGroups = await Group.find({ assignment: a._id }).select('leader members').lean();
-    const existingMemberKeys = new Set(existingGroups.map((g) => memberSetKeyFromGroupLean(g)));
+    const existingGroups = await Group.find({ assignment: a._id });
+    const claimedGroupIds = new Set();
     const assignedUserIds = new Set();
     for (const g of existingGroups) {
       memberUserIdsFromGroupLean(g).forEach((id) => assignedUserIds.add(id));
     }
 
     for (const t of templates) {
-      const templateKey = memberSetKeyFromGroupLean(t);
-      if (!templateKey || existingMemberKeys.has(templateKey)) continue;
-
       const templateUserIds = memberUserIdsFromGroupLean(t);
+      if (!templateUserIds.length) continue;
+      const templateKey = memberSetKeyFromGroupLean(t);
+      const templateName = String(t.name || '').trim().toLowerCase();
+
+      const exact = existingGroups.find(
+        (g) => !claimedGroupIds.has(String(g._id)) && memberSetKeyFromGroupLean(g) === templateKey
+      );
+      if (exact) {
+        claimedGroupIds.add(String(exact._id));
+        continue;
+      }
+
+      let best = null;
+      let bestScore = 0;
+      for (const g of existingGroups) {
+        if (claimedGroupIds.has(String(g._id))) continue;
+        const groupIds = memberUserIdsFromGroupLean(g);
+        const overlap = templateUserIds.filter((id) => groupIds.includes(id)).length;
+        const nameMatch = templateName && String(g.name || '').trim().toLowerCase() === templateName;
+        // Prefer shared members; name match is a strong secondary signal.
+        const score = overlap * 10 + (nameMatch ? 5 : 0);
+        if (score > bestScore) {
+          bestScore = score;
+          best = g;
+        }
+      }
+
+      const leaderId = t.leader;
+      const memberDocs = (t.members || [])
+        .map((m) => ({ user: m.user || m }))
+        .filter((m) => String(m.user) && String(m.user) !== String(leaderId));
+
+      if (best && bestScore > 0) {
+        const previousIds = memberUserIdsFromGroupLean(best);
+        previousIds.forEach((id) => assignedUserIds.delete(id));
+        best.name = t.name || best.name;
+        best.leader = leaderId;
+        best.members = memberDocs;
+        await best.save();
+        templateUserIds.forEach((id) => assignedUserIds.add(id));
+        claimedGroupIds.add(String(best._id));
+        updated += 1;
+        continue;
+      }
+
       const overlapsExisting = templateUserIds.some((id) => assignedUserIds.has(id));
       if (overlapsExisting) continue;
 
@@ -157,16 +213,15 @@ async function syncNewClassTemplatesToAssignments(teacherId, hostClassId) {
         assignment: a._id,
         hostClass: null,
         name: t.name || 'Group',
-        leader: t.leader,
-        members: t.members || [],
+        leader: leaderId,
+        members: memberDocs,
       });
       templateUserIds.forEach((id) => assignedUserIds.add(id));
-      existingMemberKeys.add(templateKey);
-      synced += 1;
+      created += 1;
     }
   }
 
-  return { synced };
+  return { updated, created };
 }
 
 function csvEscapeCell(s) {
@@ -1100,9 +1155,13 @@ export async function commitClassTemplateProposals(teacherId, classRef, proposed
     byGroup,
   );
 
+  const reconcile = await reconcileAssignmentGroupsWithClassTemplates(teacherId, cls._id);
+
   return {
     templateGroupsRemoved,
     createdGroups,
+    assignmentGroupsUpdated: reconcile.updated,
+    assignmentGroupsCreated: reconcile.created,
     rejectedStudentRows: [],
     skippedGroups,
     rosterClassCodes: rosterCodes,

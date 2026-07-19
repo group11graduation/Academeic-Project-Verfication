@@ -8,6 +8,8 @@ import { Subject } from '../models/Subject.js';
 import { Proposal } from '../models/Proposal.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { LegacyProject } from '../models/LegacyProject.js';
+import { User } from '../models/User.js';
+import { TeacherProfile } from '../models/TeacherProfile.js';
 import { toProjectSubmissionClient } from './projectSubmissionSummary.service.js';
 import { countClassRosterStudents, syncAssignmentGroupsFromClassTemplates, memberSetKeyFromGroupLean, classTemplateDuplicatesAssignmentGroup, mapGroupMembersForTeacherCard } from './teacherClassGroups.service.js';
 import {
@@ -647,6 +649,41 @@ export async function listGroupsForAssignment(teacherId, assignmentId) {
     .populate('leader', 'name email')
     .populate('members.user', 'name email')
     .lean();
+}
+
+export async function getMyTeacherProfile(teacherId) {
+  const [user, profile, classes] = await Promise.all([
+    User.findById(teacherId).select('name email username photo roles role createdAt').lean(),
+    TeacherProfile.findOne({ user: teacherId }).lean(),
+    listClassesForTeacher(teacherId),
+  ]);
+  if (!user) {
+    const err = new Error('Teacher not found');
+    err.status = 404;
+    throw err;
+  }
+  return {
+    _id: String(user._id),
+    name: user.name || '',
+    email: user.email || '',
+    username: user.username || '',
+    photo: profile?.photo || user.photo || '',
+    roles: user.roles || (user.role ? [user.role] : ['teacher']),
+    employeeId: profile?.employeeId || '',
+    faculty: profile?.faculty || '',
+    department: profile?.department || '',
+    phone: profile?.phone || '',
+    skills: Array.isArray(profile?.skills) ? profile.skills : [],
+    assignedClassCodes: Array.isArray(profile?.assignedClassCodes)
+      ? profile.assignedClassCodes
+      : (classes || []).map((c) => c.code).filter(Boolean),
+    classes: (classes || []).map((c) => ({
+      _id: c._id,
+      code: c.code,
+      name: c.title || c.name || '',
+    })),
+    createdAt: user.createdAt || profile?.createdAt || null,
+  };
 }
 
 export async function getTeacherDashboardStats(teacherId) {

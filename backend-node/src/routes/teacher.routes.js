@@ -11,6 +11,7 @@ const router = Router();
 router.use(requireRoles('teacher'));
 
 router.get('/dashboard/stats', teacher.dashboardStats);
+router.get('/profile', teacher.getMyProfile);
 router.get('/classes', teacher.listMyClasses);
 router.get('/classes/:classRef/students/:studentUserId', teacher.getClassStudentDetail);
 router.get('/classes/:classRef/students', teacher.listClassStudents);

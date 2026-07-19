@@ -35,6 +35,11 @@ const getDashboardStats = async () => {
     return response.data;
 };
 
+const getMyProfile = async () => {
+    const response = await api.get(`${base}/profile`);
+    return response.data;
+};
+
 const getCatalog = async () => {
     const response = await api.get(`${base}/catalog`);
     return response.data;
@@ -144,6 +149,7 @@ const getAllGroups = async () => {
 
 const teacherService = {
     getDashboardStats,
+    getMyProfile,
     getCatalog,
     getMyClasses,
     getMySubjects,

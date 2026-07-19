@@ -33,6 +33,11 @@ export const dashboardStats = asyncHandler(async (req, res) => {
   return success(res, data);
 });
 
+export const getMyProfile = asyncHandler(async (req, res) => {
+  const data = await assignmentTeacher.getMyTeacherProfile(req.userId);
+  return success(res, data);
+});
+
 export const getAssignment = asyncHandler(async (req, res) => {
   const row = await assignmentTeacher.getAssignmentForTeacher(req.userId, req.params.id);
   if (!row) return fail(res, 'Not found', 404);

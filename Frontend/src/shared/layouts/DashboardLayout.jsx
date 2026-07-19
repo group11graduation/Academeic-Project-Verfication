@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
@@ -11,6 +11,7 @@ import {
     ChevronDown,
     Bell,
     Menu,
+    UserRound,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
 import { FACULTY_SIDEBAR_SUBTITLE } from '../ui/brandTheme';
@@ -78,6 +79,7 @@ const DashboardLayoutInner = ({ children }) => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
     const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+    const [profileOpen, setProfileOpen] = React.useState(false);
     React.useEffect(() => {
         setActiveSectionKey(inferSectionKeyByPath(location.pathname));
     }, [location.pathname, inferSectionKeyByPath]);
@@ -328,20 +330,63 @@ const DashboardLayoutInner = ({ children }) => {
                             >
                                 <Bell className="h-4 w-4" strokeWidth={2} />
                             </button>
-                            <div className="flex items-center gap-1.5 rounded-lg border border-[#cfdbfb] bg-white py-0.5 pl-1 pr-2 shadow-sm dark:border-white/10 dark:bg-[#111827]">
-                                <div
-                                    className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-white"
-                                    style={{ backgroundColor: TEACHER_BLUE }}
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setProfileOpen((v) => !v)}
+                                    className="flex items-center gap-1.5 rounded-lg border border-[#cfdbfb] bg-white py-0.5 pl-1 pr-2 shadow-sm transition hover:bg-[#f5f8ff] dark:border-white/10 dark:bg-[#111827] dark:hover:bg-[#1f2937]"
+                                    aria-haspopup="menu"
+                                    aria-expanded={profileOpen}
                                 >
-                                    {(user?.name || 'T').trim().slice(0, 1).toUpperCase()}
-                                </div>
-                                <div className="hidden leading-tight sm:block">
-                                    <div className="max-w-[100px] truncate text-[11px] font-bold text-slate-800 dark:text-slate-100">{user?.name || 'My account'}</div>
-                                    <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                        {(teacherDepartment || 'Faculty').toUpperCase()}
+                                    <div
+                                        className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-white"
+                                        style={{ backgroundColor: TEACHER_BLUE }}
+                                    >
+                                        {(user?.name || 'T').trim().slice(0, 1).toUpperCase()}
                                     </div>
-                                </div>
-                                <ChevronDown className="hidden h-3.5 w-3.5 text-slate-400 dark:text-slate-500 sm:block" />
+                                    <div className="hidden leading-tight sm:block">
+                                        <div className="max-w-[100px] truncate text-[11px] font-bold text-slate-800 dark:text-slate-100">{user?.name || 'My account'}</div>
+                                        <div className="text-[8px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                            {(teacherDepartment || 'Faculty').toUpperCase()}
+                                        </div>
+                                    </div>
+                                    <ChevronDown className={`hidden h-3.5 w-3.5 text-slate-400 transition-transform dark:text-slate-500 sm:block ${profileOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                                {profileOpen ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className="fixed inset-0 z-40 cursor-default"
+                                            aria-label="Close profile menu"
+                                            onClick={() => setProfileOpen(false)}
+                                        />
+                                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl dark:border-white/10 dark:bg-[#111827]">
+                                            <div className="border-b border-slate-100 px-4 py-2.5 dark:border-white/10">
+                                                <p className="truncate text-xs font-black text-slate-900 dark:text-slate-100">{user?.name}</p>
+                                                <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">Teacher account</p>
+                                            </div>
+                                            <Link
+                                                to="/teacher/profile"
+                                                onClick={() => setProfileOpen(false)}
+                                                className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10"
+                                            >
+                                                <UserRound className="h-4 w-4 text-slate-400" />
+                                                My profile
+                                            </Link>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setProfileOpen(false);
+                                                    requestLogout();
+                                                }}
+                                                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                            >
+                                                <LogOut className="h-4 w-4" />
+                                                Sign out
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : null}
                             </div>
                         </div>
                     </header>
