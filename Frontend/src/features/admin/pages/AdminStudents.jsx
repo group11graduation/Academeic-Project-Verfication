@@ -649,14 +649,39 @@ const AdminStudents = () => {
                             </div>
                         )}
                         {importResult && (
-                            <div className="flex items-start gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-800">
-                                <CheckCircle2 className="h-4 w-4 mt-0.5" />
-                                <span>
-                                    Created {importResult.created?.length || 0} / Failed {importResult.failed?.length || 0}
-                                    {importResult.classes?.classesAdded > 0
-                                        ? ` · ${importResult.classes.classesAdded} class(es) auto-created (${(importResult.classes.codes || []).join(', ')})`
-                                        : ''}
-                                </span>
+                            <div
+                                className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+                                    (importResult.failed?.length || 0) > 0 && !(importResult.created?.length > 0)
+                                        ? 'bg-amber-50 border-amber-200 text-amber-900'
+                                        : (importResult.failed?.length || 0) > 0
+                                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                          : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                }`}
+                            >
+                                <div className="flex items-start gap-2">
+                                    <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                                    <span>
+                                        Created {importResult.created?.length || 0} / Failed{' '}
+                                        {importResult.failed?.length || 0}
+                                        {importResult.classes?.classesAdded > 0
+                                            ? ` · ${importResult.classes.classesAdded} class(es) auto-created (${(importResult.classes.codes || []).join(', ')})`
+                                            : ''}
+                                    </span>
+                                </div>
+                                {importResult.failed?.length > 0 && (
+                                    <ul className="mt-3 max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-[12px] font-medium text-red-800">
+                                        {importResult.failed.slice(0, 25).map((f, i) => (
+                                            <li key={`${f.index}-${i}`}>
+                                                Row {(f.index ?? i) + 1}
+                                                {f.studentId ? ` (${f.studentId})` : ''}
+                                                {f.email ? ` — ${f.email}` : ''}: {f.message || 'Failed'}
+                                            </li>
+                                        ))}
+                                        {importResult.failed.length > 25 && (
+                                            <li>…and {importResult.failed.length - 25} more</li>
+                                        )}
+                                    </ul>
+                                )}
                             </div>
                         )}
                         <div className="flex justify-end">

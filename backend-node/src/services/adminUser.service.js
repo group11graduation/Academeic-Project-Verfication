@@ -10,9 +10,24 @@ import {
   ensureClassesFromImport,
 } from './adminAcademic.service.js';
 import { notifySafe, notifyAllAdmins } from './notification.service.js';
+import { logger } from '../config/logger.js';
 
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+/** Turn Mongo duplicate-key errors into clear import messages. */
+function formatImportError(err) {
+  const raw = String(err?.message || err || 'Failed');
+  if (err?.code === 11000 || /E11000/i.test(raw)) {
+    const key = err?.keyPattern || {};
+    if (key.email || /email/i.test(raw)) return 'Email already exists in the system';
+    if (key.username || /username/i.test(raw)) return 'Username already exists in the system';
+    if (key.studentId || /studentId/i.test(raw)) return 'Student ID already exists in the system';
+    if (key.employeeId || /employeeId/i.test(raw)) return 'Teacher ID already exists in the system';
+    return 'Duplicate value — this row already exists in the system';
+  }
+  return raw;
 }
 
 /** Align with Class.code (uppercase) so enrollments and class detail match imports. */
@@ -486,40 +501,80 @@ export async function createStudent(body) {
     plain = randomPasscode();
   }
   const sid = (studentId || '').trim() || (await generateUniqueStudentId());
+  const emailNorm = String(email || '').toLowerCase().trim();
+  const usernameNorm = String(username || '').trim() || sid || emailNorm.split('@')[0];
+
+  if (emailNorm) {
+    const existingEmail = await User.findOne({ email: emailNorm }).select('_id').lean();
+    if (existingEmail) {
+      const err = new Error(`Email already exists in the system (${emailNorm})`);
+      err.status = 409;
+      throw err;
+    }
+  }
+  if (sid) {
+    const existingSid = await StudentProfile.findOne({ studentId: sid }).select('_id').lean();
+    if (existingSid) {
+      const err = new Error(`Student ID already exists in the system (${sid})`);
+      err.status = 409;
+      throw err;
+    }
+  }
+  if (usernameNorm) {
+    const existingUser = await User.findOne({ username: usernameNorm }).select('_id').lean();
+    if (existingUser) {
+      const err = new Error(`Username already exists in the system (${usernameNorm})`);
+      err.status = 409;
+      throw err;
+    }
+  }
+
   const cc = normalizeStudentClassCodeValue(classCode || classId || '');
   let fac = (faculty || body.academicInfo?.faculty || '').trim();
   let department = String(body.academicInfo?.department || body.department || '').trim();
   const classMeta = await loadClassAcademicMeta(cc);
   if (classMeta?.faculty) fac = classMeta.faculty;
   if (classMeta?.department) department = classMeta.department;
-  const user = new User({
-    email: email?.toLowerCase()?.trim(),
-    username: username?.trim() || sid || email?.split('@')[0],
-    passwordHash: await User.hashPassword(plain),
-    role: 'student',
-    roles: ['student'],
-    name: name?.trim() || '',
-    photo: photo || '',
-  });
-  await user.save();
-  const profile = new StudentProfile({
-    user: user._id,
-    studentId: sid || undefined,
-    program: program?.trim() || '',
-    classCode: cc,
-    faculty: fac,
-    department,
-    campus: String(body.academicInfo?.campus || body.campus || '').trim(),
-    studyMode: String(body.academicInfo?.studyMode || body.studyMode || '').trim(),
-    entryDate: parseOptionalDate(body.academicInfo?.entryDate ?? body.entryDate),
-    currentScore: currentScore != null && currentScore !== '' ? Number(currentScore) : undefined,
-    currentGpa: currentGpa != null && currentGpa !== '' ? Number(currentGpa) : undefined,
-    handoffPasscode: String(plain),
-  });
-  applyStudentExtendedFields(profile, body);
-  await profile.save();
-  await profile.populate('user');
-  return formatStudent(profile, classMeta);
+
+  let user;
+  try {
+    user = new User({
+      email: emailNorm,
+      username: usernameNorm,
+      passwordHash: await User.hashPassword(plain),
+      role: 'student',
+      roles: ['student'],
+      name: name?.trim() || '',
+      photo: photo || '',
+    });
+    await user.save();
+    const profile = new StudentProfile({
+      user: user._id,
+      studentId: sid || undefined,
+      program: program?.trim() || '',
+      classCode: cc,
+      faculty: fac,
+      department,
+      campus: String(body.academicInfo?.campus || body.campus || '').trim(),
+      studyMode: String(body.academicInfo?.studyMode || body.studyMode || '').trim(),
+      entryDate: parseOptionalDate(body.academicInfo?.entryDate ?? body.entryDate),
+      currentScore: currentScore != null && currentScore !== '' ? Number(currentScore) : undefined,
+      currentGpa: currentGpa != null && currentGpa !== '' ? Number(currentGpa) : undefined,
+      handoffPasscode: String(plain),
+    });
+    applyStudentExtendedFields(profile, body);
+    await profile.save();
+    await profile.populate('user');
+    return formatStudent(profile, classMeta);
+  } catch (e) {
+    if (user?._id) {
+      await User.deleteOne({ _id: user._id }).catch(() => {});
+      await StudentProfile.deleteOne({ user: user._id }).catch(() => {});
+    }
+    const err = new Error(formatImportError(e));
+    err.status = e.status || (e.code === 11000 ? 409 : 400);
+    throw err;
+  }
 }
 
 export async function updateStudent(profileId, body) {
@@ -689,11 +744,16 @@ export async function importStudents(rows) {
         classCode,
       });
     } catch (e) {
+      const message = formatImportError(e);
+      logger.warn(`Student import row ${i + 1} failed: ${message}`, {
+        email: row?.email,
+        studentId: row?.studentId,
+      });
       failed.push({
         index: i,
         studentId: row.studentId,
         email: row.email,
-        message: e.message || 'Failed',
+        message,
       });
     }
   };
@@ -702,6 +762,17 @@ export async function importStudents(rows) {
     const slice = list.slice(offset, offset + concurrency);
     await Promise.all(slice.map((row, j) => importOne(row, offset + j)));
   }
+
+  failed.sort((a, b) => a.index - b.index);
+  logger.info(
+    `Student import finished: created=${created.length} failed=${failed.length} total=${list.length}` +
+      (failed.length
+        ? ` | sample: ${failed
+            .slice(0, 5)
+            .map((f) => `row${f.index + 1}:${f.message}`)
+            .join('; ')}`
+        : '')
+  );
 
   if (created.length) {
     notifySafe(() =>

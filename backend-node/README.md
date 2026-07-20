@@ -15,7 +15,7 @@ Node.js + Express service: REST API, JWT auth, MongoDB (Mongoose), uploads, call
 | `src/validators/` | Reusable `express-validator` rules (keeps routes readable) |
 | `src/utils/` | Pure helpers (API response shape, async wrappers) |
 | `scripts/` | One-off maintenance (e.g. `seed.js`) |
-| `uploads/` | Runtime user uploads (gitignored; created at runtime) |
+| `uploads/` | **Deprecated path** — files live in monorepo root `../uploads/` (shared with Docker). See `uploads/MOVED.txt` if present. |
 
 ## Environment
 

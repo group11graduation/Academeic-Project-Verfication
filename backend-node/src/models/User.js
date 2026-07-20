@@ -5,8 +5,8 @@ const ROLES = ['admin', 'teacher', 'student'];
 
 const userSchema = new mongoose.Schema(
   {
-    email: { type: String, lowercase: true, trim: true, sparse: true },
-    username: { type: String, trim: true, sparse: true },
+    email: { type: String, lowercase: true, trim: true, unique: true, sparse: true },
+    username: { type: String, trim: true, unique: true, sparse: true },
     passwordHash: { type: String, required: true, select: false },
     /** Primary role for routing and RBAC */
     role: { type: String, enum: ROLES, required: true },
@@ -24,9 +24,6 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
-userSchema.index({ email: 1 }, { unique: true, sparse: true });
-userSchema.index({ username: 1 }, { unique: true, sparse: true });
 
 userSchema.methods.comparePassword = function comparePassword(plain) {
   return bcrypt.compare(plain, this.passwordHash);
