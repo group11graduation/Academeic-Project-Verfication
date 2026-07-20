@@ -20,6 +20,11 @@ const updateClass = async (code, classData) => {
     return response.data;
 };
 
+const deleteClass = async (code) => {
+    const response = await api.delete(`/admin/classes/${encodeURIComponent(code)}`);
+    return response.data;
+};
+
 const assignTeacher = async (code, payload) => {
     const response = await api.post(`/admin/classes/${encodeURIComponent(code)}/assign-teacher`, payload);
     return response.data;
@@ -41,6 +46,7 @@ const adminClassService = {
     getClass,
     createClass,
     updateClass,
+    deleteClass,
     assignTeacher,
     removeTeacher,
     generateAccounts

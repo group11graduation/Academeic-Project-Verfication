@@ -47,6 +47,7 @@ router.get('/classes', admin.listClasses);
 router.get('/classes/:code', admin.getClass);
 router.post('/classes', admin.createClass);
 router.put('/classes/:code', admin.updateClass);
+router.delete('/classes/:code', admin.removeClass);
 router.post('/classes/:code/assign-teacher', admin.assignTeacherClass);
 router.delete('/classes/:code/teachers/:teacherId', admin.removeTeacherClass);
 router.post('/classes/:code/generate-accounts', admin.generateClassStudentAccounts);

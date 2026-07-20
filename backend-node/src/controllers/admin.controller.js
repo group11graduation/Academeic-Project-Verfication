@@ -171,6 +171,15 @@ export const updateClass = asyncHandler(async (req, res) => {
   return success(res, row);
 });
 
+export const removeClass = asyncHandler(async (req, res) => {
+  const row = await academic.deleteClass(req.params.code);
+  return successMessage(
+    res,
+    `Class ${row.code} deleted. ${row.studentsUnassigned} student(s) kept and set to unassigned.`,
+    row
+  );
+});
+
 export const assignTeacherClass = asyncHandler(async (req, res) => {
   const row = await academic.assignTeacherToClass(req.params.code, req.body);
   return success(res, row);

@@ -9,6 +9,9 @@ import { SystemSettings } from '../models/SystemSettings.js';
 import { TeacherProfile } from '../models/TeacherProfile.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { User } from '../models/User.js';
+import { Assignment } from '../models/Assignment.js';
+import { Group } from '../models/Group.js';
+import { removeStudentFromGroupsForClassCode } from './teacherClassGroups.service.js';
 
 function toObjectId(id) {
   if (!id) return undefined;
@@ -289,6 +292,81 @@ export async function updateClass(code, body) {
 
   const withSubjects = await Class.findById(doc._id).populate('subjects').lean();
   return formatClassRow(withSubjects || doc.toObject(), await StudentProfile.countDocuments({ classCode: doc.code }));
+}
+
+/**
+ * Delete a class. Students are NOT deleted — they become unassigned (empty classCode).
+ * Class groups / enrollments for this class are cleaned up. Assignments lose this class
+ * (multi-class keep the rest; single-class assignments are deactivated).
+ */
+export async function deleteClass(code) {
+  const classCode = normalizeClassCode(code);
+  const doc = await Class.findOne({ code: classCode });
+  if (!doc) {
+    const err = new Error('Class not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const studentQuery = { classCode: new RegExp(`^${escapeRegex(classCode)}$`, 'i') };
+  const studentProfiles = await StudentProfile.find(studentQuery).select('_id user studentId').lean();
+
+  // Keep student accounts — only clear class assignment.
+  await StudentProfile.updateMany(studentQuery, { $set: { classCode: '' } });
+
+  for (const profile of studentProfiles) {
+    if (profile.user) {
+      try {
+        await removeStudentFromGroupsForClassCode(profile.user, classCode);
+      } catch (e) {
+        console.error('Failed to remove student from groups while deleting class:', e?.message || e);
+      }
+    }
+  }
+
+  // Class-level team templates
+  await Group.deleteMany({ hostClass: doc._id, assignment: null });
+
+  await Enrollment.deleteMany({ class: doc._id });
+
+  const linkedAssignments = await Assignment.find({
+    $or: [{ class: doc._id }, { classes: doc._id }],
+  });
+  let assignmentsUpdated = 0;
+  let assignmentsDeactivated = 0;
+  for (const assignment of linkedAssignments) {
+    const remaining = (assignment.classes || []).filter(
+      (cid) => String(cid) !== String(doc._id)
+    );
+    assignment.classes = remaining;
+    if (String(assignment.class) === String(doc._id)) {
+      if (remaining.length) {
+        assignment.class = remaining[0];
+      } else {
+        // Keep history; stop using this assignment without a live class.
+        assignment.isActive = false;
+        assignmentsDeactivated += 1;
+      }
+    }
+    await assignment.save();
+    assignmentsUpdated += 1;
+  }
+
+  await TeacherProfile.updateMany(
+    { assignedClassCodes: classCode },
+    { $pull: { assignedClassCodes: classCode } }
+  );
+
+  await Class.deleteOne({ _id: doc._id });
+
+  return {
+    deleted: true,
+    code: classCode,
+    name: doc.name,
+    studentsUnassigned: studentProfiles.length,
+    assignmentsUpdated,
+    assignmentsDeactivated,
+  };
 }
 
 export async function assignTeacherToClass(code, body) {

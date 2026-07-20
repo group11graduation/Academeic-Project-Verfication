@@ -4,7 +4,7 @@ import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../..
 import {
     Users, GraduationCap, Calendar, Clock, Search,
     MoreVertical, Plus, ArrowLeft, Layout, BookOpen, Loader2,
-    UserPlus, CheckCircle2
+    UserPlus, CheckCircle2, Trash2
 } from 'lucide-react';
 import adminClassService from '../../../services/adminClassService';
 import adminTeacherService from '../../../services/adminTeacherService';
@@ -38,6 +38,7 @@ const AdminClassDetail = () => {
     const [assigningStudent, setAssigningStudent] = useState(false);
     const [removingStudentId, setRemovingStudentId] = useState('');
     const [removingTeacherId, setRemovingTeacherId] = useState('');
+    const [deletingClass, setDeletingClass] = useState(false);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [savingClassInfo, setSavingClassInfo] = useState(false);
@@ -242,6 +243,33 @@ const AdminClassDetail = () => {
             await appError(error.response?.data?.message || error.message || 'Could not remove teacher from class');
         } finally {
             setRemovingTeacherId('');
+        }
+    };
+
+    const handleDeleteClass = async () => {
+        if (!classInfo?.code) return;
+        const ok = await appConfirm(
+            `Delete class "${classInfo.code}"?\n\nStudents will NOT be deleted — they become unassigned and can be moved to another class later.`,
+            { danger: true, confirmLabel: 'Delete class' }
+        );
+        if (!ok) return;
+        try {
+            setDeletingClass(true);
+            const res = await adminClassService.deleteClass(classInfo.code);
+            if (!res.success) throw new Error(res.message || 'Failed to delete class');
+            const unassigned = res.data?.studentsUnassigned ?? 0;
+            await appSuccess(
+                res.message ||
+                    `Class deleted. ${unassigned} student(s) kept as unassigned.`
+            );
+            navigate('/admin/classes');
+        } catch (error) {
+            console.error('Error deleting class:', error);
+            await appError(
+                error.userMessage || error.response?.data?.message || error.message || 'Could not delete class'
+            );
+        } finally {
+            setDeletingClass(false);
         }
     };
 
@@ -468,15 +496,27 @@ const AdminClassDetail = () => {
                     Back to Classes
                 </button>
 
-                <div className="relative w-full max-w-[220px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                    <input
-                        type="text"
-                        placeholder="Global search..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 dark:text-white transition-colors"
-                    />
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleDeleteClass}
+                        disabled={deletingClass}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-60 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
+                        title="Delete class (students become unassigned)"
+                    >
+                        {deletingClass ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        {deletingClass ? 'Deleting…' : 'Delete class'}
+                    </button>
+                    <div className="relative w-full max-w-[220px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                        <input
+                            type="text"
+                            placeholder="Global search..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 dark:text-white transition-colors"
+                        />
+                    </div>
                 </div>
             </div>
 
