@@ -54,9 +54,15 @@ const NormalAssignmentStudents = () => {
     const students = bundle?.students || [];
 
     const filteredStudents = useMemo(() => {
-        if (!query.trim()) return students;
-        return students.filter((s) =>
-            matchesSearchQuery(query, s.name, s.email, s.studentId, s.classCode)
+        const list = !query.trim()
+            ? students
+            : students.filter((s) =>
+                  matchesSearchQuery(query, s.name, s.email, s.studentId, s.classCode)
+              );
+        return [...list].sort((a, b) =>
+            String(a.name || a.email || '').localeCompare(String(b.name || b.email || ''), undefined, {
+                sensitivity: 'base',
+            })
         );
     }, [students, query]);
 

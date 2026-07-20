@@ -65,9 +65,13 @@ const ClassDetail = () => {
     }, [id]);
 
     const filteredStudents = useMemo(() => {
-        if (!studentSearch.trim()) return students;
-        return students.filter((s) =>
-            matchesSearchQuery(studentSearch, s.name, s.id, s.email, s.studentId)
+        const list = !studentSearch.trim()
+            ? students
+            : students.filter((s) =>
+                  matchesSearchQuery(studentSearch, s.name, s.id, s.email, s.studentId)
+              );
+        return [...list].sort((a, b) =>
+            String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
         );
     }, [students, studentSearch]);
 

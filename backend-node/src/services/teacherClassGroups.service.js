@@ -579,23 +579,27 @@ export async function listClassStudentsForTeacher(teacherId, classRef) {
     }
   }
 
-  return userIds.map((uid) => {
-    const uidStr = String(uid);
-    const u = userById.get(uidStr);
-    const p = profileByUser.get(uidStr);
-    const studentId = String(p?.studentId || '').trim();
-    return {
-      id: studentId || uidStr,
-      studentId,
-      name: u?.name || 'Student',
-      email: u?.email || '',
-      photo: u?.photo || '',
-      userId: uidStr,
-      group: userToTemplateGroup.get(uidStr) || 'UNASSIGNED',
-      attendance: 0,
-      avatarColor: 'bg-blue-500/10',
-    };
-  });
+  return userIds
+    .map((uid) => {
+      const uidStr = String(uid);
+      const u = userById.get(uidStr);
+      const p = profileByUser.get(uidStr);
+      const studentId = String(p?.studentId || '').trim();
+      return {
+        id: studentId || uidStr,
+        studentId,
+        name: u?.name || 'Student',
+        email: u?.email || '',
+        photo: u?.photo || '',
+        userId: uidStr,
+        group: userToTemplateGroup.get(uidStr) || 'UNASSIGNED',
+        attendance: 0,
+        avatarColor: 'bg-blue-500/10',
+      };
+    })
+    .sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+    );
 }
 
 /**

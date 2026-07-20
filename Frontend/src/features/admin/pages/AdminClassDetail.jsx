@@ -273,9 +273,15 @@ const AdminClassDetail = () => {
         }
     };
 
-    const filteredData = activeTab === 'students'
-        ? students.filter((s) => matchesSearchQuery(searchQuery, s.name, s.studentId, s.email))
-        : teachers.filter((t) => matchesSearchQuery(searchQuery, t.name, t.teacherId, t.email));
+    const filteredData = useMemo(() => {
+        const rows =
+            activeTab === 'students'
+                ? students.filter((s) => matchesSearchQuery(searchQuery, s.name, s.studentId, s.email))
+                : teachers.filter((t) => matchesSearchQuery(searchQuery, t.name, t.teacherId, t.email));
+        return [...rows].sort((a, b) =>
+            String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+        );
+    }, [activeTab, students, teachers, searchQuery]);
 
     const assignedTeacherIds = new Set((teachers || []).map((t) => String(t.userId || t._id || '')));
     const teacherByUserId = useMemo(() => {

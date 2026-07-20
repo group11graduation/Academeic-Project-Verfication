@@ -242,19 +242,31 @@ const AdminStudents = () => {
 
     const allFacultyOptions = facultyFilterOptions;
 
-    const filteredStudents = students.filter((student) => {
-        const matchesSearch = matchesSearchQuery(
-            searchQuery,
-            student.name,
-            student.studentId,
-            student.classId,
-            student.email
-        );
-
-        const matchesClass = classFilter ? student.classId === classFilter : true;
-        const matchesFaculty = facultyFilter ? resolveStudentFaculty(student) === facultyFilter : true;
-        return matchesSearch && matchesClass && matchesFaculty;
-    });
+    const filteredStudents = useMemo(() => {
+        return students
+            .filter((student) => {
+                const matchesSearch = matchesSearchQuery(
+                    searchQuery,
+                    student.name,
+                    student.studentId,
+                    student.email,
+                    student.classId,
+                    student.classCode,
+                    resolveStudentFaculty(student)
+                );
+                const matchesClass = classFilter
+                    ? String(student.classId || student.classCode || '').toUpperCase() ===
+                      String(classFilter).toUpperCase()
+                    : true;
+                const matchesFaculty = facultyFilter
+                    ? resolveStudentFaculty(student) === facultyFilter
+                    : true;
+                return matchesSearch && matchesClass && matchesFaculty;
+            })
+            .sort((a, b) =>
+                String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+            );
+    }, [students, searchQuery, classFilter, facultyFilter, classes]);
 
     const selectedClass = useMemo(
         () => classes.find((c) => c.code === addForm.classId),

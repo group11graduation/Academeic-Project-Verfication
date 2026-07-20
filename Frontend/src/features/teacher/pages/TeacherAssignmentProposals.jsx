@@ -71,14 +71,22 @@ const TeacherAssignmentProposals = () => {
     }, [assignmentId]);
 
     const filteredProposals = useMemo(() => {
-        if (!query.trim()) return proposals;
-        return proposals.filter((p) =>
-            matchesSearchQuery(
-                query,
-                studentIdentityLabel(p),
-                p.title,
-                p.status,
-                p.submittedBy?.email
+        const list = !query.trim()
+            ? proposals
+            : proposals.filter((p) =>
+                  matchesSearchQuery(
+                      query,
+                      studentIdentityLabel(p),
+                      p.title,
+                      p.status,
+                      p.submittedBy?.email
+                  )
+              );
+        return [...list].sort((a, b) =>
+            String(a?.submittedBy?.name || a?.group?.name || a?.title || '').localeCompare(
+                String(b?.submittedBy?.name || b?.group?.name || b?.title || ''),
+                undefined,
+                { sensitivity: 'base' }
             )
         );
     }, [proposals, query]);

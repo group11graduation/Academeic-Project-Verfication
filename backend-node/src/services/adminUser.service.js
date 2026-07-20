@@ -363,10 +363,14 @@ export async function toggleTeacherAdmin(profileId) {
 export async function listStudents() {
   const profiles = await StudentProfile.find().populate('user');
   const classMetaMap = await loadClassAcademicMetaMap(profiles.map((p) => p.classCode));
-  return profiles.map((profile) => {
-    const classMeta = classMetaMap.get(normalizeStudentClassCodeValue(profile.classCode));
-    return formatStudent(profile, classMeta);
-  });
+  return profiles
+    .map((profile) => {
+      const classMeta = classMetaMap.get(normalizeStudentClassCodeValue(profile.classCode));
+      return formatStudent(profile, classMeta);
+    })
+    .sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+    );
 }
 
 async function resolveStudentProfile(id) {

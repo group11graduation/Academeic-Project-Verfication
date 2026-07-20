@@ -1424,38 +1424,44 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     };
   };
 
-  return list.map((p) => {
-    const latestProjectSubmission = latestZipByProposal.get(String(p._id)) || null;
-    const requirementReview = p.assignment
-      ? evaluateProposalAgainstAssignmentRequirements(p.assignment, p)
-      : null;
-    const row = {
-    ...p,
-    hasProjectSubmission: Boolean(latestProjectSubmission),
-    latestProjectSubmission,
-    group: enrichGroupForClient(p.group),
-    submittedBy: p.submittedBy
-      ? {
-          ...p.submittedBy,
-          studentId: studentIdByUser.get(String(p.submittedBy._id)) || '',
-        }
-      : p.submittedBy,
-    requirementReview: requirementReview
-      ? {
-          passed: requirementReview.passed,
-          summary: requirementReview.summary,
-          missingKeywords: requirementReview.missingKeywords || [],
-          missingAllowedTech: requirementReview.missingAllowedTech || [],
-          missingImplicitTerms: requirementReview.missingImplicitTerms || [],
-          disallowedMentionedTech: requirementReview.disallowedMentionedTech || [],
-          implicitRequiredTerms: requirementReview.implicitRequiredTerms || [],
-        }
-      : null,
-    submissionHistory: bootstrapSubmissionHistoryFromProposal(p),
-    submissionHistorySummary: summarizeSubmissionHistoryForTeacher(p),
-  };
-    return mapProposalCollaborativeMeta(row, p.assignment);
-  });
+  return list
+    .map((p) => {
+      const latestProjectSubmission = latestZipByProposal.get(String(p._id)) || null;
+      const requirementReview = p.assignment
+        ? evaluateProposalAgainstAssignmentRequirements(p.assignment, p)
+        : null;
+      const row = {
+        ...p,
+        hasProjectSubmission: Boolean(latestProjectSubmission),
+        latestProjectSubmission,
+        group: enrichGroupForClient(p.group),
+        submittedBy: p.submittedBy
+          ? {
+              ...p.submittedBy,
+              studentId: studentIdByUser.get(String(p.submittedBy._id)) || '',
+            }
+          : p.submittedBy,
+        requirementReview: requirementReview
+          ? {
+              passed: requirementReview.passed,
+              summary: requirementReview.summary,
+              missingKeywords: requirementReview.missingKeywords || [],
+              missingAllowedTech: requirementReview.missingAllowedTech || [],
+              missingImplicitTerms: requirementReview.missingImplicitTerms || [],
+              disallowedMentionedTech: requirementReview.disallowedMentionedTech || [],
+              implicitRequiredTerms: requirementReview.implicitRequiredTerms || [],
+            }
+          : null,
+        submissionHistory: bootstrapSubmissionHistoryFromProposal(p),
+        submissionHistorySummary: summarizeSubmissionHistoryForTeacher(p),
+      };
+      return mapProposalCollaborativeMeta(row, p.assignment);
+    })
+    .sort((a, b) => {
+      const nameA = String(a?.submittedBy?.name || a?.group?.name || a?.title || '').trim();
+      const nameB = String(b?.submittedBy?.name || b?.group?.name || b?.title || '').trim();
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+    });
 }
 
 export async function getProposalForStudent(userId, proposalId) {

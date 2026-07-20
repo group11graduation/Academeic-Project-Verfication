@@ -155,7 +155,10 @@ async function mapEnrolledStudents(classCode) {
         createdAt: p.createdAt,
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+    );
 }
 
 function formatClassRow(c, studentCount = 0) {
