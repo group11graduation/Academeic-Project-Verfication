@@ -14,6 +14,7 @@ import uploadRoutes from './routes/upload.routes.js';
 import teacherRoutes from './routes/teacher.routes.js';
 import studentRoutes from './routes/student.routes.js';
 import publicRoutes from './routes/public.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 import { getPort, getUploadDir } from './config/env.js';
 import { validateAuthSecretsAtStartup } from './config/auth.js';
 
@@ -62,6 +63,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use('/api/teacher', requireAuth, teacherRoutes);
 app.use('/api/student', requireAuth, studentRoutes);

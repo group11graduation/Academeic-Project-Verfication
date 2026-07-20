@@ -33,6 +33,11 @@ import {
   resolveCollaborativeReviewRole,
 } from './teacherAssignmentAccess.service.js';
 import { syncAssignmentGroupsFromClassTemplatesByAssignmentId } from './teacherClassGroups.service.js';
+import {
+  notifySafe,
+  notifyAssignmentTeachers,
+  createNotification,
+} from './notification.service.js';
 
 const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_CANDIDATES || 40);
 const AI_LEGACY_MAX_CANDIDATES = Number(process.env.AI_LEGACY_MAX_CANDIDATES || 40);
@@ -46,6 +51,83 @@ function buildProposalText(title, description, features) {
 
 function clipAiText(text) {
   return String(text || '').slice(0, AI_MAX_TEXT_CHARS);
+}
+
+function teacherProposalLink(assignmentId, proposalId) {
+  return `/teacher/assignments/${assignmentId}/proposals/${proposalId}`;
+}
+
+function studentProposalLink(assignmentId) {
+  return `/student/assignments/${assignmentId}/proposal`;
+}
+
+function notifyTeachersOfPendingProposal(assignment, proposal) {
+  if (!assignment || !proposal) return;
+  notifySafe(() =>
+    notifyAssignmentTeachers(assignment, {
+      type: 'proposal_submitted',
+      title: 'New proposal awaiting review',
+      body: `"${proposal.title || 'Untitled'}" was submitted for ${assignment.title || 'your assignment'}.`,
+      link: teacherProposalLink(assignment._id || assignment, proposal._id),
+      meta: {
+        assignmentId: String(assignment._id || assignment),
+        proposalId: String(proposal._id),
+      },
+    })
+  );
+}
+
+function notifyStudentOfProposalOutcome(proposal, assignment, actionLabel, body) {
+  if (!proposal?.submittedBy) return;
+  notifySafe(() =>
+    createNotification({
+      userId: proposal.submittedBy,
+      type: 'proposal_reviewed',
+      title: `Proposal ${actionLabel}`,
+      body:
+        body ||
+        `Your proposal "${proposal.title || 'Untitled'}" for ${assignment?.title || 'the assignment'} was ${actionLabel}.`,
+      link: studentProposalLink(assignment?._id || proposal.assignment),
+      meta: {
+        assignmentId: String(assignment?._id || proposal.assignment || ''),
+        proposalId: String(proposal._id),
+        status: proposal.status,
+      },
+    })
+  );
+}
+
+function notifyStudentOfAiResult(proposal, assignment, status) {
+  if (!proposal?.submittedBy) return;
+  let title = 'Proposal update';
+  let body = 'Your proposal was processed by the verification system.';
+  if (status === 'ai_rejected_same_semester') {
+    title = 'Proposal rejected by AI';
+    body = `Your proposal "${proposal.title || 'Untitled'}" is too similar to another project this semester.`;
+  } else if (status === 'ai_flagged_previous_semester') {
+    title = 'Similarity warning';
+    body = `Your proposal "${proposal.title || 'Untitled'}" resembles a previous-semester project. Review AI suggestions before teacher approval.`;
+  } else if (status === 'requirements_rejected') {
+    title = 'Requirements not met';
+    body = `Your proposal "${proposal.title || 'Untitled'}" does not meet the assignment requirements.`;
+  } else if (status === 'pending_teacher_approval') {
+    title = 'Proposal sent to teacher';
+    body = `Your proposal "${proposal.title || 'Untitled'}" is waiting for teacher review.`;
+  }
+  notifySafe(() =>
+    createNotification({
+      userId: proposal.submittedBy,
+      type: 'proposal_ai_result',
+      title,
+      body,
+      link: studentProposalLink(assignment?._id || proposal.assignment),
+      meta: {
+        assignmentId: String(assignment?._id || proposal.assignment || ''),
+        proposalId: String(proposal._id),
+        status,
+      },
+    })
+  );
 }
 
 function normalizeText(value) {
@@ -707,6 +789,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       })
     );
     await proposal.save();
+    notifyStudentOfAiResult(proposal, assignment, 'requirements_rejected');
     return {
       proposal,
       ai: null,
@@ -900,6 +983,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   );
 
   await proposal.save();
+
+  notifyStudentOfAiResult(proposal, assignment, proposal.status);
+  if (proposal.status === 'pending_teacher_approval' || proposal.status === 'ai_flagged_previous_semester') {
+    notifyTeachersOfPendingProposal(assignment, proposal);
+  }
 
   const matchedSimilarProject =
     verdict === 'warn_previous_semester'
@@ -1105,6 +1193,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, 'reject');
       proposal.status = 'teacher_rejected';
       await proposal.save();
+      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
       return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
     }
     if (action === 'revision') {
@@ -1112,6 +1201,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       proposal.status = 'revision_required';
       proposal.collaborativeTeacherReviews = emptyCollaborativeReviews();
       await proposal.save();
+      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'sent back for revision');
       return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
     }
     if (action === 'approve') {
@@ -1133,6 +1223,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
         const prev = proposal.teacherComment || '';
         proposal.teacherComment = [prev, requirementCheck.summary].filter(Boolean).join(' | ');
         await proposal.save();
+        notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
         return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
       }
 
@@ -1150,6 +1241,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
           const prev = proposal.teacherComment || '';
           proposal.teacherComment = [prev, fullCheck.summary].filter(Boolean).join(' | ');
           await proposal.save();
+          notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
           return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
         }
 
@@ -1164,6 +1256,16 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       }
 
       await proposal.save();
+      if (proposal.status === 'teacher_approved') {
+        notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'approved');
+      } else if (proposal.status === 'pending_teacher_approval') {
+        notifyStudentOfProposalOutcome(
+          proposal,
+          assignmentDoc,
+          'partially approved',
+          `One teacher approved "${proposal.title || 'Untitled'}". Waiting for the other teacher.`
+        );
+      }
       return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
     }
 
@@ -1185,6 +1287,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       const prev = proposal.teacherComment || '';
       proposal.teacherComment = [prev, requirementCheck.summary].filter(Boolean).join(' | ');
       await proposal.save();
+      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
       return proposal;
     }
 
@@ -1204,6 +1307,13 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
   }
 
   await proposal.save();
+  const label =
+    proposal.status === 'teacher_approved'
+      ? 'approved'
+      : proposal.status === 'revision_required'
+        ? 'sent back for revision'
+        : 'rejected';
+  notifyStudentOfProposalOutcome(proposal, assignmentDoc, label);
   return proposal;
 }
 

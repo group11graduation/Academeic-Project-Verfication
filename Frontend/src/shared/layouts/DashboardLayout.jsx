@@ -19,6 +19,7 @@ import { ShellSearchProvider, useShellSearch } from '../../context/shellSearchCo
 import ThemeToggle from '../components/ThemeToggle';
 import ShellMobileDrawer from '../components/ShellMobileDrawer';
 import ProjectVerifyLogo from '../components/ProjectVerifyLogo';
+import NotificationBell from '../components/NotificationBell';
 
 const TEACHER_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
@@ -323,13 +324,7 @@ const DashboardLayoutInner = ({ children }) => {
 
                         <div className="flex items-center gap-1.5 sm:gap-2">
                             <ThemeToggle compact className="hidden sm:inline-flex" />
-                            <button
-                                type="button"
-                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#cfdbfb] bg-white text-[#53638f] transition-colors hover:bg-[#f5f8ff] dark:border-white/10 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-[#1f2937]"
-                                title="Notifications"
-                            >
-                                <Bell className="h-4 w-4" strokeWidth={2} />
-                            </button>
+                            <NotificationBell variant="teacher" />
                             <div className="relative">
                                 <button
                                     type="button"

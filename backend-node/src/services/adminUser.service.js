@@ -9,6 +9,7 @@ import {
   ensureAcademicStructureEntries,
   ensureClassesFromImport,
 } from './adminAcademic.service.js';
+import { notifySafe, notifyAllAdmins } from './notification.service.js';
 
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -702,6 +703,20 @@ export async function importStudents(rows) {
     await Promise.all(slice.map((row, j) => importOne(row, offset + j)));
   }
 
+  if (created.length) {
+    notifySafe(() =>
+      notifyAllAdmins({
+        type: 'system',
+        title: 'Student import finished',
+        body: `${created.length} student${created.length === 1 ? '' : 's'} created${
+          classesSync.classesAdded ? `, ${classesSync.classesAdded} class(es) auto-created` : ''
+        }.`,
+        link: '/admin/students',
+        meta: { created: created.length, failed: failed.length },
+      })
+    );
+  }
+
   return {
     created,
     failed,
@@ -907,6 +922,22 @@ export async function importTeachers(rows) {
   }
 
   failed.sort((a, b) => a.index - b.index);
+
+  if (created.length) {
+    notifySafe(() =>
+      notifyAllAdmins({
+        type: 'system',
+        title: 'Teacher import finished',
+        body: `${created.length} teacher${created.length === 1 ? '' : 's'} created${
+          structureSync.facultiesAdded || structureSync.departmentsAdded
+            ? `, structure updated (+${structureSync.facultiesAdded || 0} faculty / +${structureSync.departmentsAdded || 0} dept)`
+            : ''
+        }.`,
+        link: '/admin/teachers',
+        meta: { created: created.length, failed: failed.length },
+      })
+    );
+  }
 
   return {
     created,

@@ -38,7 +38,7 @@ const AdminDashboard = () => {
             { title: 'Students', value: stats.totalStudents, icon: Users, tone: 'text-blue-600 bg-blue-50' },
             { title: 'Teachers', value: stats.totalTeachers, icon: GraduationCap, tone: 'text-indigo-600 bg-indigo-50' },
             { title: 'Classes', value: stats.totalClasses, icon: Building2, tone: 'text-purple-600 bg-purple-50' },
-            { title: 'Active Projects', value: stats.activeProjects, icon: Rocket, tone: 'text-emerald-600 bg-emerald-50' },
+            { title: 'Active Projects', value: stats.activeProjects, icon: Rocket, tone: 'text-emerald-600 bg-emerald-50', hint: 'Proposals in review or approved project phase' },
         ],
         [stats]
     );
@@ -73,6 +73,9 @@ const AdminDashboard = () => {
                                 <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{card.title}</span>
                             </div>
                             <p className="text-lg font-black leading-none text-[#0F172A] dark:text-slate-100">{card.value}</p>
+                            {card.hint ? (
+                                <p className="mt-1.5 text-[9px] font-semibold leading-snug text-slate-400 dark:text-slate-500">{card.hint}</p>
+                            ) : null}
                         </div>
                     );
                 })}

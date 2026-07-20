@@ -6,6 +6,11 @@ import {
   findAssignmentVisibleToTeacher,
   teacherCanAccessAssignmentReview,
 } from './teacherAssignmentAccess.service.js';
+import {
+  notifySafe,
+  createNotification,
+  createNotificationsForUsers,
+} from './notification.service.js';
 
 function idOf(value) {
   if (!value) return '';
@@ -154,6 +159,20 @@ export async function createStudentMessage(studentId, payload = {}) {
     status: 'open',
   });
 
+  notifySafe(() =>
+    createNotificationsForUsers(recipients.recipientTeacherIds, {
+      type: 'message_received',
+      title: 'New student message',
+      body: subj,
+      link: '/teacher/messages',
+      meta: {
+        messageId: String(doc._id),
+        assignmentId: String(assignment._id),
+        studentId: String(studentId),
+      },
+    })
+  );
+
   return populateMessage(doc._id);
 }
 
@@ -243,6 +262,23 @@ export async function replyToStudentMessage(teacherId, messageId, { reply, close
   }
 
   await msg.save();
+
+  if (replyText) {
+    notifySafe(() =>
+      createNotification({
+        userId: msg.student,
+        type: 'message_replied',
+        title: 'Teacher replied to your message',
+        body: msg.subject || 'You have a new reply from your teacher.',
+        link: '/student/messages',
+        meta: {
+          messageId: String(msg._id),
+          assignmentId: String(msg.assignment?._id || msg.assignment || ''),
+        },
+      })
+    );
+  }
+
   return populateMessage(msg._id);
 }
 

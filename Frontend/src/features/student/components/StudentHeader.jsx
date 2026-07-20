@@ -5,7 +5,6 @@ import {
     BookOpen,
     GalleryHorizontal,
     LogOut,
-    Bell,
     Search,
     UserRound,
     Menu,
@@ -21,6 +20,7 @@ import { useShellSearch } from '../../../context/shellSearchContext';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
+import NotificationBell from '../../../shared/components/NotificationBell';
 
 function buildNavItems(user) {
     if (!user) {
@@ -134,14 +134,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                             </div>
                             <ThemeToggle compact className="hidden sm:inline-flex" />
 
-                            <button
-                                type="button"
-                                className="relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
-                                title="Notifications"
-                            >
-                                <Bell className="h-[18px] w-[18px]" />
-                                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
-                            </button>
+                            <NotificationBell variant="student" />
 
                             <div className="relative hidden sm:block">
                                 <button

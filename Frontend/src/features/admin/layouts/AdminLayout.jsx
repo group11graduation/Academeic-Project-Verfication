@@ -11,7 +11,6 @@ import {
     LogOut,
     Search,
     ChevronDown,
-    Bell,
     CalendarRange,
     FileSpreadsheet,
     Workflow,
@@ -22,6 +21,7 @@ import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearc
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
+import NotificationBell from '../../../shared/components/NotificationBell';
 
 const ADMIN_BLUE = '#1e56e3';
 const CONTENT_BG = '#f8fafc';
@@ -342,13 +342,7 @@ const AdminLayoutInner = () => {
 
                         <div className="flex items-center gap-1.5 sm:gap-2">
                             <ThemeToggle compact className="hidden sm:inline-flex" />
-                            <button
-                                type="button"
-                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#cfdbfb] bg-white text-[#53638f] transition-colors hover:bg-[#f5f8ff] dark:border-white/10 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-[#1f2937]"
-                                title="Notifications"
-                            >
-                                <Bell className="h-4 w-4" strokeWidth={2} />
-                            </button>
+                            <NotificationBell variant="admin" />
                             <div className="flex items-center gap-1.5 rounded-lg border border-[#cfdbfb] bg-white py-0.5 pl-1 pr-2 shadow-sm dark:border-white/10 dark:bg-[#111827]">
                                 <div
                                     className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-extrabold text-white"

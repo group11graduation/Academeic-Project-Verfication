@@ -29,6 +29,10 @@ import {
   validateDeadlinesOnCreate,
   validateDeadlinesOnUpdate,
 } from './assignmentDeadline.service.js';
+import {
+  notifySafe,
+  notifyStudentUsersInClasses,
+} from './notification.service.js';
 
 function resolveViewerSubject(assignment, viewerTeacherId = null) {
   if (!assignment?.isCollaborative || !viewerTeacherId) {
@@ -454,6 +458,20 @@ export async function createAssignment(teacherId, payload) {
       /* non-fatal: assignment still created */
     }
   }
+
+  notifySafe(() =>
+    notifyStudentUsersInClasses(classDocs.map((c) => c._id), {
+      type: 'assignment_created',
+      title: 'New assignment published',
+      body: `"${doc.title}" is now available.`,
+      link: `/student/assignments/${doc._id}`,
+      meta: {
+        assignmentId: String(doc._id),
+        assignmentType: doc.assignmentType,
+      },
+    })
+  );
+
   return getAssignmentForTeacher(teacherId, doc._id);
 }
 

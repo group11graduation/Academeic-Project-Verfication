@@ -18,6 +18,11 @@ import {
 import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { getUploadDir } from '../config/env.js';
 import { normalizeProjectStackHint } from '../constants/projectStackHints.js';
+import {
+  notifySafe,
+  notifyAssignmentTeachers,
+} from './notification.service.js';
+import { User } from '../models/User.js';
 
 export function isProjectDeadlineOpen(assignment) {
   if (!assignment?.projectDeadline) return true;
@@ -213,6 +218,28 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
   }
 
   const submission = saved.toObject ? saved.toObject() : saved;
+
+  let studentName = 'A student';
+  try {
+    const u = await User.findById(submittedByUserId).select('name').lean();
+    if (u?.name) studentName = u.name;
+  } catch {
+    /* ignore */
+  }
+  notifySafe(() =>
+    notifyAssignmentTeachers(assignment, {
+      type: 'project_uploaded',
+      title: primary ? 'Project ZIP updated' : 'Project ZIP uploaded',
+      body: `${studentName} uploaded a project for "${assignment.title || 'assignment'}".`,
+      link: `/teacher/assignments/${assignment._id}/proposals/${proposal._id}`,
+      meta: {
+        assignmentId: String(assignment._id),
+        proposalId: String(proposal._id),
+        submissionId: String(submissionId),
+      },
+    })
+  );
+
   return { submission, isUpdate: Boolean(primary) };
 }
 
