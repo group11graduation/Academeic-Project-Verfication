@@ -30,6 +30,68 @@ function formatImportError(err) {
   return raw;
 }
 
+/**
+ * Users left behind by interrupted imports (User exists, no StudentProfile).
+ * Safe to remove so the same email/studentId can be imported again.
+ */
+async function removeOrphanStudentUser(userId) {
+  if (!userId) return false;
+  const profile = await StudentProfile.findOne({ user: userId }).select('_id').lean();
+  if (profile) return false;
+  const user = await User.findById(userId).select('role roles').lean();
+  if (!user) return false;
+  const roles = [user.role, ...(user.roles || [])].map((r) => String(r || '').toLowerCase());
+  if (!roles.includes('student') || roles.includes('admin') || roles.includes('teacher')) {
+    return false;
+  }
+  await User.deleteOne({ _id: userId });
+  return true;
+}
+
+async function describeEmailConflict(emailNorm) {
+  const user = await User.findOne({ email: emailNorm })
+    .select('_id name role roles email username isActive')
+    .lean();
+  if (!user) return null;
+  const profile = await StudentProfile.findOne({ user: user._id }).select('studentId classCode').lean();
+  if (!profile) {
+    const removed = await removeOrphanStudentUser(user._id);
+    if (removed) {
+      return { resolved: true, message: `Cleared orphan account for ${emailNorm}` };
+    }
+    return {
+      resolved: false,
+      message: `Email ${emailNorm} is used by ${user.role || 'user'} "${user.name || user.username}" (no student profile)`,
+    };
+  }
+  return {
+    resolved: false,
+    message: `Email ${emailNorm} already belongs to student ${profile.studentId || user.name || user._id}${
+      profile.classCode ? ` (class ${profile.classCode})` : ' (unassigned)'
+    }`,
+  };
+}
+
+async function describeUsernameConflict(usernameNorm) {
+  const user = await User.findOne({ username: usernameNorm })
+    .select('_id name role roles email username')
+    .lean();
+  if (!user) return null;
+  const profile = await StudentProfile.findOne({ user: user._id }).select('studentId').lean();
+  if (!profile) {
+    const removed = await removeOrphanStudentUser(user._id);
+    if (removed) return { resolved: true };
+    return {
+      resolved: false,
+      message: `Username "${usernameNorm}" is used by ${user.role || 'user'} "${user.name || user.email}"`,
+    };
+  }
+  return {
+    resolved: false,
+    message: `Username "${usernameNorm}" already belongs to student ${profile.studentId || user.name}`,
+  };
+}
+
 /** Align with Class.code (uppercase) so enrollments and class detail match imports. */
 function normalizeStudentClassCodeValue(code) {
   const c = String(code ?? '').trim();
@@ -505,15 +567,15 @@ export async function createStudent(body) {
   const usernameNorm = String(username || '').trim() || sid || emailNorm.split('@')[0];
 
   if (emailNorm) {
-    const existingEmail = await User.findOne({ email: emailNorm }).select('_id').lean();
-    if (existingEmail) {
-      const err = new Error(`Email already exists in the system (${emailNorm})`);
+    const conflict = await describeEmailConflict(emailNorm);
+    if (conflict && !conflict.resolved) {
+      const err = new Error(conflict.message);
       err.status = 409;
       throw err;
     }
   }
   if (sid) {
-    const existingSid = await StudentProfile.findOne({ studentId: sid }).select('_id').lean();
+    const existingSid = await StudentProfile.findOne({ studentId: sid }).select('_id studentId').lean();
     if (existingSid) {
       const err = new Error(`Student ID already exists in the system (${sid})`);
       err.status = 409;
@@ -521,9 +583,9 @@ export async function createStudent(body) {
     }
   }
   if (usernameNorm) {
-    const existingUser = await User.findOne({ username: usernameNorm }).select('_id').lean();
-    if (existingUser) {
-      const err = new Error(`Username already exists in the system (${usernameNorm})`);
+    const conflict = await describeUsernameConflict(usernameNorm);
+    if (conflict && !conflict.resolved) {
+      const err = new Error(conflict.message);
       err.status = 409;
       throw err;
     }
@@ -657,6 +719,31 @@ export async function importStudents(rows) {
   const resolveDepartment = (row) =>
     String(row?.department || row?.academicInfo?.department || '').trim();
 
+  // Clear orphaned login accounts from earlier failed imports (User with no StudentProfile).
+  let orphansCleared = 0;
+  try {
+    const emails = [
+      ...new Set(
+        list
+          .map((row) => String(row?.email || '').toLowerCase().trim())
+          .filter(Boolean)
+      ),
+    ];
+    if (emails.length) {
+      const users = await User.find({ email: { $in: emails }, role: 'student' })
+        .select('_id email')
+        .lean();
+      for (const u of users) {
+        if (await removeOrphanStudentUser(u._id)) orphansCleared += 1;
+      }
+    }
+    if (orphansCleared) {
+      logger.info(`Student import: cleared ${orphansCleared} orphan user account(s) before create`);
+    }
+  } catch (e) {
+    logger.warn(`Student import orphan cleanup failed: ${e?.message || e}`);
+  }
+
   // Auto-create missing classes (and academic structure) before saving students.
   let classesSync = { classesAdded: 0, codes: [] };
   let structureSync = { facultiesAdded: 0, departmentsAdded: 0 };
@@ -766,6 +853,7 @@ export async function importStudents(rows) {
   failed.sort((a, b) => a.index - b.index);
   logger.info(
     `Student import finished: created=${created.length} failed=${failed.length} total=${list.length}` +
+      (orphansCleared ? ` orphansCleared=${orphansCleared}` : '') +
       (failed.length
         ? ` | sample: ${failed
             .slice(0, 5)
@@ -783,7 +871,7 @@ export async function importStudents(rows) {
           classesSync.classesAdded ? `, ${classesSync.classesAdded} class(es) auto-created` : ''
         }.`,
         link: '/admin/students',
-        meta: { created: created.length, failed: failed.length },
+        meta: { created: created.length, failed: failed.length, orphansCleared },
       })
     );
   }
@@ -794,6 +882,7 @@ export async function importStudents(rows) {
     total: list.length,
     classes: classesSync,
     structure: structureSync,
+    orphansCleared,
   };
 }
 

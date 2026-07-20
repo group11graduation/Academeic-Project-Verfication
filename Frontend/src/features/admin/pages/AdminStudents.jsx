@@ -663,6 +663,9 @@ const AdminStudents = () => {
                                     <span>
                                         Created {importResult.created?.length || 0} / Failed{' '}
                                         {importResult.failed?.length || 0}
+                                        {importResult.orphansCleared > 0
+                                            ? ` · cleared ${importResult.orphansCleared} orphan login(s)`
+                                            : ''}
                                         {importResult.classes?.classesAdded > 0
                                             ? ` · ${importResult.classes.classesAdded} class(es) auto-created (${(importResult.classes.codes || []).join(', ')})`
                                             : ''}
