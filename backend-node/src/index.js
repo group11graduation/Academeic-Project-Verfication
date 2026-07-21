@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { connectDb } from './config/db.js';
+import { buildCorsOptions } from './config/cors.js';
 import { logger } from './config/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { submissionErrorHandler } from './middleware/submissionErrorHandler.js';
@@ -22,31 +23,7 @@ validateAuthSecretsAtStartup();
 
 const app = express();
 
-const defaultDevOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-];
-const configuredOrigins = String(process.env.CORS_ORIGINS || '')
-  .split(',')
-  .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
-  .filter(Boolean);
-const corsOrigins = [...new Set([...defaultDevOrigins, ...configuredOrigins])];
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow non-browser and same-origin requests that may not send Origin.
-    if (!origin) return callback(null, true);
-    if (corsOrigins.includes(origin)) return callback(null, true);
-    // Dev-friendly fallback: allow localhost / 127.0.0.1 from any port.
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return callback(null, true);
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
+const corsOptions = buildCorsOptions();
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
