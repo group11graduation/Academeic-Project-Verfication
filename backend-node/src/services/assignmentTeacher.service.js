@@ -151,6 +151,36 @@ export function teacherCanUseSubject(classDoc, teacherAssignment, subjectId) {
   return false;
 }
 
+const CLASS_REVIEW_ALERT_STATUSES = [
+  'ai_rejected_same_semester',
+  'ai_flagged_previous_semester',
+  'requirements_rejected',
+  'pending_teacher_approval',
+];
+
+async function listClassReviewAlerts(assignmentIds) {
+  if (!assignmentIds?.length) return [];
+  const rows = await Proposal.find({
+    assignment: { $in: assignmentIds },
+    status: { $in: CLASS_REVIEW_ALERT_STATUSES },
+  })
+    .populate('submittedBy', 'name email')
+    .populate('assignment', 'title')
+    .sort({ updatedAt: -1 })
+    .limit(50)
+    .lean();
+
+  return rows.map((p) => ({
+    proposalId: p._id,
+    assignmentId: p.assignment?._id || p.assignment,
+    assignmentTitle: p.assignment?.title || 'Assignment',
+    studentName: p.submittedBy?.name || 'Student',
+    proposalTitle: p.title || '',
+    status: p.status,
+    updatedAt: p.updatedAt,
+  }));
+}
+
 export async function listClassesForTeacher(teacherId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
   const classes = await Class.find({ 'teacherAssignments.teacher': tid }).lean();
@@ -196,8 +226,9 @@ export async function getClassDetailsForTeacher(teacherId, classCodeOrId) {
   let projectsSubmitted = 0;
   let similarityAlerts = 0;
   let pendingReviews = 0;
+  let reviewAlerts = [];
   if (assignmentIds.length > 0) {
-    [projectsSubmitted, similarityAlerts, pendingReviews] = await Promise.all([
+    [projectsSubmitted, similarityAlerts, pendingReviews, reviewAlerts] = await Promise.all([
       ProjectSubmission.countDocuments({ assignment: { $in: assignmentIds } }),
       Proposal.countDocuments({
         assignment: { $in: assignmentIds },
@@ -207,6 +238,7 @@ export async function getClassDetailsForTeacher(teacherId, classCodeOrId) {
         assignment: { $in: assignmentIds },
         status: 'pending_teacher_approval',
       }),
+      listClassReviewAlerts(assignmentIds),
     ]);
   }
 
@@ -226,6 +258,8 @@ export async function getClassDetailsForTeacher(teacherId, classCodeOrId) {
     projectsSubmitted,
     similarityAlerts,
     pendingReviews,
+    reviewAlerts,
+    reviewAlertCount: reviewAlerts.length,
     semesterLabel,
     academicYearLabel,
     timing:
@@ -729,10 +763,20 @@ export async function getTeacherDashboardStats(teacherId) {
           $or: [{ class: cls._id }, { classes: cls._id }],
         })
       ).distinct('_id');
-      const pending = classAssignmentIds.length
-        ? await Proposal.countDocuments({ assignment: { $in: classAssignmentIds }, status: 'pending_teacher_approval' })
-        : 0;
-      return { ...cls, pending };
+      const [pending, similarityAlerts, reviewAlertCount] = classAssignmentIds.length
+        ? await Promise.all([
+            Proposal.countDocuments({ assignment: { $in: classAssignmentIds }, status: 'pending_teacher_approval' }),
+            Proposal.countDocuments({
+              assignment: { $in: classAssignmentIds },
+              status: { $in: ['ai_rejected_same_semester', 'ai_flagged_previous_semester', 'requirements_rejected'] },
+            }),
+            Proposal.countDocuments({
+              assignment: { $in: classAssignmentIds },
+              status: { $in: CLASS_REVIEW_ALERT_STATUSES },
+            }),
+          ])
+        : [0, 0, 0];
+      return { ...cls, pending, similarityAlerts, reviewAlertCount };
     })
   );
 

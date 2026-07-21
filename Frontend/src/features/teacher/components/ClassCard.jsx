@@ -33,13 +33,15 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
                 ) : (
                     <div className="bg-red-50 dark:bg-rose-500/10 rounded-lg p-2 flex items-center gap-2 transition-colors">
                         <AlertTriangle className="h-3.5 w-3.5 text-red-600 dark:text-rose-500 shrink-0" />
-                        <span className="text-red-700 dark:text-rose-500 text-[10px] font-black transition-colors">{alerts} High-similarity alerts</span>
+                        <span className="text-red-700 dark:text-rose-500 text-[10px] font-black transition-colors">
+                            {alerts} review alert{alerts === 1 ? '' : 's'}
+                        </span>
                     </div>
                 )}
             </div>
             <div className="p-3 pt-0 mt-auto">
                 {status === 'alert' && showReviewButton ? (
-                    <Link to={`/teacher/classes/${code}`} className="block w-full text-center py-2 bg-[#1D68E3] hover:bg-blue-600 text-white font-black text-[10px] uppercase tracking-wider rounded-lg transition-all active:scale-[0.98]">
+                    <Link to={`/teacher/classes/${code}?focus=alerts`} className="block w-full text-center py-2 bg-[#1D68E3] hover:bg-blue-600 text-white font-black text-[10px] uppercase tracking-wider rounded-lg transition-all active:scale-[0.98]">
                         Review Alerts
                     </Link>
                 ) : (

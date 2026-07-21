@@ -78,9 +78,9 @@ const TeacherDashboard = () => {
                                     section={cls.section}
                                     students={cls.students}
                                     pending={cls.pending}
-                                    status={cls.pending > 0 ? 'alert' : 'ok'}
-                                    alerts={cls.pending}
-                                    showReviewButton={cls.pending > 0}
+                                    status={(cls.reviewAlertCount ?? cls.pending ?? 0) > 0 ? 'alert' : 'ok'}
+                                    alerts={cls.reviewAlertCount ?? cls.pending ?? 0}
+                                    showReviewButton={(cls.reviewAlertCount ?? cls.pending ?? 0) > 0}
                                 />
                             ))
                         ) : (

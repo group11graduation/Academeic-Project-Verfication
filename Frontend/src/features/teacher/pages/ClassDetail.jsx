@@ -16,16 +16,26 @@ import {
     Mail,
     ClipboardList,
     CheckCircle2,
+    Hash,
+    ExternalLink,
 } from 'lucide-react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import teacherService from '../../../services/teacherService';
 import { getApiOrigin } from '../../../lib/api';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
+const ALERT_STATUS_LABELS = {
+    ai_rejected_same_semester: 'AI rejected (same semester)',
+    ai_flagged_previous_semester: 'AI warning (legacy similarity)',
+    requirements_rejected: 'Requirements rejected',
+    pending_teacher_approval: 'Pending your approval',
+};
+
 const ClassDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [classData, setClassData] = useState(null);
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -63,6 +73,14 @@ const ClassDetail = () => {
             cancelled = true;
         };
     }, [id]);
+
+    useEffect(() => {
+        if (loading || searchParams.get('focus') !== 'alerts') return;
+        const el = document.getElementById('review-alerts');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [loading, searchParams]);
+
+    const reviewAlerts = classData?.reviewAlerts || [];
 
     const filteredStudents = useMemo(() => {
         const list = !studentSearch.trim()
@@ -224,6 +242,47 @@ const ClassDetail = () => {
                     />
                 </div>
 
+                <section id="review-alerts" className="rounded-xl border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] p-4 mb-4">
+                    <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Review alerts</h2>
+                    {reviewAlerts.length > 0 ? (
+                        <div className="space-y-2">
+                            {reviewAlerts.map((alert) => (
+                                <Link
+                                    key={alert.proposalId}
+                                    to={`/teacher/assignments/${alert.assignmentId}/proposals/${alert.proposalId}`}
+                                    className="flex items-center justify-between gap-3 rounded-lg border border-rose-100 dark:border-rose-500/20 bg-rose-50/50 dark:bg-rose-500/5 px-3 py-2.5 hover:border-rose-200 dark:hover:border-rose-500/40 transition-colors"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 truncate">
+                                            {alert.studentName}
+                                            {alert.proposalTitle ? ` — ${alert.proposalTitle}` : ''}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                            {alert.assignmentTitle}
+                                        </p>
+                                        <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-0.5">
+                                            {ALERT_STATUS_LABELS[alert.status] || alert.status}
+                                        </p>
+                                    </div>
+                                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#1D68E3]">
+                                        Review
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                    </span>
+                                </Link>
+                            ))}
+                        </div>
+                    ) : (classData.similarityAlerts ?? 0) > 0 || (classData.pendingReviews ?? 0) > 0 ? (
+                        <p className="text-[12px] text-rose-700 dark:text-rose-400 font-medium">
+                            Alerts are recorded for this class but no open proposal rows were returned. Check your assignments list.
+                        </p>
+                    ) : (
+                        <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                            <p className="text-[12px] font-medium">No proposals need review for this class right now.</p>
+                        </div>
+                    )}
+                </section>
+
                 {/* Students on this page */}
                 <section className="rounded-xl border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] shadow-sm overflow-hidden mb-4">
                     <div className="p-4 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -383,21 +442,6 @@ const ClassDetail = () => {
                             </span>
                         </Link>
                     </div>
-                </section>
-
-                <section className="rounded-xl border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] p-4">
-                    <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Alerts</h2>
-                    {(classData.similarityAlerts ?? 0) > 0 ? (
-                        <p className="text-[12px] text-rose-700 dark:text-rose-400 font-medium">
-                            {classData.similarityAlerts} proposal(s) flagged for similarity or requirement issues across
-                            assignments for this class. Review them from your assignments and proposals workflow.
-                        </p>
-                    ) : (
-                        <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                            <CheckCircle2 className="h-4 w-4 shrink-0" />
-                            <p className="text-[12px] font-medium">No similarity or requirement alerts for this class&apos;s assignments.</p>
-                        </div>
-                    )}
                 </section>
             </main>
         </div>
