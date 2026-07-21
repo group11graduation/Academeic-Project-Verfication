@@ -22,7 +22,6 @@ const AssignmentCreate = () => {
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [catalogIndex, setCatalogIndex] = useState(0);
     const [subjectId, setSubjectId] = useState('');
     const [selectedClassIds, setSelectedClassIds] = useState([]);
     const [assignmentType, setAssignmentType] = useState('normal');
@@ -37,7 +36,6 @@ const AssignmentCreate = () => {
     const [requirementsFile, setRequirementsFile] = useState(null);
     const [formError, setFormError] = useState('');
     const requirementsFileInputRef = useRef(null);
-    const editInitialCatalogIndex = useRef(null);
     const initialDeadlinesRef = useRef({
         proposal: null,
         project: null,
@@ -105,18 +103,6 @@ const AssignmentCreate = () => {
                     const a = aRes.data;
                     const type = String(a.assignmentType || 'normal');
                     const hasFile = Boolean(a.assignmentFile);
-                    const semId = String(a.semester?._id || a.semester || '');
-                    const primaryClassId = String(a.class?._id || a.classes?.[0]?._id || '');
-
-                    const idx = rows.findIndex(
-                        (row) =>
-                            String(row.class?._id) === primaryClassId &&
-                            String(row.semester?._id || row.semester || '') === semId
-                    );
-                    if (idx >= 0) {
-                        setCatalogIndex(idx);
-                        editInitialCatalogIndex.current = idx;
-                    }
 
                     setExistingAssignment(a);
                     setSubjectId(String(a.subject?._id || ''));
@@ -160,8 +146,15 @@ const AssignmentCreate = () => {
                               : []
                     );
                     setFormPopulated(true);
-                } else if (rows.length && rows[0].subjects?.length) {
-                    setSubjectId(rows[0].subjects[0]._id);
+                } else {
+                    const subjectMap = new Map();
+                    for (const row of rows) {
+                        for (const subject of row.subjects || []) {
+                            subjectMap.set(String(subject._id), subject);
+                        }
+                    }
+                    const firstSubject = [...subjectMap.values()][0];
+                    if (firstSubject) setSubjectId(firstSubject._id);
                 }
             } catch (err) {
                 if (!cancelled) setFormError(err.response?.data?.message || 'Failed to load assignment form.');
@@ -174,42 +167,33 @@ const AssignmentCreate = () => {
         };
     }, [editId, isEdit]);
 
-    const selectedCatalogRow = catalog[catalogIndex] || null;
-
-    const termCatalogRows = useMemo(() => {
-        if (!selectedCatalogRow) return [];
-        const semesterId = String(selectedCatalogRow?.semester?._id || selectedCatalogRow?.semester || '');
-        const academicYearId = String(selectedCatalogRow?.academicYear?._id || selectedCatalogRow?.academicYear || '');
-        return catalog.filter((row) => {
-            const sameSemester = String(row?.semester?._id || row?.semester || '') === semesterId;
-            const sameAcademicYear = String(row?.academicYear?._id || row?.academicYear || '') === academicYearId;
-            return sameSemester && sameAcademicYear;
-        });
-    }, [catalog, selectedCatalogRow]);
-
     const availableSubjects = useMemo(() => {
         const map = new Map();
-        for (const row of termCatalogRows) {
+        for (const row of catalog) {
             for (const subject of row.subjects || []) {
                 map.set(String(subject._id), subject);
             }
         }
         return [...map.values()];
-    }, [termCatalogRows]);
+    }, [catalog]);
 
-    useEffect(() => {
-        const row = catalog[catalogIndex];
-        if (isEdit && editInitialCatalogIndex.current === catalogIndex) return;
-        if (availableSubjects.length) {
-            setSubjectId((prev) =>
-                availableSubjects.some((s) => String(s._id) === String(prev)) ? prev : availableSubjects[0]._id
-            );
-        } else if (row?.subjects?.length) {
-            setSubjectId((prev) => (row.subjects.some((s) => s._id === prev) ? prev : row.subjects[0]._id));
-        } else if (!isEdit) {
-            setSubjectId('');
-        }
-    }, [catalogIndex, catalog, availableSubjects, isEdit]);
+    const compatibleClassOptions = useMemo(() => {
+        if (!subjectId) return [];
+        return catalog.filter((row) =>
+            (row.subjects || []).some((s) => String(s._id) === String(subjectId))
+        );
+    }, [catalog, subjectId]);
+
+    const primaryCatalogRow = useMemo(() => {
+        if (!selectedClassIds.length) return null;
+        return catalog.find((row) => String(row.class?._id) === String(selectedClassIds[0])) || null;
+    }, [catalog, selectedClassIds]);
+
+    const formatClassLabel = (row) => {
+        const semester = row.semester?.name || 'Semester';
+        const year = row.academicYear?.label || 'Year';
+        return `${row.class?.code || row.class?.name} — ${row.class?.name || 'Class'} (${semester}, ${year})`;
+    };
 
     const selectedSubject = useMemo(() => {
         if (!subjectId) return null;
@@ -221,22 +205,13 @@ const AssignmentCreate = () => {
         return null;
     }, [subjectId, availableSubjects, existingAssignment]);
 
-    const compatibleClassOptions = useMemo(() => {
-        if (!selectedCatalogRow || !subjectId) return [];
-        return termCatalogRows.filter((row) =>
-            (row?.subjects || []).some((s) => String(s._id) === String(subjectId))
-        );
-    }, [termCatalogRows, selectedCatalogRow, subjectId]);
-
     useEffect(() => {
+        if (isEdit && !formPopulated) return;
         setSelectedClassIds((prev) => {
             const validIds = compatibleClassOptions.map((row) => String(row.class?._id || ''));
-            const kept = prev.filter((id) => validIds.includes(String(id)));
-            if (kept.length) return kept;
-            const defaultId = selectedCatalogRow?.class?._id ? [String(selectedCatalogRow.class._id)] : [];
-            return defaultId.filter((id) => validIds.includes(id));
+            return prev.filter((id) => validIds.includes(String(id)));
         });
-    }, [compatibleClassOptions, selectedCatalogRow]);
+    }, [compatibleClassOptions, isEdit, formPopulated]);
 
     const handleToggleClass = (classId) => {
         if (classAssignmentMode === 'single') {
@@ -255,12 +230,36 @@ const AssignmentCreate = () => {
         if (requirementsFileInputRef.current) requirementsFileInputRef.current.value = '';
     };
 
+    const handleSubjectChange = (nextSubjectId) => {
+        setSubjectId(nextSubjectId);
+        if (!isEdit) setSelectedClassIds([]);
+    };
+
+    const validateSelectedClassesTerm = () => {
+        if (selectedClassIds.length <= 1) return '';
+        const rows = selectedClassIds
+            .map((classId) => catalog.find((row) => String(row.class?._id) === String(classId)))
+            .filter(Boolean);
+        const semesters = new Set(rows.map((row) => String(row.semester?._id || row.semester || '')));
+        const academicYears = new Set(rows.map((row) => String(row.academicYear?._id || row.academicYear || '')));
+        if (semesters.size > 1) {
+            return 'All selected classes must be in the same semester.';
+        }
+        if (academicYears.size > 1) {
+            return 'All selected classes must belong to the same academic year.';
+        }
+        return '';
+    };
+
     const handleCreate = async (e) => {
         e.preventDefault();
         setFormError('');
-        const row = selectedCatalogRow;
-        if (!row || !subjectId) return setFormError('Select class context and subject.');
+        const row = primaryCatalogRow;
+        if (!subjectId) return setFormError('Select a subject.');
         if (selectedClassIds.length === 0) return setFormError('Select at least one class.');
+        if (!row) return setFormError('Select a valid class.');
+        const termError = validateSelectedClassesTerm();
+        if (termError) return setFormError(termError);
         if (!title.trim()) return setFormError('Title is required.');
 
         const requirementsError = validateAssignmentRequirementsForm({
@@ -434,30 +433,15 @@ const AssignmentCreate = () => {
                         ) : null}
 
                         <div>
-                            <label className={Z_LABEL}>Base class & term</label>
-                            <select
-                                value={catalogIndex}
-                                onChange={(e) => setCatalogIndex(Number(e.target.value))}
-                                className={Z_INPUT}
-                            >
-                                {catalog.map((row, i) => (
-                                    <option key={i} value={i}>
-                                        {row.class?.code} - {row.semester?.name || 'Sem'} ({row.academicYear?.label || 'Year'})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
                             <label className={Z_LABEL}>Subject *</label>
                             <select
                                 value={subjectId}
-                                onChange={(e) => setSubjectId(e.target.value)}
+                                onChange={(e) => handleSubjectChange(e.target.value)}
                                 required
                                 className={Z_INPUT}
                             >
                                 {availableSubjects.length === 0 && (
-                                    <option value="">No subjects linked to your classes this term</option>
+                                    <option value="">No subjects linked to your classes</option>
                                 )}
                                 {availableSubjects.map((s) => (
                                     <option key={s._id} value={s._id}>
@@ -465,11 +449,9 @@ const AssignmentCreate = () => {
                                     </option>
                                 ))}
                             </select>
-                            {availableSubjects.length > 1 && (
-                                <p className="mt-2 text-xs text-slate-500">
-                                    Subjects you teach this term. The class list below updates when you change subject.
-                                </p>
-                            )}
+                            <p className="mt-2 text-xs text-slate-500">
+                                Pick a subject first, then choose class assignment mode and your class(es) below.
+                            </p>
                         </div>
 
                         <div>
@@ -493,11 +475,9 @@ const AssignmentCreate = () => {
                                     Students upload one file per assignment. Use the fields below for what they must submit; other proposal/project options are hidden.
                                 </p>
 
-                                {compatibleClassOptions.length > 1 ? (
+                                {compatibleClassOptions.length > 0 ? (
                                     <div>
-                                        <label className={Z_LABEL}>
-                                            Class for this assignment *
-                                        </label>
+                                        <label className={Z_LABEL}>Class for this assignment *</label>
                                         <select
                                             value={selectedClassIds[0] || ''}
                                             onChange={(e) => setSelectedClassIds(e.target.value ? [e.target.value] : [])}
@@ -509,22 +489,15 @@ const AssignmentCreate = () => {
                                                 const classId = String(row.class?._id || '');
                                                 return (
                                                     <option key={classId} value={classId}>
-                                                        {row.class?.code || row.class?.name} — {row.class?.name || 'Class'}
+                                                        {formatClassLabel(row)}
                                                     </option>
                                                 );
                                             })}
                                         </select>
                                     </div>
-                                ) : compatibleClassOptions.length === 1 ? (
-                                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                        Class:{' '}
-                                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                                            {compatibleClassOptions[0].class?.code} — {compatibleClassOptions[0].class?.name}
-                                        </span>
-                                    </p>
                                 ) : (
                                     <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                                        No class matches this subject and term. Change base class or subject above.
+                                        No class teaches this subject. Choose another subject above.
                                     </p>
                                 )}
 
@@ -626,31 +599,48 @@ const AssignmentCreate = () => {
 
                                 <div>
                                     <label className={Z_LABEL}>Classes for this project *</label>
-                                    <div className="rounded-lg border border-slate-200 dark:border-white/10 p-2.5 space-y-1.5 bg-white dark:bg-[#0B1120]">
-                                        {compatibleClassOptions.map((row) => {
-                                            const classId = String(row.class?._id || '');
-                                            const checked = selectedClassIds.includes(classId);
-                                            return (
-                                                <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-slate-700 dark:text-slate-200">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={checked}
-                                                        onChange={() => handleToggleClass(classId)}
-                                                    />
-                                                    <span>
-                                                        {row.class?.code || row.class?.name} - {row.class?.name || 'Class'}
-                                                    </span>
-                                                </label>
-                                            );
-                                        })}
-                                        {compatibleClassOptions.length === 0 && (
-                                            <p className="text-sm font-medium text-slate-500">No compatible classes found for the selected subject and term.</p>
-                                        )}
-                                    </div>
+                                    {classAssignmentMode === 'single' ? (
+                                        <select
+                                            value={selectedClassIds[0] || ''}
+                                            onChange={(e) => setSelectedClassIds(e.target.value ? [e.target.value] : [])}
+                                            required
+                                            className={Z_INPUT}
+                                        >
+                                            <option value="">Select a class…</option>
+                                            {compatibleClassOptions.map((row) => {
+                                                const classId = String(row.class?._id || '');
+                                                return (
+                                                    <option key={classId} value={classId}>
+                                                        {formatClassLabel(row)}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    ) : (
+                                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-2.5 space-y-1.5 bg-white dark:bg-[#0B1120]">
+                                            {compatibleClassOptions.map((row) => {
+                                                const classId = String(row.class?._id || '');
+                                                const checked = selectedClassIds.includes(classId);
+                                                return (
+                                                    <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-slate-700 dark:text-slate-200">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => handleToggleClass(classId)}
+                                                        />
+                                                        <span>{formatClassLabel(row)}</span>
+                                                    </label>
+                                                );
+                                            })}
+                                            {compatibleClassOptions.length === 0 && (
+                                                <p className="text-sm font-medium text-slate-500">No classes teach this subject.</p>
+                                            )}
+                                        </div>
+                                    )}
                                     <p className="mt-2 text-xs text-slate-500">
                                         {classAssignmentMode === 'single'
-                                            ? 'Single class mode: choose one class only.'
-                                            : `Multiple class mode: ${compatibleClassOptions.length} class${compatibleClassOptions.length === 1 ? '' : 'es'} teach this subject this term — select one or more.`}
+                                            ? 'Single class mode: pick one class from the dropdown.'
+                                            : `Multiple class mode: select every class that should receive this assignment (same semester & year).`}
                                     </p>
                                 </div>
 
