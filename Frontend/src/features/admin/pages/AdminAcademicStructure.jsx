@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, Check, Edit2, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Building2, Check, ChevronDown, ChevronRight, Edit2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { adminAcademicService } from '../../../services/adminAcademicService';
 import { appConfirm, appError, appWarning } from '../../../lib/appDialog';
 
@@ -11,6 +11,36 @@ const AdminAcademicStructure = () => {
     const [departmentDrafts, setDepartmentDrafts] = useState({});
     const [editingFaculty, setEditingFaculty] = useState(null);
     const [editingDepartment, setEditingDepartment] = useState(null);
+    /** Faculty names that are expanded (show departments). Empty = all collapsed. */
+    const [expandedFaculties, setExpandedFaculties] = useState(() => new Set());
+
+    const isFacultyExpanded = (name) => expandedFaculties.has(name);
+
+    const toggleFaculty = (name) => {
+        setExpandedFaculties((prev) => {
+            const next = new Set(prev);
+            if (next.has(name)) next.delete(name);
+            else next.add(name);
+            return next;
+        });
+    };
+
+    const expandFaculty = (name) => {
+        setExpandedFaculties((prev) => {
+            if (prev.has(name)) return prev;
+            const next = new Set(prev);
+            next.add(name);
+            return next;
+        });
+    };
+
+    const expandAll = () => {
+        setExpandedFaculties(new Set((structure.faculties || []).map((f) => f.name)));
+    };
+
+    const collapseAll = () => {
+        setExpandedFaculties(new Set());
+    };
 
     const loadStructure = async () => {
         const res = await adminAcademicService.getAcademicStructure();
@@ -59,6 +89,7 @@ const AdminAcademicStructure = () => {
             faculties: [...(structure.faculties || []), { name, departments: [] }],
         });
         setNewFacultyName('');
+        expandFaculty(name);
     };
 
     const handleAddDepartment = async (facultyName) => {
@@ -106,6 +137,13 @@ const AdminAcademicStructure = () => {
                 delete nextDrafts[oldName];
             }
             return nextDrafts;
+        });
+        setExpandedFaculties((prev) => {
+            if (!prev.has(oldName)) return prev;
+            const next = new Set(prev);
+            next.delete(oldName);
+            next.add(trimmed);
+            return next;
         });
         setEditingFaculty(null);
     };
@@ -156,6 +194,12 @@ const AdminAcademicStructure = () => {
             const nextDrafts = { ...prev };
             delete nextDrafts[facultyName];
             return nextDrafts;
+        });
+        setExpandedFaculties((prev) => {
+            if (!prev.has(facultyName)) return prev;
+            const next = new Set(prev);
+            next.delete(facultyName);
+            return next;
         });
         if (editingFaculty?.oldName === facultyName) setEditingFaculty(null);
         if (editingDepartment?.facultyName === facultyName) setEditingDepartment(null);
@@ -237,10 +281,33 @@ const AdminAcademicStructure = () => {
                     </button>
                 </div>
 
+                {(structure.faculties || []).length > 0 && (
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            onClick={expandAll}
+                            className="text-[10px] font-bold uppercase tracking-wider text-[#1e56e3] hover:underline"
+                        >
+                            Expand all
+                        </button>
+                        <span className="text-slate-300">·</span>
+                        <button
+                            type="button"
+                            onClick={collapseAll}
+                            className="text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:underline"
+                        >
+                            Collapse all
+                        </button>
+                    </div>
+                )}
+
                 <div className="space-y-2">
-                    {(structure.faculties || []).map((f) => (
-                        <div key={f.name} className="rounded-lg border border-slate-200 p-3 dark:border-white/10">
-                            <div className="flex items-center justify-between gap-2">
+                    {(structure.faculties || []).map((f) => {
+                        const expanded = isFacultyExpanded(f.name);
+                        const deptCount = (f.departments || []).length;
+                        return (
+                        <div key={f.name} className="rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden">
+                            <div className="flex items-center justify-between gap-2 p-3 bg-slate-50/80 dark:bg-[#0f172a]/40">
                                 {editingFaculty?.oldName === f.name ? (
                                     <div className="flex flex-1 items-center gap-2">
                                         <input
@@ -268,7 +335,24 @@ const AdminAcademicStructure = () => {
                                     </div>
                                 ) : (
                                     <>
-                                        <h3 className="text-[13px] font-black text-slate-900 dark:text-slate-100">{f.name}</h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleFaculty(f.name)}
+                                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                            aria-expanded={expanded}
+                                        >
+                                            {expanded ? (
+                                                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
+                                            ) : (
+                                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+                                            )}
+                                            <h3 className="truncate text-[13px] font-black text-slate-900 dark:text-slate-100">
+                                                {f.name}
+                                            </h3>
+                                            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-white/10">
+                                                {deptCount} dept{deptCount === 1 ? '' : 's'}
+                                            </span>
+                                        </button>
                                         <div className="flex items-center gap-1">
                                             <button
                                                 type="button"
@@ -291,7 +375,10 @@ const AdminAcademicStructure = () => {
                                     </>
                                 )}
                             </div>
-                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+
+                            {expanded && (
+                            <div className="space-y-2 border-t border-slate-200 p-3 dark:border-white/10">
+                            <div className="flex flex-wrap gap-1.5">
                                 {(f.departments || []).map((d) => {
                                     const isEditing =
                                         editingDepartment?.facultyName === f.name && editingDepartment?.oldName === d;
@@ -354,7 +441,7 @@ const AdminAcademicStructure = () => {
                                     <span className="text-[11px] text-slate-500">No departments yet.</span>
                                 )}
                             </div>
-                            <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
                                 <input
                                     value={departmentDrafts[f.name] || ''}
                                     onChange={(e) => setDepartmentDrafts((prev) => ({ ...prev, [f.name]: e.target.value }))}
@@ -376,8 +463,11 @@ const AdminAcademicStructure = () => {
                                     Add Department
                                 </button>
                             </div>
+                            </div>
+                            )}
                         </div>
-                    ))}
+                        );
+                    })}
                     {(structure.faculties || []).length === 0 && (
                         <p className="text-[11px] text-slate-500">
                             No faculties yet. Add your first faculty to start structure filtering.
