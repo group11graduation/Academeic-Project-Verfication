@@ -174,23 +174,6 @@ export async function listTeachers() {
   return profiles.map((p) => formatTeacher(p));
 }
 
-export async function getTeacherById(id) {
-  if (!id) return null;
-  let profile = await TeacherProfile.findById(id).populate('user');
-  if (!profile) {
-    const sid = String(id).trim();
-    profile = await TeacherProfile.findOne({
-      $or: [{ employeeId: sid }, { employeeId: sid.toUpperCase() }],
-    }).populate('user');
-  }
-  if (!profile) return null;
-  return formatTeacher(profile);
-}
-
-async function findTeacherProfileByUserId(userId) {
-  return TeacherProfile.findOne({ user: userId }).populate('user');
-}
-
 function formatTeacher(profile) {
   const u = profile.user;
   if (!u) return null;
@@ -218,6 +201,91 @@ function formatTeacher(profile) {
     handoffPasscode: handoff,
     passcode: handoff,
   };
+}
+
+/** Classes where this teacher is assigned via Class.teacherAssignments (source of truth). */
+async function loadTeacherAssignedClasses(userId, legacyCodes = []) {
+  const tid = String(userId || '');
+  if (!tid) return [];
+
+  const rows = await Class.find({ 'teacherAssignments.teacher': userId })
+    .populate('teacherAssignments.subjects', 'name code')
+    .lean();
+
+  const byCode = new Map();
+
+  for (const cls of rows) {
+    const assignment = (cls.teacherAssignments || []).find((a) => String(a.teacher) === tid);
+    if (!assignment) continue;
+
+    const subjects = (assignment.subjects || [])
+      .filter((s) => s && s.name)
+      .map((s) => ({ _id: s._id, name: s.name, code: s.code || '' }));
+
+    const studentCount = await StudentProfile.countDocuments({ classCode: cls.code });
+
+    byCode.set(cls.code, {
+      _id: cls._id,
+      code: cls.code,
+      name: cls.name,
+      title: cls.name,
+      faculty: cls.faculty || '',
+      department: cls.department || '',
+      students: studentCount,
+      subjects,
+      subjectLabels: subjects.map((s) => `${s.name} (${s.code})`).join(', '),
+    });
+  }
+
+  const missingCodes = (legacyCodes || [])
+    .map((c) => String(c || '').trim().toUpperCase())
+    .filter((code) => code && !byCode.has(code));
+
+  if (missingCodes.length) {
+    const legacyRows = await Class.find({ code: { $in: missingCodes } }).lean();
+    for (const cls of legacyRows) {
+      const studentCount = await StudentProfile.countDocuments({ classCode: cls.code });
+      byCode.set(cls.code, {
+        _id: cls._id,
+        code: cls.code,
+        name: cls.name,
+        title: cls.name,
+        faculty: cls.faculty || '',
+        department: cls.department || '',
+        students: studentCount,
+        subjects: [],
+        subjectLabels: '',
+      });
+    }
+  }
+
+  return [...byCode.values()].sort((a, b) =>
+    String(a.code || '').localeCompare(String(b.code || ''), undefined, { sensitivity: 'base' })
+  );
+}
+
+export async function getTeacherById(id) {
+  if (!id) return null;
+  let profile = await TeacherProfile.findById(id).populate('user');
+  if (!profile) {
+    const sid = String(id).trim();
+    profile = await TeacherProfile.findOne({
+      $or: [{ employeeId: sid }, { employeeId: sid.toUpperCase() }],
+    }).populate('user');
+  }
+  if (!profile) return null;
+  const base = formatTeacher(profile);
+  const classes = await loadTeacherAssignedClasses(profile.user._id, profile.assignedClassCodes || []);
+  return {
+    ...base,
+    classes,
+    assignedClasses: classes.map((c) => c.code),
+    assignedClassCodes: classes.map((c) => c.code),
+  };
+}
+
+async function findTeacherProfileByUserId(userId) {
+  return TeacherProfile.findOne({ user: userId }).populate('user');
 }
 
 export async function createTeacher(body) {

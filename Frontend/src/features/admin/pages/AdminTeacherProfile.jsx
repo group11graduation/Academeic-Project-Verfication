@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { appError } from '../../../lib/appDialog';
 import {
     ArrowLeft, MapPin, Mail, MessageSquare, Edit2,
@@ -334,10 +334,14 @@ const AdminTeacherProfile = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {teacher.classes && teacher.classes.length > 0 ? (
-                                teacher.classes.map((cls, idx) => (
-                                    <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 hover:shadow-md transition-shadow group cursor-pointer relative overflow-hidden bg-white dark:bg-slate-800/50">
-                                        {/* subtle decorative blur */}
-                                        <div className="absolute -right-8 -top-8 w-32 h-32 bg-slate-50 dark:bg-slate-700/30 rounded-full blur-2xl group-hover:bg-blue-50/50 dark:group-hover:bg-blue-500/10 transition-colors"></div>
+                                teacher.classes.map((cls) => (
+                                    <Link
+                                        key={cls._id || cls.code}
+                                        to={`/admin/classes/${encodeURIComponent(cls.code)}`}
+                                        state={{ from: location.pathname }}
+                                        className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 hover:shadow-md hover:border-[#1D68E3]/40 transition-all group relative overflow-hidden bg-white dark:bg-slate-800/50"
+                                    >
+                                        <div className="absolute -right-8 -top-8 w-32 h-32 bg-slate-50 dark:bg-slate-700/30 rounded-full blur-2xl group-hover:bg-blue-50/50 dark:group-hover:bg-blue-500/10 transition-colors" />
 
                                         <div className="relative z-10">
                                             <div className="flex items-center justify-between mb-2">
@@ -346,40 +350,52 @@ const AdminTeacherProfile = () => {
                                                 </span>
                                                 <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 transition-colors">
                                                     <Users className="h-3 w-3" />
-                                                    {cls.students} Students
+                                                    {cls.students ?? 0} Student{(cls.students ?? 0) === 1 ? '' : 's'}
                                                 </span>
                                             </div>
 
                                             <h4 className="text-[13px] font-bold text-[#0F172A] dark:text-white mb-1 leading-tight min-h-[32px] transition-colors">
-                                                {cls.title}
+                                                {cls.name || cls.title || cls.code}
                                             </h4>
-                                            <p className="text-[12px] font-medium text-slate-400 dark:text-slate-500 mb-3 transition-colors">
-                                                {cls.timing}
+                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-2 transition-colors">
+                                                {[cls.faculty, cls.department].filter(Boolean).join(' · ') || 'No faculty set'}
                                             </p>
 
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex -space-x-2">
-                                                    {cls.avatars.map((av, i) => (
-                                                        <div key={i} className={`w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 ${av} flex items-center justify-center overflow-hidden transition-colors`}>
-                                                            {/* Avatar silhouettes */}
-                                                        </div>
+                                            {(cls.subjects || []).length > 0 ? (
+                                                <div className="flex flex-wrap gap-1 mb-2">
+                                                    {cls.subjects.map((sub) => (
+                                                        <span
+                                                            key={sub._id || sub.code}
+                                                            className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[9px] font-bold text-slate-600 dark:text-slate-300"
+                                                        >
+                                                            {sub.code || sub.name}
+                                                        </span>
                                                     ))}
-                                                    <div className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400 z-10 transition-colors">
-                                                        {cls.moreStudents}
-                                                    </div>
                                                 </div>
+                                            ) : (
+                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-2 italic">
+                                                    No subjects assigned in this class yet
+                                                </p>
+                                            )}
 
-                                                <button className="w-8 h-8 flex items-center justify-center text-slate-400 group-hover:text-[#1D68E3] transition-colors">
-                                                    <ArrowRight className="h-5 w-5" />
-                                                </button>
+                                            <div className="flex items-center justify-end">
+                                                <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-[#1D68E3] transition-colors">
+                                                    View class
+                                                    <ArrowRight className="h-4 w-4" />
+                                                </span>
                                             </div>
                                         </div>
-                                    </div>
+                                    </Link>
                                 ))
                             ) : (
                                 <div className="col-span-full py-6 text-center bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 transition-colors">
                                     <BookOpen className="h-8 w-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
-                                    <p className="text-[12px] text-slate-400 dark:text-slate-500 font-medium transition-colors">No assigned classes yet.</p>
+                                    <p className="text-[12px] text-slate-400 dark:text-slate-500 font-medium transition-colors">
+                                        No assigned classes yet.
+                                    </p>
+                                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                        Assign this teacher from a class detail page (Teachers tab), or use Assign/Modify Classes.
+                                    </p>
                                 </div>
                             )}
                         </div>
