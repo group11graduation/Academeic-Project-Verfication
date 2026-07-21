@@ -21,12 +21,14 @@ export const SUBMISSION_PIPELINE_STATUSES = Object.freeze({
   ACCEPTED: 'accepted',
   FAILED_EXTRACTION: 'failed_extraction',
   TECH_AUDIT_REJECTED: 'tech_audit_rejected',
+  TECH_MISMATCH_REJECTED: 'tech_mismatch_rejected',
 });
 
 /** Recognized failure codes for API + middleware mapping. */
 export const SUBMISSION_ERROR_CODES = Object.freeze({
   FAILED_EXTRACTION: 'failed_extraction',
   TECH_AUDIT_REJECTED: 'tech_audit_rejected',
+  TECH_MISMATCH_REJECTED: 'tech_mismatch_rejected',
   RUNTIME_ERROR: 'runtime_error',
 });
 

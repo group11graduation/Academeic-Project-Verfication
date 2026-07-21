@@ -174,6 +174,7 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
   const requirementText = String(assignment?.requirementText || '').trim();
   const implicitRequiredTerms = resolveRequiredTechnologiesForProposal(assignment, assignment);
   const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
+  const expandedAllowed = expandTechFamily(canonicalAllowedTech);
 
   const proposalText = [
     payload?.title || '',
@@ -189,7 +190,7 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
   const mentionedTechnologies = detectMentionedTechnologies(proposalText);
   const disallowedMentionedTech =
     allowedTechnologies.length > 0
-      ? mentionedTechnologies.filter((t) => !canonicalAllowedTech.includes(t))
+      ? mentionedTechnologies.filter((t) => !expandedAllowed.includes(t))
       : [];
   const hasRules =
     Boolean(requirementText) ||
@@ -197,6 +198,11 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
     allowedTechnologies.length > 0 ||
     implicitRequiredTerms.length > 0;
 
+  const minChars = 80;
+  const tooShort = proposalText.replace(/\s+/g, ' ').trim().length < minChars;
+
+  // Client gate: block empty/chatty shells and wrong stack only.
+  // Meaning match (paraphrase vs teacher requirements) is decided by MiniLM on the server.
   return {
     hasRules,
     requiredKeywords,
@@ -207,11 +213,8 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
     missingAllowedTech,
     missingImplicitTerms,
     disallowedMentionedTech,
-    passed:
-      !hasRules ||
-      (missingKeywords.length === 0 &&
-        missingAllowedTech.length === 0 &&
-        missingImplicitTerms.length === 0 &&
-        disallowedMentionedTech.length === 0),
+    tooShort,
+    advisoryOnly: missingKeywords.length > 0 || missingAllowedTech.length > 0 || missingImplicitTerms.length > 0,
+    passed: !tooShort && disallowedMentionedTech.length === 0,
   };
 }

@@ -34,7 +34,7 @@ const projectSubmissionSchema = new mongoose.Schema(
     /** ZIP extract + tech-audit pipeline state for teacher preview / upload validation */
     pipelineStatus: {
       type: String,
-      enum: ['', 'accepted', 'failed_extraction', 'tech_audit_rejected'],
+      enum: ['', 'accepted', 'failed_extraction', 'tech_audit_rejected', 'tech_mismatch_rejected'],
       default: '',
     },
     pipelineUpdatedAt: { type: Date },

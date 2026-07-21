@@ -161,6 +161,7 @@ const CLASS_REVIEW_ALERT_STATUSES = [
   'ai_rejected_same_semester',
   'ai_flagged_previous_semester',
   'requirements_rejected',
+  'requirements_review',
   'pending_teacher_approval',
 ];
 

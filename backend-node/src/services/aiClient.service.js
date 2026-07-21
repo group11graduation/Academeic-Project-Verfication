@@ -15,9 +15,9 @@ function aiBaseUrl() {
 }
 
 function aiTimeoutMs(path) {
-  // Proposal analysis can be slow on first run (model download / warm-up).
+  // Proposal / requirement analysis can be slow on first run (model download / warm-up).
   const perPath =
-    path === '/analyze/proposal'
+    path === '/analyze/proposal' || path === '/analyze/requirements'
       ? process.env.AI_PROPOSAL_TIMEOUT_MS
       : process.env.AI_SERVICE_TIMEOUT_MS;
   return Number(perPath || process.env.AI_SERVICE_TIMEOUT_MS || 600000);
@@ -65,6 +65,15 @@ async function postJson(path, body) {
  */
 export async function analyzeProposalPayload(payload) {
   return postJson('/analyze/proposal', payload);
+}
+
+/**
+ * Semantic requirement gate: teacher requirement paragraphs vs full proposal text.
+ * Body: `{ requirement_text, proposal_text, requirement_sections?, required_technologies? }`.
+ * Verdict: reject | review | pass
+ */
+export async function analyzeRequirementsPayload(payload) {
+  return postJson('/analyze/requirements', payload);
 }
 
 /**

@@ -15,8 +15,13 @@ import {
 import { Enrollment } from '../models/Enrollment.js';
 import { StudentProfile } from '../models/StudentProfile.js';
 import { Class } from '../models/Class.js';
-import { analyzeProposalPayload } from './aiClient.service.js';
-import { evaluateProposalAgainstAssignmentRequirements, evaluateRequirementBlock } from './requirementCheck.service.js';
+import { analyzeProposalPayload, analyzeRequirementsPayload } from './aiClient.service.js';
+import {
+  applySemanticRequirementResult,
+  buildProposalRequirementText,
+  evaluateProposalAgainstAssignmentRequirements,
+  evaluateRequirementBlock,
+} from './requirementCheck.service.js';
 import { assertAssignmentAcceptsStudentSubmissions, assignmentAcceptsStudentSubmissions, STUDENT_SUBMISSION_BLOCKED_MESSAGE } from './assignmentRequirements.service.js';
 import { PROPOSAL_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { parseStructuredProposalText } from '../utils/proposalFileParser.js';
@@ -109,7 +114,10 @@ function notifyStudentOfAiResult(proposal, assignment, status) {
     body = `Your proposal "${proposal.title || 'Untitled'}" resembles a previous-semester project. Review AI suggestions before teacher approval.`;
   } else if (status === 'requirements_rejected') {
     title = 'Requirements not met';
-    body = `Your proposal "${proposal.title || 'Untitled'}" does not meet the assignment requirements.`;
+    body = `Your proposal "${proposal.title || 'Untitled'}" does not meaningfully meet the assignment requirements. Casual English or listing technology names alone is not enough — rewrite in clear sentences that address the teacher requirements.`;
+  } else if (status === 'requirements_review') {
+    title = 'Proposal sent for teacher requirement review';
+    body = `Your proposal "${proposal.title || 'Untitled'}" is borderline on requirements and needs a teacher decision.`;
   } else if (status === 'pending_teacher_approval') {
     title = 'Proposal sent to teacher';
     body = `Your proposal "${proposal.title || 'Untitled'}" is waiting for teacher review.`;
@@ -748,7 +756,9 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
 
     if (
       finalize &&
-      ['teacher_rejected', 'revision_required', 'requirements_rejected'].includes(previousSnapshot.status) &&
+      ['teacher_rejected', 'revision_required', 'requirements_rejected', 'requirements_review'].includes(
+        previousSnapshot.status
+      ) &&
       unchangedComparedToPrevious
     ) {
       const err = new Error(
@@ -771,12 +781,16 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     ? assignment.classes.map((c) => c._id)
     : [assignment.class?._id || assignment.class].filter(Boolean);
 
-  // Requirement pre-check gate (runs BEFORE semantic AI checks)
-  const requirementCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
+  // Requirement gate: structural hard fails first, then MiniLM meaning check (not keyword-only).
+  let requirementCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
   proposal.requirementCheckPassed = requirementCheck.passed;
   proposal.requirementCheckSummary = requirementCheck.summary;
-  proposal.requirementMissingKeywords = requirementCheck.missingKeywords;
-  proposal.requirementAllowedTechMatched = requirementCheck.matchedAllowedTech;
+  proposal.requirementMissingKeywords = requirementCheck.missingKeywords || [];
+  proposal.requirementAllowedTechMatched = requirementCheck.matchedAllowedTech || [];
+  proposal.requirementSemanticSimilarity = null;
+  proposal.requirementSemanticVerdict = '';
+  proposal.requirementNeedsTeacherReview = false;
+
   if (!requirementCheck.passed) {
     proposal.status = 'requirements_rejected';
     proposal.submittedAt = new Date();
@@ -796,6 +810,59 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       parsed: parsedFromFile,
       message: `Rejected automatically: ${requirementCheck.summary}`,
     };
+  }
+
+  if (requirementCheck.needsSemantic !== false && requirementCheck.hasAnyRule) {
+    try {
+      const corpus = requirementCheck.semanticCorpus || {};
+      const semanticRaw = await analyzeRequirementsPayload({
+        requirement_text: corpus.requirement_text || '',
+        requirement_sections: corpus.requirement_sections || [],
+        required_technologies: corpus.required_technologies || [],
+        proposal_text: buildProposalRequirementText(proposal),
+      });
+      requirementCheck = applySemanticRequirementResult(requirementCheck, semanticRaw);
+      proposal.requirementCheckPassed = requirementCheck.passed;
+      proposal.requirementCheckSummary = requirementCheck.summary;
+      proposal.requirementSemanticSimilarity = requirementCheck.semanticSimilarity ?? null;
+      proposal.requirementSemanticVerdict = requirementCheck.semanticVerdict || '';
+      proposal.requirementNeedsTeacherReview = Boolean(requirementCheck.needsReview);
+    } catch (e) {
+      // Fail closed on clear structural pass but AI down: send to teacher review, do not auto-accept.
+      requirementCheck = {
+        ...requirementCheck,
+        passed: true,
+        needsReview: true,
+        semanticVerdict: 'review',
+        summary: `Requirement meaning check unavailable (${e.message || 'AI error'}). Sent to teacher for manual review.`,
+      };
+      proposal.requirementCheckSummary = requirementCheck.summary;
+      proposal.requirementSemanticVerdict = 'review';
+      proposal.requirementNeedsTeacherReview = true;
+    }
+
+    if (!requirementCheck.passed) {
+      proposal.status = 'requirements_rejected';
+      proposal.submittedAt = new Date();
+      appendSubmissionHistory(
+        proposal,
+        buildSubmissionHistoryEntry(proposal, {
+          outcome: 'requirements_rejected',
+          requirementCheck,
+          contentChanged: true,
+        })
+      );
+      await proposal.save();
+      notifyStudentOfAiResult(proposal, assignment, 'requirements_rejected');
+      return {
+        proposal,
+        ai: null,
+        parsed: parsedFromFile,
+        message: `Rejected automatically: ${requirementCheck.summary}`,
+      };
+    }
+
+    // Borderline semantic match continues to plagiarism AI, then routes to teacher review.
   }
 
   // Finalize: run AI pipeline
@@ -944,6 +1011,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     proposal.status = 'ai_flagged_previous_semester';
     proposal.requiredNewFeaturesCount = Math.max(2, proposal.requiredNewFeaturesCount || 0);
     proposal.previousFeaturesAtFlag = [...proposal.features];
+  } else if (proposal.requirementNeedsTeacherReview) {
+    proposal.status = 'requirements_review';
+    proposal.requiredNewFeaturesCount = 0;
+    proposal.previousFeaturesAtFlag = [];
+    proposal.collaborativeTeacherReviews = { frontend: {}, backend: {} };
   } else {
     proposal.status = 'pending_teacher_approval';
     proposal.requiredNewFeaturesCount = 0;
@@ -985,7 +1057,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   await proposal.save();
 
   notifyStudentOfAiResult(proposal, assignment, proposal.status);
-  if (proposal.status === 'pending_teacher_approval' || proposal.status === 'ai_flagged_previous_semester') {
+  if (
+    proposal.status === 'pending_teacher_approval' ||
+    proposal.status === 'ai_flagged_previous_semester' ||
+    proposal.status === 'requirements_review'
+  ) {
     notifyTeachersOfPendingProposal(assignment, proposal);
   }
 
@@ -1006,7 +1082,9 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
         ? 'This proposal is too similar to another project in your current semester. Please change the idea, description, and features.'
         : verdict === 'warn_previous_semester'
           ? 'This idea resembles an approved project from a previous semester. You can optionally add new features to strengthen originality before teacher review.'
-          : 'Proposal sent to your teacher for approval.',
+          : proposal.status === 'requirements_review'
+            ? 'Proposal passed plagiarism checks but needs teacher review for requirement meaning match.'
+            : 'Proposal sent to your teacher for approval.',
   };
 }
 
@@ -1174,7 +1252,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
     return enriched;
   }
 
-  const reviewable = ['pending_teacher_approval'];
+  const reviewable = ['pending_teacher_approval', 'requirements_review', 'ai_flagged_previous_semester'];
   const collabReviewState = getCollaborativeReviewState(proposal, assignmentDoc);
   const canReviewNow =
     reviewable.includes(proposal.status) ||
@@ -1276,6 +1354,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
 
   if (action === 'approve') {
     const assignment = await Assignment.findById(proposal.assignment._id);
+    // Structural gate only — teacher already reviewed borderline semantic cases.
     const requirementCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
     proposal.requirementCheckPassed = requirementCheck.passed;
     proposal.requirementCheckSummary = requirementCheck.summary;
@@ -1292,6 +1371,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
     }
 
     proposal.status = 'teacher_approved';
+    proposal.requirementNeedsTeacherReview = false;
     if (assignment && assignment.projectPhaseOpen === false) {
       assignment.projectPhaseOpen = true;
       await assignment.save();

@@ -14,7 +14,9 @@ import {
   flagSubmissionPipelineStatus,
   SubmissionPipelineError,
   SUBMISSION_PIPELINE_STATUSES,
+  SUBMISSION_ERROR_CODES,
 } from './submissionErrorHandler.service.js';
+import { assertZipMatchesApprovedTechnology } from './projectTechMatch.service.js';
 import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { getUploadDir } from '../config/env.js';
 import { normalizeProjectStackHint } from '../constants/projectStackHints.js';
@@ -202,6 +204,42 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       destDir: auditDir,
       submissionId,
     });
+
+    // Pre-check: ZIP stack must match the technology approved in the proposal.
+    const techMatch = await assertZipMatchesApprovedTechnology({
+      extractDir: auditDir,
+      assignment,
+      proposal,
+      stackHint: hint,
+    });
+    if (!techMatch.ok) {
+      await flagSubmissionPipelineStatus(submissionId, SUBMISSION_PIPELINE_STATUSES.TECH_MISMATCH_REJECTED, {
+        pipelineError: techMatch.message,
+        pipelineFailures: [
+          {
+            rule: SUBMISSION_ERROR_CODES.TECH_MISMATCH_REJECTED,
+            message: techMatch.message,
+            path: techMatch.detectedStack || '',
+          },
+        ],
+      });
+      throw new SubmissionPipelineError(techMatch.message, {
+        status: 400,
+        code: SUBMISSION_ERROR_CODES.TECH_MISMATCH_REJECTED,
+        submissionId,
+        publicError: techMatch.message,
+        failures: [
+          {
+            rule: SUBMISSION_ERROR_CODES.TECH_MISMATCH_REJECTED,
+            message: techMatch.message,
+            path: techMatch.detectedStack || '',
+            approvedTech: techMatch.approvedTech,
+            zipTech: techMatch.zipTech,
+          },
+        ],
+      });
+    }
+
     await executeTechAuditBarrier({
       extractDir: auditDir,
       submissionId,

@@ -13,6 +13,8 @@ from app.models.schemas import (
     FullAnalyzeOut,
     ProposalAnalyzeIn,
     ProposalJobAccepted,
+    RequirementAnalyzeIn,
+    RequirementAnalyzeOut,
     ScreenshotAnalyzeIn,
     ScreenshotAnalyzeOut,
 )
@@ -26,6 +28,12 @@ result_router = APIRouter(tags=["analyze"])
 def analyze_proposal_endpoint(body: ProposalAnalyzeIn):
     """Primary Node integration — synchronous semantic similarity (contract-stable)."""
     return ac.analyze_proposal_sync(body)
+
+
+@router.post("/requirements", response_model=RequirementAnalyzeOut)
+def analyze_requirements_endpoint(body: RequirementAnalyzeIn):
+    """Teacher requirements vs proposal meaning (MiniLM) — not keyword-only matching."""
+    return RequirementAnalyzeOut.model_validate(ac.analyze_requirements_sync(body))
 
 
 @router.post("/proposal/async", response_model=ProposalJobAccepted)

@@ -173,6 +173,66 @@ export function validateAssignmentTechnologyConsistency({
   return { ok: true };
 }
 
+export function buildProposalRequirementText(proposalLike) {
+  return [
+    proposalLike?.title || '',
+    proposalLike?.description || '',
+    ...(Array.isArray(proposalLike?.features) ? proposalLike.features : []),
+  ]
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+export function buildTeacherRequirementCorpus(assignment) {
+  if (assignment?.isCollaborative) {
+    const sections = [];
+    const fe = assignment.frontendTechRequirements || {};
+    const be = assignment.backendTechRequirements || {};
+    const feText = [fe.requirementText, ...(toList(fe.allowedTechnologies).map((t) => `Use ${t}`))].filter(Boolean).join('\n');
+    const beText = [be.requirementText, ...(toList(be.allowedTechnologies).map((t) => `Use ${t}`))].filter(Boolean).join('\n');
+    if (feText.trim()) sections.push(`Frontend requirements:\n${feText.trim()}`);
+    if (beText.trim()) sections.push(`Backend requirements:\n${beText.trim()}`);
+    const required = [
+      ...resolveRequiredTechnologiesForProposal(assignment, fe),
+      ...resolveRequiredTechnologiesForProposal(assignment, be),
+    ];
+    return {
+      requirement_text: sections.join('\n\n'),
+      requirement_sections: sections,
+      required_technologies: [...new Set(required)],
+    };
+  }
+
+  const requirementText = String(assignment?.requirementText || '').trim();
+  const description = String(assignment?.description || '').trim();
+  const allowed = toList(assignment?.allowedTechnologies);
+  const keywords = toList(assignment?.requiredKeywords);
+  const sections = [];
+  if (requirementText) sections.push(requirementText);
+  if (description && description !== requirementText) sections.push(description);
+  if (allowed.length) {
+    sections.push(
+      `The project must use these technologies and explain how they are applied: ${allowed.join(', ')}.`
+    );
+  }
+  if (keywords.length) {
+    sections.push(
+      `The proposal must address these required topics in clear sentences: ${keywords.join(', ')}.`
+    );
+  }
+
+  return {
+    requirement_text: sections.join('\n\n'),
+    requirement_sections: sections,
+    required_technologies: resolveRequiredTechnologiesForProposal(assignment, assignment),
+  };
+}
+
+/**
+ * Structural hard gates only (wrong stack / empty).
+ * Meaning match is handled by MiniLM via analyzeRequirementsPayload — NOT substring keywords.
+ */
 export function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
   if (assignment?.isCollaborative) {
     const frontendCheck = evaluateRequirementBlock(assignment?.frontendTechRequirements, proposalLike, 'Frontend', assignment);
@@ -181,14 +241,20 @@ export function evaluateProposalAgainstAssignmentRequirements(assignment, propos
     return {
       hasAnyRule: frontendCheck.hasAnyRule || backendCheck.hasAnyRule,
       passed,
-      missingKeywords: [...frontendCheck.missingKeywords, ...backendCheck.missingKeywords],
-      missingAllowedTech: [...frontendCheck.missingAllowedTech, ...backendCheck.missingAllowedTech],
-      missingImplicitTerms: [...frontendCheck.missingImplicitTerms, ...backendCheck.missingImplicitTerms],
+      needsSemantic: frontendCheck.needsSemantic || backendCheck.needsSemantic,
+      missingKeywords: [],
+      missingAllowedTech: [],
+      missingImplicitTerms: [],
       disallowedMentionedTech: [...frontendCheck.disallowedMentionedTech, ...backendCheck.disallowedMentionedTech],
       matchedAllowedTech: [...frontendCheck.matchedAllowedTech, ...backendCheck.matchedAllowedTech],
+      implicitRequiredTerms: [
+        ...frontendCheck.implicitRequiredTerms,
+        ...backendCheck.implicitRequiredTerms,
+      ],
       summary: passed
-        ? 'Proposal satisfies collaborative frontend and backend requirement pre-check.'
-        : `Requirement pre-check failed. ${[frontendCheck.summary, backendCheck.summary].filter((s) => !s.includes('satisfies')).join(' | ')}`,
+        ? 'Structural collaborative requirement gate passed; semantic meaning check runs next.'
+        : `Requirement gate failed. ${[frontendCheck.summary, backendCheck.summary].filter((s) => !String(s).includes('passed')).join(' | ')}`,
+      semanticCorpus: buildTeacherRequirementCorpus(assignment),
     };
   }
 
@@ -203,53 +269,48 @@ export function evaluateRequirementBlock(block, proposalLike, label = '', assign
   const implicitRequiredTerms = resolveRequiredTechnologiesForProposal(assignmentContext, block);
   const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
 
-  const proposalText = [
-    proposalLike?.title || '',
-    proposalLike?.description || '',
-    ...(Array.isArray(proposalLike?.features) ? proposalLike.features : []),
-  ]
-    .join(' ')
-    .toLowerCase();
-
-  const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
-  const matchedAllowedTech = allowedTechnologies.filter((t) => proposalText.includes(t.toLowerCase()));
-  const missingAllowedTech = allowedTechnologies.filter((t) => !proposalText.includes(t.toLowerCase()));
-  const missingImplicitTerms = implicitRequiredTerms.filter((t) => !proposalText.includes(t.toLowerCase()));
+  const proposalText = buildProposalRequirementText(proposalLike).toLowerCase();
   const mentionedTechnologies = detectMentionedTechnologies(proposalText);
   const hasAllowedTechRule = allowedTechnologies.length > 0;
-  const allowedTechPassed = !hasAllowedTechRule || missingAllowedTech.length === 0;
+
+  // Hard fail: student proposes a different stack than the allow-list (e.g. React when only PHP allowed).
   const disallowedMentionedTech = hasAllowedTechRule
-    ? mentionedTechnologies.filter((t) => !canonicalAllowedTech.includes(t))
+    ? mentionedTechnologies.filter((t) => !expandTechFamily(canonicalAllowedTech).includes(t))
     : [];
   const noDisallowedTechPassed = disallowedMentionedTech.length === 0;
-  const requiredKeywordsPassed = missingKeywords.length === 0;
-  const implicitTermsPassed = missingImplicitTerms.length === 0;
+
+  // Soft signals for UI — no longer used as automatic pass/fail.
+  const matchedAllowedTech = allowedTechnologies.filter((t) => proposalText.includes(t.toLowerCase()));
+  const missingAllowedTech = allowedTechnologies.filter((t) => !proposalText.includes(t.toLowerCase()));
+  const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
+  const missingImplicitTerms = implicitRequiredTerms.filter((t) => !proposalText.includes(t.toLowerCase()));
 
   const hasAnyRule =
     Boolean(requirementText) ||
     hasAllowedTechRule ||
     requiredKeywords.length > 0 ||
     implicitRequiredTerms.length > 0;
-  const passed =
-    !hasAnyRule || (requiredKeywordsPassed && allowedTechPassed && implicitTermsPassed && noDisallowedTechPassed);
+
+  const minChars = Number(process.env.REQUIREMENT_MIN_PROPOSAL_CHARS || 80);
+  const tooShort = proposalText.replace(/\s+/g, ' ').trim().length < minChars;
 
   const reasons = [];
-  if (!requiredKeywordsPassed) {
-    reasons.push(`Missing required keywords: ${missingKeywords.join(', ')}`);
-  }
-  if (!allowedTechPassed) {
-    reasons.push(`Missing required technologies: ${missingAllowedTech.join(', ')}`);
-  }
-  if (!implicitTermsPassed) {
-    reasons.push(`Missing required technologies from teacher text: ${missingImplicitTerms.join(', ')}`);
+  if (tooShort) {
+    reasons.push(
+      'Proposal is too short. Write a real project description in full sentences — casual chat or bare technology names are not accepted.'
+    );
   }
   if (!noDisallowedTechPassed) {
     reasons.push(`Disallowed technologies detected: ${disallowedMentionedTech.join(', ')}`);
   }
 
+  const passed = !tooShort && noDisallowedTechPassed;
+  const needsSemantic = passed && hasAnyRule;
+
   return {
     hasAnyRule,
     passed,
+    needsSemantic,
     missingKeywords,
     missingAllowedTech,
     missingImplicitTerms,
@@ -257,8 +318,59 @@ export function evaluateRequirementBlock(block, proposalLike, label = '', assign
     matchedAllowedTech,
     implicitRequiredTerms,
     summary: passed
-      ? `${label ? `${label}: ` : ''}Proposal satisfies teacher requirement pre-check.`.trim()
-      : `${label ? `${label} — ` : ''}Requirement pre-check failed. ${reasons.join(' | ')}`.trim(),
+      ? `${label ? `${label}: ` : ''}Structural requirement gate passed; semantic meaning check runs next.`.trim()
+      : `${label ? `${label} — ` : ''}Requirement gate failed. ${reasons.join(' | ')}`.trim(),
+    semanticCorpus: buildTeacherRequirementCorpus(assignmentContext),
   };
 }
 
+/**
+ * Merge MiniLM semantic result into the requirement check object used by the workflow.
+ * verdict: reject | review | pass
+ */
+export function applySemanticRequirementResult(structuralCheck, semanticResult) {
+  const verdict = String(semanticResult?.verdict || 'reject').toLowerCase();
+  const similarity = Number(semanticResult?.similarity ?? 0);
+  const summary = String(semanticResult?.summary || '').trim() || structuralCheck.summary;
+
+  if (verdict === 'pass') {
+    return {
+      ...structuralCheck,
+      passed: true,
+      needsReview: false,
+      semanticVerdict: 'pass',
+      semanticSimilarity: similarity,
+      summary,
+      matchedAllowedTech: structuralCheck.matchedAllowedTech,
+    };
+  }
+
+  if (verdict === 'review') {
+    return {
+      ...structuralCheck,
+      passed: true,
+      needsReview: true,
+      semanticVerdict: 'review',
+      semanticSimilarity: similarity,
+      summary,
+    };
+  }
+
+  return {
+    ...structuralCheck,
+    passed: false,
+    needsReview: false,
+    semanticVerdict: 'reject',
+    semanticSimilarity: similarity,
+    summary,
+  };
+}
+
+export {
+  canonicalizeTechList,
+  detectMentionedTechnologies,
+  techFamiliesOverlap,
+  expandTechFamily,
+  TECH_ALIASES,
+  TECH_COMPATIBILITY,
+};

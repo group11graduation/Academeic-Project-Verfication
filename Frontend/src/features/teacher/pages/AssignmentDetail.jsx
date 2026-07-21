@@ -20,7 +20,8 @@ const proposalStatusLabel = (s) => {
         pending_teacher_approval: 'Pending your approval',
         teacher_approved: 'Approved',
         teacher_rejected: 'Rejected',
-        requirements_rejected: 'Requirements rejected'
+        requirements_rejected: 'Requirements rejected',
+        requirements_review: 'Requirements — needs your review',
     };
     return map[s] || s;
 };

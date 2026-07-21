@@ -216,6 +216,7 @@ const StudentProposalSubmit = () => {
                 const isRejection =
                     responseMessage === unchangedMessage ||
                     proposalStatus === 'requirements_rejected' ||
+                    proposalStatus === 'requirements_review' ||
                     proposalStatus === 'ai_rejected_same_semester' ||
                     /^rejected automatically:/i.test(responseMessage);
 
@@ -297,7 +298,10 @@ const StudentProposalSubmit = () => {
         description,
         features: normalizedFeatures,
     });
-    const showRequirementWarning = requirementCheck.hasRules && hasAnyTextInput && !requirementCheck.passed;
+    const showRequirementWarning =
+        requirementCheck.hasRules &&
+        hasAnyTextInput &&
+        (!requirementCheck.passed || requirementCheck.advisoryOnly);
     const canSubmitFinal = !lockedByApproval && beforeDeadline && requirementCheck.passed;
 
     if (!canEdit) {
@@ -397,7 +401,13 @@ const StudentProposalSubmit = () => {
                 <p className="text-[12px] text-slate-600 mb-4">{assignment.title}</p>
 
                 {showRequirementWarning && (
-                    <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">
+                    <div
+                        className={`mb-6 rounded-xl px-4 py-3 text-sm ${
+                            requirementCheck.passed
+                                ? 'border border-amber-200 bg-amber-50 text-amber-900'
+                                : 'border border-rose-200 bg-rose-50 text-rose-800'
+                        }`}
+                    >
                         <p className="font-black uppercase tracking-wider text-[11px] mb-1.5">
                             Teacher Requirement Check
                         </p>
@@ -406,28 +416,36 @@ const StudentProposalSubmit = () => {
                                 Requirement: {requirementCheck.requirementText}
                             </p>
                         )}
-                        <p className="font-semibold mb-2">
-                            Missing items found. Final submit is disabled until you add them.
-                        </p>
-                        {requirementCheck.missingAllowedTech.length > 0 && (
-                            <p className="font-semibold">
-                                Missing required technologies: {requirementCheck.missingAllowedTech.join(', ')}
+                        {requirementCheck.tooShort ? (
+                            <p className="font-semibold mb-2">
+                                Write a real project description in full sentences. Casual chat or only
+                                typing technology names (for example “PHP MySQL”) will be rejected by the AI.
                             </p>
-                        )}
-                        {requirementCheck.missingImplicitTerms.length > 0 && (
-                            <p className="font-semibold">
-                                Missing technologies from teacher text:{' '}
-                                {requirementCheck.missingImplicitTerms.join(', ')}
+                        ) : requirementCheck.passed ? (
+                            <p className="font-semibold mb-2">
+                                You can submit. The AI will check whether your proposal meaningfully matches
+                                the teacher requirements (paraphrase is OK; unrelated English is not).
                             </p>
-                        )}
-                        {requirementCheck.missingKeywords.length > 0 && (
-                            <p className="font-semibold">
-                                Missing required keywords: {requirementCheck.missingKeywords.join(', ')}
+                        ) : (
+                            <p className="font-semibold mb-2">
+                                Fix the issues below before final submit.
                             </p>
                         )}
                         {requirementCheck.disallowedMentionedTech.length > 0 && (
                             <p className="font-semibold">
                                 Disallowed technologies detected: {requirementCheck.disallowedMentionedTech.join(', ')}
+                            </p>
+                        )}
+                        {requirementCheck.advisoryOnly && requirementCheck.passed && (
+                            <p className="mt-1 text-[12px] font-medium opacity-90">
+                                Tip: explain how you use{' '}
+                                {[
+                                    ...requirementCheck.missingAllowedTech,
+                                    ...requirementCheck.missingImplicitTerms,
+                                ]
+                                    .filter(Boolean)
+                                    .join(', ') || 'the required technologies'}{' '}
+                                in context — do not only list the words.
                             </p>
                         )}
                     </div>
@@ -521,7 +539,15 @@ const StudentProposalSubmit = () => {
 
                 {proposal?.status === 'requirements_rejected' && (
                     <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
-                        Your proposal did not match teacher requirements and was automatically rejected before AI similarity checks.
+                        Your proposal did not meaningfully match teacher requirements and was automatically rejected.
+                        Casual English or only listing technology names is not enough — rewrite in full sentences that address the requirements.
+                        {proposal?.requirementCheckSummary ? ` ${proposal.requirementCheckSummary}` : ''}
+                    </div>
+                )}
+
+                {proposal?.status === 'requirements_review' && (
+                    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                        Borderline requirement match — waiting for teacher review.
                         {proposal?.requirementCheckSummary ? ` ${proposal.requirementCheckSummary}` : ''}
                     </div>
                 )}

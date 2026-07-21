@@ -33,6 +33,15 @@ export function submissionErrorHandler(err, req, res, next) {
     return res.status(err.status || 422).json(formatTechAuditResponse(err));
   }
 
+  if (err.code === SUBMISSION_ERROR_CODES.TECH_MISMATCH_REJECTED) {
+    return res.status(err.status || 400).json({
+      success: false,
+      error: err.publicError || err.message,
+      code: SUBMISSION_ERROR_CODES.TECH_MISMATCH_REJECTED,
+      failures: err.failures || [],
+    });
+  }
+
   if (err.code === SUBMISSION_ERROR_CODES.RUNTIME_ERROR) {
     return res.status(err.status || 500).json({
       success: false,

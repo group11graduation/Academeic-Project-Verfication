@@ -26,6 +26,7 @@ const statusLabel = (s, proposal) => {
         teacher_approved: 'Approved',
         teacher_rejected: 'Rejected',
         requirements_rejected: 'Requirements rejected',
+        requirements_review: 'Requirements — needs your review',
     };
     return map[status] || status;
 };

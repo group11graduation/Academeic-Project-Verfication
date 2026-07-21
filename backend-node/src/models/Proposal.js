@@ -4,6 +4,7 @@ export const PROPOSAL_STATUSES = [
   'draft',
   'submitted',
   'requirements_rejected',
+  'requirements_review',
   'ai_rejected_same_semester',
   'ai_flagged_previous_semester',
   'revision_required',
@@ -54,11 +55,14 @@ const proposalSchema = new mongoose.Schema(
     /** Optional feature hints when flagged as similar to a previous-semester project */
     aiRecommendationText: { type: String, default: '' },
     aiSuggestedFeatures: [{ type: String, trim: true }],
-    /** Requirement pre-check snapshot (runs before AI similarity checks) */
+    /** Requirement pre-check snapshot (structural + MiniLM semantic meaning check) */
     requirementCheckPassed: { type: Boolean, default: true },
     requirementCheckSummary: { type: String, default: '' },
     requirementMissingKeywords: [{ type: String }],
     requirementAllowedTechMatched: [{ type: String }],
+    requirementSemanticSimilarity: { type: Number, default: null },
+    requirementSemanticVerdict: { type: String, default: '' },
+    requirementNeedsTeacherReview: { type: Boolean, default: false },
     /** Chronological log of each finalize attempt (requirements, AI, outcome) */
     submissionHistory: [
       {

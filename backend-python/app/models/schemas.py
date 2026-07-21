@@ -65,6 +65,45 @@ class ProposalAnalyzeOut(BaseModel):
     backend: Literal["sentence_transformers", "tfidf"] = "sentence_transformers"
 
 
+# --- Requirement vs proposal semantic check (Node: POST /analyze/requirements) ---
+class RequirementAnalyzeIn(BaseModel):
+    """
+    Compare teacher requirement paragraphs to the full student proposal text.
+    Uses MiniLM embeddings — meaning match, not bare keyword presence.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    requirement_text: str = Field(
+        default="",
+        description="Full teacher requirement / instructions paragraph(s)",
+    )
+    proposal_text: str = Field(
+        ...,
+        min_length=1,
+        description="Student title + description + features as one document",
+    )
+    requirement_sections: list[str] = Field(
+        default_factory=list,
+        description="Optional extra teacher sections to compare as paragraphs",
+    )
+    required_technologies: list[str] = Field(
+        default_factory=list,
+        description="Canonical tech names that must appear in meaningful context",
+    )
+
+
+class RequirementAnalyzeOut(BaseModel):
+    similarity: float = Field(..., ge=0.0, le=1.0)
+    section_max_similarity: float = Field(0.0, ge=0.0, le=1.0)
+    tech_context_score: float = Field(0.0, ge=0.0, le=1.0)
+    verdict: Literal["reject", "review", "pass"]
+    summary: str = ""
+    reasons: list[str] = Field(default_factory=list)
+    backend: Literal["sentence_transformers"] = "sentence_transformers"
+    thresholds: dict[str, float] = Field(default_factory=dict)
+
+
 # --- Code similarity (optional Node endpoint) ---
 class CodeReferenceItem(BaseModel):
     model_config = ConfigDict(extra="ignore")

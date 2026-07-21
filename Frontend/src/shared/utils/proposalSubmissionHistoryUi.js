@@ -2,6 +2,7 @@ import { formatSimilarityPercent } from './proposalSimilarityUi';
 
 const OUTCOME_LABELS = {
   requirements_rejected: 'Rejected — requirements not met',
+  requirements_review: 'Needs teacher review — requirements borderline',
   ai_rejected_same_semester: 'Rejected — high same-semester similarity',
   ai_flagged_previous_semester: 'Flagged — legacy similarity warning',
   pending_teacher_approval: 'Passed checks — waiting for teacher',

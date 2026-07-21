@@ -29,6 +29,7 @@ const ALERT_STATUS_LABELS = {
     ai_rejected_same_semester: 'AI rejected (same semester)',
     ai_flagged_previous_semester: 'AI warning (legacy similarity)',
     requirements_rejected: 'Requirements rejected',
+    requirements_review: 'Requirements — needs review',
     pending_teacher_approval: 'Pending your approval',
 };
 

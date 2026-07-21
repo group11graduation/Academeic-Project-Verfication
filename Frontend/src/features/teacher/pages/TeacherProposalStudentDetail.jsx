@@ -77,6 +77,7 @@ const statusLabel = (s, proposal) => {
         teacher_approved: 'Approved',
         teacher_rejected: 'Rejected',
         requirements_rejected: 'Requirements rejected',
+        requirements_review: 'Requirements — needs your review',
     };
     return map[status] || status;
 };
@@ -145,17 +146,28 @@ function getProposalRequirementIssue(proposal) {
     const liveReview = proposal?.requirementReview || null;
     const storedFailed = proposal?.requirementCheckPassed === false;
     const statusFailed =
-        proposal?.status === 'requirements_rejected' || proposal?.displayStatus === 'requirements_rejected';
+        proposal?.status === 'requirements_rejected' ||
+        proposal?.displayStatus === 'requirements_rejected' ||
+        proposal?.status === 'requirements_review' ||
+        proposal?.displayStatus === 'requirements_review';
     const liveFailed = liveReview?.passed === false;
     const failed = statusFailed || storedFailed || liveFailed;
     const summary =
         proposal?.requirementCheckSummary ||
         liveReview?.summary ||
         (failed ? 'This proposal does not match the assignment requirements.' : '');
+    const similarity =
+        proposal?.requirementSemanticSimilarity != null
+            ? Number(proposal.requirementSemanticSimilarity)
+            : null;
     return {
         failed,
+        needsReview:
+            proposal?.status === 'requirements_review' ||
+            proposal?.requirementNeedsTeacherReview === true,
         isPrimaryIssue: failed && proposal?.status !== 'ai_rejected_same_semester',
         summary,
+        similarity,
         review: liveReview,
     };
 }
@@ -395,7 +407,10 @@ const TeacherProposalStudentDetail = () => {
               ? 'Approve (backend teacher)'
               : 'Approve';
     const canDecide =
-        displayStatus === 'pending_teacher_approval' || proposal?.status === 'revision_required';
+        displayStatus === 'pending_teacher_approval' ||
+        proposal?.status === 'revision_required' ||
+        proposal?.status === 'requirements_review' ||
+        displayStatus === 'requirements_review';
     const canApproveCollab = !isCollaborative || (myReviewRole && !mySlotApproved);
     const showCollabPanel = isCollaborative && (awaitingDual || displayStatus === 'pending_teacher_approval');
 
@@ -720,26 +735,36 @@ const TeacherProposalStudentDetail = () => {
                 </div>
 
                 {requirementIssue.failed ? (
-                    <div className="mb-6 rounded-xl border border-rose-300 bg-rose-50 px-4 py-4 text-sm text-rose-950 shadow-sm">
+                    <div
+                        className={`mb-6 rounded-xl px-4 py-4 text-sm shadow-sm ${
+                            requirementIssue.needsReview
+                                ? 'border border-amber-300 bg-amber-50 text-amber-950'
+                                : 'border border-rose-300 bg-rose-50 text-rose-950'
+                        }`}
+                    >
                         <div className="flex items-start gap-3">
-                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+                            <AlertTriangle
+                                className={`mt-0.5 h-5 w-5 shrink-0 ${
+                                    requirementIssue.needsReview ? 'text-amber-600' : 'text-rose-600'
+                                }`}
+                            />
                             <div className="min-w-0">
-                                <p className="font-bold text-rose-900">
-                                    {proposal?.status === 'requirements_rejected'
-                                        ? 'Proposal rejected — assignment requirements not met'
-                                        : 'Assignment requirements not met'}
+                                <p
+                                    className={`font-bold ${
+                                        requirementIssue.needsReview ? 'text-amber-900' : 'text-rose-900'
+                                    }`}
+                                >
+                                    {proposal?.status === 'requirements_review'
+                                        ? 'Borderline requirement match — your decision needed'
+                                        : proposal?.status === 'requirements_rejected'
+                                          ? 'Proposal rejected — assignment requirements not met'
+                                          : 'Assignment requirements not met'}
                                 </p>
                                 <p className="mt-2 leading-relaxed">{requirementIssue.summary}</p>
-                                {requirementIssue.review?.missingImplicitTerms?.length > 0 ? (
+                                {requirementIssue.similarity != null ? (
                                     <p className="mt-2 text-[13px]">
-                                        Expected for this assignment:{' '}
-                                        <strong>{requirementIssue.review.missingImplicitTerms.join(', ')}</strong>
-                                    </p>
-                                ) : null}
-                                {requirementIssue.review?.missingAllowedTech?.length > 0 ? (
-                                    <p className="mt-1 text-[13px]">
-                                        Missing required technologies:{' '}
-                                        <strong>{requirementIssue.review.missingAllowedTech.join(', ')}</strong>
+                                        Semantic similarity to teacher requirements:{' '}
+                                        <strong>{Math.round(requirementIssue.similarity * 100)}%</strong>
                                     </p>
                                 ) : null}
                                 {requirementIssue.review?.disallowedMentionedTech?.length > 0 ? (
@@ -748,10 +773,15 @@ const TeacherProposalStudentDetail = () => {
                                         <strong>{requirementIssue.review.disallowedMentionedTech.join(', ')}</strong>
                                     </p>
                                 ) : null}
-                                {requirementIssue.isPrimaryIssue ? (
+                                {requirementIssue.needsReview ? (
+                                    <p className="mt-3 text-[12px] font-semibold text-amber-800">
+                                        The AI is unsure. Approve if the proposal clearly meets your requirements in meaning;
+                                        reject if it is casual English, off-topic, or only lists technology names.
+                                    </p>
+                                ) : requirementIssue.isPrimaryIssue ? (
                                     <p className="mt-3 text-[12px] font-semibold text-rose-800">
-                                        This is a requirement mismatch, not a same-semester similarity issue. Low overlap
-                                        scores below do not mean the proposal fits the assignment.
+                                        This is a requirement mismatch, not a same-semester similarity issue. Casual
+                                        English or bare keywords (for example “PHP MySQL”) are not enough.
                                     </p>
                                 ) : null}
                             </div>

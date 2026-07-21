@@ -23,6 +23,8 @@ from app.models.schemas import (
     ProposalAnalyzeIn,
     ProposalAnalyzeOut,
     ProposalJobAccepted,
+    RequirementAnalyzeIn,
+    RequirementAnalyzeOut,
     ScreenshotAnalyzeIn,
     ScreenshotAnalyzeOut,
 )
@@ -30,6 +32,7 @@ from app.services import analysis_job_store
 from app.services.code_analysis import analyze_code_similarity
 from app.services.image_analysis import analyze_screenshot_similarity
 from app.services.proposal_semantic import analyze_proposal_semantic
+from app.services.requirement_semantic import analyze_requirement_semantic
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,10 @@ def _validate_completed(kind: str, raw: dict[str, Any]) -> Any:
 
 def analyze_proposal_sync(body: ProposalAnalyzeIn) -> dict[str, Any]:
     return analyze_proposal_semantic(body)
+
+
+def analyze_requirements_sync(body: RequirementAnalyzeIn) -> dict[str, Any]:
+    return analyze_requirement_semantic(body)
 
 
 def analyze_proposal_async(body: ProposalAnalyzeIn, background_tasks: BackgroundTasks) -> ProposalJobAccepted:

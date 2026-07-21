@@ -37,6 +37,7 @@ function proposalStatusLabel(status) {
         teacher_rejected: 'Rejected',
         revision_required: 'Revision required',
         requirements_rejected: 'Requirements rejected',
+        requirements_review: 'Requirements — teacher review',
         ai_rejected_same_semester: 'Similarity rejected',
         ai_flagged_previous_semester: 'Flagged (previous term)',
     };
@@ -46,7 +47,7 @@ function proposalStatusLabel(status) {
 function proposalStatusTone(status) {
     if (!status) return 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400';
     if (status === 'teacher_approved') return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400';
-    if (status === 'pending_teacher_approval' || status === 'submitted') {
+    if (status === 'pending_teacher_approval' || status === 'submitted' || status === 'requirements_review') {
         return 'bg-amber-500/10 text-amber-700 dark:text-amber-400';
     }
     if (status?.includes('rejected') || status?.includes('flagged')) {
