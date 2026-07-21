@@ -10,9 +10,11 @@ import adminClassService from '../../../services/adminClassService';
 import adminTeacherService from '../../../services/adminTeacherService';
 import adminStudentService from '../../../services/adminStudentService';
 import adminSubjectService from '../../../services/adminSubjectService';
+import { adminAcademicService } from '../../../services/adminAcademicService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import {
+    getSubjectDepartments,
     subjectMatchesDepartment,
     subjectMatchesFaculty,
 } from '../../../shared/utils/subjectTaxonomy';
@@ -50,6 +52,9 @@ const AdminClassDetail = () => {
     const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
     const [editClassName, setEditClassName] = useState('');
     const [editClassCode, setEditClassCode] = useState('');
+    const [editFaculty, setEditFaculty] = useState('');
+    const [editDepartment, setEditDepartment] = useState('');
+    const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
     const [allClasses, setAllClasses] = useState([]);
 
     const fetchClassDetails = async () => {
@@ -63,6 +68,8 @@ const AdminClassDetail = () => {
             );
             setEditClassName(res.data.name || '');
             setEditClassCode(res.data.code || '');
+            setEditFaculty(res.data.faculty || '');
+            setEditDepartment(res.data.department || '');
         }
     };
 
@@ -70,16 +77,18 @@ const AdminClassDetail = () => {
         const load = async () => {
             try {
                 await fetchClassDetails();
-                const [tRes, sRes, subRes, clsRes] = await Promise.all([
+                const [tRes, sRes, subRes, clsRes, structureRes] = await Promise.all([
                     adminTeacherService.getTeachers(),
                     adminStudentService.getStudents(),
                     adminSubjectService.getSubjects(),
                     adminClassService.getClasses(),
+                    adminAcademicService.getAcademicStructure(),
                 ]);
                 if (tRes.success) setAllTeachers(tRes.data || []);
                 if (sRes.success) setAllStudents(sRes.data || []);
                 if (subRes.success) setAllSubjects(subRes.data || []);
                 if (clsRes.success) setAllClasses(clsRes.data || []);
+                if (structureRes.success) setAcademicStructure(structureRes.data || { faculties: [] });
             } catch (error) {
                 console.error("Error fetching class details:", error);
             } finally {
@@ -353,9 +362,30 @@ const AdminClassDetail = () => {
     };
 
     const clearPickedStudents = () => setPickedStudentProfileIds(new Set());
+    const facultyOptions = useMemo(() => {
+        const names = (academicStructure.faculties || []).map((f) => f.name);
+        const current = String(editFaculty || classInfo?.faculty || '').trim();
+        if (current && !names.some((n) => n.toLowerCase() === current.toLowerCase())) {
+            return [current, ...names];
+        }
+        return names;
+    }, [academicStructure, editFaculty, classInfo?.faculty]);
+
+    const departmentOptions = useMemo(() => {
+        const row = (academicStructure.faculties || []).find(
+            (f) => String(f.name).toLowerCase() === String(editFaculty || '').toLowerCase()
+        );
+        const names = row?.departments || [];
+        const current = String(editDepartment || classInfo?.department || '').trim();
+        if (current && !names.some((n) => n.toLowerCase() === current.toLowerCase())) {
+            return [current, ...names];
+        }
+        return names;
+    }, [academicStructure, editFaculty, editDepartment, classInfo?.department]);
+
     const availableSubjects = useMemo(() => {
-        const faculty = String(classInfo?.faculty || '').trim();
-        const department = String(classInfo?.department || '').trim();
+        const faculty = String(editFaculty || '').trim();
+        const department = String(editDepartment || '').trim();
         const source = allSubjects || [];
         if (!faculty) return source;
         const facultySubjects = source.filter((sub) => subjectMatchesFaculty(sub, faculty));
@@ -364,7 +394,30 @@ const AdminClassDetail = () => {
             subjectMatchesDepartment(sub, department)
         );
         return deptSubjects.length > 0 ? deptSubjects : facultySubjects;
-    }, [allSubjects, classInfo?.faculty, classInfo?.department]);
+    }, [allSubjects, editFaculty, editDepartment]);
+
+    const handleFacultyChange = (value) => {
+        setEditFaculty(value);
+        setEditDepartment('');
+        setSelectedSubjectIds((prev) =>
+            prev.filter((sid) => {
+                const sub = (allSubjects || []).find((s) => String(s._id) === String(sid));
+                return sub ? subjectMatchesFaculty(sub, value) : false;
+            })
+        );
+    };
+
+    const handleDepartmentChange = (value) => {
+        setEditDepartment(value);
+        if (!value) return;
+        setSelectedSubjectIds((prev) =>
+            prev.filter((sid) => {
+                const sub = (allSubjects || []).find((s) => String(s._id) === String(sid));
+                if (!sub || !subjectMatchesFaculty(sub, editFaculty)) return false;
+                return subjectMatchesDepartment(sub, value);
+            })
+        );
+    };
 
     const handleToggleSubject = (subjectId) => {
         const id = String(subjectId);
@@ -383,8 +436,14 @@ const AdminClassDetail = () => {
     const handleSaveClassInfo = async () => {
         const name = editClassName.trim();
         const code = normalizeClassCode(editClassCode);
+        const faculty = editFaculty.trim();
+        const department = editDepartment.trim();
         if (!name || !code) {
             await appWarning('Class name and class code are required.');
+            return;
+        }
+        if (!faculty || !department) {
+            await appWarning('Faculty and department are required.');
             return;
         }
 
@@ -411,6 +470,8 @@ const AdminClassDetail = () => {
             const res = await adminClassService.updateClass(id, {
                 name,
                 code,
+                faculty,
+                department,
                 subjectIds: selectedSubjectIds,
             });
             if (!res.success) throw new Error(res.message || 'Failed to update class');
@@ -544,7 +605,7 @@ const AdminClassDetail = () => {
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 mb-4">
                 <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Information & Subjects</h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
-                    Update class name, code, and subjects. Duplicate names or codes are not allowed.
+                    Update class name, code, faculty, department, and subjects. Duplicate names or codes are not allowed.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
                     <div>
@@ -569,6 +630,37 @@ const AdminClassDetail = () => {
                             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] font-semibold outline-none uppercase dark:text-white"
                         />
                     </div>
+                    <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                            Faculty
+                        </label>
+                        <select
+                            value={editFaculty}
+                            onChange={(e) => handleFacultyChange(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none dark:text-white"
+                        >
+                            <option value="">Select Faculty</option>
+                            {facultyOptions.map((f) => (
+                                <option key={f} value={f}>{f}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                            Department
+                        </label>
+                        <select
+                            value={editDepartment}
+                            onChange={(e) => handleDepartmentChange(e.target.value)}
+                            disabled={!editFaculty}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none disabled:opacity-60 dark:text-white"
+                        >
+                            <option value="">Select Department</option>
+                            {departmentOptions.map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Subjects
@@ -583,14 +675,18 @@ const AdminClassDetail = () => {
                             />
                             <span className="text-slate-700 dark:text-slate-300">
                                 {s.name} ({s.code})
-                                {s.department ? (
-                                    <span className="text-slate-400"> — {s.department}</span>
+                                {getSubjectDepartments(s).length > 0 ? (
+                                    <span className="text-slate-400"> — {getSubjectDepartments(s).join(', ')}</span>
                                 ) : null}
                             </span>
                         </label>
                     ))}
                     {availableSubjects.length === 0 && (
-                        <p className="text-[11px] text-slate-500">No subjects available for this class faculty.</p>
+                        <p className="text-[11px] text-slate-500">
+                            {!editFaculty
+                                ? 'Select a faculty to see matching subjects.'
+                                : 'No subjects found for this faculty/department. Create them on the Subjects page first.'}
+                        </p>
                     )}
                 </div>
                 <button
