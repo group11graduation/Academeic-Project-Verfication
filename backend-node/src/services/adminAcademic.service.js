@@ -532,12 +532,32 @@ export async function generateStudentAccountsForClass(code) {
 }
 
 /** Subjects */
+function serializeSubject(doc) {
+  if (!doc) return doc;
+  const faculties = Array.isArray(doc.faculties)
+    ? doc.faculties.map((v) => String(v || '').trim()).filter(Boolean)
+    : [];
+  const departments = Array.isArray(doc.departments)
+    ? doc.departments.map((v) => String(v || '').trim()).filter(Boolean)
+    : [];
+  const faculty = String(doc.faculty || '').trim() || faculties[0] || '';
+  const department = String(doc.department || '').trim() || departments[0] || '';
+  return {
+    ...doc,
+    faculty,
+    department,
+    faculties: faculties.length ? faculties : faculty ? [faculty] : [],
+    departments: departments.length ? departments : department ? [department] : [],
+  };
+}
+
 export async function listSubjects() {
-  return Subject.find().sort({ createdAt: -1 }).lean();
+  const rows = await Subject.find().sort({ createdAt: -1 }).lean();
+  return rows.map(serializeSubject);
 }
 
 export async function getSubject(id) {
-  return Subject.findById(id).lean();
+  return serializeSubject(await Subject.findById(id).lean());
 }
 
 async function assertSubjectUnique({ name, code, excludeId }) {
@@ -561,20 +581,65 @@ async function assertSubjectUnique({ name, code, excludeId }) {
   throw err;
 }
 
+/** Normalize faculty/department name lists from create/update payloads. */
+function normalizeNameList(value) {
+  if (Array.isArray(value)) {
+    const seen = new Set();
+    const out = [];
+    for (const raw of value) {
+      const label = String(raw || '').trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(label);
+    }
+    return out;
+  }
+  const single = String(value || '').trim();
+  return single ? [single] : [];
+}
+
+function resolveSubjectTaxonomy(body = {}) {
+  const hasFaculties = body.faculties !== undefined;
+  const hasFaculty = body.faculty !== undefined;
+  const hasDepartments = body.departments !== undefined;
+  const hasDepartment = body.department !== undefined;
+
+  let faculties = null;
+  if (hasFaculties) faculties = normalizeNameList(body.faculties);
+  else if (hasFaculty) faculties = normalizeNameList(body.faculty);
+  else if (!hasDepartments && !hasDepartment && body.department) {
+    // Legacy: some clients sent department as faculty-like taxonomy alone.
+    faculties = normalizeNameList(body.department);
+  }
+
+  let departments = null;
+  if (hasDepartments) departments = normalizeNameList(body.departments);
+  else if (hasDepartment) departments = normalizeNameList(body.department);
+
+  return { faculties, departments };
+}
+
 export async function createSubject(body) {
   const side = String(body.collaborationSide || '').trim().toLowerCase();
   const code = String(body.code || '').trim().toUpperCase();
   const name = String(body.name || '').trim();
   await assertSubjectUnique({ name, code });
+  const { faculties, departments } = resolveSubjectTaxonomy(body);
+  const facultyList = faculties ?? [];
+  const departmentList = departments ?? [];
   const doc = await Subject.create({
     code,
     name,
     description: String(body.description || '').trim(),
-    faculty: String(body.faculty || body.department || '').trim(),
-    department: String(body.department || '').trim(),
+    faculties: facultyList,
+    departments: departmentList,
+    faculty: facultyList[0] || '',
+    department: departmentList[0] || '',
     collaborationSide: ['frontend', 'backend'].includes(side) ? side : '',
   });
-  return doc.toObject();
+  return serializeSubject(doc.toObject());
 }
 
 export async function updateSubject(id, body) {
@@ -596,17 +661,26 @@ export async function updateSubject(id, body) {
     const side = String(body.collaborationSide || '').trim().toLowerCase();
     doc.collaborationSide = ['frontend', 'backend'].includes(side) ? side : '';
   }
-  if (body.faculty !== undefined) {
-    doc.faculty = String(body.faculty || '').trim();
+  const { faculties, departments } = resolveSubjectTaxonomy(body);
+  if (faculties !== null) {
+    doc.faculties = faculties;
+    doc.faculty = faculties[0] || '';
   }
-  if (body.department !== undefined) {
-    doc.department = String(body.department || '').trim();
-  } else if (body.faculty !== undefined && !doc.department) {
-    // Backward compatibility: when only one taxonomy value is sent.
-    doc.department = '';
+  if (departments !== null) {
+    doc.departments = departments;
+    doc.department = departments[0] || '';
+  }
+  // Backfill arrays for older docs that only had singular fields.
+  if (!Array.isArray(doc.faculties) || doc.faculties.length === 0) {
+    const legacy = String(doc.faculty || '').trim();
+    doc.faculties = legacy ? [legacy] : [];
+  }
+  if (!Array.isArray(doc.departments) || doc.departments.length === 0) {
+    const legacy = String(doc.department || '').trim();
+    doc.departments = legacy ? [legacy] : [];
   }
   await doc.save();
-  return doc.toObject();
+  return serializeSubject(doc.toObject());
 }
 
 export async function deleteSubject(id) {
@@ -851,14 +925,22 @@ export async function listFacultyNames() {
     }
   }
 
-  const [classFaculties, studentFaculties, teacherFaculties, subjectFaculties] = await Promise.all([
-    Class.distinct('faculty', { faculty: { $nin: [null, ''] } }),
-    StudentProfile.distinct('faculty', { faculty: { $nin: [null, ''] } }),
-    TeacherProfile.distinct('faculty', { faculty: { $nin: [null, ''] } }),
-    Subject.distinct('faculty', { faculty: { $nin: [null, ''] } }),
-  ]);
+  const [classFaculties, studentFaculties, teacherFaculties, subjectFaculties, subjectFacultyLists] =
+    await Promise.all([
+      Class.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+      StudentProfile.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+      TeacherProfile.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+      Subject.distinct('faculty', { faculty: { $nin: [null, ''] } }),
+      Subject.distinct('faculties', { faculties: { $nin: [null, ''] } }),
+    ]);
 
-  for (const list of [classFaculties, studentFaculties, teacherFaculties, subjectFaculties]) {
+  for (const list of [
+    classFaculties,
+    studentFaculties,
+    teacherFaculties,
+    subjectFaculties,
+    subjectFacultyLists,
+  ]) {
     for (const value of list || []) {
       const label = String(value || '').trim();
       if (label) names.add(label);

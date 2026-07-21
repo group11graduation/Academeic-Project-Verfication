@@ -1,19 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
+import { appConfirm, appError, appWarning } from '../../../lib/appDialog';
 import {
     Search, Plus, BookOpen, User, GraduationCap, Link as LinkIcon, Edit2, Trash2, X, Loader2
 } from 'lucide-react';
 import adminSubjectService from '../../../services/adminSubjectService';
-import adminClassService from '../../../services/adminClassService';
 import adminTeacherService from '../../../services/adminTeacherService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import {
+    getSubjectDepartments,
+    getSubjectFaculties,
+} from '../../../shared/utils/subjectTaxonomy';
+
+const emptyForm = () => ({
+    _id: null,
+    name: '',
+    code: '',
+    faculties: [],
+    departments: [],
+    description: '',
+    teacherId: '',
+});
 
 const AdminSubjects = () => {
     const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search subjects…');
     const [subjects, setSubjects] = useState([]);
-    const [classes, setClasses] = useState([]);
     const [teachers, setTeachers] = useState([]);
     const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
     const [loading, setLoading] = useState(true);
@@ -22,15 +34,7 @@ const AdminSubjects = () => {
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [formData, setFormData] = useState({
-        _id: null,
-        name: '',
-        code: '',
-        faculty: '',
-        department: '',
-        description: '',
-        teacherId: ''
-    });
+    const [formData, setFormData] = useState(emptyForm);
 
     useEffect(() => {
         fetchData();
@@ -39,15 +43,13 @@ const AdminSubjects = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [subRes, clsRes, techRes, structureRes] = await Promise.all([
+            const [subRes, techRes, structureRes] = await Promise.all([
                 adminSubjectService.getSubjects(),
-                adminClassService.getClasses(),
                 adminTeacherService.getTeachers(),
                 adminAcademicService.getAcademicStructure()
             ]);
             
             if (subRes.success) setSubjects(subRes.data);
-            if (clsRes.success) setClasses(clsRes.data);
             if (techRes.success) setTeachers(techRes.data);
             if (structureRes.success) setAcademicStructure(structureRes.data || { faculties: [] });
         } catch (error) {
@@ -59,15 +61,7 @@ const AdminSubjects = () => {
     };
 
     const openCreateModal = () => {
-        setFormData({
-            _id: null,
-            name: '',
-            code: '',
-            faculty: '',
-            department: '',
-            description: '',
-            teacherId: ''
-        });
+        setFormData(emptyForm());
         setIsEditing(false);
         setShowModal(true);
     };
@@ -77,13 +71,44 @@ const AdminSubjects = () => {
             _id: subject._id,
             name: subject.name,
             code: subject.code,
-            faculty: subject.faculty || '',
-            department: subject.department || '',
+            faculties: getSubjectFaculties(subject),
+            departments: getSubjectDepartments(subject),
             description: subject.description || '',
-            teacherId: ''
+            teacherId: '',
         });
         setIsEditing(true);
         setShowModal(true);
+    };
+
+    const toggleFaculty = (name) => {
+        const label = String(name || '').trim();
+        if (!label) return;
+        setFormData((prev) => {
+            const selected = prev.faculties.includes(label)
+                ? prev.faculties.filter((f) => f !== label)
+                : [...prev.faculties, label];
+            const allowedDepts = new Set(
+                (academicStructure.faculties || [])
+                    .filter((f) => selected.includes(f.name))
+                    .flatMap((f) => f.departments || [])
+            );
+            return {
+                ...prev,
+                faculties: selected,
+                departments: prev.departments.filter((d) => allowedDepts.has(d)),
+            };
+        });
+    };
+
+    const toggleDepartment = (name) => {
+        const label = String(name || '').trim();
+        if (!label) return;
+        setFormData((prev) => ({
+            ...prev,
+            departments: prev.departments.includes(label)
+                ? prev.departments.filter((d) => d !== label)
+                : [...prev.departments, label],
+        }));
     };
 
     const handleDelete = async (id) => {
@@ -126,8 +151,10 @@ const AdminSubjects = () => {
                 _id: formData._id,
                 name: formData.name,
                 code: formData.code,
-                faculty: formData.faculty,
-                department: formData.department,
+                faculties: formData.faculties,
+                departments: formData.departments,
+                faculty: formData.faculties[0] || '',
+                department: formData.departments[0] || '',
                 description: formData.description,
             };
 
@@ -147,18 +174,33 @@ const AdminSubjects = () => {
     };
 
     const filteredSubjects = subjects.filter((sub) =>
-        matchesSearchQuery(searchQuery, sub.name, sub.code, sub.teacher?.name)
+        matchesSearchQuery(
+            searchQuery,
+            sub.name,
+            sub.code,
+            sub.teacher?.name,
+            ...getSubjectFaculties(sub),
+            ...getSubjectDepartments(sub)
+        )
     );
-    const classMap = new Map((classes || []).map((c) => [String(c.code), c]));
     const facultyOptions = (academicStructure.faculties || []).map((f) => f.name);
-    const departmentOptions = ((academicStructure.faculties || []).find((f) => f.name === formData.faculty)?.departments) || [];
+    const departmentOptions = (academicStructure.faculties || [])
+        .filter((f) => formData.faculties.includes(f.name))
+        .flatMap((f) => f.departments || [])
+        .filter((d, i, arr) => arr.indexOf(d) === i);
     const filteredTeachersForSubject = teachers || [];
     const groupedSubjects = filteredSubjects.reduce((acc, sub) => {
-        const faculty = String(sub.faculty || '').trim() || 'Unassigned Faculty';
-        const department = String(sub.department || '').trim() || 'Unassigned Department';
-        if (!acc[faculty]) acc[faculty] = {};
-        if (!acc[faculty][department]) acc[faculty][department] = [];
-        acc[faculty][department].push(sub);
+        const faculties = getSubjectFaculties(sub);
+        const departments = getSubjectDepartments(sub);
+        const facultyList = faculties.length ? faculties : ['Unassigned Faculty'];
+        const departmentList = departments.length ? departments : ['Unassigned Department'];
+        for (const faculty of facultyList) {
+            if (!acc[faculty]) acc[faculty] = {};
+            for (const department of departmentList) {
+                if (!acc[faculty][department]) acc[faculty][department] = [];
+                acc[faculty][department].push(sub);
+            }
+        }
         return acc;
     }, {});
 
@@ -238,31 +280,68 @@ const AdminSubjects = () => {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Faculty</label>
-                                <select
-                                    value={formData.faculty}
-                                    onChange={(e) => setFormData({ ...formData, faculty: e.target.value, department: '' })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-900 focus:border-blue-500 outline-none"
-                                >
-                                    <option value="">Select Faculty</option>
-                                    {facultyOptions.map((f) => (
-                                        <option key={f} value={f}>{f}</option>
-                                    ))}
-                                </select>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                    Faculties
+                                    <span className="ml-1 font-medium normal-case tracking-normal text-slate-400">(select one or more)</span>
+                                </label>
+                                <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1">
+                                    {facultyOptions.length === 0 ? (
+                                        <p className="text-[11px] text-slate-400 px-1 py-1">No faculties in academic structure yet.</p>
+                                    ) : (
+                                        facultyOptions.map((f) => (
+                                            <label
+                                                key={f}
+                                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-white cursor-pointer"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.faculties.includes(f)}
+                                                    onChange={() => toggleFaculty(f)}
+                                                    className="rounded border-slate-300"
+                                                />
+                                                <span>{f}</span>
+                                            </label>
+                                        ))
+                                    )}
+                                </div>
+                                {formData.faculties.length > 0 && (
+                                    <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                                        {formData.faculties.length} facult{formData.faculties.length === 1 ? 'y' : 'ies'} selected
+                                    </p>
+                                )}
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Department</label>
-                                <select
-                                    value={formData.department}
-                                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-900 focus:border-blue-500 outline-none"
-                                    disabled={!formData.faculty}
-                                >
-                                    <option value="">Select Department</option>
-                                    {departmentOptions.map((d) => (
-                                        <option key={d} value={d}>{d}</option>
-                                    ))}
-                                </select>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                    Departments
+                                    <span className="ml-1 font-medium normal-case tracking-normal text-slate-400">(select one or more)</span>
+                                </label>
+                                <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1">
+                                    {formData.faculties.length === 0 ? (
+                                        <p className="text-[11px] text-slate-400 px-1 py-1">Select faculty first.</p>
+                                    ) : departmentOptions.length === 0 ? (
+                                        <p className="text-[11px] text-slate-400 px-1 py-1">No departments under selected faculties.</p>
+                                    ) : (
+                                        departmentOptions.map((d) => (
+                                            <label
+                                                key={d}
+                                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-white cursor-pointer"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.departments.includes(d)}
+                                                    onChange={() => toggleDepartment(d)}
+                                                    className="rounded border-slate-300"
+                                                />
+                                                <span>{d}</span>
+                                            </label>
+                                        ))
+                                    )}
+                                </div>
+                                {formData.departments.length > 0 && (
+                                    <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                                        {formData.departments.length} department{formData.departments.length === 1 ? '' : 's'} selected
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -339,6 +418,14 @@ const AdminSubjects = () => {
                                     <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
                                         {sub.code}
                                     </span>
+                                    {(getSubjectFaculties(sub).length > 1 || getSubjectDepartments(sub).length > 1) && (
+                                        <p className="mt-1.5 text-[10px] text-slate-400 font-medium leading-snug">
+                                            {getSubjectFaculties(sub).join(' · ')}
+                                            {getSubjectDepartments(sub).length
+                                                ? ` → ${getSubjectDepartments(sub).join(', ')}`
+                                                : ''}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="flex gap-1 shrink-0">
                                     <button type="button" onClick={() => openEditModal(sub)} className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-[#1D68E3]">

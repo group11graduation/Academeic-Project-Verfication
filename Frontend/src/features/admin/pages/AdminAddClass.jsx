@@ -5,6 +5,11 @@ import adminClassService from '../../../services/adminClassService';
 import adminSemesterService from '../../../services/adminSemesterService';
 import adminSubjectService from '../../../services/adminSubjectService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
+import {
+    getSubjectDepartments,
+    subjectMatchesDepartment,
+    subjectMatchesFaculty,
+} from '../../../shared/utils/subjectTaxonomy';
 import { appError, appWarning } from '../../../lib/appDialog';
 
 const AdminAddClass = () => {
@@ -61,15 +66,11 @@ const AdminAddClass = () => {
     const availableSubjects = useMemo(() => {
         if (!selectedFaculty) return [];
         const source = subjects || [];
-        const facultyName = selectedFaculty.toLowerCase();
-        const facultySubjects = source.filter(
-            (s) => String(s.faculty || '').trim().toLowerCase() === facultyName
-        );
+        const facultySubjects = source.filter((s) => subjectMatchesFaculty(s, selectedFaculty));
         if (!selectedDepartment) return facultySubjects;
 
-        const deptName = selectedDepartment.toLowerCase();
-        const deptSubjects = facultySubjects.filter(
-            (s) => String(s.department || '').trim().toLowerCase() === deptName
+        const deptSubjects = facultySubjects.filter((s) =>
+            subjectMatchesDepartment(s, selectedDepartment)
         );
         return deptSubjects.length > 0 ? deptSubjects : facultySubjects;
     }, [subjects, selectedFaculty, selectedDepartment]);
@@ -233,8 +234,11 @@ const AdminAddClass = () => {
                                     />
                                     <span>
                                         {s.name} ({s.code})
-                                        {s.department ? (
-                                            <span className="text-slate-400 font-medium"> — {s.department}</span>
+                                        {getSubjectDepartments(s).length > 0 ? (
+                                            <span className="text-slate-400 font-medium">
+                                                {' '}
+                                                — {getSubjectDepartments(s).join(', ')}
+                                            </span>
                                         ) : null}
                                     </span>
                                 </label>

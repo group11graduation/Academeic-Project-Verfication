@@ -4,7 +4,7 @@ import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../..
 import {
     Users, GraduationCap, Calendar, Clock, Search,
     MoreVertical, Plus, ArrowLeft, Layout, BookOpen, Loader2,
-    UserPlus, CheckCircle2, Trash2
+    CheckCircle2, Trash2
 } from 'lucide-react';
 import adminClassService from '../../../services/adminClassService';
 import adminTeacherService from '../../../services/adminTeacherService';
@@ -12,6 +12,10 @@ import adminStudentService from '../../../services/adminStudentService';
 import adminSubjectService from '../../../services/adminSubjectService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import {
+    subjectMatchesDepartment,
+    subjectMatchesFaculty,
+} from '../../../shared/utils/subjectTaxonomy';
 
 function normalizeClassCode(code) {
     return String(code ?? '').trim().toUpperCase();
@@ -40,7 +44,6 @@ const AdminClassDetail = () => {
     const [removingTeacherId, setRemovingTeacherId] = useState('');
     const [deletingClass, setDeletingClass] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [generating, setGenerating] = useState(false);
     const [savingClassInfo, setSavingClassInfo] = useState(false);
     const [generatingStudentPasscodeFor, setGeneratingStudentPasscodeFor] = useState('');
     const [generatedPasscodes, setGeneratedPasscodes] = useState({});
@@ -48,28 +51,6 @@ const AdminClassDetail = () => {
     const [editClassName, setEditClassName] = useState('');
     const [editClassCode, setEditClassCode] = useState('');
     const [allClasses, setAllClasses] = useState([]);
-
-    const handleGenerateAccounts = async () => {
-        if (!(await appConfirm('This will create User login accounts for all students in this class. Proceed?'))) return;
-
-        try {
-            setGenerating(true);
-            const res = await adminClassService.generateAccounts(id);
-            if (res.success) {
-                await appSuccess(res.message);
-                // Refresh class details to see updated user status
-                const updatedRes = await adminClassService.getClass(id);
-                if (updatedRes.success) {
-                    setStudents(updatedRes.data.enrolledStudents || []);
-                }
-            }
-        } catch (error) {
-            console.error("Error generating accounts:", error);
-            await appError("Failed to generate student accounts.");
-        } finally {
-            setGenerating(false);
-        }
-    };
 
     const fetchClassDetails = async () => {
         const res = await adminClassService.getClass(id);
@@ -373,16 +354,14 @@ const AdminClassDetail = () => {
 
     const clearPickedStudents = () => setPickedStudentProfileIds(new Set());
     const availableSubjects = useMemo(() => {
-        const faculty = String(classInfo?.faculty || '').trim().toLowerCase();
-        const department = String(classInfo?.department || '').trim().toLowerCase();
+        const faculty = String(classInfo?.faculty || '').trim();
+        const department = String(classInfo?.department || '').trim();
         const source = allSubjects || [];
         if (!faculty) return source;
-        const facultySubjects = source.filter(
-            (sub) => String(sub.faculty || '').trim().toLowerCase() === faculty
-        );
+        const facultySubjects = source.filter((sub) => subjectMatchesFaculty(sub, faculty));
         if (!department) return facultySubjects;
-        const deptSubjects = facultySubjects.filter(
-            (sub) => String(sub.department || '').trim().toLowerCase() === department
+        const deptSubjects = facultySubjects.filter((sub) =>
+            subjectMatchesDepartment(sub, department)
         );
         return deptSubjects.length > 0 ? deptSubjects : facultySubjects;
     }, [allSubjects, classInfo?.faculty, classInfo?.department]);
@@ -694,14 +673,6 @@ const AdminClassDetail = () => {
                                 </button>
                             </>
                         )}
-                        <button
-                            onClick={handleGenerateAccounts}
-                            disabled={generating}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1D68E3] text-white rounded-lg font-bold text-[11px] hover:bg-blue-600 transition-all disabled:opacity-50"
-                        >
-                            <UserPlus className="h-3.5 w-3.5" />
-                            {generating ? 'Generating...' : 'Generate Student Accounts'}
-                        </button>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                             <input
