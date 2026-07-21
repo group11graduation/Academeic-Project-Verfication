@@ -14,6 +14,7 @@ import {
     CalendarRange,
     FileSpreadsheet,
     Workflow,
+    Building2,
     Menu,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
@@ -50,6 +51,7 @@ const AdminLayoutInner = () => {
         { name: 'Setup Workflow', path: '/admin/setup-workflow', icon: Workflow },
         { name: 'Classes', path: '/admin/classes', icon: BookOpen },
         { name: 'Subjects', path: '/admin/subjects', icon: BookMarked },
+        { name: 'Academic Structure', path: '/admin/academic-structure', icon: Building2 },
         { name: 'Semesters', path: '/admin/semesters', icon: CalendarRange },
     ];
     const dataItems = [{ name: 'Import / Export', path: '/admin/import-export', icon: FileSpreadsheet }];

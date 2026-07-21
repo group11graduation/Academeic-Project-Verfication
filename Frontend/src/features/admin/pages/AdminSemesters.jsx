@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarRange, Check, Edit2, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Building2, CalendarRange, Check, Edit2, Loader2, Plus } from 'lucide-react';
 import { adminAcademicService } from '../../../services/adminAcademicService';
-import { appConfirm, appError, appWarning } from '../../../lib/appDialog';
+import { appError, appWarning } from '../../../lib/appDialog';
 
 function toDateInputValue(value) {
     if (!value) return '';
@@ -63,8 +64,6 @@ const AdminSemesters = () => {
     const [showYearForm, setShowYearForm] = useState(false);
     const [editingYearId, setEditingYearId] = useState('');
     const [editingSemesterId, setEditingSemesterId] = useState('');
-    const [editingFaculty, setEditingFaculty] = useState(null);
-    const [editingDepartment, setEditingDepartment] = useState(null);
     const [yearSubmitting, setYearSubmitting] = useState(false);
     const [yearForm, setYearForm] = useState({
         label: '',
@@ -78,16 +77,11 @@ const AdminSemesters = () => {
         startDate: '',
         endDate: '',
     });
-    const [structure, setStructure] = useState({ faculties: [] });
-    const [newFacultyName, setNewFacultyName] = useState('');
-    const [departmentDrafts, setDepartmentDrafts] = useState({});
-    const [structureSaving, setStructureSaving] = useState(false);
 
     const loadYearsAndSemesters = async (yearId = '') => {
-        const [yRes, sRes, stRes] = await Promise.all([
+        const [yRes, sRes] = await Promise.all([
             adminAcademicService.getAcademicYears(),
             adminAcademicService.getSemesters(yearId || undefined),
-            adminAcademicService.getAcademicStructure(),
         ]);
 
         if (yRes.success) {
@@ -98,167 +92,6 @@ const AdminSemesters = () => {
         }
         if (sRes.success) {
             setSemesters(sRes.data || []);
-        }
-        if (stRes.success) {
-            setStructure(stRes.data || { faculties: [] });
-        }
-    };
-
-    const saveStructure = async (nextStructure) => {
-        try {
-            setStructureSaving(true);
-            const res = await adminAcademicService.updateAcademicStructure(nextStructure);
-            if (!res.success) throw new Error('Failed to save structure');
-            setStructure(res.data || { faculties: [] });
-        } catch (err) {
-            console.error(err);
-            await appError(err.response?.data?.message || err.message || 'Could not save academic structure');
-        } finally {
-            setStructureSaving(false);
-        }
-    };
-
-    const handleAddFaculty = async () => {
-        const name = newFacultyName.trim();
-        if (!name) return;
-        const exists = (structure.faculties || []).some((f) => String(f.name).toLowerCase() === name.toLowerCase());
-        if (exists) {
-            await appWarning('Faculty already exists.');
-            return;
-        }
-        const next = {
-            faculties: [...(structure.faculties || []), { name, departments: [] }],
-        };
-        await saveStructure(next);
-        setNewFacultyName('');
-    };
-
-    const handleAddDepartment = async (facultyName) => {
-        const draft = String(departmentDrafts[facultyName] || '').trim();
-        if (!draft) return;
-        const next = {
-            faculties: (structure.faculties || []).map((f) => {
-                if (f.name !== facultyName) return f;
-                const departments = Array.isArray(f.departments) ? f.departments : [];
-                const exists = departments.some((d) => String(d).toLowerCase() === draft.toLowerCase());
-                if (exists) return f;
-                return { ...f, departments: [...departments, draft] };
-            }),
-        };
-        await saveStructure(next);
-        setDepartmentDrafts((prev) => ({ ...prev, [facultyName]: '' }));
-    };
-
-    const handleRenameFaculty = async (oldName, newName) => {
-        const trimmed = String(newName || '').trim();
-        if (!trimmed) {
-            await appWarning('Faculty name is required.');
-            return;
-        }
-        if (trimmed.toLowerCase() === String(oldName).toLowerCase()) {
-            setEditingFaculty(null);
-            return;
-        }
-        const exists = (structure.faculties || []).some(
-            (f) => String(f.name).toLowerCase() === trimmed.toLowerCase() && f.name !== oldName
-        );
-        if (exists) {
-            await appWarning('Faculty already exists.');
-            return;
-        }
-        const next = {
-            faculties: (structure.faculties || []).map((f) =>
-                f.name === oldName ? { ...f, name: trimmed } : f
-            ),
-        };
-        await saveStructure(next);
-        setDepartmentDrafts((prev) => {
-            const nextDrafts = { ...prev };
-            if (Object.prototype.hasOwnProperty.call(nextDrafts, oldName)) {
-                nextDrafts[trimmed] = nextDrafts[oldName];
-                delete nextDrafts[oldName];
-            }
-            return nextDrafts;
-        });
-        setEditingFaculty(null);
-    };
-
-    const handleRenameDepartment = async (facultyName, oldDepartment, newDepartment) => {
-        const trimmed = String(newDepartment || '').trim();
-        if (!trimmed) {
-            await appWarning('Department name is required.');
-            return;
-        }
-        if (trimmed.toLowerCase() === String(oldDepartment).toLowerCase()) {
-            setEditingDepartment(null);
-            return;
-        }
-        const faculty = (structure.faculties || []).find((f) => f.name === facultyName);
-        const departments = Array.isArray(faculty?.departments) ? faculty.departments : [];
-        const exists = departments.some(
-            (d) => String(d).toLowerCase() === trimmed.toLowerCase() && d !== oldDepartment
-        );
-        if (exists) {
-            await appWarning('Department already exists in this faculty.');
-            return;
-        }
-        const next = {
-            faculties: (structure.faculties || []).map((f) => {
-                if (f.name !== facultyName) return f;
-                return {
-                    ...f,
-                    departments: (f.departments || []).map((d) => (d === oldDepartment ? trimmed : d)),
-                };
-            }),
-        };
-        await saveStructure(next);
-        setEditingDepartment(null);
-    };
-
-    const handleDeleteFaculty = async (facultyName) => {
-        const ok = await appConfirm(
-            `Delete faculty "${facultyName}" and all its departments from Academic Structure?`,
-            { danger: true, confirmLabel: 'Delete faculty' },
-        );
-        if (!ok) return;
-        const next = {
-            faculties: (structure.faculties || []).filter(
-                (f) => String(f.name).toLowerCase() !== String(facultyName).toLowerCase()
-            ),
-        };
-        await saveStructure(next);
-        setDepartmentDrafts((prev) => {
-            const nextDrafts = { ...prev };
-            delete nextDrafts[facultyName];
-            return nextDrafts;
-        });
-        if (editingFaculty?.oldName === facultyName) setEditingFaculty(null);
-        if (editingDepartment?.facultyName === facultyName) setEditingDepartment(null);
-    };
-
-    const handleDeleteDepartment = async (facultyName, departmentName) => {
-        const ok = await appConfirm(
-            `Delete department "${departmentName}" from ${facultyName}?`,
-            { danger: true, confirmLabel: 'Delete department' },
-        );
-        if (!ok) return;
-        const next = {
-            faculties: (structure.faculties || []).map((f) => {
-                if (f.name !== facultyName) return f;
-                return {
-                    ...f,
-                    departments: (f.departments || []).filter(
-                        (d) => String(d).toLowerCase() !== String(departmentName).toLowerCase()
-                    ),
-                };
-            }),
-        };
-        await saveStructure(next);
-        if (
-            editingDepartment?.facultyName === facultyName &&
-            editingDepartment?.oldName === departmentName
-        ) {
-            setEditingDepartment(null);
         }
     };
 
@@ -446,11 +279,24 @@ const AdminSemesters = () => {
                     </div>
                     <div>
                         <h1 className="text-base font-extrabold leading-none text-slate-900 dark:text-slate-100">Semesters</h1>
-                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Manage academic years, structure, and terms.</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                            Manage academic years and terms.{' '}
+                            <Link to="/admin/academic-structure" className="font-bold text-[#1e56e3] hover:underline">
+                                Faculties &amp; departments
+                            </Link>
+                            {' '}are managed separately.
+                        </p>
                     </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        to="/admin/academic-structure"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-[#162033]"
+                    >
+                        <Building2 className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Academic Structure</span>
+                    </Link>
                     <button
                         type="button"
                         onClick={openCreateYearForm}
@@ -569,175 +415,8 @@ const AdminSemesters = () => {
                 </form>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                <div>
-                    <h2 className="text-sm font-black text-slate-900">Academic Structure</h2>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                        Manage faculties and departments used by classes and subjects filters. Applies to every academic year.
-                    </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                        value={newFacultyName}
-                        onChange={(e) => setNewFacultyName(e.target.value)}
-                        placeholder="New faculty name"
-                        className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
-                    />
-                    <button
-                        type="button"
-                        onClick={handleAddFaculty}
-                        disabled={structureSaving}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e56e3] px-4 py-2 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add Faculty
-                    </button>
-                </div>
-
-                <div className="space-y-2">
-                    {(structure.faculties || []).map((f) => (
-                        <div key={f.name} className="rounded-lg border border-slate-200 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                                {editingFaculty?.oldName === f.name ? (
-                                    <div className="flex flex-1 items-center gap-2">
-                                        <input
-                                            value={editingFaculty.value}
-                                            onChange={(e) => setEditingFaculty((prev) => ({ ...prev, value: e.target.value }))}
-                                            className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-800"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRenameFaculty(f.name, editingFaculty.value)}
-                                            disabled={structureSaving}
-                                            className="rounded-lg bg-[#1e56e3] p-1.5 text-white hover:bg-blue-700 disabled:opacity-60"
-                                            title="Save faculty name"
-                                        >
-                                            <Check className="h-3.5 w-3.5" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditingFaculty(null)}
-                                            className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
-                                            title="Cancel"
-                                        >
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <h3 className="text-[13px] font-black text-slate-900">{f.name}</h3>
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditingFaculty({ oldName: f.name, value: f.name })}
-                                                className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
-                                                title="Edit faculty"
-                                            >
-                                                <Edit2 className="h-3.5 w-3.5" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteFaculty(f.name)}
-                                                disabled={structureSaving}
-                                                className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
-                                                title="Delete faculty"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                            <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {(f.departments || []).map((d) => {
-                                    const isEditing =
-                                        editingDepartment?.facultyName === f.name && editingDepartment?.oldName === d;
-                                    return isEditing ? (
-                                        <div key={`${f.name}-${d}-edit`} className="inline-flex items-center gap-1">
-                                            <input
-                                                value={editingDepartment.value}
-                                                onChange={(e) =>
-                                                    setEditingDepartment((prev) => ({ ...prev, value: e.target.value }))
-                                                }
-                                                className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRenameDepartment(f.name, d, editingDepartment.value)}
-                                                disabled={structureSaving}
-                                                className="rounded-full bg-[#1e56e3] p-1 text-white hover:bg-blue-700 disabled:opacity-60"
-                                                title="Save department"
-                                            >
-                                                <Check className="h-3 w-3" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditingDepartment(null)}
-                                                className="rounded-full border border-slate-200 p-1 text-slate-600 hover:bg-slate-50"
-                                                title="Cancel"
-                                            >
-                                                <X className="h-3 w-3" />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <span
-                                            key={`${f.name}-${d}`}
-                                            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600"
-                                        >
-                                            {d}
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    setEditingDepartment({ facultyName: f.name, oldName: d, value: d })
-                                                }
-                                                className="text-slate-500 hover:text-slate-800"
-                                                title="Edit department"
-                                            >
-                                                <Edit2 className="h-3 w-3" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteDepartment(f.name, d)}
-                                                disabled={structureSaving}
-                                                className="text-rose-500 hover:text-rose-700 disabled:opacity-60"
-                                                title="Delete department"
-                                            >
-                                                <Trash2 className="h-3 w-3" />
-                                            </button>
-                                        </span>
-                                    );
-                                })}
-                                {(f.departments || []).length === 0 && (
-                                    <span className="text-[11px] text-slate-500">No departments yet.</span>
-                                )}
-                            </div>
-                            <div className="mt-2 flex flex-col sm:flex-row gap-2">
-                                <input
-                                    value={departmentDrafts[f.name] || ''}
-                                    onChange={(e) => setDepartmentDrafts((prev) => ({ ...prev, [f.name]: e.target.value }))}
-                                    placeholder={`Add department to ${f.name}`}
-                                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-700"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => handleAddDepartment(f.name)}
-                                    disabled={structureSaving}
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                                >
-                                    Add Department
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                    {(structure.faculties || []).length === 0 && (
-                        <p className="text-[11px] text-slate-500">No faculties yet. Add your first faculty to start structure filtering.</p>
-                    )}
-                </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-black text-slate-900 mb-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                <h2 className="text-sm font-black text-slate-900 mb-3 dark:text-slate-100">
                     {selectedYear ? `Semesters in ${selectedYear.label}` : 'Semesters'}
                 </h2>
                 {semesters.length === 0 ? (
@@ -745,17 +424,17 @@ const AdminSemesters = () => {
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                         {semesters.map((s) => (
-                            <div key={s._id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                            <div key={s._id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-[#0f172a]/60">
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className="text-[13px] font-extrabold text-slate-900 truncate">{s.name}</p>
+                                    <p className="text-[13px] font-extrabold text-slate-900 truncate dark:text-slate-100">{s.name}</p>
                                     <div className="flex items-center gap-1 shrink-0">
-                                        <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-slate-600 ring-1 ring-slate-200">
+                                        <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-white/10">
                                             Order {s.order ?? 0}
                                         </span>
                                         <button
                                             type="button"
                                             onClick={() => openEditSemesterForm(s)}
-                                            className="rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-100"
+                                            className="rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-[#111827] dark:text-slate-300"
                                             title="Edit semester"
                                         >
                                             <Edit2 className="h-3.5 w-3.5" />
@@ -775,10 +454,10 @@ const AdminSemesters = () => {
             {showCreateForm && (
                 <form
                     onSubmit={handleSaveSemester}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3"
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 dark:border-white/10 dark:bg-[#111827] dark:shadow-none"
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-black text-slate-900">
+                        <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">
                             {editingSemesterId ? 'Edit Semester' : 'New Semester Registration'}
                         </h2>
                         <button
@@ -787,7 +466,7 @@ const AdminSemesters = () => {
                                 resetSemesterForm();
                                 setShowCreateForm(false);
                             }}
-                            className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                            className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-[#162033]"
                         >
                             Close
                         </button>
@@ -799,7 +478,7 @@ const AdminSemesters = () => {
                             value={form.name}
                             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                             placeholder="e.g. Semester 1"
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
                         />
                     </div>
 
@@ -811,7 +490,7 @@ const AdminSemesters = () => {
                                 min={1}
                                 value={form.order}
                                 onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
+                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
                             />
                         </div>
                         <div className="sm:col-span-2">
@@ -822,7 +501,7 @@ const AdminSemesters = () => {
                                 min={yearDateBounds?.min}
                                 max={yearDateBounds?.max}
                                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
+                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
                             />
                         </div>
                     </div>
@@ -835,7 +514,7 @@ const AdminSemesters = () => {
                             min={yearDateBounds?.min}
                             max={yearDateBounds?.max}
                             onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
                         />
                     </div>
 

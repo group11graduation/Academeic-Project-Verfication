@@ -86,7 +86,8 @@ const AdminDashboard = () => {
                     <h2 className="mb-3 text-sm font-black text-[#0F172A] dark:text-slate-100">Priority Setup Actions</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <QuickLink to="/admin/setup-workflow" title="Setup Workflow" desc="Follow the exact setup order." icon={Workflow} />
-                        <QuickLink to="/admin/semesters" title="Semesters" desc="Create academic terms first." icon={CalendarRange} />
+                        <QuickLink to="/admin/academic-structure" title="Academic Structure" desc="Manage faculties and departments." icon={Building2} />
+                        <QuickLink to="/admin/semesters" title="Semesters" desc="Create academic years and terms." icon={CalendarRange} />
                         <QuickLink to="/admin/subjects" title="Subjects" desc="Manage all course subjects." icon={BookMarked} />
                         <QuickLink to="/admin/classes" title="Classes" desc="Create classes and assign teachers." icon={Building2} />
                     </div>

@@ -18,6 +18,7 @@ import AdminAddAdmin from '../../features/admin/pages/AdminAddAdmin';
 import AdminAdminDetail from '../../features/admin/pages/AdminAdminDetail';
 import AdminSubjects from '../../features/admin/pages/AdminSubjects';
 import AdminSemesters from '../../features/admin/pages/AdminSemesters';
+import AdminAcademicStructure from '../../features/admin/pages/AdminAcademicStructure';
 import AdminImportExport from '../../features/admin/pages/AdminImportExport';
 import AdminSetupWorkflow from '../../features/admin/pages/AdminSetupWorkflow';
 
@@ -51,6 +52,7 @@ const AdminRoutes = () => {
 
                 <Route path="subjects" element={<AdminSubjects />} />
                 <Route path="semesters" element={<AdminSemesters />} />
+                <Route path="academic-structure" element={<AdminAcademicStructure />} />
                 <Route path="import-export" element={<AdminImportExport />} />
                 <Route path="setup-workflow" element={<AdminSetupWorkflow />} />
             </Route>

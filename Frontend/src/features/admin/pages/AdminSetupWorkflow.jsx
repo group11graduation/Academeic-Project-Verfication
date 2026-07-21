@@ -5,6 +5,7 @@ import adminClassService from '../../../services/adminClassService';
 import adminSubjectService from '../../../services/adminSubjectService';
 import adminTeacherService from '../../../services/adminTeacherService';
 import adminSemesterService from '../../../services/adminSemesterService';
+import { adminAcademicService } from '../../../services/adminAcademicService';
 
 const AdminSetupWorkflow = () => {
     const [loading, setLoading] = useState(true);
@@ -13,22 +14,27 @@ const AdminSetupWorkflow = () => {
     const [subjectsCount, setSubjectsCount] = useState(0);
     const [teachersCount, setTeachersCount] = useState(0);
     const [semestersCount, setSemestersCount] = useState(0);
+    const [facultiesCount, setFacultiesCount] = useState(0);
 
     const loadStats = async (isInitial = false) => {
         if (isInitial) setLoading(true);
         else setRefreshing(true);
         try {
-            const [classesRes, subjectsRes, teachersRes, semestersRes] = await Promise.all([
+            const [classesRes, subjectsRes, teachersRes, semestersRes, structureRes] = await Promise.all([
                 adminClassService.getClasses(),
                 adminSubjectService.getSubjects(),
                 adminTeacherService.getTeachers(),
                 adminSemesterService.getSemesters(),
+                adminAcademicService.getAcademicStructure(),
             ]);
 
             if (classesRes.success) setClassesCount((classesRes.data || []).length);
             if (subjectsRes.success) setSubjectsCount((subjectsRes.data || []).length);
             if (teachersRes.success) setTeachersCount((teachersRes.data || []).length);
             if (semestersRes.success) setSemestersCount((semestersRes.data || []).length);
+            if (structureRes.success) {
+                setFacultiesCount((structureRes.data?.faculties || []).length);
+            }
         } catch (error) {
             console.error('Failed to load setup workflow data:', error);
         } finally {
@@ -43,6 +49,15 @@ const AdminSetupWorkflow = () => {
 
     const steps = useMemo(
         () => [
+            {
+                id: 'structure',
+                title: 'Create academic structure',
+                description: 'Add faculties and departments used by classes, subjects, and filters.',
+                done: facultiesCount > 0,
+                to: '/admin/academic-structure',
+                cta: 'Open Academic Structure',
+                icon: Building2,
+            },
             {
                 id: 'semesters',
                 title: 'Create semester structure',
@@ -80,7 +95,7 @@ const AdminSetupWorkflow = () => {
                 icon: GraduationCap,
             },
         ],
-        [classesCount, semestersCount, subjectsCount, teachersCount]
+        [classesCount, facultiesCount, semestersCount, subjectsCount, teachersCount]
     );
 
     const completedSteps = steps.filter((s) => s.done).length;
@@ -178,7 +193,7 @@ const AdminSetupWorkflow = () => {
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
                         <p className="font-black text-[#1D68E3] mb-1.5 text-[12px]">Admin</p>
                         <p className="font-medium leading-relaxed text-slate-700 dark:text-slate-300">
-                            1) Create semester/year in Semesters page. 2) Create subjects in Subjects page. 3) Create classes and link subjects in Classes page. 4) Assign teacher+subject from Class Detail. 5) Add/import students.
+                            1) Create faculties/departments in Academic Structure. 2) Create semester/year in Semesters. 3) Create subjects. 4) Create classes and link subjects. 5) Assign teacher+subject from Class Detail. 6) Add/import students.
                         </p>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
