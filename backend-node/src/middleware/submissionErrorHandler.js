@@ -34,26 +34,38 @@ export function submissionErrorHandler(err, req, res, next) {
   }
 
   if (err.code === SUBMISSION_ERROR_CODES.TECH_MISMATCH_REJECTED) {
+    const message = err.publicError || err.message || 'Project ZIP does not match the approved proposal technology.';
     return res.status(err.status || 400).json({
       success: false,
-      error: err.publicError || err.message,
+      message,
+      error: message,
       code: SUBMISSION_ERROR_CODES.TECH_MISMATCH_REJECTED,
+      verdict: 'rejected',
+      reason: 'technology_mismatch',
       failures: err.failures || [],
+      approvedTech: err.failures?.[0]?.approvedTech || [],
+      zipTech: err.failures?.[0]?.zipTech || [],
+      detectedStack: err.failures?.[0]?.path || '',
     });
   }
 
   if (err.code === SUBMISSION_ERROR_CODES.RUNTIME_ERROR) {
+    const message = err.publicError || err.message || 'Preview runtime error.';
     return res.status(err.status || 500).json({
       success: false,
-      error: err.publicError || err.message || 'Preview runtime error.',
+      message,
+      error: message,
       code: SUBMISSION_ERROR_CODES.RUNTIME_ERROR,
       sessionId: err.sessionId || null,
     });
   }
 
+  const fallback = err.publicError || err.message || 'Upload failed.';
   return res.status(err.status || 400).json({
     success: false,
-    error: err.publicError || err.message,
+    message: fallback,
+    error: fallback,
     code: err.code,
+    verdict: 'rejected',
   });
 }

@@ -70,6 +70,11 @@ export const submitProjectCode = asyncHandler(async (req, res) => {
     {
       ...result.submission,
       isUpdate: result.isUpdate,
+      verdict: result.verdict || 'accepted',
+      techMatch: result.techMatch || null,
+      message:
+        result.techMatch?.message ||
+        (result.isUpdate ? 'Project ZIP updated and accepted.' : 'Project ZIP uploaded and accepted.'),
     },
     status
   );

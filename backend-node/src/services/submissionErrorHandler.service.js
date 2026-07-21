@@ -565,12 +565,17 @@ export async function handlePreviewContainerExit({
  * Student-facing JSON body for extraction failures (spec-compliant shape).
  */
 export function formatStudentExtractionResponse(err) {
+  const message =
+    err?.publicError ||
+    err?.message ||
+    'Corrupted archive. Please re-zip and re-submit your files.';
   return {
     success: false,
-    error:
-      err?.publicError ||
-      err?.message ||
-      'Corrupted archive. Please re-zip and re-submit your files.',
+    message,
+    error: message,
+    verdict: 'rejected',
+    reason: 'failed_extraction',
+    code: SUBMISSION_ERROR_CODES.FAILED_EXTRACTION,
   };
 }
 
@@ -578,10 +583,14 @@ export function formatStudentExtractionResponse(err) {
  * Teacher / audit JSON payload with verbose validation failures.
  */
 export function formatTechAuditResponse(err) {
+  const message = err?.publicError || err?.message || 'The student project cannot be previewed.';
   return {
     success: false,
-    error: err?.publicError || err?.message || 'The student project cannot be previewed.',
+    message,
+    error: message,
     code: SUBMISSION_ERROR_CODES.TECH_AUDIT_REJECTED,
+    verdict: 'rejected',
+    reason: 'tech_audit_rejected',
     validationFailures: err?.failures || [],
     sessionId: err?.sessionId || null,
   };

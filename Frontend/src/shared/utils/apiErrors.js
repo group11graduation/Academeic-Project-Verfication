@@ -12,6 +12,12 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
     if (data) {
         if (typeof data.message === 'string' && data.message.trim()) return data.message.trim();
         if (typeof data.error === 'string' && data.error.trim()) return data.error.trim();
+        if (Array.isArray(data.failures) && data.failures[0]?.message) {
+            return String(data.failures[0].message).trim();
+        }
+        if (Array.isArray(data.validationFailures) && data.validationFailures[0]?.message) {
+            return String(data.validationFailures[0].message).trim();
+        }
     }
 
     if (error.code === 'ECONNABORTED') {
@@ -26,12 +32,18 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
     if (status === 401) return 'Your session expired. Please sign in again.';
     if (status === 403) return 'You do not have permission for this action.';
     if (status === 404) return 'The requested resource was not found.';
+    if (status === 400 || status === 422) {
+        return 'The server rejected this request. Check the details and try again.';
+    }
     if (status >= 500) {
         return typeof data?.message === 'string' ? data.message : 'Server error. Please try again or contact support.';
     }
 
     if (typeof error.message === 'string' && error.message.trim()) {
-        return error.message.trim();
+        // Avoid showing useless axios defaults like "Request failed with status code 400"
+        if (!/^Request failed with status code \d+$/i.test(error.message)) {
+            return error.message.trim();
+        }
     }
 
     return fallback;

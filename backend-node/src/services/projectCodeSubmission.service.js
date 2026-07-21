@@ -247,6 +247,44 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       assignment,
     });
     await flagSubmissionPipelineStatus(submissionId, SUBMISSION_PIPELINE_STATUSES.ACCEPTED);
+
+    const submission = saved.toObject ? saved.toObject() : saved;
+
+    let studentName = 'A student';
+    try {
+      const u = await User.findById(submittedByUserId).select('name').lean();
+      if (u?.name) studentName = u.name;
+    } catch {
+      /* ignore */
+    }
+    notifySafe(() =>
+      notifyAssignmentTeachers(assignment, {
+        type: 'project_uploaded',
+        title: primary ? 'Project ZIP updated' : 'Project ZIP uploaded',
+        body: `${studentName} uploaded a project for "${assignment.title || 'assignment'}".`,
+        link: `/teacher/assignments/${assignment._id}/proposals/${proposal._id}`,
+        meta: {
+          assignmentId: String(assignment._id),
+          proposalId: String(proposal._id),
+          submissionId: String(submissionId),
+        },
+      })
+    );
+
+    return {
+      submission,
+      isUpdate: Boolean(primary),
+      verdict: 'accepted',
+      techMatch: {
+        ok: true,
+        detectedStack: techMatch.detectedStack || '',
+        approvedTech: techMatch.approvedTech || [],
+        zipTech: techMatch.zipTech || [],
+        message:
+          techMatch.message ||
+          'Project ZIP technology matches the approved proposal.',
+      },
+    };
   } catch (e) {
     await rmExtractDirSafe(auditDir);
     if (e instanceof SubmissionPipelineError) throw e;
@@ -254,31 +292,6 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
   } finally {
     await rmExtractDirSafe(auditDir);
   }
-
-  const submission = saved.toObject ? saved.toObject() : saved;
-
-  let studentName = 'A student';
-  try {
-    const u = await User.findById(submittedByUserId).select('name').lean();
-    if (u?.name) studentName = u.name;
-  } catch {
-    /* ignore */
-  }
-  notifySafe(() =>
-    notifyAssignmentTeachers(assignment, {
-      type: 'project_uploaded',
-      title: primary ? 'Project ZIP updated' : 'Project ZIP uploaded',
-      body: `${studentName} uploaded a project for "${assignment.title || 'assignment'}".`,
-      link: `/teacher/assignments/${assignment._id}/proposals/${proposal._id}`,
-      meta: {
-        assignmentId: String(assignment._id),
-        proposalId: String(proposal._id),
-        submissionId: String(submissionId),
-      },
-    })
-  );
-
-  return { submission, isUpdate: Boolean(primary) };
 }
 
 export async function submitProjectZip(userId, assignmentId, file, projectStackHint = '', screenshotFile = null) {

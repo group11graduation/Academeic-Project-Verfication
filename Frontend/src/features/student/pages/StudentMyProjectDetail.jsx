@@ -25,7 +25,39 @@ import { useAuth } from '../../../context/authContext';
 import studentService from '../../../services/studentService';
 import { getApiOrigin } from '../../../lib/api';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY } from '../../../shared/ui/zendentaLayout';
+import { getApiErrorMessage } from '../../../shared/utils/apiErrors';
 import { PROJECT_STACK_OPTIONS, PROJECT_STACK_HINT_HELP } from '../../../shared/constants/projectStackHints';
+
+function formatProjectUploadFeedback(payload = {}, fallback = '') {
+    const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    const message =
+        (typeof payload?.message === 'string' && payload.message.trim()) ||
+        (typeof data?.message === 'string' && data.message.trim()) ||
+        (typeof data?.techMatch?.message === 'string' && data.techMatch.message.trim()) ||
+        fallback;
+    const approved = Array.isArray(data?.approvedTech)
+        ? data.approvedTech
+        : Array.isArray(data?.techMatch?.approvedTech)
+          ? data.techMatch.approvedTech
+          : [];
+    const zipTech = Array.isArray(data?.zipTech)
+        ? data.zipTech
+        : Array.isArray(data?.techMatch?.zipTech)
+          ? data.techMatch.zipTech
+          : [];
+    const detected =
+        data?.detectedStack || data?.techMatch?.detectedStack || data?.failures?.[0]?.path || '';
+    const parts = [message].filter(Boolean);
+    if (approved.length) parts.push(`Approved proposal tech: ${approved.join(', ')}.`);
+    if (detected || zipTech.length) {
+        parts.push(
+            `Uploaded ZIP detected as: ${detected || 'unknown'}${
+                zipTech.length ? ` (${zipTech.join(', ')})` : ''
+            }.`
+        );
+    }
+    return parts.join(' ');
+}
 
 const StudentMyProjectDetail = () => {
     const { user } = useAuth();
@@ -46,6 +78,7 @@ const StudentMyProjectDetail = () => {
     const screenshotInputRef = useRef(null);
     const [codeZipBusy, setCodeZipBusy] = useState(false);
     const [codeZipMessage, setCodeZipMessage] = useState('');
+    const [codeZipTone, setCodeZipTone] = useState(''); // success | error | ''
     const [selectedZipFile, setSelectedZipFile] = useState(null);
     const [selectedScreenshotFile, setSelectedScreenshotFile] = useState(null);
     const [screenshotBusy, setScreenshotBusy] = useState(false);
@@ -194,17 +227,20 @@ const StudentMyProjectDetail = () => {
             return;
         }
         setCodeZipMessage('');
+        setCodeZipTone('');
         setSelectedZipFile(file);
     };
 
     const handleProjectZipUpload = async () => {
         if (!selectedZipFile || !assignmentId) return;
         if (row?.projectDeadlinePassed) {
+            setCodeZipTone('error');
             setCodeZipMessage(DEADLINE_DUE_STUDENT_MESSAGE);
             return;
         }
         setCodeZipBusy(true);
         setCodeZipMessage('');
+        setCodeZipTone('');
         try {
             const res = await studentService.submitProjectCode(
                 assignmentId,
@@ -215,20 +251,33 @@ const StudentMyProjectDetail = () => {
             if (res.success) {
                 const v = res.data?.version;
                 const updated = res.data?.isUpdate;
-                setCodeZipMessage(
-                    updated
-                        ? `Updated (v${v}): ${res.data?.originalFilename || selectedZipFile.name}. Same submission id — teacher sees the new file.`
-                        : `Uploaded: ${res.data?.originalFilename || selectedZipFile.name}. You can replace it until the project deadline.`
-                );
+                const techLine = formatProjectUploadFeedback(res, '');
+                const base = updated
+                    ? `Accepted (v${v}): ${res.data?.originalFilename || selectedZipFile.name}.`
+                    : `Accepted: ${res.data?.originalFilename || selectedZipFile.name}.`;
+                const full = [base, techLine].filter(Boolean).join(' ');
+                setCodeZipTone('success');
+                setCodeZipMessage(full);
+                await appSuccess(full);
                 setSelectedZipFile(null);
                 setSelectedScreenshotFile(null);
                 const assignRes = await studentService.getAssignment(assignmentId);
                 if (assignRes.success) setRow(assignRes.data);
             } else {
-                setCodeZipMessage(res.message || 'Upload failed.');
+                const msg = formatProjectUploadFeedback(res, res.message || 'Upload rejected.');
+                setCodeZipTone('error');
+                setCodeZipMessage(msg);
+                await appError(msg);
             }
         } catch (e) {
-            setCodeZipMessage(e.response?.data?.message || e.message || 'Upload failed.');
+            const data = e.response?.data || {};
+            const msg = formatProjectUploadFeedback(
+                data,
+                getApiErrorMessage(e, 'Upload rejected. Check that your ZIP matches the approved proposal technology.')
+            );
+            setCodeZipTone('error');
+            setCodeZipMessage(msg);
+            await appError(msg);
         } finally {
             setCodeZipBusy(false);
             if (zipInputRef.current) zipInputRef.current.value = '';
@@ -595,7 +644,24 @@ const StudentMyProjectDetail = () => {
                                 </>
                             )}
                             {codeZipMessage && (
-                                <p className="mt-3 text-sm font-medium text-slate-600">{codeZipMessage}</p>
+                                <div
+                                    className={`mt-3 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
+                                        codeZipTone === 'success'
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                            : codeZipTone === 'error'
+                                              ? 'border-rose-200 bg-rose-50 text-rose-900'
+                                              : 'border-slate-200 bg-slate-50 text-slate-700'
+                                    }`}
+                                >
+                                    <p className="text-[11px] font-black uppercase tracking-wider mb-1">
+                                        {codeZipTone === 'success'
+                                            ? 'Accepted'
+                                            : codeZipTone === 'error'
+                                              ? 'Rejected'
+                                              : 'Status'}
+                                    </p>
+                                    <p className="leading-relaxed">{codeZipMessage}</p>
+                                </div>
                             )}
                         </div>
 
