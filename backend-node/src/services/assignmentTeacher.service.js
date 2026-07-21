@@ -131,15 +131,21 @@ function mapSubjectOption(subject) {
   };
 }
 
-/** All subjects a teacher may pick when creating an assignment for this class. */
+/** Subjects this teacher may pick when creating an assignment for this class. */
 function resolveCatalogSubjects(classDoc, teacherAssignment) {
   const classSubjects = (classDoc?.subjects || []).map(mapSubjectOption).filter(Boolean);
   const teacherSubjects = (teacherAssignment?.subjects || []).map(mapSubjectOption).filter(Boolean);
-  if (classSubjects.length > 0) return classSubjects;
 
-  const merged = new Map();
-  for (const s of teacherSubjects) merged.set(String(s._id), s);
-  return [...merged.values()];
+  if (teacherSubjects.length > 0) {
+    const teacherIds = new Set(teacherSubjects.map((s) => String(s._id)));
+    if (classSubjects.length > 0) {
+      const intersected = classSubjects.filter((s) => teacherIds.has(String(s._id)));
+      if (intersected.length > 0) return intersected;
+    }
+    return teacherSubjects;
+  }
+
+  return classSubjects;
 }
 
 export function teacherCanUseSubject(classDoc, teacherAssignment, subjectId) {

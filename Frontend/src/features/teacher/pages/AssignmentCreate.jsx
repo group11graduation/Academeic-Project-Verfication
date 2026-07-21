@@ -174,37 +174,59 @@ const AssignmentCreate = () => {
         };
     }, [editId, isEdit]);
 
+    const selectedCatalogRow = catalog[catalogIndex] || null;
+
+    const termCatalogRows = useMemo(() => {
+        if (!selectedCatalogRow) return [];
+        const semesterId = String(selectedCatalogRow?.semester?._id || selectedCatalogRow?.semester || '');
+        const academicYearId = String(selectedCatalogRow?.academicYear?._id || selectedCatalogRow?.academicYear || '');
+        return catalog.filter((row) => {
+            const sameSemester = String(row?.semester?._id || row?.semester || '') === semesterId;
+            const sameAcademicYear = String(row?.academicYear?._id || row?.academicYear || '') === academicYearId;
+            return sameSemester && sameAcademicYear;
+        });
+    }, [catalog, selectedCatalogRow]);
+
+    const availableSubjects = useMemo(() => {
+        const map = new Map();
+        for (const row of termCatalogRows) {
+            for (const subject of row.subjects || []) {
+                map.set(String(subject._id), subject);
+            }
+        }
+        return [...map.values()];
+    }, [termCatalogRows]);
+
     useEffect(() => {
         const row = catalog[catalogIndex];
         if (isEdit && editInitialCatalogIndex.current === catalogIndex) return;
-        if (row?.subjects?.length) {
+        if (availableSubjects.length) {
+            setSubjectId((prev) =>
+                availableSubjects.some((s) => String(s._id) === String(prev)) ? prev : availableSubjects[0]._id
+            );
+        } else if (row?.subjects?.length) {
             setSubjectId((prev) => (row.subjects.some((s) => s._id === prev) ? prev : row.subjects[0]._id));
         } else if (!isEdit) {
             setSubjectId('');
         }
-    }, [catalogIndex, catalog, isEdit]);
-
-    const selectedCatalogRow = catalog[catalogIndex] || null;
+    }, [catalogIndex, catalog, availableSubjects, isEdit]);
 
     const selectedSubject = useMemo(() => {
         if (!subjectId) return null;
-        const fromCatalog = (selectedCatalogRow?.subjects || []).find((s) => String(s._id) === String(subjectId));
+        const fromCatalog = availableSubjects.find((s) => String(s._id) === String(subjectId));
         if (fromCatalog) return fromCatalog;
         if (existingAssignment?.subject && String(existingAssignment.subject._id || existingAssignment.subject) === String(subjectId)) {
             return existingAssignment.subject;
         }
         return null;
-    }, [subjectId, selectedCatalogRow, existingAssignment]);
+    }, [subjectId, availableSubjects, existingAssignment]);
 
     const compatibleClassOptions = useMemo(() => {
         if (!selectedCatalogRow || !subjectId) return [];
-        return catalog.filter((row) => {
-            const sameSemester = String(row?.semester?._id || row?.semester || '') === String(selectedCatalogRow?.semester?._id || selectedCatalogRow?.semester || '');
-            const sameAcademicYear = String(row?.academicYear?._id || row?.academicYear || '') === String(selectedCatalogRow?.academicYear?._id || selectedCatalogRow?.academicYear || '');
-            const hasSubject = (row?.subjects || []).some((s) => String(s._id) === String(subjectId));
-            return sameSemester && sameAcademicYear && hasSubject;
-        });
-    }, [catalog, selectedCatalogRow, subjectId]);
+        return termCatalogRows.filter((row) =>
+            (row?.subjects || []).some((s) => String(s._id) === String(subjectId))
+        );
+    }, [termCatalogRows, selectedCatalogRow, subjectId]);
 
     useEffect(() => {
         setSelectedClassIds((prev) => {
@@ -434,18 +456,18 @@ const AssignmentCreate = () => {
                                 required
                                 className={Z_INPUT}
                             >
-                                {(catalog[catalogIndex]?.subjects || []).length === 0 && (
-                                    <option value="">No subjects linked to this class</option>
+                                {availableSubjects.length === 0 && (
+                                    <option value="">No subjects linked to your classes this term</option>
                                 )}
-                                {(catalog[catalogIndex]?.subjects || []).map((s) => (
+                                {availableSubjects.map((s) => (
                                     <option key={s._id} value={s._id}>
                                         {s.code} - {s.name}
                                     </option>
                                 ))}
                             </select>
-                            {(catalog[catalogIndex]?.subjects || []).length > 1 && (
+                            {availableSubjects.length > 1 && (
                                 <p className="mt-2 text-xs text-slate-500">
-                                    Choose which class subject this assignment is for ({catalog[catalogIndex].subjects.length} available).
+                                    Subjects you teach this term. The class list below updates when you change subject.
                                 </p>
                             )}
                         </div>
@@ -628,7 +650,7 @@ const AssignmentCreate = () => {
                                     <p className="mt-2 text-xs text-slate-500">
                                         {classAssignmentMode === 'single'
                                             ? 'Single class mode: choose one class only.'
-                                            : 'Multiple class mode: choose one or more classes to publish the same assignment.'}
+                                            : `Multiple class mode: ${compatibleClassOptions.length} class${compatibleClassOptions.length === 1 ? '' : 'es'} teach this subject this term — select one or more.`}
                                     </p>
                                 </div>
 
