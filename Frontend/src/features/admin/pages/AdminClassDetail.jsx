@@ -10,6 +10,7 @@ import adminClassService from '../../../services/adminClassService';
 import adminTeacherService from '../../../services/adminTeacherService';
 import adminStudentService from '../../../services/adminStudentService';
 import adminSubjectService from '../../../services/adminSubjectService';
+import adminSemesterService from '../../../services/adminSemesterService';
 import { adminAcademicService } from '../../../services/adminAcademicService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
@@ -54,6 +55,8 @@ const AdminClassDetail = () => {
     const [editClassCode, setEditClassCode] = useState('');
     const [editFaculty, setEditFaculty] = useState('');
     const [editDepartment, setEditDepartment] = useState('');
+    const [editSemester, setEditSemester] = useState('');
+    const [semesters, setSemesters] = useState([]);
     const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
     const [allClasses, setAllClasses] = useState([]);
 
@@ -70,25 +73,41 @@ const AdminClassDetail = () => {
             setEditClassCode(res.data.code || '');
             setEditFaculty(res.data.faculty || '');
             setEditDepartment(res.data.department || '');
+            setEditSemester(res.data.semesterId ? String(res.data.semesterId) : '');
         }
     };
+
+    const semesterOptions = useMemo(() => {
+        const options = (semesters || []).map((s) => ({
+            value: String(s._id),
+            label: `${s.academicYearLabel ? `${s.academicYearLabel} - ` : ''}${s.name || `Semester ${s.order || ''}`.trim()}`,
+        }));
+        const currentId = String(editSemester || classInfo?.semesterId || '').trim();
+        const currentLabel = String(classInfo?.semester || '').trim();
+        if (currentId && !options.some((o) => o.value === currentId)) {
+            return [{ value: currentId, label: currentLabel || 'Current semester' }, ...options];
+        }
+        return options;
+    }, [semesters, editSemester, classInfo?.semesterId, classInfo?.semester]);
 
     useEffect(() => {
         const load = async () => {
             try {
                 await fetchClassDetails();
-                const [tRes, sRes, subRes, clsRes, structureRes] = await Promise.all([
+                const [tRes, sRes, subRes, clsRes, structureRes, semRes] = await Promise.all([
                     adminTeacherService.getTeachers(),
                     adminStudentService.getStudents(),
                     adminSubjectService.getSubjects(),
                     adminClassService.getClasses(),
                     adminAcademicService.getAcademicStructure(),
+                    adminSemesterService.getSemesters(),
                 ]);
                 if (tRes.success) setAllTeachers(tRes.data || []);
                 if (sRes.success) setAllStudents(sRes.data || []);
                 if (subRes.success) setAllSubjects(subRes.data || []);
                 if (clsRes.success) setAllClasses(clsRes.data || []);
                 if (structureRes.success) setAcademicStructure(structureRes.data || { faculties: [] });
+                if (semRes.success) setSemesters(semRes.data || []);
             } catch (error) {
                 console.error("Error fetching class details:", error);
             } finally {
@@ -438,12 +457,17 @@ const AdminClassDetail = () => {
         const code = normalizeClassCode(editClassCode);
         const faculty = editFaculty.trim();
         const department = editDepartment.trim();
+        const semester = editSemester.trim();
         if (!name || !code) {
             await appWarning('Class name and class code are required.');
             return;
         }
         if (!faculty || !department) {
             await appWarning('Faculty and department are required.');
+            return;
+        }
+        if (!semester) {
+            await appWarning('Semester is required.');
             return;
         }
 
@@ -472,6 +496,7 @@ const AdminClassDetail = () => {
                 code,
                 faculty,
                 department,
+                semester,
                 subjectIds: selectedSubjectIds,
             });
             if (!res.success) throw new Error(res.message || 'Failed to update class');
@@ -605,7 +630,7 @@ const AdminClassDetail = () => {
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 mb-4">
                 <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Information & Subjects</h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
-                    Update class name, code, faculty, department, and subjects. Duplicate names or codes are not allowed.
+                    Update class name, code, faculty, department, semester, and subjects. Duplicate names or codes are not allowed.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
                     <div>
@@ -658,6 +683,21 @@ const AdminClassDetail = () => {
                             <option value="">Select Department</option>
                             {departmentOptions.map((d) => (
                                 <option key={d} value={d}>{d}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                            Semester
+                        </label>
+                        <select
+                            value={editSemester}
+                            onChange={(e) => setEditSemester(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none dark:text-white"
+                        >
+                            <option value="">Select Semester</option>
+                            {semesterOptions.map((s) => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
                             ))}
                         </select>
                     </div>
