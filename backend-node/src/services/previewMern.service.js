@@ -496,6 +496,12 @@ export async function patchBackendForPreview(
     const corsOrigin = publicUiUrl || `http://localhost:${hostPort}`;
     previewEnv.push(`CORS_ORIGIN=${corsOrigin}`);
     previewEnv.push(`FRONTEND_URL=${corsOrigin}`);
+    previewEnv.push(`CLIENT_URL=${corsOrigin}`);
+    previewEnv.push(`CLIENT_ORIGIN=${corsOrigin}`);
+    previewEnv.push(`ALLOWED_ORIGIN=${corsOrigin}`);
+    previewEnv.push(`ALLOWED_ORIGINS=${corsOrigin}`);
+    previewEnv.push(`APP_URL=${corsOrigin}`);
+    previewEnv.push(`WEB_URL=${corsOrigin}`);
   }
   previewEnv.push('');
 
@@ -506,6 +512,11 @@ export async function patchBackendForPreview(
 
   files += await patchDbNoExitOnPreviewFail(backendRoot);
   files += await walkRelaxCors(backendRoot);
+
+  // Force preview CORS to reflect the teacher browser origin (fixes loan-app style
+  // APIs that hardcode Access-Control-Allow-Origin: http://localhost:5173).
+  const corsFix = await installPreviewCorsFix(extractDir, backendSubdir);
+  files += corsFix.files || 0;
 
   // Remove legacy Express login aliases — they shadowed real routes (SYADA /auth/login),
   // poisoned route probes, and caused "Route not found" / empty-body 400s.
@@ -591,13 +602,19 @@ async function walkRelaxCors(dir, depth = 0) {
     let content = await fs.readFile(full, 'utf8').catch(() => null);
     if (content == null) continue;
     const before = content;
+    // Hardcoded Vite/CRA localhost origins → reflect any origin in preview.
     content = content.replace(
-      /origin\s*:\s*['"]http:\/\/localhost:5173['"]/g,
+      /origin\s*:\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]/g,
       'origin: true'
     );
     content = content.replace(
-      /origin\s*:\s*['"]http:\/\/127\.0\.0\.1:5173['"]/g,
+      /origin\s*:\s*\[\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]\s*\]/g,
       'origin: true'
+    );
+    // cors(process.env.CLIENT_URL) style — allow all in preview sandbox.
+    content = content.replace(
+      /cors\(\s*\{\s*origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*[,}]/g,
+      (m) => m.replace(/origin\s*:\s*process\.env\.\w+/, 'origin: true')
     );
     if (content !== before) {
       // eslint-disable-next-line no-await-in-loop
@@ -725,6 +742,122 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 
   const patched = await walkReplaceLoginPaths(frontendRoot, confirmed);
   return { files: patched.files, confirmedPath: confirmed };
+}
+
+const CORS_FIX_FILE = 'scholarverify-preview-cors.cjs';
+const CORS_FIX_MARKER = 'scholarverify-preview-cors-v1';
+
+function buildCorsFixModule() {
+  return `/* ${CORS_FIX_MARKER} — auto-injected for ScholarVerify preview */
+'use strict';
+
+/**
+ * Force CORS to reflect the browser Origin so teacher preview UIs on
+ * http://VPS:PORT work even when the student API hardcodes localhost:5173.
+ * Installed first; wraps res.setHeader so later cors() calls cannot stick a wrong origin.
+ */
+function installPreviewCorsFix(app) {
+  if (!app || typeof app.use !== 'function' || app.__scholarVerifyCorsFix) return;
+  app.__scholarVerifyCorsFix = true;
+
+  app.use(function previewCorsFix(req, res, next) {
+    const requestOrigin = req.headers.origin || process.env.CORS_ORIGIN || process.env.PREVIEW_PUBLIC_UI_URL || '*';
+    const allowHeaders =
+      req.headers['access-control-request-headers'] ||
+      'Content-Type, Authorization, X-Requested-With, Accept, Origin';
+
+    const origSetHeader = res.setHeader.bind(res);
+    res.setHeader = function patchedSetHeader(name, value) {
+      if (String(name).toLowerCase() === 'access-control-allow-origin') {
+        return origSetHeader(name, requestOrigin === '*' ? '*' : requestOrigin);
+      }
+      return origSetHeader(name, value);
+    };
+
+    origSetHeader('Access-Control-Allow-Origin', requestOrigin === '*' ? '*' : requestOrigin);
+    origSetHeader('Access-Control-Allow-Credentials', 'true');
+    origSetHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+    origSetHeader('Access-Control-Allow-Headers', allowHeaders);
+    origSetHeader('Vary', 'Origin');
+
+    if (String(req.method || '').toUpperCase() === 'OPTIONS') {
+      return res.status(204).end();
+    }
+    return next();
+  });
+
+  console.log('[preview] CORS fix installed (reflect request Origin)');
+}
+
+module.exports = { installPreviewCorsFix };
+`;
+}
+
+function injectCorsFixRequire(content, requirePath) {
+  let next = content;
+  if (next.includes(CORS_FIX_MARKER) && next.includes('installPreviewCorsFix')) {
+    return { content: next, changed: false };
+  }
+  const isEsm =
+    /\bimport\s+.+from\s+['"]/.test(next) ||
+    /\bexport\s+(default|const|function|class|\{)/.test(next);
+
+  let line;
+  if (isEsm) {
+    if (!/createRequire\s+as\s+__svCreateRequire/.test(next)) {
+      next = `import { createRequire as __svCreateRequire } from 'node:module';\n${next}`;
+    }
+    line = `try { __svCreateRequire(import.meta.url)(${JSON.stringify(requirePath)}).installPreviewCorsFix(app); } catch (_sv) { /* ${CORS_FIX_MARKER} */ }\n`;
+  } else {
+    line = `try { require(${JSON.stringify(requirePath)}).installPreviewCorsFix(app); } catch (_sv) { /* ${CORS_FIX_MARKER} */ }\n`;
+  }
+
+  // Install as early as possible — before student cors() — so setHeader wrap wins.
+  const expressAppRe = /(const|let|var)\s+app\s*=\s*express\s*\(\s*\)\s*;?/;
+  if (expressAppRe.test(next)) {
+    return { content: next.replace(expressAppRe, (m) => `${m}\n${line}`), changed: true };
+  }
+  const corsUseRe = /(app\.use\(\s*cors\s*\([^)]*\)\s*\)\s*;?)/;
+  if (corsUseRe.test(next)) {
+    return { content: next.replace(corsUseRe, `${line}$1`), changed: true };
+  }
+  const jsonRe = /(app\.use\(\s*express\.json\([^)]*\)\s*\)\s*;?)/;
+  if (jsonRe.test(next)) {
+    return { content: next.replace(jsonRe, `${line}$1`), changed: true };
+  }
+  const listenRe = /(\n)((?:const|let|var)\s+\w+\s*=\s*)?app\.listen\(/;
+  if (listenRe.test(next)) {
+    return { content: next.replace(listenRe, `$1${line}$2app.listen(`), changed: true };
+  }
+  return { content: `${line}${next}`, changed: true };
+}
+
+/**
+ * Inject middleware that forces Access-Control-Allow-Origin to the teacher preview UI.
+ */
+export async function installPreviewCorsFix(extractDir, backendSubdir) {
+  const backendRoot = path.join(extractDir, backendSubdir || '');
+  if (!(await pathExists(backendRoot))) return { files: 0 };
+
+  const corsAbs = path.join(backendRoot, CORS_FIX_FILE);
+  await fs.writeFile(corsAbs, buildCorsFixModule(), 'utf8');
+  let files = 1;
+
+  const entries = await findExpressEntryFiles(backendRoot);
+  for (const entryFile of entries) {
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(entryFile, 'utf8').catch(() => null);
+    if (content == null || !/\bapp\b/.test(content)) continue;
+    let rel = path.relative(path.dirname(entryFile), corsAbs).replace(/\\/g, '/');
+    if (!rel.startsWith('.')) rel = `./${rel}`;
+    const injected = injectCorsFixRequire(content, rel);
+    if (injected.changed) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(entryFile, injected.content, 'utf8');
+      files += 1;
+    }
+  }
+  return { files };
 }
 
 const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.cjs';

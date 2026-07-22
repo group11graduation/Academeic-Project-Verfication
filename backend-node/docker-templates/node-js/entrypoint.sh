@@ -208,7 +208,16 @@ write_mern_backend_env() {
     echo "JWT_SECRET=$jwt"
     echo "NODE_ENV=development"
     echo "PREVIEW_SANDBOX=1"
-    if [ -n "$cors" ]; then echo "CORS_ORIGIN=$cors"; fi
+    if [ -n "$cors" ]; then
+      echo "CORS_ORIGIN=$cors"
+      echo "FRONTEND_URL=$cors"
+      echo "CLIENT_URL=$cors"
+      echo "CLIENT_ORIGIN=$cors"
+      echo "ALLOWED_ORIGIN=$cors"
+      echo "ALLOWED_ORIGINS=$cors"
+      echo "APP_URL=$cors"
+      echo "WEB_URL=$cors"
+    fi
     if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
       echo "PREVIEW_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
       echo "PREVIEW_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
@@ -220,7 +229,8 @@ write_mern_backend_env() {
   } > .env.preview-runtime
   cat .env.preview-runtime > .env
   if [ -f .env.project ]; then
-    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|CORS_ORIGIN|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
+    # Drop student localhost CORS/frontend URLs so they cannot override preview origins.
+    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
   fi
   rm -f .env.preview-runtime .env.preview-backup .env.student-original .env.student-filtered
   export PORT="$API_PORT"
