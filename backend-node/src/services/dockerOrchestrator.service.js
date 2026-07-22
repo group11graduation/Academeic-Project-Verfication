@@ -1906,8 +1906,9 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       buildContext,
       splitStackPair.backendSubdir || ''
     ).catch(() => []);
-    const loginApiPath =
-      preferLoginApiPath(discoveredLoginPaths) || '/api/auth/login';
+    // Only rewrite frontend/backend login paths when source discovery found a real route.
+    // Guessing /api/auth/login breaks projects that use /api/users/login (e.g. Harmony).
+    const loginApiPath = preferLoginApiPath(discoveredLoginPaths) || '';
     if (flutterPair) {
       await patchFlutterApiPort(buildContext, flutterPair.flutterSubdir, apiHostPort, { publicApiUrl });
     } else if (mernPair) {

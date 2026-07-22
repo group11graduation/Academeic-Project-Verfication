@@ -388,26 +388,59 @@ async function detectAndApplyApiLoginRouteHint(session, {
         appendLog(
           session,
           'info',
-          `Installed Express login path aliases → ${probe.path} (restart preview if UI still 404s)`
+          `Installed Express login path aliases → ${probe.path}`
         );
+      }
+      // Bind-mounted source was patched after boot — restart only the API on :5000 so aliases load.
+      if (containerName) {
+        const be = String(backendSubdir || 'backend').replace(/[^a-zA-Z0-9._/-]/g, '');
+        const restartCmd = [
+          `export PREVIEW_LOGIN_API_PATH='${String(probe.path).replace(/'/g, '')}'`,
+          `(command -v fuser >/dev/null 2>&1 && fuser -k 5000/tcp) || (command -v lsof >/dev/null 2>&1 && kill -9 $(lsof -t -i:5000) 2>/dev/null) || true`,
+          'sleep 1',
+          `BE=""`,
+          `for d in /app/${be} /app/backend /app/server /app/api /app; do`,
+          `  if [ -f "$d/package.json" ] || [ -f "$d/server.js" ] || [ -f "$d/index.js" ]; then BE="$d"; break; fi`,
+          `done`,
+          `if [ -n "$BE" ]; then`,
+          `  cd "$BE" || true`,
+          `  (npm start >> /tmp/preview-backend.log 2>&1 &) || (node server.js >> /tmp/preview-backend.log 2>&1 &) || (node index.js >> /tmp/preview-backend.log 2>&1 &) || true`,
+          `  echo api-restarted`,
+          `fi`,
+        ].join('; ');
+        const restartOut = await dockerOrchestrator
+          .execInPreviewContainer(containerName, restartCmd, { timeoutMs: 60_000 })
+          .catch(() => '');
+        if (String(restartOut || '').includes('api-restarted')) {
+          appendLog(session, 'info', `Restarted student API so login aliases for ${probe.path} take effect`);
+          // Brief wait so the new process binds :5000 before teachers try login.
+          await new Promise((r) => setTimeout(r, 2500));
+        }
       }
     }
     // Hot-patch already-served bundles inside the running container so the fix
     // applies immediately, without waiting for a frontend rebuild.
     if (containerName && probe.path) {
       const safePath = String(probe.path).replace(/[^a-zA-Z0-9_/-]/g, '');
-      const wrongPaths = previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES.filter(
-        (p) => p !== probe.path && p !== '/login'
-      ).map((p) => String(p).replace(/[^a-zA-Z0-9_/-]/g, ''));
+      const wrongPaths = [
+        ...previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES,
+        // Relative forms when axios baseURL already includes /api
+        ...previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES.map((p) =>
+          p.startsWith('/api/') ? p.slice(4) : p
+        ),
+      ]
+        .filter((p) => p && p !== probe.path && p !== '/login' && p !== 'login')
+        .map((p) => String(p).replace(/[^a-zA-Z0-9_/-]/g, ''));
+      const relativeSafe = safePath.startsWith('/api/') ? safePath.slice(4) : safePath;
       if (safePath && wrongPaths.length) {
         const sedArgs = wrongPaths
-          .map(
-            (w) =>
-              `-e 's|"${w}"|"${safePath}"|g' -e "s|'${w}'|'${safePath}'|g"`
-          )
+          .map((w) => {
+            const target = w.startsWith('/api/') || w.startsWith('api/') ? safePath : relativeSafe;
+            return `-e 's|"${w}"|"${target}"|g' -e "s|'${w}'|'${target}'|g"`;
+          })
           .join(' ');
         const cmd =
-          `find /app -maxdepth 5 -type d \\( -name dist -o -name build \\) -not -path '*/node_modules/*' 2>/dev/null | ` +
+          `find /app -maxdepth 6 -type d \\( -name dist -o -name build \\) -not -path '*/node_modules/*' 2>/dev/null | ` +
           `while read -r d; do find "$d" -type f \\( -name '*.js' -o -name '*.html' \\) 2>/dev/null | ` +
           `while read -r f; do sed -i ${sedArgs} "$f" 2>/dev/null || true; done; done; echo login-path-patched`;
         await dockerOrchestrator

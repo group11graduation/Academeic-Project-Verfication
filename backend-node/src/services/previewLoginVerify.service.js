@@ -6,13 +6,13 @@ import { getPreviewProbeHost } from '../config/previewProbe.js';
  * student projects use them. Used for live route detection and credential verify.
  */
 export const LOGIN_ROUTE_PROBE_CANDIDATES = [
-  '/api/auth/login',
-  '/auth/login',
-  '/api/login',
-  '/login',
   '/api/users/login',
-  '/users/login',
+  '/api/auth/login',
   '/api/user/login',
+  '/api/login',
+  '/auth/login',
+  '/users/login',
+  '/login',
   '/api/v1/auth/login',
 ];
 
@@ -48,7 +48,8 @@ function mergeLoginPaths(customPaths = []) {
 function orderedProbePaths(extraPaths = []) {
   const ordered = [];
   const seen = new Set();
-  for (const p of [...LOGIN_ROUTE_PROBE_CANDIDATES, ...(extraPaths || [])]) {
+  // Prefer paths discovered in student source BEFORE generic guesses like /api/auth/login.
+  for (const p of [...(extraPaths || []), ...LOGIN_ROUTE_PROBE_CANDIDATES]) {
     const path = String(p || '').trim();
     if (!path || seen.has(path)) continue;
     seen.add(path);

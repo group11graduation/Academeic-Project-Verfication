@@ -726,7 +726,7 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
   return { files: patched.files, confirmedPath: confirmed };
 }
 
-const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.js';
+const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.cjs';
 const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases';
 
 function buildLoginAliasModule(realPath) {
@@ -787,25 +787,38 @@ function injectLoginAliasRequire(content, requirePath) {
   if (content.includes(LOGIN_ALIAS_MARKER) && content.includes('installPreviewLoginAliases')) {
     return { content, changed: false };
   }
-  const line = `try { require(${JSON.stringify(requirePath)}).installPreviewLoginAliases(app); } catch (_sv) { /* ${LOGIN_ALIAS_MARKER} */ }\n`;
+  const isEsm =
+    /\bimport\s+.+from\s+['"]/.test(content) ||
+    /\bexport\s+(default|const|function|class|\{)/.test(content);
+
+  let next = content;
+  let line;
+  if (isEsm) {
+    if (!/createRequire\s+as\s+__svCreateRequire/.test(next)) {
+      next = `import { createRequire as __svCreateRequire } from 'node:module';\n${next}`;
+    }
+    line = `try { __svCreateRequire(import.meta.url)(${JSON.stringify(requirePath)}).installPreviewLoginAliases(app); } catch (_sv) { /* ${LOGIN_ALIAS_MARKER} */ }\n`;
+  } else {
+    line = `try { require(${JSON.stringify(requirePath)}).installPreviewLoginAliases(app); } catch (_sv) { /* ${LOGIN_ALIAS_MARKER} */ }\n`;
+  }
 
   // Prefer immediately before the catch-all 404 so body parsers already ran.
   const notFoundRe = /(\n)((?:\/\/[^\n]*404[^\n]*\n)?)(app\.use\(\s*\(\s*req\s*,\s*res)/;
-  if (notFoundRe.test(content)) {
-    return { content: content.replace(notFoundRe, `$1${line}$2$3`), changed: true };
+  if (notFoundRe.test(next)) {
+    return { content: next.replace(notFoundRe, `$1${line}$2$3`), changed: true };
   }
 
   const jsonRe = /(app\.use\(\s*express\.json\([^)]*\)\s*\)\s*;?)/;
-  if (jsonRe.test(content)) {
-    return { content: content.replace(jsonRe, `$1\n${line}`), changed: true };
+  if (jsonRe.test(next)) {
+    return { content: next.replace(jsonRe, `$1\n${line}`), changed: true };
   }
 
   const listenRe = /(\n)((?:const|let|var)\s+\w+\s*=\s*)?app\.listen\(/;
-  if (listenRe.test(content)) {
-    return { content: content.replace(listenRe, `$1${line}$2app.listen(`), changed: true };
+  if (listenRe.test(next)) {
+    return { content: next.replace(listenRe, `$1${line}$2app.listen(`), changed: true };
   }
 
-  return { content: `${content}\n${line}`, changed: true };
+  return { content: `${next}\n${line}`, changed: true };
 }
 
 async function findExpressEntryFiles(backendRoot) {
@@ -849,15 +862,6 @@ export async function installPreviewLoginPathAliases(extractDir, backendSubdir, 
   const backendRoot = path.join(extractDir, backendSubdir || '');
   if (!(await pathExists(backendRoot))) return { files: 0, realPath: real };
 
-  const pkgPath = path.join(backendRoot, 'package.json');
-  if (await pathExists(pkgPath)) {
-    const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8').catch(() => '{}'));
-    if (pkg.type === 'module') {
-      // ESM student apps: skip require() injection; frontend rewrite still applies.
-      return { files: 0, realPath: real, skipped: 'esm' };
-    }
-  }
-
   const aliasAbs = path.join(backendRoot, LOGIN_ALIAS_FILE);
   await fs.writeFile(aliasAbs, buildLoginAliasModule(real), 'utf8');
   let files = 1;
@@ -869,6 +873,7 @@ export async function installPreviewLoginPathAliases(extractDir, backendSubdir, 
     if (content == null || !/\bapp\b/.test(content)) continue;
     let rel = path.relative(path.dirname(entryFile), aliasAbs).replace(/\\/g, '/');
     if (!rel.startsWith('.')) rel = `./${rel}`;
+    // Always require the .cjs helper so both CJS and ESM entry files can load it.
     const injected = injectLoginAliasRequire(content, rel);
     if (injected.changed) {
       // eslint-disable-next-line no-await-in-loop
@@ -948,11 +953,11 @@ export function buildPreviewMongoUri(sessionId, { sidecarHost = null } = {}) {
 }
 
 const DEFAULT_LOGIN_PATHS = [
+  '/api/users/login',
   '/api/auth/login',
   '/auth/login',
   '/api/login',
   '/login',
-  '/api/users/login',
   '/users/login',
   '/api/user/login',
   '/api/v1/auth/login',
@@ -988,12 +993,13 @@ export function preferLoginApiPath(discoveredPaths = []) {
 
 /**
  * Scan backend route files for login POST paths (e.g. /api/users/login).
+ * Returns ONLY paths found in source — do not seed defaults (that falsely preferred /api/auth/login).
  */
 export async function discoverLoginApiPaths(extractDir, backendSubdir = '') {
   const backendRoot = backendSubdir
     ? path.join(extractDir, backendSubdir.replace(/^\.\/?/, ''))
     : extractDir;
-  const found = new Set(DEFAULT_LOGIN_PATHS);
+  const found = new Set();
 
   async function walk(dir, depth = 0) {
     if (depth > 8) return;
@@ -1019,13 +1025,31 @@ export async function discoverLoginApiPaths(extractDir, backendSubdir = '') {
       const re = new RegExp(LOGIN_PATH_LITERAL_RE.source, 'gi');
       while ((match = re.exec(content)) !== null) {
         const p = match[1];
-        if (p && /login/i.test(p)) found.add(p.startsWith('/') ? p : `/${p}`);
+        if (p && /login/i.test(p) && p !== '/login') {
+          found.add(p.startsWith('/') ? p : `/${p}`);
+        }
       }
-      const mountMatch = content.match(/app\.use\(\s*['"`](\/api\/[^'"`]+)['"`]/gi) || [];
-      for (const mount of mountMatch) {
-        const base = mount.match(/['"`](\/api\/[^'"`]+)['"`]/)?.[1];
-        if (base && content.includes("post('/login'") || content.includes('post("/login"')) {
-          found.add(`${base}/login`.replace(/\/+/g, '/'));
+      // app.use('/api/users', ...) + router.post('/login')
+      const useMounts = content.matchAll(/app\.use\(\s*['"`](\/api\/[^'"`]+)['"`]\s*,/gi);
+      for (const m of useMounts) {
+        const base = m[1];
+        if (
+          base &&
+          (/\.post\(\s*['"`]\/login['"`]/.test(content) ||
+            /router\.post\(\s*['"`]\/login['"`]/.test(content) ||
+            /Router\(\)[\s\S]{0,800}?\.post\(\s*['"`]\/login['"`]/.test(content))
+        ) {
+          found.add(`${base.replace(/\/$/, '')}/login`);
+        }
+      }
+      // router mounts in separate files: export + '/users' style often paired with login
+      if (/post\(\s*['"`]\/login['"`]/.test(content)) {
+        const routerMountHints = content.matchAll(/['"`](\/api\/[a-z0-9_-]+)['"`]/gi);
+        for (const hm of routerMountHints) {
+          const base = hm[1];
+          if (base && /user|auth|account|admin/i.test(base)) {
+            found.add(`${base.replace(/\/$/, '')}/login`);
+          }
         }
       }
     }
