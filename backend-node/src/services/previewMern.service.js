@@ -611,10 +611,15 @@ async function walkRelaxCors(dir, depth = 0) {
       /origin\s*:\s*\[\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]\s*\]/g,
       'origin: true'
     );
-    // cors(process.env.CLIENT_URL) style — allow all in preview sandbox.
+    // Loan-app / common pattern: origin: process.env.CLIENT_URL || 'http://localhost:5173'
     content = content.replace(
-      /cors\(\s*\{\s*origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*[,}]/g,
-      (m) => m.replace(/origin\s*:\s*process\.env\.\w+/, 'origin: true')
+      /origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*\|\|\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]/g,
+      'origin: true'
+    );
+    // cors({ origin: process.env.CLIENT_URL }) without fallback — still open in preview.
+    content = content.replace(
+      /cors\(\s*\{\s*origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*,/g,
+      'cors({ origin: true,'
     );
     if (content !== before) {
       // eslint-disable-next-line no-await-in-loop
@@ -745,7 +750,7 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 }
 
 const CORS_FIX_FILE = 'scholarverify-preview-cors.cjs';
-const CORS_FIX_MARKER = 'scholarverify-preview-cors-v1';
+const CORS_FIX_MARKER = 'scholarverify-preview-cors-v2';
 
 function buildCorsFixModule() {
   return `/* ${CORS_FIX_MARKER} — auto-injected for ScholarVerify preview */
@@ -773,6 +778,15 @@ function installPreviewCorsFix(app) {
       }
       return origSetHeader(name, value);
     };
+    if (typeof res.appendHeader === 'function') {
+      const origAppend = res.appendHeader.bind(res);
+      res.appendHeader = function patchedAppend(name, value) {
+        if (String(name).toLowerCase() === 'access-control-allow-origin') {
+          return origSetHeader(name, requestOrigin === '*' ? '*' : requestOrigin);
+        }
+        return origAppend(name, value);
+      };
+    }
 
     origSetHeader('Access-Control-Allow-Origin', requestOrigin === '*' ? '*' : requestOrigin);
     origSetHeader('Access-Control-Allow-Credentials', 'true');
@@ -795,9 +809,42 @@ module.exports = { installPreviewCorsFix };
 
 function injectCorsFixRequire(content, requirePath) {
   let next = content;
-  if (next.includes(CORS_FIX_MARKER) && next.includes('installPreviewCorsFix')) {
-    return { content: next, changed: false };
+  let changed = false;
+
+  // Repair / upgrade any prior CORS inject (v1 omitted the createRequire import,
+  // so installPreviewCorsFix never ran and cors stayed on localhost:5173).
+  const hasInjectCall = /installPreviewCorsFix\s*\(\s*app\s*\)/.test(next);
+  const hasCreateRequireImport = /createRequire\s+as\s+__svCreateRequire/.test(next);
+  if (hasInjectCall && !hasCreateRequireImport && (/\bimport\s+/.test(next) || /\bexport\s+/.test(next))) {
+    next = `import { createRequire as __svCreateRequire } from 'node:module';\n${next}`;
+    changed = true;
   }
+
+  // Loan-app style: cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' })
+  const beforeOrigin = next;
+  next = next.replace(
+    /origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*\|\|\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]/g,
+    'origin: true'
+  );
+  next = next.replace(
+    /origin\s*:\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]/g,
+    'origin: true'
+  );
+  if (next !== beforeOrigin) changed = true;
+
+  if (hasInjectCall && next.includes(CORS_FIX_MARKER)) {
+    return { content: next, changed };
+  }
+
+  // Upgrade legacy v1 call marker comments so future runs know inject is present.
+  if (hasInjectCall) {
+    next = next.replace(
+      /\/\*\s*scholarverify-preview-cors-v1\s*\*\//g,
+      `/* ${CORS_FIX_MARKER} */`
+    );
+    return { content: next, changed: true };
+  }
+
   const isEsm =
     /\bimport\s+.+from\s+['"]/.test(next) ||
     /\bexport\s+(default|const|function|class|\{)/.test(next);
