@@ -15,7 +15,7 @@ const MANIFEST_NAME = '.scholarverify-preview-manifest.json';
  * artifacts (Maven target/, npm build/), so stale patch output survives a normal cache hit
  * and the container skips rebuilds. A version mismatch forces a clean re-extract + rebuild.
  */
-const PREVIEW_PATCHER_VERSION = 14;
+const PREVIEW_PATCHER_VERSION = 15;
 
 function cacheEnabled() {
   return process.env.PREVIEW_WORKSPACE_CACHE !== 'false';

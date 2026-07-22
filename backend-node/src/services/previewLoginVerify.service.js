@@ -280,6 +280,36 @@ export function buildFallbackPreviewCredentials(discovered = {}) {
   push(discovered.seedScriptEmail, discovered.seedScriptPassword, discovered.seedScriptHint || 'seed script');
   push(discovered.email, discovered.password, discovered.hint || 'project files');
   push(discovered.username, discovered.password, 'project username');
+
+  // Common student-project demo passwords paired with any discovered admin email.
+  const emails = [
+    ...new Set(
+      [discovered.seedScriptEmail, discovered.email, discovered.username]
+        .map((e) => String(e || '').trim())
+        .filter((e) => e && (e.includes('@') || e.length >= 3))
+    ),
+  ];
+  const commonPasswords = [
+    'password123',
+    'Password123',
+    'Password123!',
+    '123456',
+    'admin123',
+    'Admin123',
+    'admin@123',
+    'Admin@123',
+    'password',
+    'Password1',
+    'demo123',
+    'Demo123!',
+    'Preview123!',
+  ];
+  for (const email of emails) {
+    for (const password of commonPasswords) {
+      push(email, password, 'common demo password');
+    }
+  }
+
   const seen = new Set();
   return fallbacks.filter((item) => {
     const key = `${item.email}:${item.password}`;

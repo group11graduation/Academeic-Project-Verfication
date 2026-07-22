@@ -84,26 +84,44 @@ function isPlatformPlaceholderCredential(email, password) {
 
 function parseSeedScriptCredentials(content) {
   const text = String(content || '');
-  let email =
-    text.match(/email:\s*["']([^"']+@[^"']+)["']/i)?.[1]?.trim() ||
+
+  // Prefer plain passwords from bcrypt.hash('password123', 12) — common in seedUsers().
+  const hashPass =
+    text.match(/bcrypt(?:js)?\.hash\(\s*["']([^"']{3,64})["']/i)?.[1]?.trim() ||
+    text.match(/\.hash\(\s*["']([^"']{3,64})["']\s*,\s*(?:8|10|12|saltRounds)/i)?.[1]?.trim() ||
+    '';
+
+  // Collect admin-like emails from seed arrays / create calls.
+  const emailMatches = [
+    ...text.matchAll(/email:\s*["']([^"']+@[^"']+)["']/gi),
+  ].map((m) => m[1].trim());
+  const adminEmail =
+    emailMatches.find((e) => /admin|super|staff|demo|preview/i.test(e)) ||
+    emailMatches.find((e) => /@loanapp\.|@syada\.|@preview\.|@example\.|@demo\./i.test(e)) ||
+    emailMatches[0] ||
     text.match(/findOne\(\s*\{\s*email:\s*["']([^"']+@[^"']+)["']/i)?.[1]?.trim() ||
     '';
+
   let password =
-    text.match(/(?:password|passcode):\s*["']([^"']{3,})["']/i)?.[1]?.trim() ||
-    text.match(/bcrypt(?:js)?\.hash\(\s*["']([^"']{3,})["']/i)?.[1]?.trim() ||
-    text.match(/hash\(\s*["']([^"']{3,})["']\s*,\s*(?:10|12)/i)?.[1]?.trim() ||
+    hashPass ||
+    text.match(/(?:password|passcode|plainPassword|rawPassword)\s*:\s*["']([^"']{3,64})["']/i)?.[1]?.trim() ||
+    text.match(/passwordHash\s*=\s*await\s+[^\n]*hash\(\s*["']([^"']{3,64})["']/i)?.[1]?.trim() ||
     '';
-  if (!email) {
+
+  // Ignore accidental matches on passwordHash field definitions without a value.
+  if (/^\$2[aby]\$/.test(password)) password = hashPass || '';
+
+  if (!adminEmail) {
     const userMatch = text.match(/username:\s*["']([^"']{3,})["']/i);
-    if (userMatch && !userMatch[1].includes('@')) {
+    if (userMatch && !userMatch[1].includes('@') && password) {
       return { email: '', username: userMatch[1].trim(), password };
     }
   }
-  return { email, username: '', password };
+  return { email: adminEmail, username: '', password };
 }
 
 async function walkForSeedScripts(dir, found, depth = 0) {
-  if (depth > 6 || found.length >= 16) return;
+  if (depth > 6 || found.length >= 40) return;
   let entries;
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
@@ -111,13 +129,17 @@ async function walkForSeedScripts(dir, found, depth = 0) {
     return;
   }
   for (const entry of entries) {
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === 'build') {
+      continue;
+    }
     const full = path.join(dir, entry.name);
     if (entry.isFile()) {
       const lower = entry.name.toLowerCase();
       if (
         SEED_SCRIPT_NAMES.has(lower) ||
-        /createadmin|seeduser|seedadmin|bootstrap.*admin/i.test(lower)
+        /createadmin|seeduser|seedadmin|bootstrap.*admin/i.test(lower) ||
+        // Many student apps (loan app, etc.) embed seedUsers() inside server.js / index.js
+        /^(server|index|app|main)\.(js|mjs|cjs|ts)$/i.test(lower)
       ) {
         found.push(full);
       }
@@ -125,10 +147,18 @@ async function walkForSeedScripts(dir, found, depth = 0) {
     }
     if (entry.isDirectory() && depth < 6) {
       const lower = entry.name.toLowerCase();
-      if (lower === 'seeders' || lower === 'seeds' || lower === 'scripts') {
+      if (
+        lower === 'seeders' ||
+        lower === 'seeds' ||
+        lower === 'scripts' ||
+        lower === 'src' ||
+        lower === 'backend' ||
+        lower === 'server' ||
+        lower === 'api'
+      ) {
         // eslint-disable-next-line no-await-in-loop
         await walkForSeedScripts(full, found, depth + 1);
-      } else if (depth < 4) {
+      } else if (depth < 3) {
         // eslint-disable-next-line no-await-in-loop
         await walkForSeedScripts(full, found, depth + 1);
       }
@@ -142,24 +172,51 @@ async function walkForSeedScripts(dir, found, depth = 0) {
 export async function discoverSeedScriptCredentials(extractDir) {
   const files = [];
   await walkForSeedScripts(extractDir, files);
+  // Prefer dedicated seed files, then server entrypoints that contain seed helpers.
+  files.sort((a, b) => {
+    const score = (p) => {
+      const base = path.basename(p).toLowerCase();
+      if (/seed|createadmin|bootstrap/.test(base)) return 0;
+      if (/server|index|app/.test(base)) return 1;
+      return 2;
+    };
+    return score(a) - score(b);
+  });
+
+  let best = { email: '', username: '', password: '', hint: '' };
   for (const filePath of files) {
     try {
+      // eslint-disable-next-line no-await-in-loop
       const content = await fs.readFile(filePath, 'utf8');
+      // Skip huge unrelated files without seed signals.
+      if (
+        content.length > 400_000 &&
+        !/seedUsers|seedDatabase|bcrypt.*hash|createAdmin|password123/i.test(content)
+      ) {
+        continue;
+      }
+      if (!/seedUsers|seed\w*\(|bcrypt(?:js)?\.hash|createAdmin|passwordHash/i.test(content)) {
+        continue;
+      }
       const parsed = parseSeedScriptCredentials(content);
       if ((parsed.email || parsed.username) && parsed.password) {
         const rel = path.relative(extractDir, filePath).replace(/\\/g, '/');
-        return {
-          email: parsed.email || '',
-          username: parsed.username || '',
-          password: parsed.password,
-          hint: `Found in ${rel}`,
-        };
+        // Prefer admin@* emails when multiple candidates exist across files.
+        if (/admin@/i.test(parsed.email) || !best.email) {
+          best = {
+            email: parsed.email || '',
+            username: parsed.username || '',
+            password: parsed.password,
+            hint: `Found in ${rel}`,
+          };
+          if (/admin@/i.test(parsed.email)) return best;
+        }
       }
     } catch {
       /* ignore */
     }
   }
-  return { email: '', username: '', password: '', hint: '' };
+  return best;
 }
 
 const LOGIN_FORM_FIELD_RULES = [
@@ -648,6 +705,17 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
     }
   }
 
+  // Seed-script credentials (bcrypt.hash('password123') + admin@…) fill gaps and
+  // override platform placeholders so loan-app / similar projects login correctly.
+  if (seedCreds.email && seedCreds.password) {
+    const placeholder = isPlatformPlaceholderCredential(email, password);
+    if (!email || !password || placeholder) {
+      email = seedCreds.email;
+      password = seedCreds.password;
+      hint = seedCreds.hint || hint;
+    }
+  }
+
   return {
     email,
     username,
@@ -686,9 +754,9 @@ export function resolvePreviewLoginCredentials({
     };
   }
 
-  let password = discovered.password || '';
+  let password = discovered.password || discovered.seedScriptPassword || '';
   let source = 'platform_default';
-  let hint = discovered.hint || '';
+  let hint = discovered.hint || discovered.seedScriptHint || '';
 
   // Always prepare BOTH email and username so teachers / seeds work for either form type.
   let email =
@@ -717,6 +785,18 @@ export function resolvePreviewLoginCredentials({
     formField.identifierType = 'username';
     formField.identifierLabel = 'Username';
     hint = hint || springAdmin.hint || 'Preview admin auto-seeded in Spring H2 database on first start.';
+  } else if (
+    discovered.seedScriptPassword &&
+    (discovered.seedScriptEmail || discovered.seedScriptUsername) &&
+    (!password || isPlatformPlaceholderCredential(email, password))
+  ) {
+    // Prefer real project seed (admin@loanapp.com / password123) over platform defaults.
+    email = discovered.seedScriptEmail || email;
+    username = discovered.seedScriptUsername || username;
+    password = discovered.seedScriptPassword;
+    source = 'project_seed_script';
+    hint = discovered.seedScriptHint || hint || 'Credentials from project seed script.';
+    ({ email, username } = normalizeDiscoveredEmailUsername(email, username));
   } else if ((email || username) && password) {
     source = discovered.phpUsername ? 'project_php_setup' : 'project_files';
   } else if (email || username || password) {
