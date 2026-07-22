@@ -731,7 +731,7 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 }
 
 const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.cjs';
-const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases-v2';
+const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases-v3';
 const LOGIN_ALIAS_MARKER_LEGACY = 'scholarverify-preview-login-aliases';
 
 function buildLoginAliasModule(realPath) {
@@ -821,9 +821,12 @@ function installPreviewLoginAliases(app) {
 
   const handlers = [];
   if (expressJson) handlers.push(expressJson);
-  handlers.push(async (req, res) => {
+  // IMPORTANT: must accept next — when this path IS the real login route (e.g. SYADA
+  // POST /auth/login), we must fall through instead of swallowing it with 404.
+  handlers.push(async (req, res, next) => {
+    // Proxied follow-up: do not re-enter alias logic; let the project's handler run.
     if (String(req.headers['x-sv-login-proxy'] || '') === '1') {
-      return res.status(404).json({ message: 'Route not found' });
+      return next();
     }
     const port = Number(process.env.PORT || process.env.API_PORT || 5000);
     const payload = JSON.stringify(req.body || {});
@@ -835,6 +838,12 @@ function installPreviewLoginAliases(app) {
     if (req.headers.authorization) headers.Authorization = req.headers.authorization;
     const incoming = String(req.path || req.url || '').split('?')[0];
     if (bodyMatchesPreviewAdmin(req.body)) reseedPreviewAdmin();
+
+    // If this request already targets the confirmed real route, never shadow it.
+    if (PREFERRED && incoming === PREFERRED) {
+      return next();
+    }
+
     const ordered = [];
     const seen = new Set();
     for (const p of [PREFERRED, ...CANDIDATES]) {
@@ -843,11 +852,10 @@ function installPreviewLoginAliases(app) {
       seen.add(path);
       ordered.push(path);
     }
-    let last = { status: 404, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ message: 'Route not found' })) };
     for (const path of ordered) {
       // eslint-disable-next-line no-await-in-loop
       const result = await proxyOnce(port, path, payload, headers);
-      last = result;
+      // 404 → try next candidate. Any other status means a real login handler answered.
       if (result.status !== 404 && result.status !== 0) {
         console.log('[preview] login alias ' + incoming + ' → ' + path + ' (' + result.status + ')');
         res.status(result.status);
@@ -855,11 +863,15 @@ function installPreviewLoginAliases(app) {
         return res.send(result.body);
       }
     }
-    res.status(last.status || 404);
-    if (last.headers['content-type']) res.setHeader('Content-Type', last.headers['content-type']);
-    return res.send(last.body);
+    // No alternate worked — fall through to the project's own handler on this path
+    // (fixes SYADA where /auth/login is real but our alias was registered first).
+    console.log('[preview] login alias ' + incoming + ' → fallthrough to app handler');
+    return next();
   });
   for (const alias of CANDIDATES) {
+    // Never mount an alias on the confirmed real login path — that would shadow
+    // the student handler (exact bug that caused SYADA "Route not found").
+    if (PREFERRED && alias === PREFERRED) continue;
     app.post(alias, ...handlers);
   }
   console.log('[preview] universal login aliases installed' + (PREFERRED ? (' preferred=' + PREFERRED) : ''));
@@ -870,13 +882,23 @@ module.exports = { installPreviewLoginAliases };
 }
 
 function injectLoginAliasRequire(content, requirePath) {
-  // Upgrade legacy alias inject points so reseed middleware sits after body parsers.
+  // Upgrade legacy alias inject points so reseed middleware sits after body parsers
+  // and fallthrough next() is used (v3+).
   let next = content;
-  if (next.includes(LOGIN_ALIAS_MARKER_LEGACY) && !next.includes(LOGIN_ALIAS_MARKER)) {
+  if (
+    /scholarverify-preview-login-aliases(?!-v3)/.test(next) &&
+    !next.includes(LOGIN_ALIAS_MARKER)
+  ) {
     next = next
       .replace(/import \{ createRequire as __svCreateRequire \} from 'node:module';\n?/g, '')
-      .replace(/try \{ __svCreateRequire\(import\.meta\.url\)\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g, '')
-      .replace(/try \{ require\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g, '');
+      .replace(
+        /try \{ __svCreateRequire\(import\.meta\.url\)\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g,
+        ''
+      )
+      .replace(
+        /try \{ require\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g,
+        ''
+      );
   }
   if (next.includes(LOGIN_ALIAS_MARKER) && next.includes('installPreviewLoginAliases')) {
     return { content: next, changed: next !== content };
