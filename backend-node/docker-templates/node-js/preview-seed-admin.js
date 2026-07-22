@@ -192,10 +192,35 @@ function loadPreviewEnv() {
       }
     }
     if (!loadedModels.length) {
-      console.log('[preview-seed] no Mongoose User model — trying raw MongoDB upsert');
+      console.log('[preview-seed] no Mongoose User model file — registering flexible User schema');
       await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
+      // Many student apps (loan app) define User inline in server.js — not a separate file.
+      // Register a strict:false User model so we can upsert passwordHash/password into `users`.
+      const flexibleSchema = new mongoose.Schema(
+        {
+          email: { type: String, index: true },
+          username: String,
+          password: String,
+          passwordHash: String,
+          name: String,
+          fullName: String,
+          firstName: String,
+          lastName: String,
+          phone: String,
+          role: { type: String, default: 'admin' },
+          isAdmin: { type: Boolean, default: true },
+          isActive: { type: Boolean, default: true },
+          emailVerified: { type: Boolean, default: true },
+          isVerified: { type: Boolean, default: true },
+          status: { type: String, default: 'active' },
+        },
+        { strict: false, collection: 'users' }
+      );
+      const FlexUser =
+        mongoose.models.User || mongoose.model('User', flexibleSchema);
+      loadedModels.push({ Mod: FlexUser, path: '(flexible-inline)' });
       await rawUpsertDoc();
-      return;
+      // Continue into mongoose seed path below with FlexUser.
     }
 
     // Seed against every loaded model (use the last one's helpers via closure below).
@@ -245,10 +270,11 @@ function loadPreviewEnv() {
     }
 
     function passwordFieldName() {
-      if (User.schema?.paths?.password) return 'password';
+      // Prefer passwordHash — loan-app style schemas require it (password alone is ignored).
       if (User.schema?.paths?.passwordHash) return 'passwordHash';
+      if (User.schema?.paths?.password) return 'password';
       if (User.schema?.paths?.passcode) return 'passcode';
-      return 'password';
+      return 'passwordHash';
     }
 
     function passwordSelectPath(field) {
@@ -314,25 +340,20 @@ function loadPreviewEnv() {
     }
 
     async function writePasswordHash(userId, plain) {
-      const field = passwordFieldName();
       const hashed = await hashPassword(plain);
-      await User.updateOne({ _id: userId }, { $set: { [field]: hashed } });
+      const updates = {};
+      if (User.schema?.paths?.passwordHash) updates.passwordHash = hashed;
+      if (User.schema?.paths?.password) updates.password = hashed;
+      if (User.schema?.paths?.passcode) updates.passcode = hashed;
+      if (!Object.keys(updates).length) {
+        updates[passwordFieldName()] = hashed;
+      }
+      await User.updateOne({ _id: userId }, { $set: updates });
       return reloadUserWithSecrets(userId);
     }
 
     async function setPassword(user, plain) {
-      const field = passwordFieldName();
-      user[field] = plain;
-      if (typeof user.markModified === 'function') user.markModified(field);
-      try {
-        await user.save();
-      } catch (err) {
-        console.log('[preview-seed] save with plain password failed:', err.message || err);
-      }
-      let reloaded = await reloadUserWithSecrets(user._id);
-      if (await passwordMatches(reloaded, plain)) {
-        return reloaded;
-      }
+      // Flexible / inline schemas often have no pre-save hash hook — always store bcrypt hashes.
       return writePasswordHash(user._id, plain);
     }
 
@@ -374,6 +395,7 @@ function loadPreviewEnv() {
       const lookup = { $or: [{ email }, { username: email }, { username: seedUsername }] };
       let user = await findUserWithSecrets(lookup);
       if (!user) {
+        const hashed = await hashPassword(rawPass);
         const doc = applyRequiredFields({
           name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
           email,
@@ -382,17 +404,19 @@ function loadPreviewEnv() {
         if (User.schema?.paths?.username) {
           doc.username = seedUsername || email.split('@')[0] || 'previewadmin';
         }
-        doc[passwordFieldName()] = rawPass;
+        if (User.schema?.paths?.passwordHash) doc.passwordHash = hashed;
+        if (User.schema?.paths?.password) doc.password = hashed;
+        if (User.schema?.paths?.passcode) doc.passcode = hashed;
+        if (!doc.password && !doc.passwordHash && !doc.passcode) {
+          doc[passwordFieldName()] = hashed;
+        }
         user = new User(doc);
         try {
           await user.save();
         } catch (err) {
           console.log('[preview-seed] create via save failed, trying direct hash:', err.message || err);
           try {
-            user = await User.create({
-              ...doc,
-              [passwordFieldName()]: await hashPassword(rawPass),
-            });
+            user = await User.create(doc);
           } catch (err2) {
             console.log('[preview-seed] create failed for', entry.path, err2.message || err2);
             continue;

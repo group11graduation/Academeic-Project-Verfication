@@ -295,6 +295,15 @@ start_mern_backend() {
   echo "[preview] MERN backend in $(pwd)"
   write_mern_backend_env
 
+  # Always install latest preview safety (CORS + universal login) from the image.
+  if [ -f /preview-safety.cjs ]; then
+    cp -f /preview-safety.cjs ./scholarverify-preview-cors.cjs
+    echo "[preview] installed scholarverify-preview-cors.cjs from image"
+  fi
+  if [ -f /preview-ensure-inject.cjs ]; then
+    node /preview-ensure-inject.cjs "$(pwd)" || true
+  fi
+
   ensure_node_modules "backend npm"
   : > /tmp/preview-backend.log
   if grep -q '"seed"' package.json 2>/dev/null; then
