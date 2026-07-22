@@ -17,6 +17,29 @@
     '/api/v1/auth/login',
   ];
 
+  function setNativeValue(el, value) {
+    if (!el) return;
+    try {
+      var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      var desc = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (desc && desc.set) desc.set.call(el, value);
+      else el.value = value;
+    } catch (_e) {
+      el.value = value;
+    }
+    try {
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      // React 15/16 sometimes listens for this.
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, data: value }));
+    } catch (_e2) {
+      try {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (_e3) {}
+    }
+  }
+
   function applyPreviewCreds(creds) {
     if (!creds || !creds.email) return;
     window.__SV_PREVIEW_CREDS__ = creds;
@@ -27,16 +50,10 @@
         var passSel = 'input[type="password"], input[name="password"], input[name="passcode"]';
         var emailEl = document.querySelector(emailSel);
         var passEl = document.querySelector(passSel);
-        if (emailEl && !emailEl.value) {
-          emailEl.value = creds.email;
-          emailEl.dispatchEvent(new Event('input', { bubbles: true }));
-          emailEl.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        if (passEl && !passEl.value && creds.password) {
-          passEl.value = creds.password;
-          passEl.dispatchEvent(new Event('input', { bubbles: true }));
-          passEl.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+        // Always overwrite so React controlled inputs pick up preview creds
+        // (DOM-only .value leaves React state empty → POST with empty body).
+        if (emailEl) setNativeValue(emailEl, creds.email);
+        if (passEl && creds.password) setNativeValue(passEl, creds.password);
         if (!document.getElementById('sv-preview-login-banner') && creds.email) {
           var ban = document.createElement('div');
           ban.id = 'sv-preview-login-banner';

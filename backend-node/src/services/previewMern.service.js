@@ -731,7 +731,7 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 }
 
 const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.cjs';
-const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases-v3';
+const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases-v4';
 const LOGIN_ALIAS_MARKER_LEGACY = 'scholarverify-preview-login-aliases';
 
 function buildLoginAliasModule(realPath) {
@@ -741,8 +741,6 @@ function buildLoginAliasModule(realPath) {
 'use strict';
 const http = require('http');
 const { execFileSync } = require('child_process');
-let expressJson;
-try { expressJson = require('express').json({ limit: '2mb' }); } catch (_e) { expressJson = null; }
 
 const PREFERRED = String(process.env.PREVIEW_LOGIN_API_PATH || ${JSON.stringify(real)} || '').trim();
 const CANDIDATES = ${JSON.stringify(allPaths)};
@@ -820,7 +818,8 @@ function installPreviewLoginAliases(app) {
   }
 
   const handlers = [];
-  if (expressJson) handlers.push(expressJson);
+  // Do NOT run a second express.json() here — it can race/consume the body and
+  // leave req.body empty for fallthrough handlers (SYADA "Empty body" 400).
   // IMPORTANT: must accept next — when this path IS the real login route (e.g. SYADA
   // POST /auth/login), we must fall through instead of swallowing it with 404.
   handlers.push(async (req, res, next) => {
@@ -828,21 +827,36 @@ function installPreviewLoginAliases(app) {
     if (String(req.headers['x-sv-login-proxy'] || '') === '1') {
       return next();
     }
+    const incoming = String(req.path || req.url || '').split('?')[0];
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const hasCreds = Boolean(
+      body.email || body.username || body.identifier || body.login || body.password || body.passcode
+    );
+
+    // If this request already targets the confirmed real route, never shadow it.
+    if (PREFERRED && incoming === PREFERRED) {
+      if (bodyMatchesPreviewAdmin(body)) reseedPreviewAdmin();
+      return next();
+    }
+
+    // Empty body → do not proxy (wrong routes often reply 400 "email required").
+    // Fall through so the real handler / client retry can run.
+    if (!hasCreds) {
+      console.log('[preview] login alias ' + incoming + ' → empty body, fallthrough');
+      return next();
+    }
+
+    if (bodyMatchesPreviewAdmin(body)) reseedPreviewAdmin();
+
     const port = Number(process.env.PORT || process.env.API_PORT || 5000);
-    const payload = JSON.stringify(req.body || {});
+    const payload = JSON.stringify(body);
     const headers = {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(payload),
       'X-SV-Login-Proxy': '1',
+      Accept: 'application/json',
     };
     if (req.headers.authorization) headers.Authorization = req.headers.authorization;
-    const incoming = String(req.path || req.url || '').split('?')[0];
-    if (bodyMatchesPreviewAdmin(req.body)) reseedPreviewAdmin();
-
-    // If this request already targets the confirmed real route, never shadow it.
-    if (PREFERRED && incoming === PREFERRED) {
-      return next();
-    }
 
     const ordered = [];
     const seen = new Set();
@@ -852,19 +866,22 @@ function installPreviewLoginAliases(app) {
       seen.add(path);
       ordered.push(path);
     }
+
+    // Only treat these as "a real login handler answered". A 400 from a wrong
+    // candidate (or empty-body validator) must NOT stop the search — that was
+    // returning SYADA's "Empty body" error from a non-canonical path.
+    const AUTH_HIT = new Set([200, 201, 204, 401, 403, 422]);
     for (const path of ordered) {
       // eslint-disable-next-line no-await-in-loop
       const result = await proxyOnce(port, path, payload, headers);
-      // 404 → try next candidate. Any other status means a real login handler answered.
-      if (result.status !== 404 && result.status !== 0) {
-        console.log('[preview] login alias ' + incoming + ' → ' + path + ' (' + result.status + ')');
-        res.status(result.status);
-        if (result.headers['content-type']) res.setHeader('Content-Type', result.headers['content-type']);
-        return res.send(result.body);
-      }
+      if (result.status === 404 || result.status === 0) continue;
+      if (!AUTH_HIT.has(result.status)) continue;
+      console.log('[preview] login alias ' + incoming + ' → ' + path + ' (' + result.status + ')');
+      res.status(result.status);
+      if (result.headers['content-type']) res.setHeader('Content-Type', result.headers['content-type']);
+      return res.send(result.body);
     }
-    // No alternate worked — fall through to the project's own handler on this path
-    // (fixes SYADA where /auth/login is real but our alias was registered first).
+    // No alternate worked — fall through to the project's own handler on this path.
     console.log('[preview] login alias ' + incoming + ' → fallthrough to app handler');
     return next();
   });
@@ -886,7 +903,7 @@ function injectLoginAliasRequire(content, requirePath) {
   // and fallthrough next() is used (v3+).
   let next = content;
   if (
-    /scholarverify-preview-login-aliases(?!-v3)/.test(next) &&
+    /scholarverify-preview-login-aliases(?!-v4)/.test(next) &&
     !next.includes(LOGIN_ALIAS_MARKER)
   ) {
     next = next
