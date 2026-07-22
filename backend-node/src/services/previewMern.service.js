@@ -507,10 +507,14 @@ export async function patchBackendForPreview(
   files += await patchDbNoExitOnPreviewFail(backendRoot);
   files += await walkRelaxCors(backendRoot);
 
-  if (loginApiPath) {
-    const aliases = await installPreviewLoginPathAliases(extractDir, backendSubdir, loginApiPath);
-    files += aliases.files || 0;
-  }
+  // Always install universal login aliases so /auth/login, /api/auth/login, /api/users/login, …
+  // all work for any student Express app (SYADA, Harmony, etc.).
+  const aliases = await installPreviewLoginPathAliases(
+    extractDir,
+    backendSubdir,
+    loginApiPath || ''
+  );
+  files += aliases.files || 0;
 
   return { files };
 }
@@ -730,53 +734,85 @@ const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.cjs';
 const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases';
 
 function buildLoginAliasModule(realPath) {
-  const real = String(realPath || '/api/auth/login').replace(/\\/g, '/');
-  const aliases = LOGIN_PATH_REWRITE_CANDIDATES.filter((p) => p !== real);
+  const real = String(realPath || '').replace(/\\/g, '/');
+  const allPaths = [...LOGIN_PATH_REWRITE_CANDIDATES];
   return `/* ${LOGIN_ALIAS_MARKER} — auto-injected for ScholarVerify preview */
 'use strict';
 const http = require('http');
 let expressJson;
 try { expressJson = require('express').json({ limit: '2mb' }); } catch (_e) { expressJson = null; }
 
-const REAL = process.env.PREVIEW_LOGIN_API_PATH || ${JSON.stringify(real)};
-const ALIASES = ${JSON.stringify(aliases)}.filter((p) => p && p !== REAL);
+const PREFERRED = String(process.env.PREVIEW_LOGIN_API_PATH || ${JSON.stringify(real)} || '').trim();
+const CANDIDATES = ${JSON.stringify(allPaths)};
+
+function proxyOnce(port, path, payload, headers) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: '127.0.0.1', port, path, method: 'POST', headers },
+      (pr) => {
+        const chunks = [];
+        pr.on('data', (c) => chunks.push(c));
+        pr.on('end', () => {
+          resolve({
+            status: pr.statusCode || 502,
+            headers: pr.headers || {},
+            body: Buffer.concat(chunks),
+          });
+        });
+      }
+    );
+    req.on('error', (err) => resolve({ status: 502, headers: {}, body: Buffer.from(JSON.stringify({ message: err.message || 'proxy failed' })) }));
+    req.write(payload);
+    req.end();
+  });
+}
 
 function installPreviewLoginAliases(app) {
   if (!app || typeof app.post !== 'function' || app.__scholarVerifyLoginAliases) return;
   app.__scholarVerifyLoginAliases = true;
   const handlers = [];
   if (expressJson) handlers.push(expressJson);
-  handlers.push((req, res) => {
-      const port = Number(process.env.PORT || process.env.API_PORT || 5000);
-      const payload = JSON.stringify(req.body || {});
-      const headers = {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload),
-      };
-      if (req.headers.authorization) headers.Authorization = req.headers.authorization;
-      const proxy = http.request(
-        { hostname: '127.0.0.1', port, path: REAL, method: 'POST', headers },
-        (pr) => {
-          const chunks = [];
-          pr.on('data', (c) => chunks.push(c));
-          pr.on('end', () => {
-            res.status(pr.statusCode || 502);
-            const ct = pr.headers['content-type'];
-            if (ct) res.setHeader('Content-Type', ct);
-            res.send(Buffer.concat(chunks));
-          });
-        }
-      );
-      proxy.on('error', (err) => {
-        res.status(502).json({ message: err.message || 'preview login alias proxy failed' });
-      });
-      proxy.write(payload);
-      proxy.end();
+  handlers.push(async (req, res) => {
+    if (String(req.headers['x-sv-login-proxy'] || '') === '1') {
+      return res.status(404).json({ message: 'Route not found' });
+    }
+    const port = Number(process.env.PORT || process.env.API_PORT || 5000);
+    const payload = JSON.stringify(req.body || {});
+    const headers = {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+      'X-SV-Login-Proxy': '1',
+    };
+    if (req.headers.authorization) headers.Authorization = req.headers.authorization;
+    const incoming = String(req.path || req.url || '').split('?')[0];
+    const ordered = [];
+    const seen = new Set();
+    for (const p of [PREFERRED, ...CANDIDATES]) {
+      const path = String(p || '').trim();
+      if (!path || path === incoming || seen.has(path)) continue;
+      seen.add(path);
+      ordered.push(path);
+    }
+    let last = { status: 404, headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ message: 'Route not found' })) };
+    for (const path of ordered) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await proxyOnce(port, path, payload, headers);
+      last = result;
+      if (result.status !== 404 && result.status !== 0) {
+        console.log('[preview] login alias ' + incoming + ' → ' + path + ' (' + result.status + ')');
+        res.status(result.status);
+        if (result.headers['content-type']) res.setHeader('Content-Type', result.headers['content-type']);
+        return res.send(result.body);
+      }
+    }
+    res.status(last.status || 404);
+    if (last.headers['content-type']) res.setHeader('Content-Type', last.headers['content-type']);
+    return res.send(last.body);
   });
-  for (const alias of ALIASES) {
+  for (const alias of CANDIDATES) {
     app.post(alias, ...handlers);
   }
-  console.log('[preview] login path aliases → POST ' + REAL);
+  console.log('[preview] universal login aliases installed' + (PREFERRED ? (' preferred=' + PREFERRED) : ''));
 }
 
 module.exports = { installPreviewLoginAliases };
@@ -858,7 +894,8 @@ async function findExpressEntryFiles(backendRoot) {
  */
 export async function installPreviewLoginPathAliases(extractDir, backendSubdir, realLoginPath) {
   const real = String(realLoginPath || '').trim();
-  if (!real || real === '/login') return { files: 0, realPath: real };
+  // Allow empty real path — smart aliases still try every common candidate.
+  if (real === '/login') return { files: 0, realPath: real };
   const backendRoot = path.join(extractDir, backendSubdir || '');
   if (!(await pathExists(backendRoot))) return { files: 0, realPath: real };
 

@@ -88,8 +88,30 @@ wait_for_tcp_port() {
   return 1
 }
 
+inject_login_fallback_into_index() {
+  dir="$1"
+  helper="/preview-login-fallback.js"
+  [ -f "$helper" ] || return 0
+  # Copy beside SPA assets (works with `serve` root).
+  cp -f "$helper" "$dir/preview-login-fallback.js" 2>/dev/null || true
+  # Also inline the script so Vite/CRA base href cannot break the src path.
+  find "$dir" -maxdepth 2 -type f -name 'index.html' 2>/dev/null | while read -r html; do
+    if grep -q '__SV_LOGIN_FALLBACK__' "$html" 2>/dev/null; then
+      continue
+    fi
+    tmp="${html}.svlogin"
+    {
+      echo '<script>'
+      cat "$helper"
+      echo '</script>'
+      cat "$html"
+    } > "$tmp" 2>/dev/null && mv -f "$tmp" "$html" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
+  done
+}
+
 serve_dir() {
   dir="$1"
+  inject_login_fallback_into_index "$dir"
   release_port_holder
   echo "[preview] serve static: $dir on ${LISTEN}"
   run_serve "$dir" "${LISTEN}"
