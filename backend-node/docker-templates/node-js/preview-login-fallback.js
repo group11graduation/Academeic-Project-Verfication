@@ -1,26 +1,27 @@
 /**
- * Injected into student preview index.html so login works across any Express route shape.
- * On 404 for a login POST, retries common alternate paths (/api/auth/login, /api/users/login, …).
- * Also autofills preview credentials when window.__SV_PREVIEW_CREDS__ is set.
+ * Injected into student preview index.html so login works across Express route shapes.
+ * On 404 / "Route not found", retries common API login paths against the API origin
+ * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  */
 (function () {
   if (window.__SV_LOGIN_FALLBACK__) return;
   window.__SV_LOGIN_FALLBACK__ = true;
 
   var PATHS = [
-    '/api/users/login',
+    '/auth/login',
     '/api/auth/login',
     '/api/user/login',
-    '/api/login',
-    '/auth/login',
+    '/api/users/login',
     '/users/login',
+    '/api/login',
     '/api/v1/auth/login',
   ];
 
   function setNativeValue(el, value) {
     if (!el) return;
     try {
-      var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      var proto =
+        el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
       var desc = Object.getOwnPropertyDescriptor(proto, 'value');
       if (desc && desc.set) desc.set.call(el, value);
       else el.value = value;
@@ -30,7 +31,6 @@
     try {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
-      // React 15/16 sometimes listens for this.
       el.dispatchEvent(new InputEvent('input', { bubbles: true, data: value }));
     } catch (_e2) {
       try {
@@ -43,6 +43,8 @@
   function applyPreviewCreds(creds) {
     if (!creds || !creds.email) return;
     window.__SV_PREVIEW_CREDS__ = creds;
+    if (creds.apiBase) window.__SV_API_BASE__ = String(creds.apiBase).replace(/\/$/, '');
+    if (creds.loginPath) window.__SV_LOGIN_API_PATH__ = String(creds.loginPath).trim();
     function fill() {
       try {
         var emailSel =
@@ -50,8 +52,6 @@
         var passSel = 'input[type="password"], input[name="password"], input[name="passcode"]';
         var emailEl = document.querySelector(emailSel);
         var passEl = document.querySelector(passSel);
-        // Always overwrite so React controlled inputs pick up preview creds
-        // (DOM-only .value leaves React state empty → POST with empty body).
         if (emailEl) setNativeValue(emailEl, creds.email);
         if (passEl && creds.password) setNativeValue(passEl, creds.password);
         if (!document.getElementById('sv-preview-login-banner') && creds.email) {
@@ -85,6 +85,20 @@
       .catch(function () {});
   } catch (_e) {}
 
+  function detectApiBase() {
+    if (window.__SV_API_BASE__) return String(window.__SV_API_BASE__).replace(/\/$/, '');
+    try {
+      var meta = document.querySelector('meta[name="sv-api-base"]');
+      if (meta && meta.content) return String(meta.content).replace(/\/$/, '');
+    } catch (_e) {}
+    try {
+      var text = String((document.body && document.body.innerText) || '');
+      var m = text.match(/API\s*base:\s*(https?:\/\/[^\s]+)/i);
+      if (m) return m[1].replace(/\/$/, '');
+    } catch (_e2) {}
+    return '';
+  }
+
   function isLoginUrl(url) {
     try {
       var u = String(url || '');
@@ -109,14 +123,39 @@
 
   function loginCandidates(url) {
     var parts = splitBaseAndPath(url);
+    var apiBase = detectApiBase();
+    // If the request wrongly targets the SPA origin (same host as the page),
+    // force retries onto the API base from the page footer / injected hint.
+    var pageOrigin = '';
+    try {
+      pageOrigin = window.location.origin;
+    } catch (_e) {}
+    var origin = parts.origin || '';
+    if (apiBase && (!origin || origin === pageOrigin)) {
+      origin = apiBase;
+    }
+    if (!origin && apiBase) origin = apiBase;
+
+    var preferred = '';
+    try {
+      preferred = String(window.__SV_LOGIN_API_PATH__ || '').trim();
+    } catch (_e2) {}
+
     var ordered = [];
     var seen = {};
-    var incoming = (parts.path || '').split('?')[0];
-    PATHS.concat([incoming]).forEach(function (p) {
+    function push(p) {
       if (!p || seen[p]) return;
       seen[p] = true;
-      ordered.push(buildUrl(parts.origin, p));
-    });
+      ordered.push(buildUrl(origin, p.charAt(0) === '/' ? p : '/' + p));
+    }
+    if (preferred) push(preferred);
+    PATHS.forEach(push);
+    var incoming = (parts.path || '').split('?')[0];
+    if (incoming && incoming !== '/login') push(incoming);
+
+    // Keep original absolute URL last (if different) so we don't loop forever.
+    var original = typeof url === 'string' ? url : '';
+    if (original && !seen[original]) ordered.push(original);
     return ordered.filter(function (u) {
       return u !== url;
     }).concat([url]);

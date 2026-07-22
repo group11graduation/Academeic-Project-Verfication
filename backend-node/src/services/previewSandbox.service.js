@@ -381,21 +381,17 @@ async function detectAndApplyApiLoginRouteHint(session, {
       }
     }
     if (extractDir && backendSubdir && stack !== 'java-spring-react') {
-      const aliasPatch = await previewMern
-        .installPreviewLoginPathAliases(extractDir, backendSubdir, probe.path)
+      // Strip any previously injected Express aliases, then restart API so the
+      // real /auth/login (etc.) is no longer shadowed.
+      const removed = await previewMern
+        .removePreviewLoginPathAliases(extractDir, backendSubdir)
         .catch(() => ({ files: 0 }));
-      if (aliasPatch.files > 0) {
-        appendLog(
-          session,
-          'info',
-          `Installed Express login path aliases → ${probe.path}`
-        );
+      if (removed.files > 0) {
+        appendLog(session, 'info', `Removed ${removed.files} legacy Express login alias file(s)`);
       }
-      // Bind-mounted source was patched after boot — restart only the API on :5000 so aliases load.
       if (containerName) {
         const be = String(backendSubdir || 'backend').replace(/[^a-zA-Z0-9._/-]/g, '');
         const restartCmd = [
-          `export PREVIEW_LOGIN_API_PATH='${String(probe.path).replace(/'/g, '')}'`,
           `(command -v fuser >/dev/null 2>&1 && fuser -k 5000/tcp) || (command -v lsof >/dev/null 2>&1 && kill -9 $(lsof -t -i:5000) 2>/dev/null) || true`,
           'sleep 1',
           `BE=""`,
@@ -412,8 +408,7 @@ async function detectAndApplyApiLoginRouteHint(session, {
           .execInPreviewContainer(containerName, restartCmd, { timeoutMs: 60_000 })
           .catch(() => '');
         if (String(restartOut || '').includes('api-restarted')) {
-          appendLog(session, 'info', `Restarted student API so login aliases for ${probe.path} take effect`);
-          // Brief wait so the new process binds :5000 before teachers try login.
+          appendLog(session, 'info', `Restarted student API after removing login aliases`);
           await new Promise((r) => setTimeout(r, 2500));
         }
       }
@@ -422,22 +417,13 @@ async function detectAndApplyApiLoginRouteHint(session, {
     // applies immediately, without waiting for a frontend rebuild.
     if (containerName && probe.path) {
       const safePath = String(probe.path).replace(/[^a-zA-Z0-9_/-]/g, '');
-      const wrongPaths = [
-        ...previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES,
-        // Relative forms when axios baseURL already includes /api
-        ...previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES.map((p) =>
-          p.startsWith('/api/') ? p.slice(4) : p
-        ),
-      ]
-        .filter((p) => p && p !== probe.path && p !== '/login' && p !== 'login')
+      // Only rewrite absolute wrong paths → absolute confirmed path (never strip leading /).
+      const wrongPaths = [...previewLoginVerify.LOGIN_ROUTE_PROBE_CANDIDATES]
+        .filter((p) => p && p !== probe.path && p !== '/login' && p.startsWith('/'))
         .map((p) => String(p).replace(/[^a-zA-Z0-9_/-]/g, ''));
-      const relativeSafe = safePath.startsWith('/api/') ? safePath.slice(4) : safePath;
-      if (safePath && wrongPaths.length) {
+      if (safePath.startsWith('/') && wrongPaths.length) {
         const sedArgs = wrongPaths
-          .map((w) => {
-            const target = w.startsWith('/api/') || w.startsWith('api/') ? safePath : relativeSafe;
-            return `-e 's|"${w}"|"${target}"|g' -e "s|'${w}'|'${target}'|g"`;
-          })
+          .map((w) => `-e 's|"${w}"|"${safePath}"|g' -e "s|'${w}'|'${safePath}'|g"`)
           .join(' ');
         const cmd =
           `find /app -maxdepth 6 -type d \\( -name dist -o -name build \\) -not -path '*/node_modules/*' 2>/dev/null | ` +
@@ -602,6 +588,8 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
                   .injectPreviewLoginCredentials(deployResult.containerName, {
                     email: session.previewLoginEmail,
                     password: session.previewLoginPassword,
+                    apiBase: session.previewApiUrl || deployResult.previewApiUrl || '',
+                    loginPath: routeProbe.path || '/auth/login',
                   })
                   .catch(() => {});
               }
@@ -622,6 +610,8 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
                     .injectPreviewLoginCredentials(deployResult.containerName, {
                       email: tipCred.email,
                       password: tipCred.password,
+                      apiBase: session.previewApiUrl || deployResult.previewApiUrl || '',
+                      loginPath: routeProbe.path || '/auth/login',
                     })
                     .catch(() => {});
                 }
@@ -630,6 +620,8 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
                   .injectPreviewLoginCredentials(deployResult.containerName, {
                     email: session.previewLoginEmail,
                     password: session.previewLoginPassword,
+                    apiBase: session.previewApiUrl || deployResult.previewApiUrl || '',
+                    loginPath: routeProbe.path || '/auth/login',
                   })
                   .catch(() => {});
               }

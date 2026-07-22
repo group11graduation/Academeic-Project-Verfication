@@ -507,14 +507,11 @@ export async function patchBackendForPreview(
   files += await patchDbNoExitOnPreviewFail(backendRoot);
   files += await walkRelaxCors(backendRoot);
 
-  // Always install universal login aliases so /auth/login, /api/auth/login, /api/users/login, …
-  // all work for any student Express app (SYADA, Harmony, etc.).
-  const aliases = await installPreviewLoginPathAliases(
-    extractDir,
-    backendSubdir,
-    loginApiPath || ''
-  );
-  files += aliases.files || 0;
+  // Remove legacy Express login aliases — they shadowed real routes (SYADA /auth/login),
+  // poisoned route probes, and caused "Route not found" / empty-body 400s.
+  // Login path fixes now use: source discovery + live probe + frontend rewrite + browser fallback.
+  const removed = await removePreviewLoginPathAliases(extractDir, backendSubdir);
+  files += removed.files || 0;
 
   return { files };
 }
@@ -991,6 +988,7 @@ async function findExpressEntryFiles(backendRoot) {
 /**
  * Mount POST aliases for common wrong login paths onto the real Express route
  * (e.g. /auth/login → /api/auth/login) so student UIs stop getting "Route not found".
+ * @deprecated Prefer removePreviewLoginPathAliases — aliases shadowed real routes.
  */
 export async function installPreviewLoginPathAliases(extractDir, backendSubdir, realLoginPath) {
   const real = String(realLoginPath || '').trim();
@@ -1019,6 +1017,48 @@ export async function installPreviewLoginPathAliases(extractDir, backendSubdir, 
     }
   }
   return { files, realPath: real };
+}
+
+/**
+ * Strip previously injected ScholarVerify login aliases from a student backend.
+ * Safe to call repeatedly; required because aliases shadowed real routes like /auth/login.
+ */
+export async function removePreviewLoginPathAliases(extractDir, backendSubdir) {
+  const backendRoot = path.join(extractDir, backendSubdir || '');
+  if (!(await pathExists(backendRoot))) return { files: 0 };
+
+  let files = 0;
+  const aliasAbs = path.join(backendRoot, LOGIN_ALIAS_FILE);
+  if (await pathExists(aliasAbs)) {
+    await fs.unlink(aliasAbs).catch(() => {});
+    files += 1;
+  }
+
+  const entries = await findExpressEntryFiles(backendRoot);
+  for (const entryFile of entries) {
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(entryFile, 'utf8').catch(() => null);
+    if (content == null) continue;
+    if (!/scholarverify-preview-login-aliases|installPreviewLoginAliases|__svCreateRequire/.test(content)) {
+      continue;
+    }
+    const next = content
+      .replace(/import \{ createRequire as __svCreateRequire \} from 'node:module';\n?/g, '')
+      .replace(
+        /try \{ __svCreateRequire\(import\.meta\.url\)\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g,
+        ''
+      )
+      .replace(
+        /try \{ require\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g,
+        ''
+      );
+    if (next !== content) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(entryFile, next, 'utf8');
+      files += 1;
+    }
+  }
+  return { files };
 }
 
 export async function patchFrontendApiPort(
@@ -1090,14 +1130,14 @@ export function buildPreviewMongoUri(sessionId, { sidecarHost = null } = {}) {
 }
 
 const DEFAULT_LOGIN_PATHS = [
-  '/api/users/login',
-  '/api/auth/login',
   '/auth/login',
-  '/api/login',
-  '/login',
-  '/users/login',
+  '/api/auth/login',
   '/api/user/login',
+  '/api/users/login',
+  '/users/login',
+  '/api/login',
   '/api/v1/auth/login',
+  '/login',
 ];
 
 /** Candidates safe to rewrite in frontend JS (excludes bare /login SPA route). */

@@ -6,14 +6,14 @@ import { getPreviewProbeHost } from '../config/previewProbe.js';
  * student projects use them. Used for live route detection and credential verify.
  */
 export const LOGIN_ROUTE_PROBE_CANDIDATES = [
-  '/api/users/login',
+  '/auth/login',
   '/api/auth/login',
   '/api/user/login',
-  '/api/login',
-  '/auth/login',
+  '/api/users/login',
   '/users/login',
-  '/login',
+  '/api/login',
   '/api/v1/auth/login',
+  '/login',
 ];
 
 const DEFAULT_LOGIN_PATHS = LOGIN_ROUTE_PROBE_CANDIDATES;
@@ -93,9 +93,10 @@ const LOGIN_PROBE_STRONG_STATUSES = new Set([400, 401, 415, 422]);
 /**
  * Probe the running API with throwaway credentials to find which login route exists.
  * 404 → route missing. 400/401/415/422 → a login handler rejected the probe (strong match).
- * Other statuses (e.g. 403) count as weak matches — but if EVERY candidate returns the
- * same weak status, the backend is blanket-rejecting (Spring Security often 403s unknown
- * paths instead of 404), so the result is inconclusive and we must not patch anything.
+ *
+ * Important: collect ALL strong hits and prefer paths discovered in student source
+ * (extraPaths) over generic guesses like /api/users/login — otherwise Express aliases
+ * or catch-alls poison detection and we rewrite SYADA's real /auth/login away.
  */
 export async function detectPreviewLoginApiRoute({
   apiHostPort,
@@ -108,15 +109,45 @@ export async function detectPreviewLoginApiRoute({
   const baseUrl = `http://${probeHost}:${apiHostPort}`;
   const body = { email: '__probe__', password: '__probe__' };
   const paths = orderedProbePaths(extraPaths);
+  const sourceSet = new Set(
+    (extraPaths || [])
+      .map((p) => String(p || '').trim())
+      .filter(Boolean)
+      .map((p) => (p.startsWith('/') ? p : `/${p}`))
+  );
 
   const results = [];
+  const strongHits = [];
   for (const loginPath of paths) {
     // eslint-disable-next-line no-await-in-loop
     const result = await postLogin(baseUrl, loginPath, body);
     results.push({ path: loginPath, status: result.status, url: result.url });
     if (LOGIN_PROBE_STRONG_STATUSES.has(result.status)) {
-      return { found: true, path: loginPath, status: result.status, probeUrl: result.url };
+      strongHits.push({ path: loginPath, status: result.status, probeUrl: result.url });
     }
+  }
+
+  if (strongHits.length) {
+    const fromSource = strongHits.filter((h) => sourceSet.has(h.path));
+    if (fromSource.length) {
+      return { found: true, path: fromSource[0].path, status: fromSource[0].status, probeUrl: fromSource[0].probeUrl };
+    }
+    // Prefer canonical Express shapes over /api/users/login guesses.
+    const prefer = [
+      '/auth/login',
+      '/api/auth/login',
+      '/api/user/login',
+      '/users/login',
+      '/api/users/login',
+      '/api/login',
+      '/api/v1/auth/login',
+    ];
+    for (const p of prefer) {
+      const hit = strongHits.find((h) => h.path === p);
+      if (hit) return { found: true, path: hit.path, status: hit.status, probeUrl: hit.probeUrl };
+    }
+    const first = strongHits[0];
+    return { found: true, path: first.path, status: first.status, probeUrl: first.probeUrl };
   }
 
   const weak = results.filter((r) => r.status !== 404 && r.status !== 0);
@@ -542,11 +573,20 @@ async function tryRegisterPreviewAdmin({
 /**
  * Write working credentials into the running preview UI so teachers see/autofill them.
  */
-export async function injectPreviewLoginCredentials(containerName, { email, password } = {}) {
+export async function injectPreviewLoginCredentials(
+  containerName,
+  { email, password, apiBase = '', loginPath = '' } = {}
+) {
   if (!containerName || !email) return { ok: false };
-  const b64 = Buffer.from(JSON.stringify({ email, password: password || '' }), 'utf8').toString(
-    'base64'
-  );
+  const b64 = Buffer.from(
+    JSON.stringify({
+      email,
+      password: password || '',
+      apiBase: String(apiBase || '').replace(/\/$/, ''),
+      loginPath: String(loginPath || '').trim(),
+    }),
+    'utf8'
+  ).toString('base64');
   const script = [
     `B64='${b64}'`,
     'PAYLOAD=$(printf %s "$B64" | base64 -d)',
@@ -556,7 +596,7 @@ export async function injectPreviewLoginCredentials(containerName, { email, pass
     "    find \"$dir\" -maxdepth 2 -type f -name 'index.html' 2>/dev/null | while read -r html; do",
     "      if grep -q '__SV_PREVIEW_CREDS__' \"$html\" 2>/dev/null; then continue; fi",
     "      tmp=\"${html}.svcreds\"",
-    "      { printf '%s\\n' \"<script>window.__SV_PREVIEW_CREDS__=$PAYLOAD;</script>\"; cat \"$html\"; } > \"$tmp\" && mv -f \"$tmp\" \"$html\" || rm -f \"$tmp\"",
+    "      { printf '%s\\n' \"<script>(function(){var c=\$PAYLOAD;window.__SV_PREVIEW_CREDS__=c;if(c&&c.apiBase)window.__SV_API_BASE__=c.apiBase;if(c&&c.loginPath)window.__SV_LOGIN_API_PATH__=c.loginPath;})();</script>\"; cat \"$html\"; } > \"$tmp\" && mv -f \"$tmp\" \"$html\" || rm -f \"$tmp\"",
     '    done',
     '  fi',
     'done',
