@@ -512,9 +512,11 @@ export async function patchBackendForPreview(
 
   files += await patchDbNoExitOnPreviewFail(backendRoot);
   files += await walkRelaxCors(backendRoot);
+  files += await walkPatchShortJwtSecrets(backendRoot);
 
   // Force preview CORS to reflect the teacher browser origin (fixes loan-app style
   // APIs that hardcode Access-Control-Allow-Origin: http://localhost:5173).
+  // Also installs bcrypt/jwt/mongo login guards to prevent opaque HTTP 500s.
   const corsFix = await installPreviewCorsFix(extractDir, backendSubdir);
   files += corsFix.files || 0;
 
@@ -620,6 +622,43 @@ async function walkRelaxCors(dir, depth = 0) {
     content = content.replace(
       /cors\(\s*\{\s*origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*,/g,
       'cors({ origin: true,'
+    );
+    if (content !== before) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(full, content, 'utf8');
+      files += 1;
+    }
+  }
+  return files;
+}
+
+/** Replace short/dev JWT secrets that crash HS512 student apps with a preview-safe secret. */
+async function walkPatchShortJwtSecrets(dir, depth = 0) {
+  if (depth > 8) return 0;
+  const SAFE_JWT =
+    'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==';
+  let files = 0;
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.git') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // eslint-disable-next-line no-await-in-loop
+      files += await walkPatchShortJwtSecrets(full, depth + 1);
+      continue;
+    }
+    if (!/\.(js|mjs|cjs|ts)$/.test(entry.name)) continue;
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(full, 'utf8').catch(() => null);
+    if (content == null || !/JWT_SECRET|jwt\.sign/i.test(content)) continue;
+    const before = content;
+    content = content.replace(
+      /process\.env\.JWT_SECRET\s*\|\|\s*['"][^'"]{1,31}['"]/g,
+      `process.env.JWT_SECRET || '${SAFE_JWT}'`
+    );
+    content = content.replace(
+      /JWT_SECRET\s*=\s*['"](?:secret|dev_only_change_me|changeme|jwtsecret|your[_-]?secret)['"]/gi,
+      `JWT_SECRET = '${SAFE_JWT}'`
     );
     if (content !== before) {
       // eslint-disable-next-line no-await-in-loop
@@ -750,20 +789,102 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 }
 
 const CORS_FIX_FILE = 'scholarverify-preview-cors.cjs';
-const CORS_FIX_MARKER = 'scholarverify-preview-cors-v2';
+const CORS_FIX_MARKER = 'scholarverify-preview-cors-v3';
 
 function buildCorsFixModule() {
   return `/* ${CORS_FIX_MARKER} — auto-injected for ScholarVerify preview */
 'use strict';
+const path = require('path');
+const { createRequire } = require('module');
+
+function requireFromCwd(name) {
+  try {
+    return createRequire(path.join(process.cwd(), 'package.json'))(name);
+  } catch (_e) {
+    try { return require(name); } catch (_e2) { return null; }
+  }
+}
+
+function isLoginPath(reqPath) {
+  const p = String(reqPath || '').split('?')[0];
+  return /\\/(api\\/)?(auth|users|user|v1\\/auth)?\\/?login\\/?$/i.test(p);
+}
 
 /**
- * Force CORS to reflect the browser Origin so teacher preview UIs on
- * http://VPS:PORT work even when the student API hardcodes localhost:5173.
- * Installed first; wraps res.setHeader so later cors() calls cannot stick a wrong origin.
+ * Soften common student-API crashes that turn login into HTTP 500:
+ * - bcrypt.compare on missing/invalid hash
+ * - jwt.sign with a too-short secret (HS512)
+ * - login while Mongo is still connecting
  */
+function installPreviewRuntimeGuards() {
+  if (global.__scholarVerifyRuntimeGuards) return;
+  global.__scholarVerifyRuntimeGuards = true;
+
+  // Ensure JWT secret is long enough for HS256/HS512 student apps.
+  const longJwt =
+    process.env.JWT_SECRET && String(process.env.JWT_SECRET).length >= 32
+      ? process.env.JWT_SECRET
+      : 'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==';
+  process.env.JWT_SECRET = longJwt;
+
+  for (const pkg of ['bcryptjs', 'bcrypt']) {
+    try {
+      const bcrypt = requireFromCwd(pkg);
+      if (!bcrypt || typeof bcrypt.compare !== 'function' || bcrypt.__svPatchedCompare) continue;
+      const origCompare = bcrypt.compare.bind(bcrypt);
+      bcrypt.compare = function safeCompare(data, encrypted, cb) {
+        if (!encrypted || typeof encrypted !== 'string' || encrypted.length < 10) {
+          if (typeof cb === 'function') return cb(null, false);
+          return Promise.resolve(false);
+        }
+        try {
+          const result = origCompare(data, encrypted, cb);
+          if (result && typeof result.then === 'function') {
+            return result.catch(() => false);
+          }
+          return result;
+        } catch (_e) {
+          if (typeof cb === 'function') return cb(null, false);
+          return Promise.resolve(false);
+        }
+      };
+      bcrypt.__svPatchedCompare = true;
+    } catch (_e) {
+      /* optional */
+    }
+  }
+
+  try {
+    const jwt = requireFromCwd('jsonwebtoken');
+    if (jwt && typeof jwt.sign === 'function' && !jwt.__svPatchedSign) {
+      const origSign = jwt.sign.bind(jwt);
+      jwt.sign = function safeSign(payload, secret, options, callback) {
+        const useSecret =
+          secret && String(secret).length >= 32 ? secret : process.env.JWT_SECRET || longJwt;
+        try {
+          return origSign(payload, useSecret, options, callback);
+        } catch (err) {
+          // Retry once with the preview long secret (fixes WeakKey / short secret crashes).
+          try {
+            return origSign(payload, longJwt, options, callback);
+          } catch (_e2) {
+            throw err;
+          }
+        }
+      };
+      jwt.__svPatchedSign = true;
+    }
+  } catch (_e) {
+    /* optional */
+  }
+
+  console.log('[preview] runtime guards installed (bcrypt/jwt/mongo login safety)');
+}
+
 function installPreviewCorsFix(app) {
   if (!app || typeof app.use !== 'function' || app.__scholarVerifyCorsFix) return;
   app.__scholarVerifyCorsFix = true;
+  installPreviewRuntimeGuards();
 
   app.use(function previewCorsFix(req, res, next) {
     const requestOrigin = req.headers.origin || process.env.CORS_ORIGIN || process.env.PREVIEW_PUBLIC_UI_URL || '*';
@@ -800,10 +921,30 @@ function installPreviewCorsFix(app) {
     return next();
   });
 
-  console.log('[preview] CORS fix installed (reflect request Origin)');
+  // Login paths: if Mongo is still connecting, return a clear retryable JSON
+  // instead of letting student handlers throw opaque 500s.
+  app.use(function previewLoginGuard(req, res, next) {
+    if (String(req.method || '').toUpperCase() !== 'POST' || !isLoginPath(req.path || req.url)) {
+      return next();
+    }
+    try {
+      const mongoose = requireFromCwd('mongoose');
+      if (mongoose && mongoose.connection && mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+          message: 'Database is still starting — wait a few seconds and try again',
+          error: 'mongo_not_ready',
+        });
+      }
+    } catch (_e) {
+      /* mongoose optional at this point */
+    }
+    return next();
+  });
+
+  console.log('[preview] CORS + login safety installed');
 }
 
-module.exports = { installPreviewCorsFix };
+module.exports = { installPreviewCorsFix, installPreviewRuntimeGuards };
 `;
 }
 
@@ -836,10 +977,10 @@ function injectCorsFixRequire(content, requirePath) {
     return { content: next, changed };
   }
 
-  // Upgrade legacy v1 call marker comments so future runs know inject is present.
+  // Upgrade legacy call marker comments so future runs know inject is present.
   if (hasInjectCall) {
     next = next.replace(
-      /\/\*\s*scholarverify-preview-cors-v1\s*\*\//g,
+      /\/\*\s*scholarverify-preview-cors-v[12]\s*\*\//g,
       `/* ${CORS_FIX_MARKER} */`
     );
     return { content: next, changed: true };
