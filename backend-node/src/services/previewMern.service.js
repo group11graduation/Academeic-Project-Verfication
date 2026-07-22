@@ -789,13 +789,23 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 }
 
 const CORS_FIX_FILE = 'scholarverify-preview-cors.cjs';
-const CORS_FIX_MARKER = 'scholarverify-preview-cors-v3';
+const CORS_FIX_MARKER = 'scholarverify-preview-cors-v4';
 
 function buildCorsFixModule() {
   return `/* ${CORS_FIX_MARKER} — auto-injected for ScholarVerify preview */
 'use strict';
 const path = require('path');
 const { createRequire } = require('module');
+
+const LOGIN_PATHS = [
+  '/api/auth/login',
+  '/auth/login',
+  '/api/users/login',
+  '/api/user/login',
+  '/users/login',
+  '/api/login',
+  '/api/v1/auth/login',
+];
 
 function requireFromCwd(name) {
   try {
@@ -810,22 +820,19 @@ function isLoginPath(reqPath) {
   return /\\/(api\\/)?(auth|users|user|v1\\/auth)?\\/?login\\/?$/i.test(p);
 }
 
-/**
- * Soften common student-API crashes that turn login into HTTP 500:
- * - bcrypt.compare on missing/invalid hash
- * - jwt.sign with a too-short secret (HS512)
- * - login while Mongo is still connecting
- */
+function longJwtSecret() {
+  const cur = String(process.env.JWT_SECRET || '');
+  if (cur.length >= 32) return cur;
+  const fallback =
+    'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==';
+  process.env.JWT_SECRET = fallback;
+  return fallback;
+}
+
 function installPreviewRuntimeGuards() {
   if (global.__scholarVerifyRuntimeGuards) return;
   global.__scholarVerifyRuntimeGuards = true;
-
-  // Ensure JWT secret is long enough for HS256/HS512 student apps.
-  const longJwt =
-    process.env.JWT_SECRET && String(process.env.JWT_SECRET).length >= 32
-      ? process.env.JWT_SECRET
-      : 'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==';
-  process.env.JWT_SECRET = longJwt;
+  longJwtSecret();
 
   for (const pkg of ['bcryptjs', 'bcrypt']) {
     try {
@@ -839,9 +846,7 @@ function installPreviewRuntimeGuards() {
         }
         try {
           const result = origCompare(data, encrypted, cb);
-          if (result && typeof result.then === 'function') {
-            return result.catch(() => false);
-          }
+          if (result && typeof result.then === 'function') return result.catch(() => false);
           return result;
         } catch (_e) {
           if (typeof cb === 'function') return cb(null, false);
@@ -849,9 +854,7 @@ function installPreviewRuntimeGuards() {
         }
       };
       bcrypt.__svPatchedCompare = true;
-    } catch (_e) {
-      /* optional */
-    }
+    } catch (_e) { /* optional */ }
   }
 
   try {
@@ -859,26 +862,157 @@ function installPreviewRuntimeGuards() {
     if (jwt && typeof jwt.sign === 'function' && !jwt.__svPatchedSign) {
       const origSign = jwt.sign.bind(jwt);
       jwt.sign = function safeSign(payload, secret, options, callback) {
-        const useSecret =
-          secret && String(secret).length >= 32 ? secret : process.env.JWT_SECRET || longJwt;
+        const useSecret = secret && String(secret).length >= 32 ? secret : longJwtSecret();
         try {
           return origSign(payload, useSecret, options, callback);
         } catch (err) {
-          // Retry once with the preview long secret (fixes WeakKey / short secret crashes).
-          try {
-            return origSign(payload, longJwt, options, callback);
-          } catch (_e2) {
-            throw err;
-          }
+          try { return origSign(payload, longJwtSecret(), options, callback); }
+          catch (_e2) { throw err; }
         }
       };
       jwt.__svPatchedSign = true;
     }
-  } catch (_e) {
-    /* optional */
+  } catch (_e) { /* optional */ }
+
+  console.log('[preview] runtime guards installed (bcrypt/jwt)');
+}
+
+function pickUserModel(mongoose) {
+  if (!mongoose || !mongoose.models) return null;
+  return (
+    mongoose.models.User ||
+    mongoose.models.user ||
+    mongoose.models.Admin ||
+    mongoose.models.admin ||
+    mongoose.models.Staff ||
+    mongoose.models.staff ||
+    null
+  );
+}
+
+function pickPasswordHash(user) {
+  if (!user) return '';
+  return (
+    user.passwordHash ||
+    user.password ||
+    user.passcode ||
+    (typeof user.get === 'function' ? user.get('passwordHash') || user.get('password') : '') ||
+    ''
+  );
+}
+
+function sanitizeUser(user) {
+  const obj = user && typeof user.toObject === 'function' ? user.toObject() : { ...(user || {}) };
+  delete obj.password;
+  delete obj.passwordHash;
+  delete obj.passcode;
+  delete obj.__v;
+  return {
+    id: obj._id || obj.id,
+    _id: obj._id || obj.id,
+    fullName: obj.fullName || obj.name || obj.username || '',
+    name: obj.name || obj.fullName || '',
+    email: obj.email || '',
+    username: obj.username || '',
+    phone: obj.phone || '',
+    role: obj.role || 'user',
+    isActive: obj.isActive !== false,
+    ...obj,
+    password: undefined,
+    passwordHash: undefined,
+  };
+}
+
+/**
+ * Preview-owned login that runs BEFORE the student route.
+ * Prevents student handler crashes (opaque HTTP 500) for typical Mongoose + bcrypt + JWT apps.
+ */
+async function previewUniversalLogin(req, res, next) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const email = String(
+    body.email || body.username || body.identifier || body.login || body.userEmail || body.mail || ''
+  )
+    .trim()
+    .toLowerCase();
+  const password = String(body.password || body.passcode || body.pwd || body.pass || '');
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required' });
   }
 
-  console.log('[preview] runtime guards installed (bcrypt/jwt/mongo login safety)');
+  const mongoose = requireFromCwd('mongoose');
+  if (!mongoose) return next();
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      message: 'Database is still starting — wait a few seconds and try again',
+      error: 'mongo_not_ready',
+    });
+  }
+
+  const User = pickUserModel(mongoose);
+  if (!User) return next();
+
+  try {
+    let user = null;
+    try {
+      user = await User.findOne({
+        $or: [{ email }, { username: email }, { username: email.split('@')[0] }],
+      }).select('+passwordHash +password +passcode');
+    } catch (_e) {
+      user = await User.findOne({
+        $or: [{ email }, { username: email }, { username: email.split('@')[0] }],
+      });
+    }
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    let ok = false;
+    if (typeof user.comparePassword === 'function') {
+      try { ok = !!(await user.comparePassword(password)); } catch (_e) { ok = false; }
+    }
+    if (!ok && typeof user.matchPassword === 'function') {
+      try { ok = !!(await user.matchPassword(password)); } catch (_e) { ok = false; }
+    }
+    if (!ok) {
+      const hash = String(pickPasswordHash(user) || '');
+      const bcrypt = requireFromCwd('bcryptjs') || requireFromCwd('bcrypt');
+      if (!bcrypt || !hash) {
+        // Cannot verify — let student handler try (may still 500).
+        return next();
+      }
+      try { ok = !!(await bcrypt.compare(password, hash)); } catch (_e) { ok = false; }
+    }
+    if (!ok) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const jwt = requireFromCwd('jsonwebtoken');
+    if (!jwt) return next();
+    const secret = longJwtSecret();
+    const token = jwt.sign(
+      { id: user._id, _id: user._id, role: user.role, email: user.email },
+      secret,
+      { expiresIn: '7d' }
+    );
+    const safe = sanitizeUser(user);
+    console.log('[preview] universal login OK for', email);
+    return res.json({
+      token,
+      accessToken: token,
+      access_token: token,
+      user: safe,
+      data: { token, user: safe },
+      message: 'Login successful',
+    });
+  } catch (err) {
+    console.error('[preview] universal login failed:', err && err.message ? err.message : err);
+    // Controlled JSON — never let this become an unhandled crash.
+    return res.status(500).json({
+      message: 'Server error during login',
+      detail: String((err && err.message) || err),
+      error: 'preview_universal_login',
+    });
+  }
 }
 
 function installPreviewCorsFix(app) {
@@ -921,27 +1055,29 @@ function installPreviewCorsFix(app) {
     return next();
   });
 
-  // Login paths: if Mongo is still connecting, return a clear retryable JSON
-  // instead of letting student handlers throw opaque 500s.
-  app.use(function previewLoginGuard(req, res, next) {
-    if (String(req.method || '').toUpperCase() !== 'POST' || !isLoginPath(req.path || req.url)) {
-      return next();
+  // Parse JSON on our login routes ourselves — student express.json() is often
+  // registered AFTER this inject, so req.body would otherwise be empty.
+  let jsonParser = null;
+  try {
+    const express = requireFromCwd('express');
+    if (express && typeof express.json === 'function') {
+      jsonParser = express.json({ limit: '2mb' });
     }
-    try {
-      const mongoose = requireFromCwd('mongoose');
-      if (mongoose && mongoose.connection && mongoose.connection.readyState !== 1) {
-        return res.status(503).json({
-          message: 'Database is still starting — wait a few seconds and try again',
-          error: 'mongo_not_ready',
-        });
-      }
-    } catch (_e) {
-      /* mongoose optional at this point */
-    }
-    return next();
+  } catch (_e) { /* optional */ }
+
+  const handlers = [];
+  if (jsonParser) handlers.push(jsonParser);
+  handlers.push(function (req, res, next) {
+    Promise.resolve(previewUniversalLogin(req, res, next)).catch(next);
   });
 
-  console.log('[preview] CORS + login safety installed');
+  for (const loginPath of LOGIN_PATHS) {
+    try {
+      app.post(loginPath, ...handlers);
+    } catch (_e) { /* ignore duplicate */ }
+  }
+
+  console.log('[preview] CORS + universal login installed on', LOGIN_PATHS.join(', '));
 }
 
 module.exports = { installPreviewCorsFix, installPreviewRuntimeGuards };
@@ -980,7 +1116,7 @@ function injectCorsFixRequire(content, requirePath) {
   // Upgrade legacy call marker comments so future runs know inject is present.
   if (hasInjectCall) {
     next = next.replace(
-      /\/\*\s*scholarverify-preview-cors-v[12]\s*\*\//g,
+      /\/\*\s*scholarverify-preview-cors-v[123]\s*\*\//g,
       `/* ${CORS_FIX_MARKER} */`
     );
     return { content: next, changed: true };
