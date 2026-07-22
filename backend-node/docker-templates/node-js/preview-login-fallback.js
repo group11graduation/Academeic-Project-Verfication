@@ -1,6 +1,7 @@
 /**
  * Injected into student preview index.html so login works across any Express route shape.
  * On 404 for a login POST, retries common alternate paths (/api/auth/login, /api/users/login, …).
+ * Also autofills preview credentials when window.__SV_PREVIEW_CREDS__ is set.
  */
 (function () {
   if (window.__SV_LOGIN_FALLBACK__) return;
@@ -15,6 +16,57 @@
     '/users/login',
     '/api/v1/auth/login',
   ];
+
+  function applyPreviewCreds(creds) {
+    if (!creds || !creds.email) return;
+    window.__SV_PREVIEW_CREDS__ = creds;
+    function fill() {
+      try {
+        var emailSel =
+          'input[type="email"], input[name="email"], input[name="username"], input[name="identifier"], input[autocomplete="username"]';
+        var passSel = 'input[type="password"], input[name="password"], input[name="passcode"]';
+        var emailEl = document.querySelector(emailSel);
+        var passEl = document.querySelector(passSel);
+        if (emailEl && !emailEl.value) {
+          emailEl.value = creds.email;
+          emailEl.dispatchEvent(new Event('input', { bubbles: true }));
+          emailEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (passEl && !passEl.value && creds.password) {
+          passEl.value = creds.password;
+          passEl.dispatchEvent(new Event('input', { bubbles: true }));
+          passEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (!document.getElementById('sv-preview-login-banner') && creds.email) {
+          var ban = document.createElement('div');
+          ban.id = 'sv-preview-login-banner';
+          ban.setAttribute(
+            'style',
+            'position:fixed;z-index:2147483646;left:12px;right:12px;bottom:12px;background:#14532d;color:#ecfdf5;padding:10px 14px;border-radius:8px;font:13px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)'
+          );
+          ban.textContent =
+            'Preview login: ' + creds.email + (creds.password ? ' / ' + creds.password : '');
+          document.body.appendChild(ban);
+        }
+      } catch (_e) {}
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fill);
+    else fill();
+    setTimeout(fill, 800);
+    setTimeout(fill, 2500);
+  }
+
+  if (window.__SV_PREVIEW_CREDS__) applyPreviewCreds(window.__SV_PREVIEW_CREDS__);
+  try {
+    fetch('/preview-credentials.json', { cache: 'no-store' })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (j) {
+        if (j && j.email) applyPreviewCreds(j);
+      })
+      .catch(function () {});
+  } catch (_e) {}
 
   function isLoginUrl(url) {
     try {
@@ -48,14 +100,19 @@
       seen[p] = true;
       ordered.push(buildUrl(parts.origin, p));
     });
-    // Prefer alternates first, keep original last so we don't loop forever on same 404.
-    return ordered.filter(function (u) { return u !== url; }).concat([url]);
+    return ordered.filter(function (u) {
+      return u !== url;
+    }).concat([url]);
   }
 
   function shouldRetry(status, bodyText) {
     if (status === 404) return true;
     var t = String(bodyText || '').toLowerCase();
-    return t.indexOf('route not found') >= 0 || t.indexOf('cannot post') >= 0 || t.indexOf('not found') >= 0;
+    return (
+      t.indexOf('route not found') >= 0 ||
+      t.indexOf('cannot post') >= 0 ||
+      t.indexOf('not found') >= 0
+    );
   }
 
   var origFetch = window.fetch;
@@ -118,20 +175,40 @@
           var x = new OrigXHR();
           x.open('POST', next, true);
           Object.keys(headers).forEach(function (k) {
-            try { x.setRequestHeader(k, headers[k]); } catch (_e) {}
+            try {
+              x.setRequestHeader(k, headers[k]);
+            } catch (_e) {}
           });
           x.onload = function () {
             var text = '';
-            try { text = x.responseText; } catch (_e) {}
+            try {
+              text = x.responseText;
+            } catch (_e) {}
             if (shouldRetry(x.status, text) && idx < candidates.length) {
               tryNext();
               return;
             }
             try {
-              Object.defineProperty(xhr, 'status', { get: function () { return x.status; } });
-              Object.defineProperty(xhr, 'responseText', { get: function () { return x.responseText; } });
-              Object.defineProperty(xhr, 'response', { get: function () { return x.response; } });
-              Object.defineProperty(xhr, 'readyState', { get: function () { return 4; } });
+              Object.defineProperty(xhr, 'status', {
+                get: function () {
+                  return x.status;
+                },
+              });
+              Object.defineProperty(xhr, 'responseText', {
+                get: function () {
+                  return x.responseText;
+                },
+              });
+              Object.defineProperty(xhr, 'response', {
+                get: function () {
+                  return x.response;
+                },
+              });
+              Object.defineProperty(xhr, 'readyState', {
+                get: function () {
+                  return 4;
+                },
+              });
             } catch (_e) {}
             if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
             if (typeof xhr.onload === 'function') xhr.onload();

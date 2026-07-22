@@ -731,7 +731,8 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 }
 
 const LOGIN_ALIAS_FILE = 'scholarverify-preview-login-aliases.cjs';
-const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases';
+const LOGIN_ALIAS_MARKER = 'scholarverify-preview-login-aliases-v2';
+const LOGIN_ALIAS_MARKER_LEGACY = 'scholarverify-preview-login-aliases';
 
 function buildLoginAliasModule(realPath) {
   const real = String(realPath || '').replace(/\\/g, '/');
@@ -739,6 +740,7 @@ function buildLoginAliasModule(realPath) {
   return `/* ${LOGIN_ALIAS_MARKER} — auto-injected for ScholarVerify preview */
 'use strict';
 const http = require('http');
+const { execFileSync } = require('child_process');
 let expressJson;
 try { expressJson = require('express').json({ limit: '2mb' }); } catch (_e) { expressJson = null; }
 
@@ -767,9 +769,56 @@ function proxyOnce(port, path, payload, headers) {
   });
 }
 
+function bodyMatchesPreviewAdmin(body) {
+  const email = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  const pass = String(process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || '');
+  if (!email || !pass || !body || typeof body !== 'object') return false;
+  const gotEmail = String(body.email || body.username || body.identifier || body.login || body.userEmail || body.mail || '').toLowerCase().trim();
+  const gotPass = String(body.password || body.passcode || body.pwd || body.pass || '');
+  return gotEmail === email && gotPass === pass;
+}
+
+function reseedPreviewAdmin() {
+  try {
+    if (global.__svPreviewSeedAt && Date.now() - global.__svPreviewSeedAt < 45000) return true;
+    execFileSync('node', ['/preview-seed-admin.js'], {
+      cwd: process.cwd(),
+      env: process.env,
+      timeout: 90000,
+      stdio: 'ignore',
+    });
+    global.__svPreviewSeedAt = Date.now();
+    console.log('[preview] login alias re-seeded preview admin');
+    return true;
+  } catch (err) {
+    console.log('[preview] login alias re-seed failed:', (err && err.message) || err);
+    return false;
+  }
+}
+
 function installPreviewLoginAliases(app) {
   if (!app || typeof app.post !== 'function' || app.__scholarVerifyLoginAliases) return;
   app.__scholarVerifyLoginAliases = true;
+
+  // Runs ahead of student login handlers: if the teacher uses preview admin
+  // credentials, ensure that account exists in Mongo before auth runs.
+  if (typeof app.use === 'function' && !app.__scholarVerifyLoginReseed) {
+    app.__scholarVerifyLoginReseed = true;
+    app.use((req, res, next) => {
+      try {
+        if (String(req.method || '').toUpperCase() !== 'POST') return next();
+        const path = String(req.path || req.url || '').split('?')[0];
+        if (!/\\/(api\\/)?(auth|users|user|v1\\/auth)?\\/?login\\/?$/i.test(path) && !CANDIDATES.includes(path)) {
+          return next();
+        }
+        if (bodyMatchesPreviewAdmin(req.body)) reseedPreviewAdmin();
+        return next();
+      } catch (_e) {
+        return next();
+      }
+    });
+  }
+
   const handlers = [];
   if (expressJson) handlers.push(expressJson);
   handlers.push(async (req, res) => {
@@ -785,6 +834,7 @@ function installPreviewLoginAliases(app) {
     };
     if (req.headers.authorization) headers.Authorization = req.headers.authorization;
     const incoming = String(req.path || req.url || '').split('?')[0];
+    if (bodyMatchesPreviewAdmin(req.body)) reseedPreviewAdmin();
     const ordered = [];
     const seen = new Set();
     for (const p of [PREFERRED, ...CANDIDATES]) {
@@ -820,14 +870,21 @@ module.exports = { installPreviewLoginAliases };
 }
 
 function injectLoginAliasRequire(content, requirePath) {
-  if (content.includes(LOGIN_ALIAS_MARKER) && content.includes('installPreviewLoginAliases')) {
-    return { content, changed: false };
+  // Upgrade legacy alias inject points so reseed middleware sits after body parsers.
+  let next = content;
+  if (next.includes(LOGIN_ALIAS_MARKER_LEGACY) && !next.includes(LOGIN_ALIAS_MARKER)) {
+    next = next
+      .replace(/import \{ createRequire as __svCreateRequire \} from 'node:module';\n?/g, '')
+      .replace(/try \{ __svCreateRequire\(import\.meta\.url\)\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g, '')
+      .replace(/try \{ require\([^)]+\)\.installPreviewLoginAliases\(app\); \} catch \(_sv\) \{ \/\*[^*]*\*\/ \}\n?/g, '');
+  }
+  if (next.includes(LOGIN_ALIAS_MARKER) && next.includes('installPreviewLoginAliases')) {
+    return { content: next, changed: next !== content };
   }
   const isEsm =
-    /\bimport\s+.+from\s+['"]/.test(content) ||
-    /\bexport\s+(default|const|function|class|\{)/.test(content);
+    /\bimport\s+.+from\s+['"]/.test(next) ||
+    /\bexport\s+(default|const|function|class|\{)/.test(next);
 
-  let next = content;
   let line;
   if (isEsm) {
     if (!/createRequire\s+as\s+__svCreateRequire/.test(next)) {
@@ -838,15 +895,19 @@ function injectLoginAliasRequire(content, requirePath) {
     line = `try { require(${JSON.stringify(requirePath)}).installPreviewLoginAliases(app); } catch (_sv) { /* ${LOGIN_ALIAS_MARKER} */ }\n`;
   }
 
-  // Prefer immediately before the catch-all 404 so body parsers already ran.
-  const notFoundRe = /(\n)((?:\/\/[^\n]*404[^\n]*\n)?)(app\.use\(\s*\(\s*req\s*,\s*res)/;
-  if (notFoundRe.test(next)) {
-    return { content: next.replace(notFoundRe, `$1${line}$2$3`), changed: true };
-  }
-
+  // Prefer right after body parsers so reseed middleware runs BEFORE student login routes.
   const jsonRe = /(app\.use\(\s*express\.json\([^)]*\)\s*\)\s*;?)/;
   if (jsonRe.test(next)) {
     return { content: next.replace(jsonRe, `$1\n${line}`), changed: true };
+  }
+  const urlencodedRe = /(app\.use\(\s*express\.urlencoded\([^)]*\)\s*\)\s*;?)/;
+  if (urlencodedRe.test(next)) {
+    return { content: next.replace(urlencodedRe, `$1\n${line}`), changed: true };
+  }
+
+  const notFoundRe = /(\n)((?:\/\/[^\n]*404[^\n]*\n)?)(app\.use\(\s*\(\s*req\s*,\s*res)/;
+  if (notFoundRe.test(next)) {
+    return { content: next.replace(notFoundRe, `$1${line}$2$3`), changed: true };
   }
 
   const listenRe = /(\n)((?:const|let|var)\s+\w+\s*=\s*)?app\.listen\(/;

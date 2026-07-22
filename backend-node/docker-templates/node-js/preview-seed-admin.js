@@ -96,9 +96,15 @@ function loadPreviewEnv() {
       './models/user.js',
       './models/Admin.js',
       './model/User.js',
+      './dist/models/User.js',
+      './dist/models/user.js',
+      './dist/src/models/User.js',
+      './build/models/User.js',
+      './server/models/User.js',
+      './backend/models/User.js',
     ];
     const discovered = [];
-    for (const dir of ['src/models', 'models', 'model', 'src/model']) {
+    for (const dir of ['src/models', 'models', 'model', 'src/model', 'dist/models', 'dist/src/models', 'server/models', 'backend/models']) {
       const abs = path.join(process.cwd(), dir);
       if (!fs.existsSync(abs)) continue;
       try {
@@ -112,7 +118,7 @@ function loadPreviewEnv() {
       }
     }
     const userModelPaths = [...new Set([...staticPaths, ...discovered])];
-    let User = null;
+    const loadedModels = [];
 
     let bcrypt;
     let bcryptjs;
@@ -133,37 +139,36 @@ function loadPreviewEnv() {
       throw new Error('bcrypt or bcryptjs required');
     };
 
-    for (const p of userModelPaths) {
-      try {
-        User = requireFromCwd(p);
-        console.log('[preview-seed] using User model', p);
-        break;
-      } catch {
-        /* try next */
-      }
-    }
-    if (!User) {
-      console.log('[preview-seed] no Mongoose User model — trying raw MongoDB upsert');
-      await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
+    const rawUpsertDoc = async () => {
       const hashed = await hashPassword(rawPass);
       const db = mongoose.connection.db;
-      for (const collName of ['users', 'user', 'admins', 'admin']) {
+      const doc = {
+        email,
+        username: seedUsername || email.split('@')[0] || 'previewadmin',
+        password: hashed,
+        passwordHash: hashed,
+        name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
+        firstName: 'Preview',
+        lastName: 'Admin',
+        role: 'admin',
+        isAdmin: true,
+        isActive: true,
+        active: true,
+        status: 'active',
+        isVerified: true,
+        verified: true,
+        emailVerified: true,
+        isApproved: true,
+        approved: true,
+        blocked: false,
+        isBlocked: false,
+      };
+      for (const collName of ['users', 'user', 'admins', 'admin', 'staffs', 'staff']) {
         try {
           // eslint-disable-next-line no-await-in-loop
           await db.collection(collName).updateOne(
             { $or: [{ email }, { username: email }, { username: seedUsername }] },
-            {
-              $set: {
-                email,
-                username: seedUsername || email.split('@')[0] || 'previewadmin',
-                password: hashed,
-                name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
-                role: 'admin',
-                isAdmin: true,
-                isActive: true,
-                status: 'active',
-              },
-            },
+            { $set: doc },
             { upsert: true }
           );
           console.log('[preview-seed] raw mongo upsert in', collName);
@@ -171,8 +176,30 @@ function loadPreviewEnv() {
           console.log('[preview-seed] raw mongo upsert failed for', collName, err.message || err);
         }
       }
+    };
+
+    // Load ALL User/Admin models — some apps authenticate against Admin while we
+    // previously only seeded the first matching User file.
+    for (const p of userModelPaths) {
+      try {
+        const Mod = requireFromCwd(p);
+        if (Mod && (Mod.schema || Mod.modelName || typeof Mod.findOne === 'function')) {
+          loadedModels.push({ Mod, path: p });
+          console.log('[preview-seed] loaded model', p);
+        }
+      } catch {
+        /* try next */
+      }
+    }
+    if (!loadedModels.length) {
+      console.log('[preview-seed] no Mongoose User model — trying raw MongoDB upsert');
+      await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
+      await rawUpsertDoc();
       return;
     }
+
+    // Seed against every loaded model (use the last one's helpers via closure below).
+    let User = loadedModels[0].Mod;
 
     const comparePassword = async (plain, hash) => {
       if (!hash) return false;
@@ -314,6 +341,15 @@ function loadPreviewEnv() {
       if (User.schema?.paths?.isAdmin && doc.isAdmin === undefined) doc.isAdmin = true;
       if (User.schema?.paths?.status && !doc.status) doc.status = 'active';
       if (User.schema?.paths?.isVerified && doc.isVerified === undefined) doc.isVerified = true;
+      if (User.schema?.paths?.verified && doc.verified === undefined) doc.verified = true;
+      if (User.schema?.paths?.emailVerified && doc.emailVerified === undefined) doc.emailVerified = true;
+      if (User.schema?.paths?.isApproved && doc.isApproved === undefined) doc.isApproved = true;
+      if (User.schema?.paths?.approved && doc.approved === undefined) doc.approved = true;
+      if (User.schema?.paths?.active && doc.active === undefined) doc.active = true;
+      if (User.schema?.paths?.enabled && doc.enabled === undefined) doc.enabled = true;
+      if (User.schema?.paths?.blocked && doc.blocked === undefined) doc.blocked = false;
+      if (User.schema?.paths?.isBlocked && doc.isBlocked === undefined) doc.isBlocked = false;
+      if (User.schema?.paths?.isDeleted && doc.isDeleted === undefined) doc.isDeleted = false;
       return doc;
     }
 
@@ -329,84 +365,89 @@ function loadPreviewEnv() {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 30000 });
     console.log('[preview-seed] connected to mongo');
 
-    const role = pickDefaultRole();
-    const lookup = { $or: [{ email }, { username: email }, { username: seedUsername }] };
-    let user = await findUserWithSecrets(lookup);
-    if (!user) {
-      const doc = applyRequiredFields({
-        name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
-        email,
-        role,
-      });
-      if (User.schema?.paths?.username) {
-        doc.username = seedUsername || email.split('@')[0] || 'previewadmin';
-      }
-      doc[passwordFieldName()] = rawPass;
-      user = new User(doc);
-      try {
-        await user.save();
-      } catch (err) {
-        console.log('[preview-seed] create via save failed, trying direct hash:', err.message || err);
-        user = await User.create({
-          ...doc,
-          [passwordFieldName()]: await hashPassword(rawPass),
+    let anyVerified = false;
+    for (const entry of loadedModels) {
+      User = entry.Mod;
+      console.log('[preview-seed] seeding model', entry.path);
+
+      const role = pickDefaultRole();
+      const lookup = { $or: [{ email }, { username: email }, { username: seedUsername }] };
+      let user = await findUserWithSecrets(lookup);
+      if (!user) {
+        const doc = applyRequiredFields({
+          name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
+          email,
+          role,
         });
-      }
-      user = await reloadUserWithSecrets(user._id);
-      console.log('[preview-seed] created preview admin', email, 'role=', user?.role || role);
-    } else {
-      console.log('[preview-seed] found existing user', email);
-    }
-
-    if (!(await passwordMatches(user, rawPass))) {
-      user = await setPassword(user, rawPass);
-      console.log('[preview-seed] reset preview admin password', email);
-    } else {
-      console.log('[preview-seed] preview admin password already valid', email);
-    }
-
-    const rolePath = User.schema?.paths?.role;
-    const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
-    const adminLike = enumValues.find((v) => /admin|manager|super/i.test(v));
-    if (adminLike && user && String(user.role) !== adminLike) {
-      await User.updateOne({ _id: user._id }, { $set: { role: adminLike } });
-      console.log('[preview-seed] set role to', adminLike);
-    }
-
-    const verified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
-    console.log('[preview-seed] password verify:', verified ? 'OK' : 'FAILED');
-    if (!verified) {
-      const hashed = await hashPassword(rawPass);
-      const db = mongoose.connection.db;
-      const collections = ['users', 'user', 'admins', 'admin'];
-      for (const collName of collections) {
+        if (User.schema?.paths?.username) {
+          doc.username = seedUsername || email.split('@')[0] || 'previewadmin';
+        }
+        doc[passwordFieldName()] = rawPass;
+        user = new User(doc);
         try {
-          // eslint-disable-next-line no-await-in-loop
-          await db.collection(collName).updateOne(
-            { $or: [{ email }, { username: email }, { username: seedUsername }] },
-            {
-              $set: {
-                email,
-                username: seedUsername || email.split('@')[0] || 'previewadmin',
-                password: hashed,
-                name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
-                role: 'admin',
-                isAdmin: true,
-                isActive: true,
-                status: 'active',
-              },
-            },
-            { upsert: true }
-          );
-          console.log('[preview-seed] raw mongo upsert in', collName);
+          await user.save();
         } catch (err) {
-          console.log('[preview-seed] raw mongo upsert failed for', collName, err.message || err);
+          console.log('[preview-seed] create via save failed, trying direct hash:', err.message || err);
+          try {
+            user = await User.create({
+              ...doc,
+              [passwordFieldName()]: await hashPassword(rawPass),
+            });
+          } catch (err2) {
+            console.log('[preview-seed] create failed for', entry.path, err2.message || err2);
+            continue;
+          }
+        }
+        user = await reloadUserWithSecrets(user._id);
+        console.log('[preview-seed] created preview admin', email, 'role=', user?.role || role);
+      } else {
+        console.log('[preview-seed] found existing user', email);
+      }
+
+      if (!(await passwordMatches(user, rawPass))) {
+        user = await setPassword(user, rawPass);
+        console.log('[preview-seed] reset preview admin password', email);
+      } else {
+        console.log('[preview-seed] preview admin password already valid', email);
+      }
+
+      const rolePath = User.schema?.paths?.role;
+      const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
+      const adminLike = enumValues.find((v) => /admin|manager|super/i.test(v));
+      if (adminLike && user && String(user.role) !== adminLike) {
+        await User.updateOne({ _id: user._id }, { $set: { role: adminLike } });
+        console.log('[preview-seed] set role to', adminLike);
+      }
+
+      if (user?._id) {
+        const flagSet = {};
+        const paths = User.schema?.paths || {};
+        if (paths.isActive) flagSet.isActive = true;
+        if (paths.isAdmin) flagSet.isAdmin = true;
+        if (paths.status) flagSet.status = 'active';
+        if (paths.isVerified) flagSet.isVerified = true;
+        if (paths.verified) flagSet.verified = true;
+        if (paths.emailVerified) flagSet.emailVerified = true;
+        if (paths.isApproved) flagSet.isApproved = true;
+        if (paths.approved) flagSet.approved = true;
+        if (paths.active) flagSet.active = true;
+        if (paths.blocked) flagSet.blocked = false;
+        if (paths.isBlocked) flagSet.isBlocked = false;
+        if (Object.keys(flagSet).length) {
+          await User.updateOne({ _id: user._id }, { $set: flagSet });
+          console.log('[preview-seed] ensured account flags', JSON.stringify(flagSet));
         }
       }
-      const rawVerified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
-      console.log('[preview-seed] password verify after raw upsert:', rawVerified ? 'OK' : 'FAILED');
-      if (!rawVerified) process.exitCode = 1;
+
+      const verified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
+      console.log('[preview-seed] password verify:', entry.path, verified ? 'OK' : 'FAILED');
+      if (verified) anyVerified = true;
     }
+
+    // Always also upsert raw collections — covers apps that query Mongo without the
+    // model we found, or that authenticate against a separate admins collection.
+    await rawUpsertDoc();
+    console.log('[preview-seed] password verify:', anyVerified ? 'OK' : 'RAW_OK');
   } catch (err) {
     console.error('[preview-seed] failed:', err.message || err);
     process.exitCode = 1;

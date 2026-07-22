@@ -25,11 +25,20 @@ const LOGIN_ROUTE_MISS_HINT_SPRING =
   "Could not auto-detect the login route on this project's backend — check the student's Spring controllers for @PostMapping / @RequestMapping login endpoints.";
 
 function loginBodies({ email, password, identifierType }) {
+  const userPart = String(email || '').includes('@') ? String(email).split('@')[0] : String(email || '');
   const bodies = [
     { email, password },
     { email, passcode: password },
+    { email, pwd: password },
+    { email, pass: password },
     { username: email, password },
+    { username: userPart, password },
     { identifier: email, password },
+    { login: email, password },
+    { userEmail: email, password },
+    { mail: email, password },
+    { email, password, role: 'admin' },
+    { email, password, isAdmin: true },
   ];
   if (identifierType === 'username') {
     bodies.unshift({ username: email, password });
@@ -372,6 +381,33 @@ export async function verifyAndFixMernPreviewLogin({
     };
   }
 
+  // Some student apps have no usable User model for seeding — try register endpoints.
+  const registered = await tryRegisterPreviewAdmin({
+    apiHostPort,
+    email,
+    password,
+    probeHost,
+  });
+  if (registered.ok || registered.status === 409 || registered.status === 400) {
+    await new Promise((r) => setTimeout(r, 1000));
+    attempt = await tryPreviewLogin({
+      apiHostPort,
+      email,
+      password,
+      identifierType,
+      probeHost,
+      loginPaths: paths,
+    });
+    if (attempt.ok) {
+      return {
+        ok: true,
+        message: `Login verified after preview register at ${attempt.url}`,
+        attempt,
+        seedOutput: seed.output,
+      };
+    }
+  }
+
   // Re-seed using each project credential pair, then retry that pair.
   for (const cred of fallbackCredentials || []) {
     if (!cred?.email || !cred?.password) continue;
@@ -465,4 +501,73 @@ async function tryFallbackLogins({
     }
   }
   return { ok: false };
+}
+
+const REGISTER_PATHS = [
+  '/api/auth/register',
+  '/api/users/register',
+  '/api/user/register',
+  '/auth/register',
+  '/users/register',
+  '/api/register',
+  '/register',
+];
+
+async function tryRegisterPreviewAdmin({
+  apiHostPort,
+  email,
+  password,
+  probeHost = getPreviewProbeHost(),
+} = {}) {
+  if (!apiHostPort || !email || !password) return { ok: false };
+  const baseUrl = `http://${probeHost}:${apiHostPort}`;
+  const bodies = [
+    { email, password, name: 'Preview Admin', role: 'admin' },
+    { email, password, username: String(email).split('@')[0], name: 'Preview Admin' },
+    { email, password, firstName: 'Preview', lastName: 'Admin' },
+  ];
+  for (const regPath of REGISTER_PATHS) {
+    for (const body of bodies) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await postLogin(baseUrl, regPath, body);
+      if (result.ok || result.status === 409 || result.status === 400) {
+        // 409/400 often mean "already exists" — still worth trying login after.
+        return { ok: result.ok || result.status === 409, status: result.status, url: result.url };
+      }
+    }
+  }
+  return { ok: false };
+}
+
+/**
+ * Write working credentials into the running preview UI so teachers see/autofill them.
+ */
+export async function injectPreviewLoginCredentials(containerName, { email, password } = {}) {
+  if (!containerName || !email) return { ok: false };
+  const b64 = Buffer.from(JSON.stringify({ email, password: password || '' }), 'utf8').toString(
+    'base64'
+  );
+  const script = [
+    `B64='${b64}'`,
+    'PAYLOAD=$(printf %s "$B64" | base64 -d)',
+    'for dir in /app/frontend/dist /app/frontend/build /app/client/dist /app/client/build /app/dist /app/build /app/Frontend/dist /app/Frontend/build; do',
+    '  if [ -d "$dir" ]; then',
+    '    printf %s "$PAYLOAD" > "$dir/preview-credentials.json"',
+    "    find \"$dir\" -maxdepth 2 -type f -name 'index.html' 2>/dev/null | while read -r html; do",
+    "      if grep -q '__SV_PREVIEW_CREDS__' \"$html\" 2>/dev/null; then continue; fi",
+    "      tmp=\"${html}.svcreds\"",
+    "      { printf '%s\\n' \"<script>window.__SV_PREVIEW_CREDS__=$PAYLOAD;</script>\"; cat \"$html\"; } > \"$tmp\" && mv -f \"$tmp\" \"$html\" || rm -f \"$tmp\"",
+    '    done',
+    '  fi',
+    'done',
+    'echo ok',
+  ].join('\n');
+  try {
+    const out = await dockerOrchestrator.execInPreviewContainer(containerName, script, {
+      timeoutMs: 20_000,
+    });
+    return { ok: /ok/.test(String(out || '')), output: out };
+  } catch (err) {
+    return { ok: false, output: err.message || String(err) };
+  }
 }

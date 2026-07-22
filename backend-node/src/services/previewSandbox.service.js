@@ -597,6 +597,14 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
                   `Use these working credentials: ${session.previewLoginIdentifierLabel || 'Email'}=${session.previewLoginEmail}`
                 );
               }
+              if (deployResult.containerName && session.previewLoginEmail) {
+                await previewLoginVerify
+                  .injectPreviewLoginCredentials(deployResult.containerName, {
+                    email: session.previewLoginEmail,
+                    password: session.previewLoginPassword,
+                  })
+                  .catch(() => {});
+              }
             } else {
               appendLog(session, 'warn', loginCheck.message);
               if (fallbackCredentials.length) {
@@ -608,6 +616,22 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
                   session.previewLoginHint,
                   `Platform admin login returned 401 — try project credentials shown on the student login page (${tip}).`
                 );
+                const tipCred = fallbackCredentials[0];
+                if (deployResult.containerName && tipCred?.email) {
+                  await previewLoginVerify
+                    .injectPreviewLoginCredentials(deployResult.containerName, {
+                      email: tipCred.email,
+                      password: tipCred.password,
+                    })
+                    .catch(() => {});
+                }
+              } else if (deployResult.containerName && session.previewLoginEmail) {
+                await previewLoginVerify
+                  .injectPreviewLoginCredentials(deployResult.containerName, {
+                    email: session.previewLoginEmail,
+                    password: session.previewLoginPassword,
+                  })
+                  .catch(() => {});
               }
               if (loginCheck.seedTail) {
                 appendLog(session, 'warn', `Admin seed log:\n${loginCheck.seedTail}`);
