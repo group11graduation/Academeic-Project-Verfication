@@ -16,8 +16,9 @@ COPY preview-verify-login.js /preview-verify-login.js
 COPY preview-login-fallback.js /preview-login-fallback.js
 COPY preview-safety.cjs /preview-safety.cjs
 COPY preview-ensure-inject.cjs /preview-ensure-inject.cjs
+COPY preview-gateway.cjs /preview-gateway.cjs
 COPY preview-fallback /preview-fallback
-RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh /preview-seed-admin.js /preview-verify-login.js /preview-login-fallback.js /preview-safety.cjs /preview-ensure-inject.cjs
+RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh /preview-seed-admin.js /preview-verify-login.js /preview-login-fallback.js /preview-safety.cjs /preview-ensure-inject.cjs /preview-gateway.cjs
 
 EXPOSE 3000
 ENTRYPOINT ["/preview-entrypoint.sh"]

@@ -162,6 +162,7 @@ async function previewNodeTemplateContentHash(templateDirName) {
     path.join(sharedNodeDir, 'preview-login-fallback.js'),
     path.join(sharedNodeDir, 'preview-safety.cjs'),
     path.join(sharedNodeDir, 'preview-ensure-inject.cjs'),
+    path.join(sharedNodeDir, 'preview-gateway.cjs'),
   ]);
 }
 
@@ -245,7 +246,11 @@ async function stagePreviewBaseBuildDir(templateDirName) {
       );
     }
 
-    for (const scriptName of ['preview-safety.cjs', 'preview-ensure-inject.cjs']) {
+    for (const scriptName of [
+      'preview-safety.cjs',
+      'preview-ensure-inject.cjs',
+      'preview-gateway.cjs',
+    ]) {
       const src = path.join(sharedNodeDir, scriptName);
       if (!fsSync.existsSync(src)) continue;
       const body = await fs.readFile(src, 'utf8');
@@ -2533,7 +2538,7 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
     return null;
   }
 
-  if (/\[preview\]\s*serve static:/i.test(logText)) {
+  if (/\[preview\]\s*serve static:/i.test(logText) || /\[preview\]\s*gateway listening/i.test(logText)) {
     return { ready: true, reason: 'log_serve_static' };
   }
 

@@ -19,8 +19,15 @@ LISTEN="tcp://0.0.0.0:${PORT}"
 HOLDER_PID=""
 API_PORT="${API_PORT:-5000}"
 
-# Available early for inject_login_fallback_into_index (defined above serve_dir).
+# Browser-facing API base. With the same-origin gateway, the UI port proxies /api → :5000,
+# so the SPA must NOT call the separate host API port (that caused "Please wait…" hangs).
 preview_api_bundle_url() {
+  if [ "$PREVIEW_MERN_MODE" = "1" ] || [ "$PREVIEW_FLUTTER_MODE" = "1" ]; then
+    if [ -n "$PREVIEW_PUBLIC_UI_URL" ]; then
+      printf '%s' "$PREVIEW_PUBLIC_UI_URL" | sed 's|/$||'
+      return
+    fi
+  fi
   if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
     printf '%s' "$PREVIEW_PUBLIC_API_URL"
   elif [ -n "$PREVIEW_API_HOST_PORT" ]; then
@@ -45,6 +52,13 @@ run_serve() {
   dir="$1"
   listen="$2"
   cd "$dir" || exit 1
+  # MERN / Flutter: same-origin gateway so browser never talks to localhost:5000.
+  if [ -f /preview-gateway.cjs ] && [ -n "$API_PORT" ] && {
+    [ "$PREVIEW_MERN_MODE" = "1" ] || [ "$PREVIEW_FLUTTER_MODE" = "1" ]
+  }; then
+    echo "[preview] starting same-origin gateway (UI :${PORT} → API :${API_PORT})"
+    exec node /preview-gateway.cjs "$(pwd)"
+  fi
   if command -v serve >/dev/null 2>&1; then
     exec serve -s . --listen "$listen"
   else
@@ -436,24 +450,29 @@ patch_built_bundle_urls() {
   if [ -n "$PUBLIC_HOST" ]; then
     PUBLIC_HOST_ESC="$(printf '%s' "$PUBLIC_HOST" | sed 's/[.]/\\./g')"
   fi
-  echo "[preview] patching API URLs → ${API_URL}"
+  echo "[preview] patching API URLs → relative / same-origin (${API_URL})"
   for dir in build dist build/web; do
     root="$(pwd)/$dir"
     [ -d "$root" ] || continue
-    # Limit to bundled assets — full-tree sed on huge maps previously delayed
-    # the placeholder→serve handoff long enough for false "Preview ready".
     find "$root" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) \
       ! -name '*.map' 2>/dev/null | while read -r f; do
-      sed -i "s|http://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
-      sed -i "s|https://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+      # Strip absolute API origins so fetch('/api/...') hits the UI port gateway.
+      sed -i "s|http://localhost:[0-9][0-9]*||g" "$f" 2>/dev/null || true
+      sed -i "s|http://127.0.0.1:[0-9][0-9]*||g" "$f" 2>/dev/null || true
+      sed -i "s|https://localhost:[0-9][0-9]*||g" "$f" 2>/dev/null || true
+      if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
+        sed -i "s|${PREVIEW_PUBLIC_API_URL}||g" "$f" 2>/dev/null || true
+      fi
+      if [ -n "$API_URL" ] && [ "$API_URL" != "$PREVIEW_PUBLIC_API_URL" ]; then
+        sed -i "s|${API_URL}||g" "$f" 2>/dev/null || true
+      fi
       if [ -n "$PUBLIC_HOST_ESC" ]; then
-        sed -i "s|http://${PUBLIC_HOST_ESC}:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
-        sed -i "s|https://${PUBLIC_HOST_ESC}:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
+        sed -i "s|http://${PUBLIC_HOST_ESC}:[0-9][0-9]*||g" "$f" 2>/dev/null || true
+        sed -i "s|https://${PUBLIC_HOST_ESC}:[0-9][0-9]*||g" "$f" 2>/dev/null || true
       fi
     done
   done
-  echo "[preview] API URL patch complete"
+  echo "[preview] API URL patch complete (relative paths for same-origin gateway)"
 }
 
 patch_source_api_urls() {

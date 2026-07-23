@@ -5,5 +5,6 @@
 !preview-login-fallback.js
 !preview-safety.cjs
 !preview-ensure-inject.cjs
+!preview-gateway.cjs
 !preview-fallback
 !preview-fallback/**
