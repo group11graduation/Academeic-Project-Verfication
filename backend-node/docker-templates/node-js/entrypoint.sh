@@ -112,8 +112,10 @@ inject_login_fallback_into_index() {
 serve_dir() {
   dir="$1"
   inject_login_fallback_into_index "$dir"
-  release_port_holder
+  # Log BEFORE releasing the placeholder so readiness probes can wait on this line
+  # and teachers are not sent to a dead port during the handoff.
   echo "[preview] serve static: $dir on ${LISTEN}"
+  release_port_holder
   run_serve "$dir" "${LISTEN}"
 }
 
@@ -416,7 +418,10 @@ patch_built_bundle_urls() {
   for dir in build dist build/web; do
     root="$(pwd)/$dir"
     [ -d "$root" ] || continue
-    find "$root" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' -o -name '*.map' \) 2>/dev/null | while read -r f; do
+    # Limit to bundled assets — full-tree sed on huge maps previously delayed
+    # the placeholder→serve handoff long enough for false "Preview ready".
+    find "$root" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) \
+      ! -name '*.map' 2>/dev/null | while read -r f; do
       sed -i "s|http://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
       sed -i "s|http://127.0.0.1:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
       sed -i "s|https://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
@@ -426,6 +431,7 @@ patch_built_bundle_urls() {
       fi
     done
   done
+  echo "[preview] API URL patch complete"
 }
 
 patch_source_api_urls() {

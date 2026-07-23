@@ -1324,8 +1324,8 @@ async function runPreviewContainer({
   springPair = null,
   dockerNetwork = null,
   projectMount = null,
-  memoryLimit = process.env.PREVIEW_SANDBOX_MEMORY || '256m',
-  cpuLimit = process.env.PREVIEW_SANDBOX_CPUS || '0.5',
+  memoryLimit = process.env.PREVIEW_SANDBOX_MEMORY || (apiHostPort ? '768m' : '512m'),
+  cpuLimit = process.env.PREVIEW_SANDBOX_CPUS || '1',
   initTimeoutMs = Number(process.env.PREVIEW_CONTAINER_INIT_TIMEOUT_MS || 30_000),
   workspaceCached = false,
 }) {
@@ -2162,8 +2162,11 @@ export function isPreviewPlaceholderBody(body = '') {
   const text = String(body);
   return (
     /scholarverify-preview-placeholder/i.test(text) ||
+    /name=["']scholarverify-preview["'][^>]*content=["']placeholder["']/i.test(text) ||
+    /content=["']placeholder["'][^>]*name=["']scholarverify-preview["']/i.test(text) ||
     text.includes('Preview container is running') ||
-    text.includes('<title>Preview starting</title>')
+    text.includes('<title>Preview starting</title>') ||
+    text.includes('still installing or building inside Docker')
   );
 }
 
@@ -2238,11 +2241,14 @@ export async function checkPreviewAppHttpReady({
     seenUrls.add(url);
     const hit = await fetchPreviewHttp(url);
     if (!hit.ok) continue;
-    if (hit.redirect || (hit.status >= 200 && hit.status < 400)) {
-      if (hit.body.length === 0 || hit.redirect || !isPreviewPlaceholderBody(hit.body)) {
-        uiReady = true;
-        break;
-      }
+    // Empty bodies / bare redirects are not proof the student SPA is up (serve
+    // placeholder handoff and 301s previously unlocked preview too early).
+    if (hit.redirect && (!hit.body || hit.body.length < 32)) continue;
+    if (!hit.body || hit.body.length < 64) continue;
+    if (isPreviewPlaceholderBody(hit.body)) continue;
+    if (hit.status >= 200 && hit.status < 400) {
+      uiReady = true;
+      break;
     }
   }
 
@@ -2423,7 +2429,18 @@ export async function waitForPreviewReady({
         stack,
       });
       if (probe.ready) {
-        return { ready: true, reason: probe.reason, apiReady: probe.apiReady !== false };
+        // MERN: port 3000 is held by the placeholder page until `[preview] serve static:`.
+        // Unlocking on placeholder HTTP made teachers open a URL that later went
+        // ERR_CONNECTION_REFUSED during the holder→serve handoff / OOM.
+        if (
+          (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js') &&
+          lastLogTail &&
+          !/\[preview\]\s*serve static:/i.test(lastLogTail)
+        ) {
+          // keep waiting
+        } else {
+          return { ready: true, reason: probe.reason, apiReady: probe.apiReady !== false };
+        }
       }
 
       if (

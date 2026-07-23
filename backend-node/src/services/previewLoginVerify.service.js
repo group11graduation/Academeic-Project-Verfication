@@ -132,13 +132,15 @@ export async function detectPreviewLoginApiRoute({
     if (fromSource.length) {
       return { found: true, path: fromSource[0].path, status: fromSource[0].status, probeUrl: fromSource[0].probeUrl };
     }
-    // Prefer canonical Express shapes over /api/users/login guesses.
+    // Prefer paths that already authenticated with a real verify (status may still be 401
+    // for throwaway probe). Prefer /api/users/login when both auth+users exist — many
+    // student apps mount the working route there while /api/auth/login is a stub.
     const prefer = [
+      '/api/users/login',
+      '/users/login',
+      '/api/user/login',
       '/auth/login',
       '/api/auth/login',
-      '/api/user/login',
-      '/users/login',
-      '/api/users/login',
       '/api/login',
       '/api/v1/auth/login',
     ];
