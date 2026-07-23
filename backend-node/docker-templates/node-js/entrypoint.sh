@@ -48,18 +48,102 @@ start_serve_background() {
   HOLDER_PID=$!
 }
 
+ensure_preview_gateway_file() {
+  # Always materialize gateway on the running container so stale base images
+  # (missing COPY preview-gateway.cjs) still get same-origin /api proxy.
+  dest="${1:-/preview-gateway.cjs}"
+  if [ -f /preview-gateway.cjs ] && [ "$dest" = "/preview-gateway.cjs" ]; then
+    return 0
+  fi
+  cat > "$dest" <<'SV_GATEWAY_EOF'
+'use strict';
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { URL } = require('url');
+const STATIC_ROOT = path.resolve(process.argv[2] || process.cwd());
+const LISTEN_PORT = Number(process.env.PORT || 3000);
+const API_PORT = Number(process.env.API_PORT || 5000);
+const API_HOST = process.env.PREVIEW_API_UPSTREAM_HOST || '127.0.0.1';
+const PROXY_PREFIXES = ['/api', '/auth', '/users', '/user', '/socket.io', '/uploads', '/static/uploads'];
+const MIME = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ico':'image/x-icon','.woff':'font/woff','.woff2':'font/woff2','.map':'application/json','.txt':'text/plain; charset=utf-8' };
+function shouldProxy(pathname) {
+  const p = String(pathname || '').split('?')[0];
+  if (p === '/login' || p === '/register' || p === '/signup') return false;
+  return PROXY_PREFIXES.some((prefix) => p === prefix || p.startsWith(prefix + '/'));
+}
+function send(res, status, body, headers) { res.writeHead(status, headers || {}); res.end(body); }
+function contentType(filePath) { return MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream'; }
+function safeJoin(root, reqPath) {
+  const decoded = decodeURIComponent(String(reqPath || '/').split('?')[0]);
+  const cleaned = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
+  const full = path.join(root, cleaned);
+  return full.startsWith(root) ? full : null;
+}
+function proxy(req, res) {
+  const headers = Object.assign({}, req.headers, { host: API_HOST + ':' + API_PORT });
+  delete headers['accept-encoding'];
+  const upstream = http.request({ hostname: API_HOST, port: API_PORT, path: req.url, method: req.method, headers, timeout: 30000 }, (up) => {
+    const outHeaders = Object.assign({}, up.headers);
+    outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+    outHeaders['access-control-allow-credentials'] = 'true';
+    res.writeHead(up.statusCode || 502, outHeaders);
+    up.pipe(res);
+  });
+  upstream.on('timeout', () => { upstream.destroy(); if (!res.headersSent) send(res, 504, 'Upstream API timeout'); });
+  upstream.on('error', (err) => {
+    if (!res.headersSent) send(res, 502, JSON.stringify({ message: 'Preview API proxy error', error: String(err && err.message ? err.message : err) }), { 'Content-Type': 'application/json' });
+  });
+  req.pipe(upstream);
+}
+function serveStatic(req, res) {
+  let reqPath = '/';
+  try { reqPath = new URL(req.url || '/', 'http://local').pathname || '/'; } catch (_e) {}
+  let filePath = safeJoin(STATIC_ROOT, reqPath);
+  if (!filePath) return send(res, 403, 'Forbidden');
+  fs.stat(filePath, (err, st) => {
+    if (!err && st.isDirectory()) filePath = path.join(filePath, 'index.html');
+    fs.readFile(filePath, (readErr, data) => {
+      if (!readErr) return send(res, 200, data, { 'Content-Type': contentType(filePath), 'Cache-Control': 'no-cache' });
+      fs.readFile(path.join(STATIC_ROOT, 'index.html'), (idxErr, indexData) => {
+        if (idxErr) return send(res, 404, 'Not found');
+        return send(res, 200, indexData, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      });
+    });
+  });
+}
+http.createServer((req, res) => {
+  if (String(req.method || '').toUpperCase() === 'OPTIONS') {
+    return send(res, 204, '', {
+      'Access-Control-Allow-Origin': req.headers.origin || '*',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Methods': 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] || 'Content-Type, Authorization, X-Requested-With, Accept, Origin',
+    });
+  }
+  let pathname = '/';
+  try { pathname = new URL(req.url || '/', 'http://local').pathname || '/'; } catch (_e) {}
+  if (shouldProxy(pathname)) return proxy(req, res);
+  return serveStatic(req, res);
+}).listen(LISTEN_PORT, '0.0.0.0', () => {
+  console.log('[preview] gateway listening on 0.0.0.0:' + LISTEN_PORT + ' static=' + STATIC_ROOT + ' api=http://' + API_HOST + ':' + API_PORT);
+});
+SV_GATEWAY_EOF
+  echo "[preview] wrote gateway script to $dest"
+}
+
 run_serve() {
   dir="$1"
   listen="$2"
   cd "$dir" || exit 1
-  # Prefer same-origin gateway whenever an API port exists (MERN/Flutter previews).
-  # Do not require PREVIEW_MERN_MODE — some images missed that env and fell back to
-  # `serve`, which returns index.html for /api/* and leaves the UI on "Please wait…".
-  if [ -f /preview-gateway.cjs ] && [ -n "$API_PORT" ]; then
-    echo "[preview] starting same-origin gateway (UI :${PORT} → API :${API_PORT})"
-    exec node /preview-gateway.cjs "$(pwd)"
+  if [ -n "$API_PORT" ]; then
+    ensure_preview_gateway_file /preview-gateway.cjs
+    if [ -f /preview-gateway.cjs ]; then
+      echo "[preview] starting same-origin gateway (UI :${PORT} → API :${API_PORT})"
+      exec node /preview-gateway.cjs "$(pwd)"
+    fi
   fi
-  echo "[preview] WARN: preview-gateway.cjs missing — using static serve (API calls may hang in browser)"
+  echo "[preview] WARN: gateway unavailable — using static serve (browser login may hang)"
   if command -v serve >/dev/null 2>&1; then
     exec serve -s . --listen "$listen"
   else

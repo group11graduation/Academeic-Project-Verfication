@@ -316,6 +316,19 @@ async function runPreviewBaseImageBuild({ imageTag, stageDir, timeoutMs, label, 
  * Build a small reusable preview image once (entrypoint + runtime only).
  * The student ZIP is bind-mounted at /app when the container starts.
  */
+async function dockerImageHasPath(imageTag, filePath) {
+  try {
+    const { stdout } = await spawnProcess(
+      'docker',
+      ['run', '--rm', '--entrypoint', 'sh', imageTag, '-c', `test -f ${filePath} && echo yes || echo no`],
+      { timeoutMs: 60_000 }
+    );
+    return String(stdout || '').trim() === 'yes';
+  } catch {
+    return false;
+  }
+}
+
 async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } = {}) {
   const templateDirName = previewNodeTemplateDir(flutterPair);
   const imageTag = previewNodeBaseImageTag(flutterPair);
@@ -323,8 +336,9 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
     const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
-    // Only reuse when stamped hash matches (missing label → rebuild once to stamp it).
-    if (existingHash && existingHash === contentHash) {
+    const hasGateway = await dockerImageHasPath(imageTag, '/preview-gateway.cjs');
+    // Rebuild when hash mismatches OR gateway file is missing from a stale image.
+    if (existingHash && existingHash === contentHash && hasGateway) {
       return { imageTag, reused: true };
     }
   }
