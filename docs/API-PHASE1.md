@@ -31,3 +31,4 @@ Base URL: `http://localhost:5000/api` (configurable via `CORS_ORIGINS` and front
 - `GET /api/teacher/*`, `GET /api/student/*` → 501 until Phase 2
 
 Full OpenAPI may be added later; this document matches Phase 1 implementation.
+image.png

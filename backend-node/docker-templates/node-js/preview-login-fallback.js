@@ -96,7 +96,20 @@
       var m = text.match(/API\s*base:\s*(https?:\/\/[^\s]+)/i);
       if (m) return m[1].replace(/\/$/, '');
     } catch (_e2) {}
+    try {
+      // Footer / inject often embeds absolute API URL somewhere in the page HTML.
+      var html = String((document.documentElement && document.documentElement.innerHTML) || '');
+      var m2 = html.match(/https?:\/\/[0-9a-zA-Z.-]+:\d{2,5}(?=\/|"|'|\s|<)/);
+      if (m2 && m2[0] && m2[0].indexOf(window.location.port) === -1) {
+        return m2[0].replace(/\/$/, '');
+      }
+    } catch (_e3) {}
     return '';
+  }
+
+  function isLoopbackOrigin(origin) {
+    var o = String(origin || '');
+    return /https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(o);
   }
 
   function isLoginUrl(url) {
@@ -125,13 +138,14 @@
     var parts = splitBaseAndPath(url);
     var apiBase = detectApiBase();
     // If the request wrongly targets the SPA origin (same host as the page),
-    // force retries onto the API base from the page footer / injected hint.
+    // OR still points at localhost/127.0.0.1 (common after Vite bake),
+    // force retries onto the public API base (VPS host:API port).
     var pageOrigin = '';
     try {
       pageOrigin = window.location.origin;
     } catch (_e) {}
     var origin = parts.origin || '';
-    if (apiBase && (!origin || origin === pageOrigin)) {
+    if (apiBase && (!origin || origin === pageOrigin || isLoopbackOrigin(origin))) {
       origin = apiBase;
     }
     if (!origin && apiBase) origin = apiBase;
@@ -155,10 +169,10 @@
 
     // Keep original absolute URL last (if different) so we don't loop forever.
     var original = typeof url === 'string' ? url : '';
-    if (original && !seen[original]) ordered.push(original);
+    if (original && !seen[original] && !isLoopbackOrigin(original)) ordered.push(original);
     return ordered.filter(function (u) {
       return u !== url;
-    }).concat([url]);
+    }).concat(isLoopbackOrigin(url) ? [] : [url]);
   }
 
   function shouldRetry(status, bodyText) {
@@ -176,24 +190,71 @@
     window.fetch = function (input, init) {
       var method = String((init && init.method) || 'GET').toUpperCase();
       var url = typeof input === 'string' ? input : (input && input.url) || '';
+      // Rewrite any loopback API call (not only login) so the browser hits the VPS API port.
+      var apiBaseEarly = detectApiBase();
+      if (apiBaseEarly && isLoopbackOrigin(url)) {
+        var partsEarly = splitBaseAndPath(url);
+        var rewritten = buildUrl(apiBaseEarly, partsEarly.path || '/');
+        if (typeof input === 'string') input = rewritten;
+        else {
+          try {
+            input = new Request(rewritten, input);
+          } catch (_e) {
+            input = rewritten;
+          }
+        }
+        url = rewritten;
+      }
       if (method !== 'POST' || !isLoginUrl(url)) {
-        return origFetch.apply(this, arguments);
+        return origFetch.call(this, input, init);
       }
       var candidates = loginCandidates(url);
       var i = 0;
       function attempt() {
         var nextUrl = candidates[i++];
-        var nextInput = typeof input === 'string' ? nextUrl : new Request(nextUrl, input);
-        return origFetch.call(window, nextInput, init).then(function (res) {
-          if (!shouldRetry(res.status) || i >= candidates.length) return res;
-          return res
-            .clone()
-            .text()
-            .then(function (text) {
-              if (!shouldRetry(res.status, text) || i >= candidates.length) return res;
-              return attempt();
-            });
-        });
+        var nextInput = nextUrl;
+        if (typeof input !== 'string' && typeof Request !== 'undefined') {
+          try {
+            nextInput = new Request(nextUrl, input);
+          } catch (_e2) {
+            nextInput = nextUrl;
+          }
+        }
+        var ctrl = null;
+        var timer = null;
+        var opts = init;
+        try {
+          if (typeof AbortController !== 'undefined') {
+            ctrl = new AbortController();
+            timer = setTimeout(function () {
+              try {
+                ctrl.abort();
+              } catch (_a) {}
+            }, 8000);
+            opts = Object.assign({}, init || {}, { signal: ctrl.signal });
+          }
+        } catch (_e3) {
+          opts = init;
+        }
+        return origFetch
+          .call(window, nextInput, opts)
+          .then(function (res) {
+            if (timer) clearTimeout(timer);
+            if (!shouldRetry(res.status) || i >= candidates.length) return res;
+            return res
+              .clone()
+              .text()
+              .then(function (text) {
+                if (!shouldRetry(res.status, text) || i >= candidates.length) return res;
+                return attempt();
+              });
+          })
+          .catch(function (err) {
+            if (timer) clearTimeout(timer);
+            // localhost / wrong-port connection failures must retry the public API.
+            if (i < candidates.length) return attempt();
+            throw err;
+          });
       }
       return attempt();
     };
@@ -212,6 +273,12 @@
       xhr.open = function (m, u) {
         method = String(m || 'GET').toUpperCase();
         url = String(u || '');
+        var apiBase = detectApiBase();
+        if (apiBase && isLoopbackOrigin(url)) {
+          var parts = splitBaseAndPath(url);
+          url = buildUrl(apiBase, parts.path || '/');
+          arguments[1] = url;
+        }
         return _open.apply(xhr, arguments);
       };
       var _setHeader = xhr.setRequestHeader;
