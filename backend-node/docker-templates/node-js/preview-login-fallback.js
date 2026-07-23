@@ -8,13 +8,13 @@
   window.__SV_LOGIN_FALLBACK__ = true;
 
   var PATHS = [
-    '/auth/login',
-    '/api/auth/login',
-    '/api/user/login',
-    '/api/users/login',
-    '/users/login',
-    '/api/login',
-    '/api/v1/auth/login',
+    '/api' + '/auth/login',
+    '/auth' + '/login',
+    '/api' + '/user/login',
+    '/api' + '/users/login',
+    '/users' + '/login',
+    '/api' + '/login',
+    '/api' + '/v1/auth/login',
   ];
 
   function setNativeValue(el, value) {

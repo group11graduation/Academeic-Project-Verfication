@@ -763,6 +763,18 @@ async function walkReplaceLoginPaths(dir, confirmedPath, { depth = 0 } = {}) {
       files += sub.files;
       continue;
     }
+    // Never rewrite ScholarVerify inject helpers — PATHS[] literals were being
+    // collapsed to one wrong route and broke the login fallback.
+    if (
+      /preview-login-fallback/i.test(entry.name) ||
+      /scholarverify-preview/i.test(entry.name) ||
+      /preview-credentials/i.test(entry.name) ||
+      /preview-gateway/i.test(entry.name)
+    ) {
+      continue;
+    }
+    // Also skip HTML that only contains our inlined fallback (index.html is OK to
+    // patch for student code, but skip if it's mostly our helper).
     const ext = path.extname(entry.name).toLowerCase();
     if (!SOURCE_EXT.has(ext) && !LOGIN_PATCH_ARTIFACT_EXT.has(ext) && !entry.name.startsWith('.env')) {
       continue;
@@ -770,6 +782,7 @@ async function walkReplaceLoginPaths(dir, confirmedPath, { depth = 0 } = {}) {
     // eslint-disable-next-line no-await-in-loop
     let content = await fs.readFile(full, 'utf8').catch(() => null);
     if (content == null) continue;
+    if (content.includes('__SV_LOGIN_FALLBACK__')) continue;
     const replaced = rewriteLoginPathLiterals(content, confirmedPath);
     if (replaced.changed) {
       // eslint-disable-next-line no-await-in-loop

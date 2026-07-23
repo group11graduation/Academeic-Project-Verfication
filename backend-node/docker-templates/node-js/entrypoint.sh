@@ -52,13 +52,14 @@ run_serve() {
   dir="$1"
   listen="$2"
   cd "$dir" || exit 1
-  # MERN / Flutter: same-origin gateway so browser never talks to localhost:5000.
-  if [ -f /preview-gateway.cjs ] && [ -n "$API_PORT" ] && {
-    [ "$PREVIEW_MERN_MODE" = "1" ] || [ "$PREVIEW_FLUTTER_MODE" = "1" ]
-  }; then
+  # Prefer same-origin gateway whenever an API port exists (MERN/Flutter previews).
+  # Do not require PREVIEW_MERN_MODE — some images missed that env and fell back to
+  # `serve`, which returns index.html for /api/* and leaves the UI on "Please wait…".
+  if [ -f /preview-gateway.cjs ] && [ -n "$API_PORT" ]; then
     echo "[preview] starting same-origin gateway (UI :${PORT} → API :${API_PORT})"
     exec node /preview-gateway.cjs "$(pwd)"
   fi
+  echo "[preview] WARN: preview-gateway.cjs missing — using static serve (API calls may hang in browser)"
   if command -v serve >/dev/null 2>&1; then
     exec serve -s . --listen "$listen"
   else
