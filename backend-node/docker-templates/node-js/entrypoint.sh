@@ -19,6 +19,17 @@ LISTEN="tcp://0.0.0.0:${PORT}"
 HOLDER_PID=""
 API_PORT="${API_PORT:-5000}"
 
+# Available early for inject_login_fallback_into_index (defined above serve_dir).
+preview_api_bundle_url() {
+  if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
+    printf '%s' "$PREVIEW_PUBLIC_API_URL"
+  elif [ -n "$PREVIEW_API_HOST_PORT" ]; then
+    host="$(printf '%s' "${PREVIEW_PUBLIC_HOST:-127.0.0.1}" | sed -e 's|^https\?://||' -e 's|/.*$||' -e 's|:.*$||')"
+    [ -n "$host" ] || host="127.0.0.1"
+    printf 'http://%s:%s' "$host" "$PREVIEW_API_HOST_PORT"
+  fi
+}
+
 start_serve_background() {
   dir="$1"
   listen="$2"
@@ -92,18 +103,37 @@ inject_login_fallback_into_index() {
   dir="$1"
   helper="/preview-login-fallback.js"
   [ -f "$helper" ] || return 0
-  # Copy beside SPA assets (works with `serve` root).
   cp -f "$helper" "$dir/preview-login-fallback.js" 2>/dev/null || true
-  # Also inline the script so Vite/CRA base href cannot break the src path.
+
+  API_BASE="$(preview_api_bundle_url)"
+  LOGIN_PATH="${PREVIEW_LOGIN_API_PATH:-/api/users/login}"
+
+  if [ -n "$API_BASE" ]; then
+    # Minimal JSON (no node dependency) so the browser always knows the public API origin.
+    esc_api=$(printf '%s' "$API_BASE" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    esc_path=$(printf '%s' "$LOGIN_PATH" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    printf '{"apiBase":"%s","loginPath":"%s"}\n' "$esc_api" "$esc_path" > "$dir/preview-credentials.json" 2>/dev/null || true
+    echo "[preview] wrote preview-credentials.json apiBase=${API_BASE}"
+  fi
+
   find "$dir" -maxdepth 2 -type f -name 'index.html' 2>/dev/null | while read -r html; do
-    if grep -q '__SV_LOGIN_FALLBACK__' "$html" 2>/dev/null; then
-      continue
-    fi
+    # Drop previous ScholarVerify boot tags so a new API port always wins.
+    sed -i '/name="sv-api-base"/d' "$html" 2>/dev/null || true
+    sed -i '/__SV_API_BOOT__/d' "$html" 2>/dev/null || true
+
     tmp="${html}.svlogin"
     {
-      echo '<script>'
-      cat "$helper"
-      echo '</script>'
+      if [ -n "$API_BASE" ]; then
+        esc_api=$(printf '%s' "$API_BASE" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        esc_path=$(printf '%s' "$LOGIN_PATH" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        echo "<meta name=\"sv-api-base\" content=\"${esc_api}\" />"
+        echo "<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=\"${esc_api}\";window.__SV_LOGIN_API_PATH__=\"${esc_path}\";</script>"
+      fi
+      if ! grep -q '__SV_LOGIN_FALLBACK__' "$html" 2>/dev/null; then
+        echo '<script>'
+        cat "$helper"
+        echo '</script>'
+      fi
       cat "$html"
     } > "$tmp" 2>/dev/null && mv -f "$tmp" "$html" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
   done
@@ -389,14 +419,6 @@ run_flutter_web_preview() {
   echo "[preview] ERROR: Flutter web build failed or build/web/index.html missing"
   tail -40 /tmp/preview-flutter.log 2>/dev/null || true
   return 1
-}
-
-preview_api_bundle_url() {
-  if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
-    printf '%s' "$PREVIEW_PUBLIC_API_URL"
-  elif [ -n "$PREVIEW_API_HOST_PORT" ]; then
-    printf 'http://localhost:%s' "$PREVIEW_API_HOST_PORT"
-  fi
 }
 
 patch_built_bundle_urls() {

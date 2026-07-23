@@ -185,16 +185,37 @@
     );
   }
 
+  function isSameOriginApiPath(url) {
+    var u = String(url || '');
+    if (u.charAt(0) === '/' && /^\/(api|auth|users|user)\b/i.test(u)) return true;
+    try {
+      var parsed = new URL(u, window.location.href);
+      return parsed.origin === window.location.origin && /^\/(api|auth|users|user)\b/i.test(parsed.pathname);
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function rewriteToApiBase(url) {
+    var apiBase = detectApiBase();
+    if (!apiBase) return url;
+    if (isLoopbackOrigin(url) || isSameOriginApiPath(url)) {
+      var parts = splitBaseAndPath(url.charAt(0) === '/' ? url : url);
+      if (url.charAt(0) === '/') {
+        return buildUrl(apiBase, url.split('?')[0]) + (url.indexOf('?') >= 0 ? url.slice(url.indexOf('?')) : '');
+      }
+      return buildUrl(apiBase, parts.path || '/');
+    }
+    return url;
+  }
+
   var origFetch = window.fetch;
   if (typeof origFetch === 'function') {
     window.fetch = function (input, init) {
       var method = String((init && init.method) || 'GET').toUpperCase();
       var url = typeof input === 'string' ? input : (input && input.url) || '';
-      // Rewrite any loopback API call (not only login) so the browser hits the VPS API port.
-      var apiBaseEarly = detectApiBase();
-      if (apiBaseEarly && isLoopbackOrigin(url)) {
-        var partsEarly = splitBaseAndPath(url);
-        var rewritten = buildUrl(apiBaseEarly, partsEarly.path || '/');
+      var rewritten = rewriteToApiBase(url);
+      if (rewritten !== url) {
         if (typeof input === 'string') input = rewritten;
         else {
           try {
@@ -205,8 +226,26 @@
         }
         url = rewritten;
       }
+      // Always timeout loopback leftovers so the UI cannot stick on "Please wait…".
+      var needsTimeout = isLoopbackOrigin(url) || (method === 'POST' && isLoginUrl(url));
       if (method !== 'POST' || !isLoginUrl(url)) {
-        return origFetch.call(this, input, init);
+        if (!needsTimeout) return origFetch.call(this, input, init);
+        try {
+          if (typeof AbortController === 'undefined') return origFetch.call(this, input, init);
+          var ctrlEarly = new AbortController();
+          var tEarly = setTimeout(function () {
+            try {
+              ctrlEarly.abort();
+            } catch (_a) {}
+          }, 5000);
+          return origFetch
+            .call(this, input, Object.assign({}, init || {}, { signal: ctrlEarly.signal }))
+            .finally(function () {
+              clearTimeout(tEarly);
+            });
+        } catch (_e4) {
+          return origFetch.call(this, input, init);
+        }
       }
       var candidates = loginCandidates(url);
       var i = 0;
@@ -251,7 +290,6 @@
           })
           .catch(function (err) {
             if (timer) clearTimeout(timer);
-            // localhost / wrong-port connection failures must retry the public API.
             if (i < candidates.length) return attempt();
             throw err;
           });
@@ -272,13 +310,8 @@
       var headers = {};
       xhr.open = function (m, u) {
         method = String(m || 'GET').toUpperCase();
-        url = String(u || '');
-        var apiBase = detectApiBase();
-        if (apiBase && isLoopbackOrigin(url)) {
-          var parts = splitBaseAndPath(url);
-          url = buildUrl(apiBase, parts.path || '/');
-          arguments[1] = url;
-        }
+        url = rewriteToApiBase(String(u || ''));
+        arguments[1] = url;
         return _open.apply(xhr, arguments);
       };
       var _setHeader = xhr.setRequestHeader;

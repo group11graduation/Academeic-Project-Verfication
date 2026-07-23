@@ -289,7 +289,15 @@ async function runPreviewBaseImageBuild({ imageTag, stageDir, timeoutMs, label, 
       buildArgs.push('--label', `sv.preview.hash=${contentHash}`);
     }
     buildArgs.push('.');
-    await spawnProcess('docker', buildArgs, { cwd: stageDir, timeoutMs });
+    await spawnProcess('docker', buildArgs, {
+      cwd: stageDir,
+      timeoutMs,
+      env: {
+        ...process.env,
+        DOCKER_BUILDKIT: '1',
+        BUILDKIT_PROGRESS: 'plain',
+      },
+    });
     return { imageTag, reused: false };
   } catch (err) {
     logger.warn(`Preview base image build failed (${label}): ${err.stderr || err.message}`);
@@ -335,11 +343,11 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
 /**
  * Spawn a process with argv (avoids Windows shell quoting issues for docker run).
  */
-function spawnProcess(binary, args, { cwd, timeoutMs = BUILD_TIMEOUT_MS } = {}) {
+function spawnProcess(binary, args, { cwd, timeoutMs = BUILD_TIMEOUT_MS, env = null } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, {
       cwd,
-      env: { ...process.env },
+      env: env || { ...process.env },
       windowsHide: true,
     });
 
