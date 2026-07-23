@@ -522,52 +522,50 @@ run_flutter_web_preview() {
 
 patch_built_bundle_urls() {
   API_URL="$(preview_api_bundle_url)"
-  [ -n "$API_URL" ] || return 0
-  PUBLIC_HOST_RAW="${PREVIEW_PUBLIC_HOST:-}"
-  if [ -z "$PUBLIC_HOST_RAW" ] && [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
-    PUBLIC_HOST_RAW="$(printf '%s' "$PREVIEW_PUBLIC_API_URL" | sed 's|:[0-9][0-9]*$||')"
-  fi
-  PUBLIC_HOST=""
-  if [ -n "$PUBLIC_HOST_RAW" ]; then
-    PUBLIC_HOST="$(printf '%s' "$PUBLIC_HOST_RAW" | sed -e 's|^https\?://||' -e 's|/.*$||' -e 's|:.*$||')"
-  fi
-  PUBLIC_HOST_ESC=""
-  if [ -n "$PUBLIC_HOST" ]; then
-    PUBLIC_HOST_ESC="$(printf '%s' "$PUBLIC_HOST" | sed 's/[.]/\\./g')"
-  fi
-  echo "[preview] patching API URLs → relative / same-origin (${API_URL})"
-  for dir in build dist build/web; do
+  echo "[preview] patching API URLs → relative / same-origin (${API_URL:-none})"
+
+  # Fast path only: index.html + assets/*.js (Vite/CRA). Full-tree find+sed on
+  # bind mounts was hanging for minutes and blocked "serve static" forever.
+  patch_one() {
+    f="$1"
+    [ -f "$f" ] || return 0
+    # Skip huge files (>8MB)
+    size=$(wc -c < "$f" 2>/dev/null || echo 0)
+    [ "$size" -lt 8000000 ] 2>/dev/null || return 0
+    grep -qE 'localhost|127\.0\.0\.1|173\.|http://' "$f" 2>/dev/null || return 0
+    sed -i \
+      -e 's|http://localhost:[0-9][0-9]*||g' \
+      -e 's|http://127.0.0.1:[0-9][0-9]*||g' \
+      -e 's|https://localhost:[0-9][0-9]*||g' \
+      "$f" 2>/dev/null || true
+    if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
+      sed -i "s|${PREVIEW_PUBLIC_API_URL}||g" "$f" 2>/dev/null || true
+    fi
+    if [ -n "$API_URL" ] && [ "$API_URL" != "$PREVIEW_PUBLIC_API_URL" ]; then
+      sed -i "s|${API_URL}||g" "$f" 2>/dev/null || true
+    fi
+  }
+
+  for dir in dist build build/web; do
     root="$(pwd)/$dir"
     [ -d "$root" ] || continue
-    find "$root" -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \) \
-      ! -name '*.map' 2>/dev/null | while read -r f; do
-      # Strip absolute API origins so fetch('/api/...') hits the UI port gateway.
-      sed -i "s|http://localhost:[0-9][0-9]*||g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:[0-9][0-9]*||g" "$f" 2>/dev/null || true
-      sed -i "s|https://localhost:[0-9][0-9]*||g" "$f" 2>/dev/null || true
-      if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
-        sed -i "s|${PREVIEW_PUBLIC_API_URL}||g" "$f" 2>/dev/null || true
-      fi
-      if [ -n "$API_URL" ] && [ "$API_URL" != "$PREVIEW_PUBLIC_API_URL" ]; then
-        sed -i "s|${API_URL}||g" "$f" 2>/dev/null || true
-      fi
-      if [ -n "$PUBLIC_HOST_ESC" ]; then
-        sed -i "s|http://${PUBLIC_HOST_ESC}:[0-9][0-9]*||g" "$f" 2>/dev/null || true
-        sed -i "s|https://${PUBLIC_HOST_ESC}:[0-9][0-9]*||g" "$f" 2>/dev/null || true
-      fi
+    patch_one "$root/index.html"
+    # shellcheck disable=SC2038
+    find "$root/assets" "$root/static/js" "$root/js" -maxdepth 1 -type f -name '*.js' 2>/dev/null | head -40 | while read -r f; do
+      patch_one "$f"
+    done
+    # Also top-level bundle js if no assets/ folder
+    find "$root" -maxdepth 1 -type f -name '*.js' 2>/dev/null | head -20 | while read -r f; do
+      patch_one "$f"
     done
   done
   echo "[preview] API URL patch complete (relative paths for same-origin gateway)"
 }
 
 patch_source_api_urls() {
-  API_URL="$(preview_api_bundle_url)"
-  [ -n "$API_URL" ] || return 0
-  find . -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.env' -o -name '*.env.local' \) \
-    ! -path './node_modules/*' ! -path './dist/*' ! -path './build/*' 2>/dev/null | while read -r f; do
-      sed -i "s|http://localhost:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
-      sed -i "s|http://127.0.0.1:[0-9][0-9]*|${API_URL}|g" "$f" 2>/dev/null || true
-    done
+  # Source patch is optional — gateway + inject handle runtime. Keep it tiny/fast.
+  echo "[preview] skipping deep source URL rewrite (gateway handles API)"
+  return 0
 }
 
 run_frontend_preview() {
@@ -593,15 +591,18 @@ run_frontend_preview() {
 if [ -d dist ] && [ -f dist/index.html ]; then
     echo "[preview] reusing cached frontend dist/"
     patch_built_bundle_urls
+    echo "[preview] launching UI…"
     serve_dir "$(pwd)/dist"
 fi
 if [ -d build ] && [ -f build/index.html ]; then
     echo "[preview] reusing cached frontend build/"
     patch_built_bundle_urls
+    echo "[preview] launching UI…"
     serve_dir "$(pwd)/build"
   fi
   if [ -d build/web ] && [ -f build/web/index.html ]; then
     patch_built_bundle_urls
+    echo "[preview] launching UI…"
     serve_dir "$(pwd)/build/web"
   fi
 if [ ! -f package.json ]; then
