@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
  * ScholarVerify preview gateway: static SPA + reverse-proxy to Express API.
- * Browser talks only to the UI port; /api (and common auth mounts) → 127.0.0.1:API_PORT.
- * This eliminates localhost:5000 hangs when teachers open the preview from another machine.
+ * Injects API boot + login fallback into index.html in-memory (no bind-mount writes).
  */
 'use strict';
 
@@ -16,7 +15,6 @@ const LISTEN_PORT = Number(process.env.PORT || 3000);
 const API_PORT = Number(process.env.API_PORT || 5000);
 const API_HOST = process.env.PREVIEW_API_UPSTREAM_HOST || '127.0.0.1';
 
-// SPA route `/login` must NOT be proxied — only API mounts.
 const PROXY_PREFIXES = ['/api', '/auth', '/users', '/user', '/socket.io', '/uploads', '/static/uploads'];
 
 const MIME = {
@@ -36,6 +34,43 @@ const MIME = {
   '.map': 'application/json',
   '.txt': 'text/plain; charset=utf-8',
 };
+
+function apiBaseForBrowser() {
+  const ui = String(process.env.PREVIEW_PUBLIC_UI_URL || '').replace(/\/$/, '');
+  if (ui) return ui;
+  const api = String(process.env.PREVIEW_PUBLIC_API_URL || '').replace(/\/$/, '');
+  return api;
+}
+
+function loginPath() {
+  return String(process.env.PREVIEW_LOGIN_API_PATH || '/api/users/login').trim() || '/api/users/login';
+}
+
+let cachedFallbackJs = null;
+function loadFallbackJs() {
+  if (cachedFallbackJs != null) return cachedFallbackJs;
+  try {
+    cachedFallbackJs = fs.readFileSync('/preview-login-fallback.js', 'utf8');
+  } catch (_e) {
+    cachedFallbackJs = '';
+  }
+  return cachedFallbackJs;
+}
+
+function wrapHtml(html) {
+  const base = apiBaseForBrowser();
+  const pathLogin = loginPath();
+  const boot =
+    `<meta name="sv-api-base" content="${base.replace(/"/g, '&quot;')}" />` +
+    `<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=${JSON.stringify(base)};` +
+    `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};</script>`;
+  const fallback = loadFallbackJs();
+  const fallbackBlock =
+    fallback && !html.includes('__SV_LOGIN_FALLBACK__')
+      ? `<script>\n${fallback}\n</script>`
+      : '';
+  return `${boot}${fallbackBlock}${html}`;
+}
 
 function shouldProxy(pathname) {
   const p = String(pathname || '').split('?')[0];
@@ -73,7 +108,6 @@ function proxy(req, res) {
   };
   const upstream = http.request(opts, (up) => {
     const outHeaders = { ...up.headers };
-    // Same-origin browser request — force CORS-friendly headers for safety.
     outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
     outHeaders['access-control-allow-credentials'] = 'true';
     res.writeHead(up.statusCode || 502, outHeaders);
@@ -99,12 +133,31 @@ function proxy(req, res) {
   req.pipe(upstream);
 }
 
+function sendHtml(res, data) {
+  const html = wrapHtml(String(data));
+  return send(res, 200, html, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-cache',
+  });
+}
+
 function serveStatic(req, res) {
   let reqPath = '/';
   try {
     reqPath = new URL(req.url || '/', 'http://local').pathname || '/';
   } catch (_e) {
     reqPath = '/';
+  }
+
+  if (reqPath === '/preview-credentials.json') {
+    const payload = JSON.stringify({
+      apiBase: apiBaseForBrowser(),
+      loginPath: loginPath(),
+    });
+    return send(res, 200, payload, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    });
   }
 
   let filePath = safeJoin(STATIC_ROOT, reqPath);
@@ -116,19 +169,18 @@ function serveStatic(req, res) {
     }
     fs.readFile(filePath, (readErr, data) => {
       if (!readErr) {
+        if (path.basename(filePath) === 'index.html' || contentType(filePath).startsWith('text/html')) {
+          return sendHtml(res, data);
+        }
         return send(res, 200, data, {
           'Content-Type': contentType(filePath),
           'Cache-Control': 'no-cache',
         });
       }
-      // SPA fallback
       const indexPath = path.join(STATIC_ROOT, 'index.html');
       fs.readFile(indexPath, (idxErr, indexData) => {
         if (idxErr) return send(res, 404, 'Not found');
-        return send(res, 200, indexData, {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache',
-        });
+        return sendHtml(res, indexData);
       });
     });
   });

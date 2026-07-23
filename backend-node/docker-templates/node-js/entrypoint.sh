@@ -49,13 +49,11 @@ start_serve_background() {
 }
 
 ensure_preview_gateway_file() {
-  # Always materialize gateway on the running container so stale base images
-  # (missing COPY preview-gateway.cjs) still get same-origin /api proxy.
+  # Always refresh gateway on disk under /tmp then copy — avoids stale images and
+  # never writes into the student bind mount.
   dest="${1:-/preview-gateway.cjs}"
-  if [ -f /preview-gateway.cjs ] && [ "$dest" = "/preview-gateway.cjs" ]; then
-    return 0
-  fi
-  cat > "$dest" <<'SV_GATEWAY_EOF'
+  tmp="/tmp/preview-gateway-$$.cjs"
+  cat > "$tmp" <<'SV_GATEWAY_EOF'
 'use strict';
 const http = require('http');
 const fs = require('fs');
@@ -66,7 +64,28 @@ const LISTEN_PORT = Number(process.env.PORT || 3000);
 const API_PORT = Number(process.env.API_PORT || 5000);
 const API_HOST = process.env.PREVIEW_API_UPSTREAM_HOST || '127.0.0.1';
 const PROXY_PREFIXES = ['/api', '/auth', '/users', '/user', '/socket.io', '/uploads', '/static/uploads'];
-const MIME = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ico':'image/x-icon','.woff':'font/woff','.woff2':'font/woff2','.map':'application/json','.txt':'text/plain; charset=utf-8' };
+const MIME = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ico':'image/x-icon','.map':'application/json' };
+function apiBase() {
+  const ui = String(process.env.PREVIEW_PUBLIC_UI_URL || '').replace(/\/$/, '');
+  if (ui) return ui;
+  return String(process.env.PREVIEW_PUBLIC_API_URL || '').replace(/\/$/, '');
+}
+function loginPath() { return String(process.env.PREVIEW_LOGIN_API_PATH || '/api/users/login').trim() || '/api/users/login'; }
+let fb = null;
+function fallbackJs() {
+  if (fb != null) return fb;
+  try { fb = fs.readFileSync('/preview-login-fallback.js', 'utf8'); } catch (_e) { fb = ''; }
+  return fb;
+}
+function wrapHtml(html) {
+  const base = apiBase();
+  const boot = '<meta name="sv-api-base" content="' + String(base).replace(/"/g, '&quot;') + '" />' +
+    '<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=' + JSON.stringify(base) +
+    ';window.__SV_LOGIN_API_PATH__=' + JSON.stringify(loginPath()) + ';</script>';
+  const raw = fallbackJs();
+  const block = raw && html.indexOf('__SV_LOGIN_FALLBACK__') < 0 ? '<script>\n' + raw + '\n</script>' : '';
+  return boot + block + html;
+}
 function shouldProxy(pathname) {
   const p = String(pathname || '').split('?')[0];
   if (p === '/login' || p === '/register' || p === '/signup') return false;
@@ -96,18 +115,27 @@ function proxy(req, res) {
   });
   req.pipe(upstream);
 }
+function sendHtml(res, data) {
+  send(res, 200, wrapHtml(String(data)), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+}
 function serveStatic(req, res) {
   let reqPath = '/';
   try { reqPath = new URL(req.url || '/', 'http://local').pathname || '/'; } catch (_e) {}
+  if (reqPath === '/preview-credentials.json') {
+    return send(res, 200, JSON.stringify({ apiBase: apiBase(), loginPath: loginPath() }), { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+  }
   let filePath = safeJoin(STATIC_ROOT, reqPath);
   if (!filePath) return send(res, 403, 'Forbidden');
   fs.stat(filePath, (err, st) => {
     if (!err && st.isDirectory()) filePath = path.join(filePath, 'index.html');
     fs.readFile(filePath, (readErr, data) => {
-      if (!readErr) return send(res, 200, data, { 'Content-Type': contentType(filePath), 'Cache-Control': 'no-cache' });
+      if (!readErr) {
+        if (path.basename(filePath) === 'index.html') return sendHtml(res, data);
+        return send(res, 200, data, { 'Content-Type': contentType(filePath), 'Cache-Control': 'no-cache' });
+      }
       fs.readFile(path.join(STATIC_ROOT, 'index.html'), (idxErr, indexData) => {
         if (idxErr) return send(res, 404, 'Not found');
-        return send(res, 200, indexData, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+        return sendHtml(res, indexData);
       });
     });
   });
@@ -129,6 +157,8 @@ http.createServer((req, res) => {
   console.log('[preview] gateway listening on 0.0.0.0:' + LISTEN_PORT + ' static=' + STATIC_ROOT + ' api=http://' + API_HOST + ':' + API_PORT);
 });
 SV_GATEWAY_EOF
+  cp -f "$tmp" "$dest" 2>/dev/null || cat "$tmp" > "$dest"
+  rm -f "$tmp"
   echo "[preview] wrote gateway script to $dest"
 }
 
@@ -137,6 +167,7 @@ run_serve() {
   listen="$2"
   cd "$dir" || exit 1
   if [ -n "$API_PORT" ]; then
+    # Always refresh gateway (image may be stale; writes stay on container rootfs).
     ensure_preview_gateway_file /preview-gateway.cjs
     if [ -f /preview-gateway.cjs ]; then
       echo "[preview] starting same-origin gateway (UI :${PORT} → API :${API_PORT})"
@@ -199,50 +230,16 @@ wait_for_tcp_port() {
 }
 
 inject_login_fallback_into_index() {
-  dir="$1"
-  helper="/preview-login-fallback.js"
-  [ -f "$helper" ] || return 0
-  cp -f "$helper" "$dir/preview-login-fallback.js" 2>/dev/null || true
-
-  API_BASE="$(preview_api_bundle_url)"
-  LOGIN_PATH="${PREVIEW_LOGIN_API_PATH:-/api/users/login}"
-
-  if [ -n "$API_BASE" ]; then
-    # Minimal JSON (no node dependency) so the browser always knows the public API origin.
-    esc_api=$(printf '%s' "$API_BASE" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    esc_path=$(printf '%s' "$LOGIN_PATH" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    printf '{"apiBase":"%s","loginPath":"%s"}\n' "$esc_api" "$esc_path" > "$dir/preview-credentials.json" 2>/dev/null || true
-    echo "[preview] wrote preview-credentials.json apiBase=${API_BASE}"
-  fi
-
-  find "$dir" -maxdepth 2 -type f -name 'index.html' 2>/dev/null | while read -r html; do
-    # Drop previous ScholarVerify boot tags so a new API port always wins.
-    sed -i '/name="sv-api-base"/d' "$html" 2>/dev/null || true
-    sed -i '/__SV_API_BOOT__/d' "$html" 2>/dev/null || true
-
-    tmp="${html}.svlogin"
-    {
-      if [ -n "$API_BASE" ]; then
-        esc_api=$(printf '%s' "$API_BASE" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        esc_path=$(printf '%s' "$LOGIN_PATH" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        echo "<meta name=\"sv-api-base\" content=\"${esc_api}\" />"
-        echo "<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=\"${esc_api}\";window.__SV_LOGIN_API_PATH__=\"${esc_path}\";</script>"
-      fi
-      if ! grep -q '__SV_LOGIN_FALLBACK__' "$html" 2>/dev/null; then
-        echo '<script>'
-        cat "$helper"
-        echo '</script>'
-      fi
-      cat "$html"
-    } > "$tmp" 2>/dev/null && mv -f "$tmp" "$html" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
-  done
+  # Do not write into the bind-mounted student dist/ — sed/mv on Coolify volumes
+  # can hang indefinitely. The gateway injects API boot + login fallback when
+  # serving index.html from memory instead.
+  echo "[preview] index inject deferred to gateway (avoid bind-mount writes)"
+  return 0
 }
 
 serve_dir() {
   dir="$1"
   inject_login_fallback_into_index "$dir"
-  # Log BEFORE releasing the placeholder so readiness probes can wait on this line
-  # and teachers are not sent to a dead port during the handoff.
   echo "[preview] serve static: $dir on ${LISTEN}"
   release_port_holder
   run_serve "$dir" "${LISTEN}"
@@ -521,50 +518,15 @@ run_flutter_web_preview() {
 }
 
 patch_built_bundle_urls() {
-  API_URL="$(preview_api_bundle_url)"
-  echo "[preview] patching API URLs → relative / same-origin (${API_URL:-none})"
-
-  # Fast path only: index.html + assets/*.js (Vite/CRA). Full-tree find+sed on
-  # bind mounts was hanging for minutes and blocked "serve static" forever.
-  patch_one() {
-    f="$1"
-    [ -f "$f" ] || return 0
-    # Skip huge files (>8MB)
-    size=$(wc -c < "$f" 2>/dev/null || echo 0)
-    [ "$size" -lt 8000000 ] 2>/dev/null || return 0
-    grep -qE 'localhost|127\.0\.0\.1|173\.|http://' "$f" 2>/dev/null || return 0
-    sed -i \
-      -e 's|http://localhost:[0-9][0-9]*||g' \
-      -e 's|http://127.0.0.1:[0-9][0-9]*||g' \
-      -e 's|https://localhost:[0-9][0-9]*||g' \
-      "$f" 2>/dev/null || true
-    if [ -n "$PREVIEW_PUBLIC_API_URL" ]; then
-      sed -i "s|${PREVIEW_PUBLIC_API_URL}||g" "$f" 2>/dev/null || true
-    fi
-    if [ -n "$API_URL" ] && [ "$API_URL" != "$PREVIEW_PUBLIC_API_URL" ]; then
-      sed -i "s|${API_URL}||g" "$f" 2>/dev/null || true
-    fi
-  }
-
-  for dir in dist build build/web; do
-    root="$(pwd)/$dir"
-    [ -d "$root" ] || continue
-    patch_one "$root/index.html"
-    # shellcheck disable=SC2038
-    find "$root/assets" "$root/static/js" "$root/js" -maxdepth 1 -type f -name '*.js' 2>/dev/null | head -40 | while read -r f; do
-      patch_one "$f"
-    done
-    # Also top-level bundle js if no assets/ folder
-    find "$root" -maxdepth 1 -type f -name '*.js' 2>/dev/null | head -20 | while read -r f; do
-      patch_one "$f"
-    done
-  done
-  echo "[preview] API URL patch complete (relative paths for same-origin gateway)"
+  # IMPORTANT: never sed -i the bind-mounted workspace. On Coolify/Docker volume
+  # mounts this hung for 60+ minutes and blocked serve/gateway forever.
+  # Same-origin gateway + preview-login-fallback rewrite localhost at runtime.
+  echo "[preview] skipping bundle URL patch (gateway + login-fallback handle API)"
+  return 0
 }
 
 patch_source_api_urls() {
-  # Source patch is optional — gateway + inject handle runtime. Keep it tiny/fast.
-  echo "[preview] skipping deep source URL rewrite (gateway handles API)"
+  echo "[preview] skipping source URL rewrite (gateway handles API)"
   return 0
 }
 

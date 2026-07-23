@@ -91,19 +91,10 @@
       var meta = document.querySelector('meta[name="sv-api-base"]');
       if (meta && meta.content) return String(meta.content).replace(/\/$/, '');
     } catch (_e) {}
+    // Same-origin gateway: default to the page origin so localhost calls get rewritten.
     try {
-      var text = String((document.body && document.body.innerText) || '');
-      var m = text.match(/API\s*base:\s*(https?:\/\/[^\s]+)/i);
-      if (m) return m[1].replace(/\/$/, '');
-    } catch (_e2) {}
-    try {
-      // Footer / inject often embeds absolute API URL somewhere in the page HTML.
-      var html = String((document.documentElement && document.documentElement.innerHTML) || '');
-      var m2 = html.match(/https?:\/\/[0-9a-zA-Z.-]+:\d{2,5}(?=\/|"|'|\s|<)/);
-      if (m2 && m2[0] && m2[0].indexOf(window.location.port) === -1) {
-        return m2[0].replace(/\/$/, '');
-      }
-    } catch (_e3) {}
+      if (window.location && window.location.origin) return String(window.location.origin).replace(/\/$/, '');
+    } catch (_e4) {}
     return '';
   }
 
