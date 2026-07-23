@@ -294,13 +294,17 @@ async function runPreviewBaseImageBuild({ imageTag, stageDir, timeoutMs, label, 
       buildArgs.push('--label', `sv.preview.hash=${contentHash}`);
     }
     buildArgs.push('.');
+    // Prefer classic builder on VPS hosts that lack the buildx plugin.
+    // DOCKER_BUILDKIT=1 without buildx fails with:
+    // "BuildKit is enabled but the buildx component is missing or broken".
+    const useBuildKit = process.env.PREVIEW_DOCKER_BUILDKIT === '1';
     await spawnProcess('docker', buildArgs, {
       cwd: stageDir,
       timeoutMs,
       env: {
         ...process.env,
-        DOCKER_BUILDKIT: '1',
-        BUILDKIT_PROGRESS: 'plain',
+        DOCKER_BUILDKIT: useBuildKit ? '1' : '0',
+        BUILDKIT_PROGRESS: useBuildKit ? 'plain' : undefined,
       },
     });
     return { imageTag, reused: false };
