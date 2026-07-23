@@ -160,6 +160,8 @@ async function previewNodeTemplateContentHash(templateDirName) {
     path.join(sharedNodeDir, 'preview-seed-admin.js'),
     path.join(sharedNodeDir, 'preview-verify-login.js'),
     path.join(sharedNodeDir, 'preview-login-fallback.js'),
+    path.join(sharedNodeDir, 'preview-safety.cjs'),
+    path.join(sharedNodeDir, 'preview-ensure-inject.cjs'),
   ]);
 }
 
@@ -241,6 +243,13 @@ async function stagePreviewBaseBuildDir(templateDirName) {
         path.join(stageDir, 'preview-login-fallback.js'),
         loginFallback.replace(/\r\n/g, '\n')
       );
+    }
+
+    for (const scriptName of ['preview-safety.cjs', 'preview-ensure-inject.cjs']) {
+      const src = path.join(sharedNodeDir, scriptName);
+      if (!fsSync.existsSync(src)) continue;
+      const body = await fs.readFile(src, 'utf8');
+      await fs.writeFile(path.join(stageDir, scriptName), body.replace(/\r\n/g, '\n'));
     }
   }
 

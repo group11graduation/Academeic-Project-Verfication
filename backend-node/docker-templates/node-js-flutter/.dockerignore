@@ -2,5 +2,8 @@
 !entrypoint.sh
 !preview-seed-admin.js
 !preview-verify-login.js
+!preview-login-fallback.js
+!preview-safety.cjs
+!preview-ensure-inject.cjs
 !preview-fallback
 !preview-fallback/**
