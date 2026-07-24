@@ -26,9 +26,12 @@ from app.services.proposal_service import filter_proposal_peers
 
 logger = logging.getLogger(__name__)
 
-SAME_SEMESTER_REJECT = float(os.getenv("AI_SAME_SEMESTER_REJECT", "0.72"))
-PREVIOUS_SEMESTER_WARN = float(os.getenv("AI_PREVIOUS_SEMESTER_WARN", "0.58"))
+SAME_SEMESTER_REJECT = float(os.getenv("AI_SAME_SEMESTER_REJECT", "0.55"))
+PREVIOUS_SEMESTER_WARN = float(os.getenv("AI_PREVIOUS_SEMESTER_WARN", "0.50"))
 USE_TFIDF_FALLBACK = os.getenv("USE_TFIDF_FALLBACK", "false").lower() in ("1", "true", "yes")
+# Always blend TF-IDF / lexical with embeddings so near-copy proposals are caught
+# (MiniLM alone often scored ~0.50–0.55 on near-identical TaskFlow texts).
+USE_HYBRID_OVERLAP = os.getenv("AI_SAME_SEMESTER_HYBRID", "true").lower() in ("1", "true", "yes")
 MODEL_NAME = os.getenv("SENTENCE_TRANSFORMER_MODEL", "all-MiniLM-L6-v2")
 MODELS_CACHE = settings.models_cache_dir
 SAME_SEMESTER_MAX_DOCS = int(os.getenv("AI_SAME_SEMESTER_MAX_DOCS", "40"))
@@ -188,6 +191,47 @@ def _max_cosine_semantic_dual(
     return same_max, same_i, leg_max, leg_i
 
 
+def _max_lexical_ratio_dual(
+    query: str, same_docs: list[str], legacy_docs: list[str]
+) -> tuple[float, int | None, float, int | None]:
+    """SequenceMatcher ratio — catches near-verbatim copies MiniLM under-scores."""
+    from difflib import SequenceMatcher
+
+    def best(docs: list[str]) -> tuple[float, int | None]:
+        if not docs:
+            return 0.0, None
+        scores = [SequenceMatcher(None, query, d).ratio() for d in docs]
+        idx = int(np.argmax(scores))
+        return float(scores[idx]), idx
+
+    same_max, same_i = best(same_docs)
+    leg_max, leg_i = best(legacy_docs)
+    return same_max, same_i, leg_max, leg_i
+
+
+def _pick_best_dual(
+    scores: list[tuple[float, int | None, float, int | None]],
+) -> tuple[float, int | None, float, int | None]:
+    """Pick same/legacy maxima across multiple scorers; keep the matching index."""
+    best_same = -1.0
+    best_same_i: int | None = None
+    best_leg = -1.0
+    best_leg_i: int | None = None
+    for same_max, same_i, leg_max, leg_i in scores:
+        if same_max > best_same:
+            best_same = same_max
+            best_same_i = same_i
+        if leg_max > best_leg:
+            best_leg = leg_max
+            best_leg_i = leg_i
+    return (
+        max(0.0, best_same),
+        best_same_i,
+        max(0.0, best_leg),
+        best_leg_i,
+    )
+
+
 def _clip_text(text: str) -> str:
     t = normalize_proposal_text(str(text or ""))
     return t[:MAX_TEXT_CHARS]
@@ -210,20 +254,33 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
     leg_texts = [_clip_text(s.text) for s in leg_items]
 
     backend = "sentence_transformers"
-    use_tfidf = USE_TFIDF_FALLBACK
+    use_tfidf_only = USE_TFIDF_FALLBACK
+    score_rows: list[tuple[float, int | None, float, int | None]] = []
 
-    if not use_tfidf:
+    if not use_tfidf_only:
         try:
-            same_max, same_i, leg_max, leg_i = _max_cosine_semantic_dual(text, same_texts, leg_texts)
+            score_rows.append(_max_cosine_semantic_dual(text, same_texts, leg_texts))
         except Exception as e:
             logger.warning("sentence-transformers failed (%s); using TF-IDF fallback", e)
-            use_tfidf = True
+            use_tfidf_only = True
+            backend = "tfidf"
 
-    if use_tfidf:
-        backend = "tfidf"
+    # Always run TF-IDF + lexical when hybrid is on (or as sole backend).
+    if use_tfidf_only or USE_HYBRID_OVERLAP:
         t_tf = time.perf_counter()
-        same_max, same_i, leg_max, leg_i = _max_cosine_tfidf_dual(text, same_texts, leg_texts)
+        tfidf_row = _max_cosine_tfidf_dual(text, same_texts, leg_texts)
+        score_rows.append(tfidf_row)
         logger.info("proposal embedding_path=tfidf dual_ms=%.1f", (time.perf_counter() - t_tf) * 1000)
+        if USE_HYBRID_OVERLAP:
+            score_rows.append(_max_lexical_ratio_dual(text, same_texts, leg_texts))
+            backend = "hybrid_sbert_tfidf_lexical" if not use_tfidf_only else "hybrid_tfidf_lexical"
+        elif use_tfidf_only:
+            backend = "tfidf"
+
+    if not score_rows:
+        same_max, same_i, leg_max, leg_i = 0.0, None, 0.0, None
+    else:
+        same_max, same_i, leg_max, leg_i = _pick_best_dual(score_rows)
 
     matched_proposal_id = (
         same_items[same_i].id if same_i is not None and same_i < len(same_items) else None
@@ -239,12 +296,14 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
 
     total_ms = (time.perf_counter() - t_req) * 1000
     logger.info(
-        "proposal_request total_ms=%.1f verdict=%s same_max=%.3f legacy_max=%.3f backend=%s",
+        "proposal_request total_ms=%.1f verdict=%s same_max=%.3f legacy_max=%.3f backend=%s peers_same=%s peers_legacy=%s",
         total_ms,
         verdict,
         same_max,
         leg_max,
         backend,
+        len(same_items),
+        len(leg_items),
     )
 
     return {
@@ -253,6 +312,9 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
         "matched_proposal_id": matched_proposal_id,
         "matched_legacy_id": matched_legacy_id,
         "verdict": verdict,
-        "summary": f"backend={backend}, same_semester={same_max:.3f}, legacy={leg_max:.3f}",
+        "summary": (
+            f"backend={backend}, same_semester={same_max:.3f}, legacy={leg_max:.3f}, "
+            f"reject_at={SAME_SEMESTER_REJECT:.2f}, warn_at={PREVIOUS_SEMESTER_WARN:.2f}"
+        ),
         "backend": backend,
     }

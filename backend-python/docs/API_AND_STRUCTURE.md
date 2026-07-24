@@ -69,7 +69,7 @@ Extra keys on peer objects (e.g. `title`) are ignored.
 | `summary` | string |
 | `backend` | `"sentence_transformers"` \| `"tfidf"` (extra field for observability) |
 
-Thresholds: `AI_SAME_SEMESTER_REJECT` (default `0.72`), `AI_PREVIOUS_SEMESTER_WARN` (default `0.58`).
+Thresholds: `AI_SAME_SEMESTER_REJECT` (default `0.55`), `AI_PREVIOUS_SEMESTER_WARN` (default `0.50`). Hybrid scoring takes the max of MiniLM, TF-IDF, and lexical ratio.
 
 ### `POST /analyze/code`
 
@@ -115,8 +115,9 @@ Thresholds: `AI_SAME_SEMESTER_REJECT` (default `0.72`), `AI_PREVIOUS_SEMESTER_WA
 
 | Variable | Default | Role |
 |----------|---------|------|
-| `AI_SAME_SEMESTER_REJECT` | `0.72` | Same-semester cosine reject |
-| `AI_PREVIOUS_SEMESTER_WARN` | `0.58` | Legacy cosine warn |
+| `AI_SAME_SEMESTER_REJECT` | `0.55` | Same-semester hybrid reject |
+| `AI_PREVIOUS_SEMESTER_WARN` | `0.50` | Legacy hybrid warn |
+| `AI_SAME_SEMESTER_HYBRID` | `true` | Max of SBERT + TF-IDF + lexical |
 | `USE_TFIDF_FALLBACK` | `false` | Force TF-IDF instead of sentence-transformers |
 | `SENTENCE_TRANSFORMER_MODEL` | `all-MiniLM-L6-v2` | Embedding model |
 | `MODELS_CACHE_DIR` | `/tmp/academic-ai-models` | Model cache |

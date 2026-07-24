@@ -1,6 +1,6 @@
-/** Mirrors Python defaults: AI_SAME_SEMESTER_REJECT=0.72, AI_PREVIOUS_SEMESTER_WARN=0.58 */
-const SAME_SEMESTER_REJECT = 0.72;
-const PREVIOUS_SEMESTER_WARN = 0.58;
+/** Mirrors Python defaults: AI_SAME_SEMESTER_REJECT=0.55, AI_PREVIOUS_SEMESTER_WARN=0.50 */
+const SAME_SEMESTER_REJECT = 0.55;
+const PREVIOUS_SEMESTER_WARN = 0.5;
 
 export function formatSimilarityPercent(score) {
   const n = Number(score);
@@ -11,8 +11,8 @@ export function formatSimilarityPercent(score) {
 /**
  * Teacher-facing AI similarity context.
  * Rules:
- * - Same semester ≥ 72% → auto-reject (student blocked)
- * - Previous / legacy semester ≥ 58% → recommendation only (student can proceed)
+ * - Same semester ≥ 55% → auto-reject (student blocked)
+ * - Previous / legacy semester ≥ 50% → recommendation only (student can proceed)
  * - Below those thresholds → clear for teacher review
  */
 export function getProposalAiSimilarityContext(proposal) {

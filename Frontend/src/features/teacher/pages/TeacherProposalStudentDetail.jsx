@@ -972,7 +972,7 @@ const TeacherProposalStudentDetail = () => {
                         </div>
                         <p className="text-xs leading-relaxed text-slate-500">
                             Each student resubmit is logged here. Requirement failures block submission. Same-semester
-                            overlap ≥ 72% auto-rejects; previous-semester overlap only adds recommendations.
+                            overlap ≥ 55% auto-rejects; previous-semester overlap only adds recommendations.
                         </p>
 
                         {submissionHistoryCtx.firstFailureIssues.length > 0 &&

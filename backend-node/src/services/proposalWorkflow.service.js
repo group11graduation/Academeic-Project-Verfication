@@ -48,6 +48,8 @@ const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_
 const AI_LEGACY_MAX_CANDIDATES = Number(process.env.AI_LEGACY_MAX_CANDIDATES || 40);
 const AI_MAX_TEXT_CHARS = Number(process.env.AI_MAX_TEXT_CHARS || 3500);
 const AI_CROSS_SEMESTER_SCOPE = String(process.env.AI_CROSS_SEMESTER_SCOPE || 'subject').toLowerCase();
+/** `subject` = all classes same subject+semester (default). `subject_class` = shared class only. */
+const AI_SAME_SEMESTER_SCOPE = String(process.env.AI_SAME_SEMESTER_SCOPE || 'subject').toLowerCase();
 
 function buildProposalText(title, description, features) {
   const f = Array.isArray(features) ? features.filter(Boolean).join(', ') : '';
@@ -868,14 +870,18 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   // Finalize: run AI pipeline
   const text = buildProposalText(proposal.title, proposal.description, proposal.features);
 
-  const sameContextAssignmentIds = await Assignment.find({
+  const sameContextFilter = {
     semester: assignment.semester._id,
     subject: assignment.subject._id,
-    $or: [
+  };
+  if (AI_SAME_SEMESTER_SCOPE === 'subject_class') {
+    sameContextFilter.$or = [
       { class: { $in: assignmentClassIds } },
       { classes: { $in: assignmentClassIds } },
-    ],
-  }).distinct('_id');
+    ];
+  }
+
+  const sameContextAssignmentIds = await Assignment.find(sameContextFilter).distinct('_id');
 
   const sameSemesterOthers = await Proposal.find({
     assignment: { $in: sameContextAssignmentIds },
@@ -884,9 +890,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       $in: [
         'submitted',
         'ai_flagged_previous_semester',
+        'ai_rejected_same_semester',
         'revision_required',
         'pending_teacher_approval',
         'teacher_approved',
+        'requirements_review',
       ],
     },
   })
