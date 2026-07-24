@@ -48,8 +48,14 @@ _CONVERSATIONAL_PATTERNS = re.compile(
 )
 
 _TECH_PROBES = {
-    "php": "This project is implemented with PHP on the server side.",
-    "mysql": "This project stores data in a MySQL relational database.",
+    "php": (
+        "This project is implemented with native PHP on the server side, "
+        "using procedural or object-oriented PHP for the backend."
+    ),
+    "mysql": (
+        "This project stores data in a MySQL relational database "
+        "accessed with PDO or SQL queries."
+    ),
     "postgresql": "This project uses PostgreSQL as its database.",
     "mongodb": "This project uses MongoDB as a NoSQL database.",
     "node.js": "This project uses Node.js for the backend runtime.",
@@ -61,6 +67,103 @@ _TECH_PROBES = {
     "spring boot": "This project uses Spring Boot for the Java backend.",
     "django": "This project uses the Django Python framework.",
 }
+
+# Alternate spellings / stack tokens that count as mentioning a required technology.
+_TECH_ALIASES: dict[str, list[str]] = {
+    "php": [r"\bphp\b", r"\bpdo\b", r"\blaravel\b"],
+    "mysql": [r"\bmysql\b", r"\bmariadb\b", r"\bpdo\b"],
+    "postgresql": [r"\bpostgresql\b", r"\bpostgres\b"],
+    "mongodb": [r"\bmongodb\b", r"\bmongo\b"],
+    "node.js": [r"\bnode\.?js\b", r"\bnodejs\b", r"\bexpress\b"],
+    "react": [r"\breact\b", r"\breact\.?js\b"],
+    "flutter": [r"\bflutter\b", r"\bdart\b"],
+    "java": [r"\bjava\b", r"\bspring\b"],
+    "python": [r"\bpython\b", r"\bdjango\b", r"\bflask\b"],
+    "laravel": [r"\blaravel\b", r"\bphp\b"],
+    "spring boot": [r"\bspring\s*boot\b", r"\bspring\b"],
+    "django": [r"\bdjango\b", r"\bpython\b"],
+}
+
+# Nearby wording that shows the tech is used in a real project (not a bare keyword list).
+_TECH_CONTEXT_CUES = re.compile(
+    r"\b("
+    r"implement(?:ed|s|ing)?|built|build|using|uses|used|with|via|"
+    r"database|server(?:-side)?|backend|frontend|application|engineered|"
+    r"develop(?:ed|s|ing)?|stor(?:e|es|ed|ing)|relational|session|"
+    r"api|framework|native|procedural|object-?oriented|multi-?tenant|"
+    r"query|queries|pdo|orm|mvc"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _tech_alias_patterns(tech: str) -> list[re.Pattern[str]]:
+    key = str(tech or "").strip().lower()
+    raw = _TECH_ALIASES.get(key) or [rf"\b{re.escape(key)}\b"]
+    return [re.compile(p, re.IGNORECASE) for p in raw]
+
+
+def _sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+|\n+", text or "")
+    out = []
+    for p in parts:
+        s = " ".join(str(p).split()).strip()
+        if len(s) >= 12:
+            out.append(s)
+    return out[:40]
+
+
+def _tech_local_windows(proposal: str, tech: str) -> list[str]:
+    """Sentences / short windows that mention the technology."""
+    patterns = _tech_alias_patterns(tech)
+    windows: list[str] = []
+    for sent in _sentences(proposal):
+        if any(p.search(sent) for p in patterns):
+            windows.append(sent)
+    if windows:
+        return windows[:8]
+    # Fallback: sliding character window around first alias hit.
+    for pat in patterns:
+        m = pat.search(proposal or "")
+        if not m:
+            continue
+        start = max(0, m.start() - 80)
+        end = min(len(proposal), m.end() + 120)
+        chunk = " ".join(proposal[start:end].split()).strip()
+        if chunk:
+            windows.append(chunk)
+            break
+    return windows[:8]
+
+
+def _lexical_tech_context_ok(proposal: str, tech: str) -> bool:
+    """
+    True when the tech appears with real project wording nearby
+    (e.g. 'implemented with native PHP' / 'MySQL relational database').
+    """
+    windows = _tech_local_windows(proposal, tech)
+    if not windows:
+        return False
+    for w in windows:
+        if len(w) >= 28 and _TECH_CONTEXT_CUES.search(w):
+            return True
+    return False
+
+
+def _local_tech_semantic_score(proposal: str, tech: str) -> float:
+    """Cosine of the tech probe against local windows that mention the tech."""
+    windows = _tech_local_windows(proposal, tech)
+    if not windows:
+        return 0.0
+    probe = _TECH_PROBES.get(tech) or f"This project uses {tech} as a core technology."
+    vectors = _encode_normalized([_clip(probe), *[_clip(w) for w in windows]])
+    if vectors.size == 0:
+        return 0.0
+    probe_vec = vectors[0]
+    best = 0.0
+    for i in range(1, len(vectors)):
+        best = max(best, _cosine(probe_vec, vectors[i]))
+    return float(best)
 
 
 def _get_sentence_transformer():
@@ -237,7 +340,8 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
 
     combined = max(similarity, section_max_similarity * 0.95)
 
-    # Technology-in-context probes: require meaning around stack, not bare tokens.
+    # Technology-in-context: lexical cues + local semantic probes (not full-doc only).
+    # Full-document probe alone often missed clear lines like "native PHP" / "MySQL via PDO".
     tech_context_score = 1.0
     missing_tech_context: list[str] = []
     if required_technologies:
@@ -245,13 +349,21 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
         for tech in required_technologies:
             probe = _TECH_PROBES.get(tech) or f"This project uses {tech} as a core technology."
             probe_vec = _encode_normalized([_clip(probe)])[0]
-            score = _cosine(probe_vec, proposal_full_vec)
+            full_score = _cosine(probe_vec, proposal_full_vec)
+            local_score = _local_tech_semantic_score(proposal_text, tech)
+            lexical_ok = _lexical_tech_context_ok(proposal_text, tech)
+            score = max(full_score, local_score)
+            if lexical_ok:
+                # Clear in-context mention → treat as meeting the tech-context bar.
+                score = max(score, TECH_CONTEXT_PASS)
             tech_scores.append(score)
             if score < TECH_CONTEXT_PASS:
                 missing_tech_context.append(tech)
         tech_context_score = float(min(tech_scores)) if tech_scores else 1.0
         if missing_tech_context:
             reasons.append("missing_tech_context:" + ",".join(missing_tech_context))
+        else:
+            reasons.append("tech_context_clear")
 
     if "conversational_filler" in reasons and combined < REQUIREMENT_PASS_AT:
         combined = min(combined, REQUIREMENT_REJECT_BELOW - 0.01)
@@ -287,7 +399,7 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
             f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f})."
         )
         if missing_tech_context:
-            # High overall similarity but weak tech phrasing → still ask teacher.
+            # High overall similarity but still no clear tech-in-context signal.
             verdict = "review"
             summary = (
                 f"Overall proposal is related to the requirements (similarity {combined:.2f}), "
@@ -295,6 +407,11 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
                 f"Teacher review recommended."
             )
             reasons.append("tech_context_borderline")
+        elif required_technologies:
+            summary = (
+                f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f}) "
+                f"and clearly describes required technologies: {', '.join(required_technologies)}."
+            )
 
     return {
         "similarity": round(float(combined), 4),

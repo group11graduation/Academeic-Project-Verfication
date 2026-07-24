@@ -9,8 +9,11 @@ export function formatSimilarityPercent(score) {
 }
 
 /**
- * Teacher-facing AI similarity context. Status is authoritative: if the student reached
- * pending_teacher_approval, they were NOT auto-rejected for same-semester overlap.
+ * Teacher-facing AI similarity context.
+ * Rules:
+ * - Same semester ≥ 72% → auto-reject (student blocked)
+ * - Previous / legacy semester ≥ 58% → recommendation only (student can proceed)
+ * - Below those thresholds → clear for teacher review
  */
 export function getProposalAiSimilarityContext(proposal) {
   const status = String(proposal?.displayStatus || proposal?.status || '');
@@ -26,8 +29,8 @@ export function getProposalAiSimilarityContext(proposal) {
       level: 'reject',
       samePct,
       legacyPct,
-      headline: 'AI blocked — high same-semester overlap',
-      detail: `Overlap ${samePct} met or exceeded the auto-reject threshold (${Math.round(SAME_SEMESTER_REJECT * 100)}%). The student must revise before resubmitting.`,
+      headline: 'Rejected — same-semester overlap',
+      detail: `Same-semester similarity ${samePct} met or exceeded the auto-reject threshold (${Math.round(SAME_SEMESTER_REJECT * 100)}%). The student must revise and resubmit.`,
       studentBlocked: true,
     };
   }
@@ -37,8 +40,8 @@ export function getProposalAiSimilarityContext(proposal) {
       level: 'warn',
       samePct,
       legacyPct,
-      headline: 'Legacy / previous-term similarity warning',
-      detail: `This idea resembles an older approved project (legacy overlap ${legacyPct}). The student may proceed, but review originality.`,
+      headline: 'Recommendation — previous-semester / legacy overlap',
+      detail: `This idea resembles a project from a previous semester (overlap ${legacyPct}). The student was not blocked; review originality and the suggested new features.`,
       studentBlocked: false,
     };
   }
@@ -52,15 +55,15 @@ export function getProposalAiSimilarityContext(proposal) {
     legacyPct,
     headline: highSameButCleared
       ? 'Pending your review'
-      : 'AI cleared — unique enough to review',
+      : 'Cleared — unique enough for review',
     detail:
       sameNum != null
-        ? `Same-semester overlap ${samePct} is advisory only (auto-reject starts at ${Math.round(SAME_SEMESTER_REJECT * 100)}%). The student was not blocked for similarity — review the proposal on its merits.`
+        ? `Same-semester overlap ${samePct} is below the ${Math.round(SAME_SEMESTER_REJECT * 100)}% auto-reject line. Previous-semester overlaps only produce recommendations (from ${Math.round(PREVIOUS_SEMESTER_WARN * 100)}%), not rejection.`
         : 'No same-semester similarity score on file. Review the proposal on its merits.',
     studentBlocked: false,
     legacyNote:
       legacyNum != null && legacyNum >= PREVIOUS_SEMESTER_WARN
-        ? `Legacy overlap ${legacyPct} is elevated but did not block submission.`
+        ? `Previous-semester / legacy overlap ${legacyPct} is elevated (recommendation only — not blocked).`
         : null,
   };
 }

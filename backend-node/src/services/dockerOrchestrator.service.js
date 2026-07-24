@@ -200,6 +200,10 @@ async function finishBaseImageBuildOrFallback({
     );
     return { imageTag, reused: true, stale: true, rebuildError: buildResult.error };
   }
+  // No prior image (e.g. teacher ran `docker rmi`) — surface a clear rebuild error.
+  logger.error(
+    `Preview base image build failed (${label}) and no fallback image exists: ${buildResult.error || 'unknown'}`
+  );
   return buildResult;
 }
 
@@ -340,9 +344,9 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
     const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
-    const hasGateway = await dockerImageHasPath(imageTag, '/preview-gateway.cjs');
-    // Rebuild when hash mismatches OR gateway file is missing from a stale image.
-    if (existingHash && existingHash === contentHash && hasGateway) {
+    // Gateway is written at container start by entrypoint — do not force rebuild
+    // just because /preview-gateway.cjs is missing from a cached image.
+    if (existingHash && existingHash === contentHash) {
       return { imageTag, reused: true };
     }
   }
@@ -1534,12 +1538,17 @@ export async function warmPreviewBaseImages() {
   const warmOpts = { forceRebuild };
   const toStatus = (promise) =>
     promise
-      .then((r) => (r.reused ? 'ready' : 'built'))
+      .then((r) => (r?.failed ? 'failed' : r?.reused ? 'ready' : 'built'))
       .catch(() => 'failed');
 
-  const [node, flutter, php, jupyter, springReact] = await Promise.all([
-    toStatus(ensurePreviewNodeBaseImage(null, warmOpts)),
-    toStatus(ensurePreviewNodeBaseImage({ warm: true }, warmOpts)),
+  // Warm Node first (needed for MERN). Flutter image is huge / flaky on VPS networks —
+  // only warm it when explicitly enabled so it cannot block or lock docker builds.
+  const node = await toStatus(ensurePreviewNodeBaseImage(null, warmOpts));
+  const flutter =
+    process.env.PREVIEW_WARM_FLUTTER_BASE === 'true'
+      ? await toStatus(ensurePreviewNodeBaseImage(true, warmOpts))
+      : 'skipped';
+  const [php, jupyter, springReact] = await Promise.all([
     toStatus(ensurePreviewPhpBaseImage(warmOpts)),
     toStatus(ensurePreviewJupyterBaseImage(warmOpts)),
     toStatus(ensurePreviewSpringReactBaseImage(warmOpts)),
