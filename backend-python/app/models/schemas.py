@@ -91,6 +91,10 @@ class RequirementAnalyzeIn(BaseModel):
         default_factory=list,
         description="Canonical tech names that must appear in meaningful context",
     )
+    strict_tech_requirements: bool = Field(
+        default=False,
+        description="If true (collaborative FE+BE), missing tech-in-context always rejects — never soft-pass/review",
+    )
 
 
 class RequirementAnalyzeOut(BaseModel):

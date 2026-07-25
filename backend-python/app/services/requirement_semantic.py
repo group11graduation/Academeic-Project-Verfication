@@ -299,6 +299,7 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
         for t in (getattr(body, "required_technologies", None) or [])
         if str(t).strip()
     ]
+    strict_tech = bool(getattr(body, "strict_tech_requirements", False))
     requirement_sections = [
         _clip(s)
         for s in (getattr(body, "requirement_sections", None) or [])
@@ -445,17 +446,23 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
         reasons.append("casual_english_not_addressing_requirements")
 
     # Missing tech context: prefer teacher review over hard reject when the write-up is real prose.
+    # Collaborative (strict_tech): missing FE/BE stack in context is always a hard reject.
     substantial = len(proposal_text) >= 160 and not _is_keyword_only_shell(
         proposal_text, required_technologies or []
     )
-    if missing_tech_context and combined < REQUIREMENT_PASS_AT and not substantial:
+    if missing_tech_context and combined < REQUIREMENT_PASS_AT and not substantial and not strict_tech:
         combined = min(combined, (REQUIREMENT_REJECT_BELOW + REQUIREMENT_PASS_AT) / 2)
 
     hard_reject_tech = bool(
         missing_tech_context
-        and tech_context_score < TECH_CONTEXT_PASS * 0.85
-        and combined < REQUIREMENT_PASS_AT
-        and not substantial
+        and (
+            strict_tech
+            or (
+                tech_context_score < TECH_CONTEXT_PASS * 0.85
+                and combined < REQUIREMENT_PASS_AT
+                and not substantial
+            )
+        )
     )
 
     if combined < REQUIREMENT_REJECT_BELOW or hard_reject_tech:
@@ -469,7 +476,7 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
         if missing_tech_context:
             summary += f" Missing clear use of: {', '.join(missing_tech_context)}."
     elif combined < REQUIREMENT_PASS_AT or (
-        missing_tech_context and substantial and combined >= REQUIREMENT_REJECT_BELOW
+        missing_tech_context and substantial and combined >= REQUIREMENT_REJECT_BELOW and not strict_tech
     ):
         verdict = "review"
         summary = (
@@ -486,14 +493,22 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
             f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f})."
         )
         if missing_tech_context:
-            # High overall similarity but still no clear tech-in-context signal.
-            verdict = "review"
-            summary = (
-                f"Overall proposal is related to the requirements (similarity {combined:.2f}), "
-                f"but technology context is unclear for: {', '.join(missing_tech_context)}. "
-                f"Teacher review recommended."
-            )
-            reasons.append("tech_context_borderline")
+            if strict_tech:
+                verdict = "reject"
+                summary = (
+                    f"Rejected automatically: collaborative proposal must clearly describe both required "
+                    f"stacks in context. Missing clear use of: {', '.join(missing_tech_context)}."
+                )
+                reasons.append("strict_tech_reject")
+            else:
+                # High overall similarity but still no clear tech-in-context signal.
+                verdict = "review"
+                summary = (
+                    f"Overall proposal is related to the requirements (similarity {combined:.2f}), "
+                    f"but technology context is unclear for: {', '.join(missing_tech_context)}. "
+                    f"Teacher review recommended."
+                )
+                reasons.append("tech_context_borderline")
         elif required_technologies:
             summary = (
                 f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f}) "

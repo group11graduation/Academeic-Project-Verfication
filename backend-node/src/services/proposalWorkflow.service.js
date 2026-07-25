@@ -822,6 +822,9 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
         requirement_sections: corpus.requirement_sections || [],
         required_technologies: corpus.required_technologies || [],
         proposal_text: buildProposalRequirementText(proposal),
+        strict_tech_requirements: Boolean(
+          assignment?.isCollaborative || requirementCheck.strictTechRequirements
+        ),
       });
       requirementCheck = applySemanticRequirementResult(requirementCheck, semanticRaw);
       proposal.requirementCheckPassed = requirementCheck.passed;

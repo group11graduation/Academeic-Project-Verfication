@@ -41,13 +41,10 @@ function loadEnvFileManual(envPath) {
 }
 
 function loadPreviewEnv() {
-  const envPath = path.join(process.cwd(), '.env');
-  // Prefer student dotenv if present; else a tiny parser. Entrypoint already exports MONGO_URI/JWT_*.
-  try {
-    requireFromCwd('dotenv').config({ path: envPath });
-  } catch {
-    loadEnvFileManual(envPath);
-  }
+  // Never require('dotenv') — many student projects omit it and the seed would crash.
+  // Docker/entrypoint already injects MONGO_URI / PREVIEW_ADMIN_* into process.env;
+  // we only fill gaps from a local .env if present.
+  loadEnvFileManual(path.join(process.cwd(), '.env'));
 }
 
 (async () => {

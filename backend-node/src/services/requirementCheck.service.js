@@ -229,33 +229,115 @@ export function buildTeacherRequirementCorpus(assignment) {
   };
 }
 
+function blockHasRequirementRules(block) {
+  if (!block || typeof block !== 'object') return false;
+  return (
+    Boolean(String(block.requirementText || '').trim()) ||
+    toList(block.allowedTechnologies).length > 0 ||
+    toList(block.requiredKeywords).length > 0
+  );
+}
+
+/** True when proposal mentions at least one tech from the allowed list (incl. aliases/family). */
+function proposalCoversAllowedTech(proposalText, allowedTechnologies) {
+  const allowed = canonicalizeTechList(allowedTechnologies);
+  if (!allowed.length) return true;
+  const mentioned = detectMentionedTechnologies(proposalText);
+  const expanded = expandTechFamily(allowed);
+  if (mentioned.some((m) => expanded.includes(m))) return true;
+  // Fallback: substring / alias check for odd spellings not in TECH_ALIASES keys.
+  const src = String(proposalText || '').toLowerCase();
+  return allowed.some((tech) => {
+    const aliases = TECH_ALIASES.find((t) => t.key === tech)?.aliases || [tech];
+    return aliases.some((a) => hasAlias(src, a));
+  });
+}
+
+/**
+ * Collaborative structural gate:
+ * - Union FE+BE allow-lists for "disallowed stack" (so React+Node both OK).
+ * - Require FE allowed tech(s) to appear when FE block has them.
+ * - Require BE allowed tech(s) to appear when BE block has them.
+ * Without this, empty/off-topic proposals skipped hard fails and only hit soft "review" (treated as pass).
+ */
+function evaluateCollaborativeRequirements(assignment, proposalLike) {
+  const fe = assignment?.frontendTechRequirements || {};
+  const be = assignment?.backendTechRequirements || {};
+  const feAllowed = canonicalizeTechList(toList(fe.allowedTechnologies));
+  const beAllowed = canonicalizeTechList(toList(be.allowedTechnologies));
+  const unionAllowed = [...new Set([...feAllowed, ...beAllowed])];
+
+  const proposalText = buildProposalRequirementText(proposalLike);
+  const proposalLower = proposalText.toLowerCase();
+  const mentionedTechnologies = detectMentionedTechnologies(proposalLower);
+
+  const minChars = Number(process.env.REQUIREMENT_MIN_PROPOSAL_CHARS || 80);
+  const tooShort = proposalLower.replace(/\s+/g, ' ').trim().length < minChars;
+
+  const hasAllowedTechRule = unionAllowed.length > 0;
+  const disallowedMentionedTech = hasAllowedTechRule
+    ? mentionedTechnologies.filter((t) => !expandTechFamily(unionAllowed).includes(t))
+    : [];
+
+  const missingFrontendTech =
+    feAllowed.length > 0 && !proposalCoversAllowedTech(proposalLower, feAllowed) ? [...feAllowed] : [];
+  const missingBackendTech =
+    beAllowed.length > 0 && !proposalCoversAllowedTech(proposalLower, beAllowed) ? [...beAllowed] : [];
+
+  const reasons = [];
+  if (tooShort) {
+    reasons.push(
+      'Proposal is too short. Write a real project description covering both frontend and backend in full sentences.'
+    );
+  }
+  if (disallowedMentionedTech.length) {
+    reasons.push(
+      `Disallowed technologies for this collaborative assignment: ${disallowedMentionedTech.join(', ')}. Allowed: ${unionAllowed.join(', ') || 'none'}.`
+    );
+  }
+  if (missingFrontendTech.length) {
+    reasons.push(
+      `Missing frontend technology in the proposal: ${missingFrontendTech.join(', ')}. Name it in the title, description, or features and explain how you use it.`
+    );
+  }
+  if (missingBackendTech.length) {
+    reasons.push(
+      `Missing backend technology in the proposal: ${missingBackendTech.join(', ')}. Name it in the title, description, or features and explain how you use it.`
+    );
+  }
+
+  const hasAnyRule = blockHasRequirementRules(fe) || blockHasRequirementRules(be) || unionAllowed.length > 0;
+  const passed =
+    !tooShort &&
+    disallowedMentionedTech.length === 0 &&
+    missingFrontendTech.length === 0 &&
+    missingBackendTech.length === 0;
+
+  return {
+    hasAnyRule,
+    passed,
+    needsSemantic: passed && hasAnyRule,
+    missingKeywords: [],
+    missingAllowedTech: [...missingFrontendTech, ...missingBackendTech],
+    missingImplicitTerms: [...missingFrontendTech, ...missingBackendTech],
+    disallowedMentionedTech,
+    matchedAllowedTech: unionAllowed.filter((t) => proposalCoversAllowedTech(proposalLower, [t])),
+    implicitRequiredTerms: unionAllowed,
+    summary: passed
+      ? 'Structural collaborative requirement gate passed; semantic meaning check runs next.'
+      : `Requirement gate failed. ${reasons.join(' | ')}`,
+    semanticCorpus: buildTeacherRequirementCorpus(assignment),
+    strictTechRequirements: true,
+  };
+}
+
 /**
  * Structural hard gates only (wrong stack / empty).
  * Meaning match is handled by MiniLM via analyzeRequirementsPayload — NOT substring keywords.
  */
 export function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
   if (assignment?.isCollaborative) {
-    const frontendCheck = evaluateRequirementBlock(assignment?.frontendTechRequirements, proposalLike, 'Frontend', assignment);
-    const backendCheck = evaluateRequirementBlock(assignment?.backendTechRequirements, proposalLike, 'Backend', assignment);
-    const passed = frontendCheck.passed && backendCheck.passed;
-    return {
-      hasAnyRule: frontendCheck.hasAnyRule || backendCheck.hasAnyRule,
-      passed,
-      needsSemantic: frontendCheck.needsSemantic || backendCheck.needsSemantic,
-      missingKeywords: [],
-      missingAllowedTech: [],
-      missingImplicitTerms: [],
-      disallowedMentionedTech: [...frontendCheck.disallowedMentionedTech, ...backendCheck.disallowedMentionedTech],
-      matchedAllowedTech: [...frontendCheck.matchedAllowedTech, ...backendCheck.matchedAllowedTech],
-      implicitRequiredTerms: [
-        ...frontendCheck.implicitRequiredTerms,
-        ...backendCheck.implicitRequiredTerms,
-      ],
-      summary: passed
-        ? 'Structural collaborative requirement gate passed; semantic meaning check runs next.'
-        : `Requirement gate failed. ${[frontendCheck.summary, backendCheck.summary].filter((s) => !String(s).includes('passed')).join(' | ')}`,
-      semanticCorpus: buildTeacherRequirementCorpus(assignment),
-    };
+    return evaluateCollaborativeRequirements(assignment, proposalLike);
   }
 
   return evaluateRequirementBlock(assignment, proposalLike, '', assignment);
