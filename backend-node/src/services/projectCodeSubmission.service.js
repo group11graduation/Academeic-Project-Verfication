@@ -107,7 +107,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     throw err;
   }
 
-  const reqCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
+  const reqCheck = await evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
   if (!reqCheck.passed) {
     const err = new Error(`Project submission blocked: ${reqCheck.summary}`);
     err.status = 400;

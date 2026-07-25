@@ -784,7 +784,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     : [assignment.class?._id || assignment.class].filter(Boolean);
 
   // Requirement gate: structural hard fails first, then MiniLM meaning check (not keyword-only).
-  let requirementCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
+  let requirementCheck = await evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
   proposal.requirementCheckPassed = requirementCheck.passed;
   proposal.requirementCheckSummary = requirementCheck.summary;
   proposal.requirementMissingKeywords = requirementCheck.missingKeywords || [];
@@ -1319,7 +1319,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, 'approve');
 
       if (collaborativeApprovalComplete(proposal)) {
-        const fullCheck = evaluateProposalAgainstAssignmentRequirements(assignmentDoc, proposal);
+        const fullCheck = await evaluateProposalAgainstAssignmentRequirements(assignmentDoc, proposal);
         proposal.requirementCheckPassed = fullCheck.passed;
         proposal.requirementCheckSummary = fullCheck.summary;
         proposal.requirementMissingKeywords = fullCheck.missingKeywords;
@@ -1366,7 +1366,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
   if (action === 'approve') {
     const assignment = await Assignment.findById(proposal.assignment._id);
     // Structural gate only — teacher already reviewed borderline semantic cases.
-    const requirementCheck = evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
+    const requirementCheck = await evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
     proposal.requirementCheckPassed = requirementCheck.passed;
     proposal.requirementCheckSummary = requirementCheck.summary;
     proposal.requirementMissingKeywords = requirementCheck.missingKeywords;
@@ -1515,11 +1515,11 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     };
   };
 
-  return list
-    .map((p) => {
+  const rows = await Promise.all(
+    list.map(async (p) => {
       const latestProjectSubmission = latestZipByProposal.get(String(p._id)) || null;
       const requirementReview = p.assignment
-        ? evaluateProposalAgainstAssignmentRequirements(p.assignment, p)
+        ? await evaluateProposalAgainstAssignmentRequirements(p.assignment, p)
         : null;
       const row = {
         ...p,
@@ -1548,7 +1548,9 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
       };
       return mapProposalCollaborativeMeta(row, p.assignment);
     })
-    .sort((a, b) => {
+  );
+
+  return rows.sort((a, b) => {
       const nameA = String(a?.submittedBy?.name || a?.group?.name || a?.title || '').trim();
       const nameB = String(b?.submittedBy?.name || b?.group?.name || b?.title || '').trim();
       return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });

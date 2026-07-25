@@ -1,3 +1,5 @@
+import { loadCollaborativeRequirementFileTexts, extractRequirementFileText } from './requirementFileText.service.js';
+
 function toList(value) {
   if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
   if (typeof value === 'string') {
@@ -189,13 +191,49 @@ export function buildTeacherRequirementCorpus(assignment) {
     const sections = [];
     const fe = assignment.frontendTechRequirements || {};
     const be = assignment.backendTechRequirements || {};
-    const feText = [fe.requirementText, ...(toList(fe.allowedTechnologies).map((t) => `Use ${t}`))].filter(Boolean).join('\n');
-    const beText = [be.requirementText, ...(toList(be.allowedTechnologies).map((t) => `Use ${t}`))].filter(Boolean).join('\n');
-    if (feText.trim()) sections.push(`Frontend requirements:\n${feText.trim()}`);
-    if (beText.trim()) sections.push(`Backend requirements:\n${beText.trim()}`);
+    // Prefer preloaded file text (set by buildTeacherRequirementCorpusAsync).
+    const feBody = [
+      fe._extractedFileText,
+      fe.requirementText,
+      fe.description,
+      ...(toList(fe.allowedTechnologies).map((t) => `Use ${t}`)),
+    ]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .join('\n');
+    const beBody = [
+      be._extractedFileText,
+      be.requirementText,
+      be.description,
+      ...(toList(be.allowedTechnologies).map((t) => `Use ${t}`)),
+    ]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .join('\n');
+    if (feBody.trim()) sections.push(`Frontend requirements:\n${feBody.trim()}`);
+    if (beBody.trim()) sections.push(`Backend requirements:\n${beBody.trim()}`);
+    // Fallback stub if files exist but text not loaded yet (sync callers).
+    if (!sections.length) {
+      if (fe.requirementFile) {
+        sections.push(
+          `Frontend requirements are provided in file: ${fe.originalFileName || fe.requirementFile}`
+        );
+      }
+      if (be.requirementFile) {
+        sections.push(
+          `Backend requirements are provided in file: ${be.originalFileName || be.requirementFile}`
+        );
+      }
+    }
     const required = [
-      ...resolveRequiredTechnologiesForProposal(assignment, fe),
-      ...resolveRequiredTechnologiesForProposal(assignment, be),
+      ...resolveRequiredTechnologiesForProposal(assignment, {
+        ...fe,
+        requirementText: feBody || fe.requirementText,
+      }),
+      ...resolveRequiredTechnologiesForProposal(assignment, {
+        ...be,
+        requirementText: beBody || be.requirementText,
+      }),
     ];
     return {
       requirement_text: sections.join('\n\n'),
@@ -211,6 +249,8 @@ export function buildTeacherRequirementCorpus(assignment) {
   const sections = [];
   if (requirementText) sections.push(requirementText);
   if (description && description !== requirementText) sections.push(description);
+  const fileText = String(assignment?._extractedAssignmentFileText || '').trim();
+  if (fileText) sections.push(fileText);
   if (allowed.length) {
     sections.push(
       `The project must use these technologies and explain how they are applied: ${allowed.join(', ')}.`
@@ -225,14 +265,59 @@ export function buildTeacherRequirementCorpus(assignment) {
   return {
     requirement_text: sections.join('\n\n'),
     requirement_sections: sections,
-    required_technologies: resolveRequiredTechnologiesForProposal(assignment, assignment),
+    required_technologies: resolveRequiredTechnologiesForProposal(assignment, {
+      ...assignment,
+      requirementText: [requirementText, fileText].filter(Boolean).join('\n'),
+    }),
   };
+}
+
+/**
+ * Async corpus builder: reads FE + BE requirement files from disk so MiniLM
+ * compares the proposal against the real uploaded requirement documents.
+ */
+export async function buildTeacherRequirementCorpusAsync(assignment) {
+  if (!assignment?.isCollaborative) {
+    const fileRef = assignment?.assignmentFile;
+    if (fileRef) {
+      const text = await extractRequirementFileText(fileRef);
+      return buildTeacherRequirementCorpus({
+        ...assignment,
+        _extractedAssignmentFileText: text,
+      });
+    }
+    return buildTeacherRequirementCorpus(assignment);
+  }
+
+  const loaded = await loadCollaborativeRequirementFileTexts(assignment);
+  const fe = { ...(assignment.frontendTechRequirements || {}) };
+  const be = { ...(assignment.backendTechRequirements || {}) };
+  fe._extractedFileText = loaded.frontendText;
+  be._extractedFileText = loaded.backendText;
+
+  const enriched = {
+    ...assignment,
+    frontendTechRequirements: fe,
+    backendTechRequirements: be,
+  };
+  const corpus = buildTeacherRequirementCorpus(enriched);
+  corpus._fileLoadMeta = {
+    frontendFileLoaded: loaded.frontendFileLoaded,
+    backendFileLoaded: loaded.backendFileLoaded,
+    frontendFileEmpty: loaded.frontendFileEmpty,
+    backendFileEmpty: loaded.backendFileEmpty,
+    frontendChars: loaded.frontendText.length,
+    backendChars: loaded.backendText.length,
+  };
+  return corpus;
 }
 
 function blockHasRequirementRules(block) {
   if (!block || typeof block !== 'object') return false;
   return (
     Boolean(String(block.requirementText || '').trim()) ||
+    Boolean(String(block.requirementFile || '').trim()) ||
+    Boolean(String(block._extractedFileText || '').trim()) ||
     toList(block.allowedTechnologies).length > 0 ||
     toList(block.requiredKeywords).length > 0
   );
@@ -255,17 +340,28 @@ function proposalCoversAllowedTech(proposalText, allowedTechnologies) {
 
 /**
  * Collaborative structural gate:
- * - Union FE+BE allow-lists for "disallowed stack" (so React+Node both OK).
- * - Require FE allowed tech(s) to appear when FE block has them.
- * - Require BE allowed tech(s) to appear when BE block has them.
- * Without this, empty/off-topic proposals skipped hard fails and only hit soft "review" (treated as pass).
+ * - Always treat uploaded FE/BE requirement files as rules (hasAnyRule).
+ * - Union FE+BE allow-lists (or techs inferred from file text) for stack checks.
  */
-function evaluateCollaborativeRequirements(assignment, proposalLike) {
+function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverride = null) {
   const fe = assignment?.frontendTechRequirements || {};
   const be = assignment?.backendTechRequirements || {};
-  const feAllowed = canonicalizeTechList(toList(fe.allowedTechnologies));
-  const beAllowed = canonicalizeTechList(toList(be.allowedTechnologies));
-  const unionAllowed = [...new Set([...feAllowed, ...beAllowed])];
+  const corpus = corpusOverride || buildTeacherRequirementCorpus(assignment);
+
+  let feAllowed = canonicalizeTechList(toList(fe.allowedTechnologies));
+  let beAllowed = canonicalizeTechList(toList(be.allowedTechnologies));
+
+  // Infer stack from each side's requirement file/text when teachers only uploaded files.
+  if (!feAllowed.length) {
+    const feBlob = [fe._extractedFileText, fe.requirementText, fe.description].filter(Boolean).join('\n');
+    feAllowed = detectMentionedTechnologies(feBlob);
+  }
+  if (!beAllowed.length) {
+    const beBlob = [be._extractedFileText, be.requirementText, be.description].filter(Boolean).join('\n');
+    beAllowed = detectMentionedTechnologies(beBlob);
+  }
+
+  const unionAllowed = [...new Set([...feAllowed, ...beAllowed, ...(corpus.required_technologies || [])])];
 
   const proposalText = buildProposalRequirementText(proposalLike);
   const proposalLower = proposalText.toLowerCase();
@@ -284,6 +380,7 @@ function evaluateCollaborativeRequirements(assignment, proposalLike) {
   const missingBackendTech =
     beAllowed.length > 0 && !proposalCoversAllowedTech(proposalLower, beAllowed) ? [...beAllowed] : [];
 
+  const fileMeta = corpus._fileLoadMeta || {};
   const reasons = [];
   if (tooShort) {
     reasons.push(
@@ -305,18 +402,49 @@ function evaluateCollaborativeRequirements(assignment, proposalLike) {
       `Missing backend technology in the proposal: ${missingBackendTech.join(', ')}. Name it in the title, description, or features and explain how you use it.`
     );
   }
+  if (fileMeta.frontendFileEmpty) {
+    reasons.push(
+      'Frontend requirements file could not be read (unsupported type or empty). Re-upload as .docx, .txt, .md, or .pdf.'
+    );
+  }
+  if (fileMeta.backendFileEmpty) {
+    reasons.push(
+      'Backend requirements file could not be read (unsupported type or empty). Re-upload as .docx, .txt, .md, or .pdf.'
+    );
+  }
 
-  const hasAnyRule = blockHasRequirementRules(fe) || blockHasRequirementRules(be) || unionAllowed.length > 0;
+  const hasFiles = Boolean(fe.requirementFile || be.requirementFile);
+  const hasAnyRule =
+    blockHasRequirementRules(fe) ||
+    blockHasRequirementRules(be) ||
+    unionAllowed.length > 0 ||
+    hasFiles ||
+    Boolean(String(corpus.requirement_text || '').trim());
+
+  // Collaborative with requirement files must always run semantic meaning check.
+  const bothFilesReadable =
+    (!fe.requirementFile || !fileMeta.frontendFileEmpty) &&
+    (!be.requirementFile || !fileMeta.backendFileEmpty);
+  const corpusReady = Boolean(String(corpus.requirement_text || '').trim()) && bothFilesReadable;
+
   const passed =
     !tooShort &&
     disallowedMentionedTech.length === 0 &&
     missingFrontendTech.length === 0 &&
-    missingBackendTech.length === 0;
+    missingBackendTech.length === 0 &&
+    (!hasFiles || corpusReady);
+
+  if (hasFiles && !corpusReady && !reasons.some((r) => r.includes('could not be read'))) {
+    reasons.push(
+      'Collaborative requirement files are required for AI checking but their content was not available. Teachers must re-upload readable FE and BE requirement files.'
+    );
+  }
 
   return {
-    hasAnyRule,
+    hasAnyRule: hasAnyRule || hasFiles,
     passed,
-    needsSemantic: passed && hasAnyRule,
+    // Force semantic whenever collaborative has rules/files and structural gate passed.
+    needsSemantic: passed && (hasAnyRule || hasFiles),
     missingKeywords: [],
     missingAllowedTech: [...missingFrontendTech, ...missingBackendTech],
     missingImplicitTerms: [...missingFrontendTech, ...missingBackendTech],
@@ -324,9 +452,9 @@ function evaluateCollaborativeRequirements(assignment, proposalLike) {
     matchedAllowedTech: unionAllowed.filter((t) => proposalCoversAllowedTech(proposalLower, [t])),
     implicitRequiredTerms: unionAllowed,
     summary: passed
-      ? 'Structural collaborative requirement gate passed; semantic meaning check runs next.'
+      ? 'Structural collaborative requirement gate passed; semantic meaning check runs next against both FE and BE requirement files.'
       : `Requirement gate failed. ${reasons.join(' | ')}`,
-    semanticCorpus: buildTeacherRequirementCorpus(assignment),
+    semanticCorpus: corpus,
     strictTechRequirements: true,
   };
 }
@@ -334,13 +462,46 @@ function evaluateCollaborativeRequirements(assignment, proposalLike) {
 /**
  * Structural hard gates only (wrong stack / empty).
  * Meaning match is handled by MiniLM via analyzeRequirementsPayload — NOT substring keywords.
+ * For collaborative assignments this is async (reads FE/BE requirement files).
  */
-export function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
+export async function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
   if (assignment?.isCollaborative) {
-    return evaluateCollaborativeRequirements(assignment, proposalLike);
+    const corpus = await buildTeacherRequirementCorpusAsync(assignment);
+    // Attach extracted text onto blocks for tech inference inside evaluateCollaborativeRequirements.
+    const fe = {
+      ...(assignment.frontendTechRequirements || {}),
+      _extractedFileText: corpus.requirement_sections
+        ?.find((s) => String(s).startsWith('Frontend requirements:'))
+        ?.replace(/^Frontend requirements:\n?/, '') || '',
+    };
+    const be = {
+      ...(assignment.backendTechRequirements || {}),
+      _extractedFileText: corpus.requirement_sections
+        ?.find((s) => String(s).startsWith('Backend requirements:'))
+        ?.replace(/^Backend requirements:\n?/, '') || '',
+    };
+    return evaluateCollaborativeRequirements(
+      { ...assignment, frontendTechRequirements: fe, backendTechRequirements: be },
+      proposalLike,
+      corpus
+    );
   }
 
-  return evaluateRequirementBlock(assignment, proposalLike, '', assignment);
+  const corpus = await buildTeacherRequirementCorpusAsync(assignment);
+  const blockResult = evaluateRequirementBlock(assignment, proposalLike, '', assignment);
+  return {
+    ...blockResult,
+    semanticCorpus: corpus,
+    hasAnyRule:
+      blockResult.hasAnyRule ||
+      Boolean(assignment?.assignmentFile) ||
+      Boolean(String(corpus.requirement_text || '').trim()),
+    needsSemantic:
+      blockResult.passed &&
+      (blockResult.hasAnyRule ||
+        Boolean(assignment?.assignmentFile) ||
+        Boolean(String(corpus.requirement_text || '').trim())),
+  };
 }
 
 export function evaluateRequirementBlock(block, proposalLike, label = '', assignment = null) {
@@ -369,6 +530,7 @@ export function evaluateRequirementBlock(block, proposalLike, label = '', assign
 
   const hasAnyRule =
     Boolean(requirementText) ||
+    Boolean(String(block?.requirementFile || '').trim()) ||
     hasAllowedTechRule ||
     requiredKeywords.length > 0 ||
     implicitRequiredTerms.length > 0;
