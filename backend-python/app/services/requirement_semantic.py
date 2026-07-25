@@ -25,15 +25,20 @@ MODEL_NAME = os.getenv("SENTENCE_TRANSFORMER_MODEL", "all-MiniLM-L6-v2")
 MODELS_CACHE = settings.models_cache_dir
 
 # Calibrated defaults — override via env after evaluating real pairs.
+# MiniLM alone often scores ~0.25–0.45 for good paraphrases of requirements.
 # Scores below REJECT: clear fail (casual chat, unrelated, bare keywords only).
 # Scores between REJECT and PASS: teacher review.
 # Scores at/above PASS: automatic clear for requirements.
-REQUIREMENT_REJECT_BELOW = float(os.getenv("AI_REQUIREMENT_REJECT_BELOW", "0.42"))
-REQUIREMENT_PASS_AT = float(os.getenv("AI_REQUIREMENT_PASS_AT", "0.58"))
+REQUIREMENT_REJECT_BELOW = float(os.getenv("AI_REQUIREMENT_REJECT_BELOW", "0.28"))
+REQUIREMENT_PASS_AT = float(os.getenv("AI_REQUIREMENT_PASS_AT", "0.45"))
 MIN_PROPOSAL_CHARS = int(os.getenv("AI_REQUIREMENT_MIN_PROPOSAL_CHARS", "80"))
 MIN_REQUIREMENT_CHARS = int(os.getenv("AI_REQUIREMENT_MIN_REQ_CHARS", "20"))
 MAX_TEXT_CHARS = int(os.getenv("AI_MAX_TEXT_CHARS", "3500"))
-TECH_CONTEXT_PASS = float(os.getenv("AI_REQUIREMENT_TECH_CONTEXT_PASS", "0.48"))
+TECH_CONTEXT_PASS = float(os.getenv("AI_REQUIREMENT_TECH_CONTEXT_PASS", "0.42"))
+# When all required techs appear in real project sentences, lift the floor so
+# MiniLM paraphrase gaps do not auto-reject otherwise solid proposals.
+TECH_CLEAR_SCORE_FLOOR = float(os.getenv("AI_REQUIREMENT_TECH_CLEAR_FLOOR", "0.40"))
+USE_REQUIREMENT_HYBRID = os.getenv("AI_REQUIREMENT_HYBRID", "true").lower() in ("1", "true", "yes")
 
 _st_model = None
 
@@ -224,6 +229,60 @@ def _is_keyword_only_shell(proposal: str, required_tech: list[str]) -> bool:
     return len(leftover) < 40
 
 
+_STOP = {
+    "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with", "is", "are",
+    "this", "that", "it", "as", "by", "be", "will", "can", "must", "should", "from",
+}
+
+
+def _tokens(text: str) -> set[str]:
+    return {
+        t
+        for t in re.findall(r"[a-z0-9][a-z0-9.+#-]*", (text or "").lower())
+        if len(t) > 1 and t not in _STOP
+    }
+
+
+def _token_jaccard(a: str, b: str) -> float:
+    ta, tb = _tokens(a), _tokens(b)
+    if not ta or not tb:
+        return 0.0
+    return float(len(ta & tb) / len(ta | tb))
+
+
+def _max_tfidf_cosine(query: str, docs: list[str]) -> float:
+    if not docs:
+        return 0.0
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+    except Exception:
+        return 0.0
+    try:
+        vec = TfidfVectorizer(min_df=1)
+        mat = vec.fit_transform([query, *docs])
+        sims = cosine_similarity(mat[0:1], mat[1:])[0]
+        return float(np.max(sims)) if len(sims) else 0.0
+    except Exception:
+        return 0.0
+
+
+def _hybrid_requirement_overlap(proposal: str, teacher_chunks: list[str]) -> float:
+    """
+    Max of MiniLM cosine, TF-IDF, and token Jaccard so paraphrased but on-topic
+    proposals are not crushed by embedding-only scores (~0.18 false rejects).
+    """
+    if not teacher_chunks:
+        return 0.0
+    scores: list[float] = []
+    for chunk in teacher_chunks:
+        scores.append(_token_jaccard(proposal, chunk))
+    if USE_REQUIREMENT_HYBRID:
+        scores.append(_max_tfidf_cosine(proposal, teacher_chunks))
+        # Also TF-IDF of proposal vs each chunk individually already covered above.
+    return float(max(scores)) if scores else 0.0
+
+
 def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
     """
     Compare full teacher requirement text to full student proposal text.
@@ -340,10 +399,17 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
 
     combined = max(similarity, section_max_similarity * 0.95)
 
+    # Hybrid lexical/TF-IDF lift — MiniLM alone often under-scores valid paraphrases.
+    hybrid = _hybrid_requirement_overlap(proposal_text, teacher_chunks)
+    if hybrid > combined:
+        reasons.append(f"hybrid_overlap_lift:{hybrid:.3f}")
+    combined = max(combined, hybrid)
+
     # Technology-in-context: lexical cues + local semantic probes (not full-doc only).
     # Full-document probe alone often missed clear lines like "native PHP" / "MySQL via PDO".
     tech_context_score = 1.0
     missing_tech_context: list[str] = []
+    all_tech_lexical_ok = True
     if required_technologies:
         tech_scores = []
         for tech in required_technologies:
@@ -352,6 +418,8 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
             full_score = _cosine(probe_vec, proposal_full_vec)
             local_score = _local_tech_semantic_score(proposal_text, tech)
             lexical_ok = _lexical_tech_context_ok(proposal_text, tech)
+            if not lexical_ok:
+                all_tech_lexical_ok = False
             score = max(full_score, local_score)
             if lexical_ok:
                 # Clear in-context mention → treat as meeting the tech-context bar.
@@ -364,18 +432,33 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
             reasons.append("missing_tech_context:" + ",".join(missing_tech_context))
         else:
             reasons.append("tech_context_clear")
+            # Substantial proposal + clear tech use → do not auto-reject on MiniLM paraphrase gap.
+            if len(proposal_text) >= 120 and all_tech_lexical_ok:
+                if combined < TECH_CLEAR_SCORE_FLOOR:
+                    reasons.append("tech_clear_score_floor")
+                combined = max(combined, TECH_CLEAR_SCORE_FLOOR)
+    else:
+        all_tech_lexical_ok = True
 
     if "conversational_filler" in reasons and combined < REQUIREMENT_PASS_AT:
         combined = min(combined, REQUIREMENT_REJECT_BELOW - 0.01)
         reasons.append("casual_english_not_addressing_requirements")
 
-    if missing_tech_context and combined < REQUIREMENT_PASS_AT:
-        # Weak tech context pulls borderline cases toward reject/review.
+    # Missing tech context: prefer teacher review over hard reject when the write-up is real prose.
+    substantial = len(proposal_text) >= 160 and not _is_keyword_only_shell(
+        proposal_text, required_technologies or []
+    )
+    if missing_tech_context and combined < REQUIREMENT_PASS_AT and not substantial:
         combined = min(combined, (REQUIREMENT_REJECT_BELOW + REQUIREMENT_PASS_AT) / 2)
 
-    if combined < REQUIREMENT_REJECT_BELOW or (
-        missing_tech_context and tech_context_score < TECH_CONTEXT_PASS * 0.85 and combined < REQUIREMENT_PASS_AT
-    ):
+    hard_reject_tech = bool(
+        missing_tech_context
+        and tech_context_score < TECH_CONTEXT_PASS * 0.85
+        and combined < REQUIREMENT_PASS_AT
+        and not substantial
+    )
+
+    if combined < REQUIREMENT_REJECT_BELOW or hard_reject_tech:
         verdict = "reject"
         summary = (
             f"Rejected automatically: the proposal does not meaningfully match the teacher requirements "
@@ -385,13 +468,17 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
         )
         if missing_tech_context:
             summary += f" Missing clear use of: {', '.join(missing_tech_context)}."
-    elif combined < REQUIREMENT_PASS_AT:
+    elif combined < REQUIREMENT_PASS_AT or (
+        missing_tech_context and substantial and combined >= REQUIREMENT_REJECT_BELOW
+    ):
         verdict = "review"
         summary = (
             f"Borderline requirement match (similarity {combined:.2f}). "
             f"The AI is unsure whether the proposal fully meets the teacher requirements — "
             f"a teacher should review this manually."
         )
+        if missing_tech_context:
+            summary += f" Please also make required technologies clearer: {', '.join(missing_tech_context)}."
         reasons.append("borderline_similarity")
     else:
         verdict = "pass"

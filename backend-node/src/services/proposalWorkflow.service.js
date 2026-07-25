@@ -741,7 +741,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     if (finalize && previousSnapshot.status !== 'draft' && unchangedComparedToPrevious) {
       if (previousSnapshot.status === 'requirements_rejected') {
         const err = new Error(
-          'Your updated proposal still does not meet teacher requirements. Add the missing technologies (for example React) in the title, description, or features, then submit again.'
+          'Your updated proposal still does not meet teacher requirements. Change the title, description, or features so they clearly address the assignment (full sentences, required technologies in context), then submit again.'
         );
         err.status = 400;
         throw err;
