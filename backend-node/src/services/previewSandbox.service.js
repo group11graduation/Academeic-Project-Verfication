@@ -695,14 +695,30 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     }
 
     const stillRunning = await dockerOrchestrator.isPreviewContainerRunning(deployResult.containerName);
-    if (stillRunning && deployResult.stack === 'java-spring-react') {
+    if (
+      stillRunning &&
+      (deployResult.stack === 'java-spring-react' || deployResult.stack === 'java-spring-thymeleaf')
+    ) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
+      const thymeleaf = deployResult.stack === 'java-spring-thymeleaf';
       appendLog(
         session,
         'info',
-        'Preview container is still building (npm install + React build + Maven can take 20–30 min on first start). Keep this page open — Open preview will unlock when the UI responds.'
+        thymeleaf
+          ? 'Preview container is still building (Maven can take 10–20 min on first start). Do not click Stop — Open preview unlocks when the app responds on port 8080.'
+          : 'Preview container is still building (npm install + React build + Maven can take 20–30 min on first start). Keep this page open — Open preview will unlock when the UI responds.'
       );
+      const springTail = await dockerOrchestrator
+        .execInPreviewContainer(
+          deployResult.containerName,
+          'tail -n 50 /tmp/preview-spring.log 2>/dev/null || true',
+          { timeoutMs: 15_000 }
+        )
+        .catch(() => '');
+      if (springTail?.trim()) {
+        appendLog(session, 'info', `Maven/Spring log:\n${springTail.trim().slice(-2500)}`);
+      }
       await schedulePreviewTtl(session);
       await session.save();
       return;

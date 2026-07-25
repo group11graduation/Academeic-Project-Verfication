@@ -682,12 +682,17 @@ run_react_frontend() {
 }
 
 wait_for_spring_briefly() {
-  max_wait="${PREVIEW_SPRING_WAIT_SECONDS:-90}"
+  # React+Spring: short wait then start UI. Thymeleaf: long wait (Maven cold start).
+  default_wait=90
+  if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
+    default_wait=1200
+  fi
+  max_wait="${PREVIEW_SPRING_WAIT_SECONDS:-$default_wait}"
   i=0
-  echo "[preview] waiting up to ${max_wait}s for Spring API on :${API_PORT}…"
+  echo "[preview] waiting up to ${max_wait}s for Spring on :${API_PORT} (first Maven build can take 5–15 min)…"
   while [ "$i" -lt "$max_wait" ]; do
     if tcp_port_open "$API_PORT"; then
-      echo "[preview] Spring API is listening on :${API_PORT}"
+      echo "[preview] Spring is listening on :${API_PORT}"
       return 0
     fi
     # If the background Spring/Maven process already exited, diagnose immediately.
@@ -696,10 +701,14 @@ wait_for_spring_briefly() {
       diagnose_spring_startup_failures /tmp/preview-spring.log
       return 1
     fi
-    i=$((i + 3))
-    sleep 3
+    if [ "$i" -gt 0 ] && [ $((i % 30)) -eq 0 ]; then
+      echo "[preview] still packaging/starting… ${i}s / ${max_wait}s — do not stop yet"
+      tail -n 8 /tmp/preview-spring.log 2>/dev/null | sed 's/^/[preview:mvn] /' || true
+    fi
+    i=$((i + 5))
+    sleep 5
   done
-  echo "[preview] WARN: Spring API not listening yet after ${max_wait}s — UI will start; API may still be compiling. Check /tmp/preview-spring.log"
+  echo "[preview] WARN: Spring not listening yet after ${max_wait}s — check /tmp/preview-spring.log"
   diagnose_spring_startup_failures /tmp/preview-spring.log
   return 1
 }
@@ -713,29 +722,50 @@ if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
   LISTEN="tcp://0.0.0.0:${PORT}"
   SPRING_SUBDIR="${SPRING_SUBDIR:-.}"
   echo "[preview] Spring+Thymeleaf mode spring=$SPRING_SUBDIR port=${PORT}"
+  echo "[preview] First start downloads Maven deps — usually 5–15 minutes. Keep this preview running."
   release_port_holder
   cd "$ROOT/$SPRING_SUBDIR" 2>/dev/null || cd "$ROOT" || exit 1
   export SERVER_PORT="$API_PORT"
   export SPRING_PROFILES_ACTIVE=preview
-  # Reuse the same async Spring starter, then wait and keep the process in foreground via wait.
   start_spring_backend_async || {
     echo "[preview] Spring start failed — check /tmp/preview-spring.log"
     diagnose_spring_startup_failures /tmp/preview-spring.log
     serve_fallback_forever
   }
-  wait_for_spring_briefly || true
-  # Keep container alive while Spring runs in background; if it dies, show fallback.
+  if wait_for_spring_briefly; then
+    echo "[preview] Thymeleaf app is UP on :${API_PORT} — open the preview URL"
+  else
+    echo "[preview] Spring did not open :${API_PORT} in time — showing last build log"
+    diagnose_spring_startup_failures /tmp/preview-spring.log
+  fi
+  # Keep container alive while Maven/Spring runs; poll so we do not exit early.
   while true; do
-    if [ -n "${SPRING_BG_PID:-}" ] && kill -0 "$SPRING_BG_PID" 2>/dev/null; then
-      if tcp_port_open "$API_PORT"; then
-        echo "[preview] Thymeleaf app listening on :${API_PORT}"
-      fi
-      wait "$SPRING_BG_PID" || true
-      echo "[preview] Spring process exited — see /tmp/preview-spring.log"
-      diagnose_spring_startup_failures /tmp/preview-spring.log
+    if [ -z "${SPRING_BG_PID:-}" ]; then
+      echo "[preview] no Spring PID — falling back"
       break
     fi
-    sleep 5
+    if ! kill -0 "$SPRING_BG_PID" 2>/dev/null; then
+      # Parent shell may have exited after exec; check if something still listens.
+      if tcp_port_open "$API_PORT"; then
+        echo "[preview] Spring port still open — keeping preview alive"
+        while tcp_port_open "$API_PORT"; do
+          sleep 20
+        done
+        echo "[preview] Spring port closed"
+      else
+        echo "[preview] Spring/Maven process exited — see /tmp/preview-spring.log"
+        diagnose_spring_startup_failures /tmp/preview-spring.log
+      fi
+      break
+    fi
+    if tcp_port_open "$API_PORT"; then
+      : # healthy
+    else
+      # Still compiling — drip progress into docker logs for the teacher UI.
+      echo "[preview] Maven/Spring still working (PID ${SPRING_BG_PID})…"
+      tail -n 3 /tmp/preview-spring.log 2>/dev/null | sed 's/^/[preview:mvn] /' || true
+    fi
+    sleep 15
   done
   serve_fallback_forever
 fi

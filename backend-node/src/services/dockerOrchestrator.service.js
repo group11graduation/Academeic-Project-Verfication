@@ -1478,6 +1478,7 @@ async function runPreviewContainer({
     args.push('-e', 'PORT=8080');
     args.push('-e', 'API_PORT=8080');
     args.push('-e', 'SERVER_PORT=8080');
+    args.push('-e', 'PREVIEW_SPRING_WAIT_SECONDS=1200');
     args.push('-e', `PREVIEW_PUBLIC_UI_URL=${publicUiUrl}`);
     args.push('-e', `SPRING_SUBDIR=${springOnlyRoot.springSubdir}`);
     args.push('-e', 'PREVIEW_THYMELEAF_MODE=1');
@@ -2634,6 +2635,17 @@ export async function waitForPreviewReady({
       apiReady: false,
       sawPortOpen,
       sawApiPortOpen,
+      logs: lastLogTail,
+    };
+  }
+
+  // Thymeleaf: if the app port eventually opened, treat as ready even if HTTP probe was picky.
+  if (stack === 'java-spring-thymeleaf' && sawPortOpen) {
+    return {
+      ready: true,
+      reason: 'tcp_spring_thymeleaf',
+      apiReady: true,
+      sawPortOpen,
       logs: lastLogTail,
     };
   }
