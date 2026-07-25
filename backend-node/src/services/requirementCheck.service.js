@@ -26,6 +26,7 @@ const TECH_ALIASES = [
     key: 'spring boot',
     aliases: ['spring boot', 'springboot', 'spring-boot', 'spring framework', 'springframework'],
   },
+  { key: 'thymeleaf', aliases: ['thymeleaf'] },
   { key: 'django', aliases: ['django'] },
 ];
 
@@ -35,8 +36,9 @@ const TECH_COMPATIBILITY = {
   php: ['php', 'laravel'],
   mysql: ['mysql'],
   laravel: ['php', 'laravel'],
-  java: ['java', 'spring boot'],
-  'spring boot': ['java', 'spring boot'],
+  java: ['java', 'spring boot', 'thymeleaf'],
+  'spring boot': ['java', 'spring boot', 'thymeleaf'],
+  thymeleaf: ['java', 'spring boot', 'thymeleaf'],
   python: ['python', 'django'],
   django: ['python', 'django'],
   react: ['react', 'node.js'],
@@ -52,6 +54,7 @@ const PRIMARY_STACK_TECHS = new Set([
   'laravel',
   'java',
   'spring boot',
+  'thymeleaf',
   'python',
   'django',
   'react',
@@ -59,8 +62,45 @@ const PRIMARY_STACK_TECHS = new Set([
   'flutter',
 ]);
 
+/**
+ * OR-alternative groups from teacher wording like "PostgreSQL or MySQL".
+ * Satisfying any member covers the whole group.
+ */
+const TECH_OR_GROUPS = [
+  ['mysql', 'postgresql'],
+  ['java', 'spring boot', 'thymeleaf'],
+  ['php', 'laravel'],
+  ['python', 'django'],
+];
+
 function primaryStackTechs(techList) {
   return canonicalizeTechList(techList).filter((t) => PRIMARY_STACK_TECHS.has(t));
+}
+
+/** Partition required techs into OR-groups (each group must be covered by ≥1 member). */
+function requiredTechGroups(techList) {
+  const required = new Set(canonicalizeTechList(techList));
+  if (!required.size) return [];
+
+  const groups = [];
+  const consumed = new Set();
+
+  for (const group of TECH_OR_GROUPS) {
+    const hit = group.filter((t) => required.has(t));
+    if (hit.length) {
+      groups.push(hit);
+      hit.forEach((t) => consumed.add(t));
+    }
+  }
+
+  for (const tech of required) {
+    if (!consumed.has(tech)) groups.push([tech]);
+  }
+  return groups;
+}
+
+function formatTechGroup(group) {
+  return group.length > 1 ? group.join(' or ') : group[0];
 }
 
 function escapeRegExp(value) {
@@ -160,6 +200,18 @@ export function resolveRequiredTechnologiesForProposal(assignment, block) {
   );
   if (fromTeacherText.length > 0) {
     return fromTeacherText;
+  }
+
+  // Requirements file was uploaded but could not be read — do NOT invent a stack from the
+  // course subject (that falsely rejects Spring Boot proposals on a PHP-named subject, etc.).
+  const fileRef = String(
+    block?.assignmentFile ||
+      assignment?.assignmentFile ||
+      block?.requirementFile ||
+      ''
+  ).trim();
+  if (fileRef && !fileText) {
+    return [];
   }
 
   return inferRequiredTechFromSubject(assignment?.subject);
@@ -627,12 +679,22 @@ export function evaluateRequirementBlock(
     : [];
   const noDisallowedTechPassed = disallowedMentionedTech.length === 0;
 
-  // Must cover the required primary stack (Spring Boot / Java / PHP / …), not only a shared DB.
-  const stackToCover = requiredPrimary.length ? requiredPrimary : requiredStack;
-  const missingRequiredStack =
-    stackToCover.length > 0 && !proposalCoversAllowedTech(proposalText, stackToCover)
-      ? [...stackToCover]
-      : [];
+  // Cover each required OR-group (e.g. PostgreSQL or MySQL; Java or Spring Boot).
+  // Primary app stacks are checked first; DB groups only when no primary stack was stated.
+  const stackForGroups = requiredPrimary.length ? requiredPrimary : requiredStack;
+  const requiredGroups = requiredTechGroups(stackForGroups);
+  // Also require DB group when teacher listed a DB alongside a primary stack.
+  const dbGroups = requiredTechGroups(requiredStack).filter((g) =>
+    g.some((t) => t === 'mysql' || t === 'postgresql' || t === 'mongodb')
+  );
+  const groupsToCover = [
+    ...requiredGroups,
+    ...dbGroups.filter(
+      (dg) => !requiredGroups.some((rg) => rg.join('|') === dg.join('|'))
+    ),
+  ];
+  const missingGroups = groupsToCover.filter((g) => !proposalCoversAllowedTech(proposalText, g));
+  const missingRequiredStack = missingGroups.map((g) => formatTechGroup(g));
 
   // Soft signals for UI.
   const matchedAllowedTech = requiredStack.filter((t) =>
@@ -682,7 +744,7 @@ export function evaluateRequirementBlock(
   const hasUsableRequirementContent =
     Boolean(requirementText) ||
     Boolean(extractedFileText) ||
-    hasRequiredStack ||
+    allowedTechnologies.length > 0 ||
     requiredKeywords.length > 0;
   const needsTeacherFileReview =
     assignmentFileUnreadable &&
@@ -732,21 +794,43 @@ export function evaluateRequirementBlock(
 /**
  * Merge MiniLM semantic result into the requirement check object used by the workflow.
  * verdict: reject | review | pass
- * Policy: any mismatch / borderline ("review") is a hard reject — only clear "pass" continues.
+ * Policy: mismatch rejects — but if the proposal already covers every required tech
+ * OR-group from the teacher file, do not reject on AI paraphrase / alternate-DB noise.
  */
 export function applySemanticRequirementResult(structuralCheck, semanticResult) {
   const verdict = String(semanticResult?.verdict || 'reject').toLowerCase();
   const similarity = Number(semanticResult?.similarity ?? 0);
   let summary = String(semanticResult?.summary || '').trim() || structuralCheck.summary;
 
-  if (verdict === 'pass') {
+  const required = canonicalizeTechList(
+    structuralCheck.implicitRequiredTerms ||
+      structuralCheck.semanticCorpus?.required_technologies ||
+      []
+  );
+  const matched = new Set(
+    canonicalizeTechList([
+      ...(structuralCheck.matchedAllowedTech || []),
+      ...(structuralCheck.disallowedMentionedTech ? [] : []),
+    ])
+  );
+  // Also treat expanded matches from structural cover.
+  const groups = requiredTechGroups(required);
+  const stackCovered =
+    groups.length > 0 &&
+    groups.every((g) => g.some((t) => matched.has(t) || expandTechFamily([t]).some((x) => matched.has(x))));
+
+  if (verdict === 'pass' || (stackCovered && similarity >= 0.28 && structuralCheck.passed !== false)) {
+    const passSummary =
+      verdict === 'pass'
+        ? summary
+        : `Proposal matches the teacher requirements stack (Java/Spring Boot, relational DB, etc.) with similarity ${similarity.toFixed(2)}.`;
     return {
       ...structuralCheck,
       passed: true,
       needsReview: false,
       semanticVerdict: 'pass',
       semanticSimilarity: similarity,
-      summary,
+      summary: passSummary,
       matchedAllowedTech: structuralCheck.matchedAllowedTech,
     };
   }

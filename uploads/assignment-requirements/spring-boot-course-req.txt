@@ -1,0 +1,28 @@
+Course Project: Spring Boot System
+Project Overview
+Students are required to design and develop a complete database-driven web application using Java and Spring Boot.
+Each student must select an approved system and independently determine the users, entities, database tables, pages, and features required by that system.
+The application must demonstrate professional separation between the presentation layer, business logic layer, and data persistence layer.
+The final system must include secure login, an administrator section, another user section, CRUD operations, database relationships, validation, dashboards, search functionality, and role-based access control.
+Core Technical Requirements
+1. Presentation Layer — Thymeleaf
+The application interface must be responsive and dynamically connected to the Spring Boot backend.
+Template Engine: Thymeleaf.
+Frontend Technologies: HTML5, CSS3, Bootstrap, and JavaScript.
+Pages: Home, login, administrator dashboard, user dashboard, profile, record list, add form, edit form, details page, and access-denied page.
+Forms: Forms must use Thymeleaf binding and display validation errors clearly.
+2. Business Logic Layer — Spring Boot
+Language: Java 17 or Java 21.
+Framework: Spring Boot 3.x.
+Build Tool: Maven.
+Web Framework: Spring MVC.
+Architecture: Controller, Service, Repository, Entity, Security, and Exception layers.
+Authentication: Spring Security with encrypted passwords using BCrypt.
+Authorization: Role-based access control for administrators and standard users.
+CRUD Operations: At least two major entities must support Create, Read, Update, and Delete operations.
+Validation: Use Jakarta validation annotations.
+Database: PostgreSQL or MySQL.
+Persistence Framework: Spring Data JPA and Hibernate.
+Repository: Repositories must extend JpaRepository.
+Entities: The project must contain at least five related entities.
+Relationships: Use suitable JPA relationships such as OneToMany, ManyToOne, and OneToOne.

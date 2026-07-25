@@ -145,13 +145,16 @@ function DetailRow({ label, value }) {
 function getProposalRequirementIssue(proposal) {
     const liveReview = proposal?.requirementReview || null;
     const storedFailed = proposal?.requirementCheckPassed === false;
-    const statusFailed =
+    const statusRejected =
         proposal?.status === 'requirements_rejected' ||
-        proposal?.displayStatus === 'requirements_rejected' ||
+        proposal?.displayStatus === 'requirements_rejected';
+    const needsReview =
         proposal?.status === 'requirements_review' ||
-        proposal?.displayStatus === 'requirements_review';
+        proposal?.displayStatus === 'requirements_review' ||
+        proposal?.requirementNeedsTeacherReview === true;
     const liveFailed = liveReview?.passed === false;
-    const failed = statusFailed || storedFailed || liveFailed;
+    // Show red "not met" only for real rejects — not for teacher-review routing.
+    const failed = statusRejected || (!needsReview && (storedFailed || liveFailed));
     const summary =
         proposal?.requirementCheckSummary ||
         liveReview?.summary ||
@@ -162,9 +165,7 @@ function getProposalRequirementIssue(proposal) {
             : null;
     return {
         failed,
-        needsReview:
-            proposal?.status === 'requirements_review' ||
-            proposal?.requirementNeedsTeacherReview === true,
+        needsReview,
         isPrimaryIssue: failed && proposal?.status !== 'ai_rejected_same_semester',
         summary,
         similarity,

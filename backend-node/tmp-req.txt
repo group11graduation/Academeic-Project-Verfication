@@ -1,0 +1,5 @@
+﻿Course Project: Spring Boot System
+Students are required to design and develop a complete database-driven web application using Java and Spring Boot.
+Presentation Layer — Thymeleaf. Template Engine: Thymeleaf. Frontend Technologies: HTML5, CSS3, Bootstrap, and JavaScript.
+Business Logic Layer — Spring Boot. Language: Java 17 or Java 21. Framework: Spring Boot 3.x. Build Tool: Maven. Spring MVC. Spring Security with BCrypt. Role-based access control. Jakarta validation. JUnit, Mockito, MockMvc.
+Data Persistence Layer. Database: PostgreSQL or MySQL. Spring Data JPA and Hibernate. JpaRepository. Entities with OneToMany ManyToOne OneToOne.

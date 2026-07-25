@@ -70,6 +70,7 @@ _TECH_PROBES = {
     "python": "This project is implemented in Python.",
     "laravel": "This project uses the Laravel PHP framework.",
     "spring boot": "This project uses Spring Boot for the Java backend.",
+    "thymeleaf": "This project renders server-side HTML pages with the Thymeleaf template engine.",
     "django": "This project uses the Django Python framework.",
 }
 
@@ -86,6 +87,7 @@ _TECH_ALIASES: dict[str, list[str]] = {
     "python": [r"\bpython\b", r"\bdjango\b", r"\bflask\b"],
     "laravel": [r"\blaravel\b", r"\bphp\b"],
     "spring boot": [r"\bspring\s*boot\b", r"\bspring\b"],
+    "thymeleaf": [r"\bthymeleaf\b"],
     "django": [r"\bdjango\b", r"\bpython\b"],
 }
 
@@ -100,6 +102,35 @@ _TECH_CONTEXT_CUES = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+
+# Teacher wording like "PostgreSQL or MySQL" / "Java / Spring Boot" → any one satisfies.
+_TECH_OR_GROUPS: list[frozenset[str]] = [
+    frozenset({"mysql", "postgresql"}),
+    frozenset({"java", "spring boot", "thymeleaf"}),
+    frozenset({"php", "laravel"}),
+    frozenset({"python", "django"}),
+]
+
+
+def _required_tech_groups(required_technologies: list[str]) -> list[list[str]]:
+    required = {str(t).strip().lower() for t in (required_technologies or []) if str(t).strip()}
+    if not required:
+        return []
+    groups: list[list[str]] = []
+    consumed: set[str] = set()
+    for or_group in _TECH_OR_GROUPS:
+        hit = sorted(t for t in or_group if t in required)
+        if hit:
+            groups.append(hit)
+            consumed.update(hit)
+    for tech in sorted(required):
+        if tech not in consumed:
+            groups.append([tech])
+    return groups
+
+
+def _format_tech_group(group: list[str]) -> str:
+    return " or ".join(group) if len(group) > 1 else (group[0] if group else "")
 
 
 def _tech_alias_patterns(tech: str) -> list[re.Pattern[str]]:
@@ -408,9 +439,11 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
 
     # Technology-in-context: lexical cues + local semantic probes (not full-doc only).
     # Full-document probe alone often missed clear lines like "native PHP" / "MySQL via PDO".
+    # OR-groups: "PostgreSQL or MySQL" / "Java or Spring Boot" — any member is enough.
     tech_context_score = 1.0
     missing_tech_context: list[str] = []
     all_tech_lexical_ok = True
+    tech_ok: dict[str, bool] = {}
     if required_technologies:
         tech_scores = []
         for tech in required_technologies:
@@ -419,22 +452,30 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
             full_score = _cosine(probe_vec, proposal_full_vec)
             local_score = _local_tech_semantic_score(proposal_text, tech)
             lexical_ok = _lexical_tech_context_ok(proposal_text, tech)
-            if not lexical_ok:
-                all_tech_lexical_ok = False
             score = max(full_score, local_score)
             if lexical_ok:
                 # Clear in-context mention → treat as meeting the tech-context bar.
                 score = max(score, TECH_CONTEXT_PASS)
+            ok = score >= TECH_CONTEXT_PASS or lexical_ok
+            tech_ok[tech] = ok
             tech_scores.append(score)
-            if score < TECH_CONTEXT_PASS:
-                missing_tech_context.append(tech)
+            if not ok:
+                all_tech_lexical_ok = False
         tech_context_score = float(min(tech_scores)) if tech_scores else 1.0
+
+        for group in _required_tech_groups(list(required_technologies)):
+            if any(tech_ok.get(t, False) for t in group):
+                continue
+            missing_tech_context.append(_format_tech_group(group))
+
         if missing_tech_context:
             reasons.append("missing_tech_context:" + ",".join(missing_tech_context))
+            all_tech_lexical_ok = False
         else:
             reasons.append("tech_context_clear")
-            # Substantial proposal + clear tech use → do not auto-reject on MiniLM paraphrase gap.
-            if len(proposal_text) >= 120 and all_tech_lexical_ok:
+            all_tech_lexical_ok = True
+            # Substantial proposal + clear required stack → do not auto-reject on MiniLM paraphrase gap.
+            if len(proposal_text) >= 120:
                 if combined < TECH_CLEAR_SCORE_FLOOR:
                     reasons.append("tech_clear_score_floor")
                 combined = max(combined, TECH_CLEAR_SCORE_FLOOR)
@@ -445,40 +486,28 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
         combined = min(combined, REQUIREMENT_REJECT_BELOW - 0.01)
         reasons.append("casual_english_not_addressing_requirements")
 
-    # Policy: any requirements mismatch (low similarity, missing tech context, borderline) = hard reject.
-    # Only a clear pass (high similarity + required tech in context) continues the workflow.
+    # Policy:
+    # - Missing a required tech *family* (e.g. React, or Spring Boot/Java) → reject
+    # - Required stack clearly present + real write-up → pass (even if MiniLM is a bit low)
+    # - Otherwise use similarity thresholds
     substantial = len(proposal_text) >= 160 and not _is_keyword_only_shell(
         proposal_text, required_technologies or []
     )
     if missing_tech_context and combined < REQUIREMENT_PASS_AT and not substantial:
         combined = min(combined, REQUIREMENT_REJECT_BELOW - 0.01)
 
-    hard_reject_tech = bool(missing_tech_context)
+    stack_clear = bool(required_technologies) and not missing_tech_context and all_tech_lexical_ok
+    force_pass_stack = stack_clear and substantial and combined >= TECH_CLEAR_SCORE_FLOOR
 
-    if (
-        combined < REQUIREMENT_PASS_AT
-        or hard_reject_tech
-        or combined < REQUIREMENT_REJECT_BELOW
-    ):
+    if missing_tech_context and not force_pass_stack:
         verdict = "reject"
-        if combined < REQUIREMENT_REJECT_BELOW or (hard_reject_tech and combined < REQUIREMENT_PASS_AT):
-            summary = (
-                f"Rejected automatically: the proposal does not meaningfully match the teacher requirements "
-                f"(similarity {combined:.2f}). Casual English, unrelated text, or only naming technologies "
-                f"without explaining the project is not accepted. Rewrite the proposal so it clearly addresses "
-                f"the assignment requirements in your own words."
-            )
-        else:
-            # Was "borderline / review" — now always reject on mismatch.
-            summary = (
-                f"Rejected automatically: requirement match is insufficient (similarity {combined:.2f}). "
-                f"The proposal must clearly and fully meet the teacher requirements."
-            )
-            reasons.append("insufficient_similarity")
-        if missing_tech_context:
-            summary += f" Missing clear use of: {', '.join(missing_tech_context)}."
-            reasons.append("missing_tech_context_reject")
-    else:
+        summary = (
+            f"Rejected automatically: the proposal does not clearly use the required technology stack "
+            f"(similarity {combined:.2f}). Missing clear use of: {', '.join(missing_tech_context)}. "
+            f"Rewrite the proposal so it names and explains each required technology from the teacher file."
+        )
+        reasons.append("missing_tech_context_reject")
+    elif force_pass_stack or combined >= REQUIREMENT_PASS_AT:
         verdict = "pass"
         summary = (
             f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f})."
@@ -488,6 +517,22 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
                 f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f}) "
                 f"and clearly describes required technologies: {', '.join(required_technologies)}."
             )
+    elif combined < REQUIREMENT_REJECT_BELOW:
+        verdict = "reject"
+        summary = (
+            f"Rejected automatically: the proposal does not meaningfully match the teacher requirements "
+            f"(similarity {combined:.2f}). Casual English, unrelated text, or only naming technologies "
+            f"without explaining the project is not accepted. Rewrite the proposal so it clearly addresses "
+            f"the assignment requirements in your own words."
+        )
+    else:
+        # Borderline similarity but stack not clearly evidenced → reject
+        verdict = "reject"
+        summary = (
+            f"Rejected automatically: requirement match is insufficient (similarity {combined:.2f}). "
+            f"The proposal must clearly and fully meet the teacher requirements."
+        )
+        reasons.append("insufficient_similarity")
 
     return {
         "similarity": round(float(combined), 4),
