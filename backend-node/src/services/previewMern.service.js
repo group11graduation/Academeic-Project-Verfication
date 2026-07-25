@@ -488,7 +488,7 @@ export async function patchBackendForPreview(
 
   const previewEnv = [
     '# ScholarVerify preview — do not use localhost Mongo inside Docker',
-    'PORT=5000',
+    'PORT=5050',
     'HOST=0.0.0.0',
     `MONGO_URI=${mongoUri}`,
     `MONGODB_URI=${mongoUri}`,
@@ -1039,7 +1039,7 @@ function installPreviewLoginAliases(app) {
 
     if (bodyMatchesPreviewAdmin(body)) reseedPreviewAdmin();
 
-    const port = Number(process.env.PORT || process.env.API_PORT || 5000);
+    const port = Number(process.env.API_PORT || process.env.PORT || 5050);
     const payload = JSON.stringify(body);
     const headers = {
       'Content-Type': 'application/json',

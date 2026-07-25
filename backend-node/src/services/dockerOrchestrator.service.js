@@ -1424,8 +1424,8 @@ async function runPreviewContainer({
   } else if (apiHostPort) {
     const publicApiUrl = buildPublicPreviewOrigin(apiHostPort);
     const publicUiUrl = buildPublicPreviewOrigin(hostPort);
-    args.push('-p', `${apiHostPort}:5000`);
-    args.push('-e', 'API_PORT=5000');
+    args.push('-p', `${apiHostPort}:5050`);
+    args.push('-e', 'API_PORT=5050');
     args.push('-e', `PREVIEW_API_HOST_PORT=${apiHostPort}`);
     args.push('-e', `PREVIEW_UI_HOST_PORT=${hostPort}`);
     args.push('-e', `PREVIEW_PUBLIC_API_URL=${publicApiUrl}`);

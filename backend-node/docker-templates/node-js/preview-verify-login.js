@@ -8,7 +8,7 @@ const email = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL 
   .toLowerCase()
   .trim();
 const password = String(process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!');
-const port = Number(process.env.API_PORT || process.env.PORT || 5000);
+const port = Number(process.env.API_PORT || process.env.PORT || 5050);
 
 const paths = [
   '/api/users/login',

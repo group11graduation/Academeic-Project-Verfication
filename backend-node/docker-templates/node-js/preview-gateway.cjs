@@ -11,8 +11,8 @@ const path = require('path');
 const { URL } = require('url');
 
 const STATIC_ROOT = path.resolve(process.argv[2] || process.cwd());
-const LISTEN_PORT = Number(process.env.PORT || 3000);
-const API_PORT = Number(process.env.API_PORT || 5000);
+const LISTEN_PORT = Number(process.env.UI_PORT || process.env.PORT || 3000);
+const API_PORT = Number(process.env.API_PORT || 5050);
 const API_HOST = process.env.PREVIEW_API_UPSTREAM_HOST || '127.0.0.1';
 
 const PROXY_PREFIXES = ['/api', '/auth', '/users', '/user', '/socket.io', '/uploads', '/static/uploads'];
@@ -207,6 +207,18 @@ const server = http.createServer((req, res) => {
 
   if (shouldProxy(pathname)) return proxy(req, res);
   return serveStatic(req, res);
+});
+
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(
+      `[preview] ERROR: gateway port ${LISTEN_PORT} already in use — refusing duplicate listen ` +
+        `(backend must stay on API_PORT=${API_PORT})`
+    );
+    process.exit(2);
+  }
+  console.error('[preview] gateway listen error:', err && err.message ? err.message : err);
+  process.exit(1);
 });
 
 server.listen(LISTEN_PORT, '0.0.0.0', () => {

@@ -1,9 +1,17 @@
 #!/bin/sh
 set +e
+# UI / gateway listen port (published as the teacher preview URL).
 PORT="${PORT:-3000}"
+UI_PORT="${PORT}"
 ROOT="/app"
 
+# Student Express listens on an INTERNAL port only. The gateway is the only process
+# that binds UI_PORT and reverse-proxies /api → API_PORT.
+API_PORT="${API_PORT:-5050}"
+
 export PORT
+export UI_PORT
+export API_PORT
 export HOST=0.0.0.0
 export BIND_HOST=0.0.0.0
 export BIND_ADDRESS=0.0.0.0
@@ -15,11 +23,10 @@ export CI=false
 export DISABLE_ESLINT_PLUGIN=true
 export GENERATE_SOURCEMAP=false
 
-LISTEN="tcp://0.0.0.0:${PORT}"
+LISTEN="tcp://0.0.0.0:${UI_PORT}"
 HOLDER_PID=""
-API_PORT="${API_PORT:-5000}"
 
-# Browser-facing API base. With the same-origin gateway, the UI port proxies /api → :5000,
+# Browser-facing API base. With the same-origin gateway, the UI port proxies /api → internal API_PORT,
 # so the SPA must NOT call the separate host API port (that caused "Please wait…" hangs).
 preview_api_bundle_url() {
   if [ "$PREVIEW_MERN_MODE" = "1" ] || [ "$PREVIEW_FLUTTER_MODE" = "1" ]; then
@@ -60,8 +67,8 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const STATIC_ROOT = path.resolve(process.argv[2] || process.cwd());
-const LISTEN_PORT = Number(process.env.PORT || 3000);
-const API_PORT = Number(process.env.API_PORT || 5000);
+const LISTEN_PORT = Number(process.env.UI_PORT || process.env.PORT || 3000);
+const API_PORT = Number(process.env.API_PORT || 5050);
 const API_HOST = process.env.PREVIEW_API_UPSTREAM_HOST || '127.0.0.1';
 const PROXY_PREFIXES = ['/api', '/auth', '/users', '/user', '/socket.io', '/uploads', '/static/uploads'];
 const MIME = { '.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.ico':'image/x-icon','.map':'application/json' };
@@ -140,7 +147,7 @@ function serveStatic(req, res) {
     });
   });
 }
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   if (String(req.method || '').toUpperCase() === 'OPTIONS') {
     return send(res, 204, '', {
       'Access-Control-Allow-Origin': req.headers.origin || '*',
@@ -153,7 +160,16 @@ http.createServer((req, res) => {
   try { pathname = new URL(req.url || '/', 'http://local').pathname || '/'; } catch (_e) {}
   if (shouldProxy(pathname)) return proxy(req, res);
   return serveStatic(req, res);
-}).listen(LISTEN_PORT, '0.0.0.0', () => {
+});
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error('[preview] ERROR: gateway port ' + LISTEN_PORT + ' already in use — refusing duplicate listen (backend must stay on API_PORT=' + API_PORT + ')');
+    process.exit(2);
+  }
+  console.error('[preview] gateway listen error:', err && err.message ? err.message : err);
+  process.exit(1);
+});
+server.listen(LISTEN_PORT, '0.0.0.0', () => {
   console.log('[preview] gateway listening on 0.0.0.0:' + LISTEN_PORT + ' static=' + STATIC_ROOT + ' api=http://' + API_HOST + ':' + API_PORT);
 });
 SV_GATEWAY_EOF
@@ -166,11 +182,18 @@ run_serve() {
   dir="$1"
   listen="$2"
   cd "$dir" || exit 1
+  # Never let a prior backend export leave PORT=API_PORT — gateway must own UI_PORT only.
+  export PORT="$UI_PORT"
   if [ -n "$API_PORT" ]; then
     # Always refresh gateway (image may be stale; writes stay on container rootfs).
     ensure_preview_gateway_file /preview-gateway.cjs
     if [ -f /preview-gateway.cjs ]; then
-      echo "[preview] starting same-origin gateway (UI :${PORT} → API :${API_PORT})"
+      if tcp_port_open "$UI_PORT"; then
+        echo "[preview] ERROR: UI port ${UI_PORT} already in use before gateway start — skipping duplicate listen (backend should be on :${API_PORT})"
+        echo "[preview] holding process alive without rebinding :${UI_PORT}"
+        while true; do sleep 3600; done
+      fi
+      echo "[preview] starting same-origin gateway (UI :${UI_PORT} → API :${API_PORT})"
       exec node /preview-gateway.cjs "$(pwd)"
     fi
   fi
@@ -183,7 +206,7 @@ run_serve() {
 }
 
 hold_port_with_fallback() {
-  echo "[preview] holding :${PORT} with placeholder page (install may take several minutes)"
+  echo "[preview] holding :${UI_PORT} with placeholder page (install may take several minutes)"
   start_serve_background /preview-fallback "${LISTEN}"
   sleep 2
 }
@@ -361,7 +384,9 @@ write_mern_backend_env() {
     grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
   fi
   rm -f .env.preview-runtime .env.preview-backup .env.student-original .env.student-filtered
-  export PORT="$API_PORT"
+  # Critical: do NOT export PORT=$API_PORT into this shell — that made the gateway
+  # collide with Express (EADDRINUSE on :5000). Keep shell PORT = UI_PORT for gateway.
+  export PORT="$UI_PORT"
   export HOST=0.0.0.0
   export MONGO_URI="$mongo"
   export MONGODB_URI="$mongo"
@@ -444,24 +469,26 @@ start_mern_backend() {
     run_preview_admin_seed "pre-start admin seed" || true
   fi
 
-  echo "[preview] starting backend on 0.0.0.0:${API_PORT}"
+  echo "[preview] starting backend on 0.0.0.0:${API_PORT} (internal; gateway owns :${UI_PORT})"
+  # Force API_PORT into the child only — shell PORT stays UI_PORT for the gateway.
   if grep -q '"start"' package.json 2>/dev/null; then
-    npm start >> /tmp/preview-backend.log 2>&1 &
+    env PORT="$API_PORT" HOST=0.0.0.0 npm start >> /tmp/preview-backend.log 2>&1 &
   elif grep -q '"dev"' package.json 2>/dev/null; then
-    npm run dev >> /tmp/preview-backend.log 2>&1 &
+    env PORT="$API_PORT" HOST=0.0.0.0 npm run dev >> /tmp/preview-backend.log 2>&1 &
   elif [ -f server.js ]; then
-    node server.js >> /tmp/preview-backend.log 2>&1 &
+    env PORT="$API_PORT" HOST=0.0.0.0 node server.js >> /tmp/preview-backend.log 2>&1 &
   elif [ -f index.js ]; then
-    node index.js >> /tmp/preview-backend.log 2>&1 &
+    env PORT="$API_PORT" HOST=0.0.0.0 node index.js >> /tmp/preview-backend.log 2>&1 &
   elif [ -f src/index.js ]; then
-    node src/index.js >> /tmp/preview-backend.log 2>&1 &
+    env PORT="$API_PORT" HOST=0.0.0.0 node src/index.js >> /tmp/preview-backend.log 2>&1 &
   elif [ -f src/server.js ]; then
-    node src/server.js >> /tmp/preview-backend.log 2>&1 &
+    env PORT="$API_PORT" HOST=0.0.0.0 node src/server.js >> /tmp/preview-backend.log 2>&1 &
   else
     echo "[preview] no backend start script found" >> /tmp/preview-backend.log
     return 1
   fi
 
+  export PORT="$UI_PORT"
   wait_for_tcp_port "$API_PORT" "student API" 240
 
   # Many student apps seed or reset users on startup — seed again after API is listening.
@@ -655,7 +682,7 @@ else
 fi
 
 echo "[preview] Node app directory: $(pwd)"
-echo "[preview] PORT=${PORT}"
+echo "[preview] PORT=${UI_PORT} (UI/gateway) API_PORT=${API_PORT} (internal Express)"
 
 write_preview_env_files
 
