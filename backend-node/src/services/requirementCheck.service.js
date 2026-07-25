@@ -22,14 +22,19 @@ const TECH_ALIASES = [
   { key: 'java', aliases: ['java'] },
   { key: 'python', aliases: ['python'] },
   { key: 'laravel', aliases: ['laravel'] },
-  { key: 'spring boot', aliases: ['spring boot'] },
+  {
+    key: 'spring boot',
+    aliases: ['spring boot', 'springboot', 'spring-boot', 'spring framework', 'springframework'],
+  },
   { key: 'django', aliases: ['django'] },
 ];
 
 const TECH_COMPATIBILITY = {
-  php: ['php', 'mysql', 'laravel'],
-  mysql: ['php', 'mysql', 'laravel'],
-  laravel: ['php', 'mysql', 'laravel'],
+  // Language/framework families only — shared DBs (mysql/postgres/mongo) must NOT
+  // imply a language, or "Spring Boot + MySQL" would wrongly allow PHP proposals.
+  php: ['php', 'laravel'],
+  mysql: ['mysql'],
+  laravel: ['php', 'laravel'],
   java: ['java', 'spring boot'],
   'spring boot': ['java', 'spring boot'],
   python: ['python', 'django'],
@@ -40,6 +45,23 @@ const TECH_COMPATIBILITY = {
   postgresql: ['postgresql'],
   mongodb: ['mongodb'],
 };
+
+/** App languages / frameworks that define the assignment stack (not shared databases). */
+const PRIMARY_STACK_TECHS = new Set([
+  'php',
+  'laravel',
+  'java',
+  'spring boot',
+  'python',
+  'django',
+  'react',
+  'node.js',
+  'flutter',
+]);
+
+function primaryStackTechs(techList) {
+  return canonicalizeTechList(techList).filter((t) => PRIMARY_STACK_TECHS.has(t));
+}
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -120,17 +142,22 @@ export function inferRequiredTechFromAssignmentContext(assignment) {
   return inferRequiredTechFromSubject(assignment?.subject);
 }
 
-/** Teacher-stated stack first; subject inference only when nothing else is specified. */
+/** Teacher-stated stack first; then requirement file / text; subject inference last. */
 export function resolveRequiredTechnologiesForProposal(assignment, block) {
   const allowedTechnologies = toList(block?.allowedTechnologies);
   const requirementText = String(block?.requirementText || '').trim();
   const description = String(block?.description || assignment?.description || '').trim();
+  const fileText = String(
+    block?._extractedFileText || assignment?._extractedAssignmentFileText || ''
+  ).trim();
 
   if (allowedTechnologies.length > 0) {
     return canonicalizeTechList(allowedTechnologies);
   }
 
-  const fromTeacherText = detectMentionedTechnologies(`${requirementText} ${description}`);
+  const fromTeacherText = detectMentionedTechnologies(
+    `${requirementText} ${description} ${fileText}`
+  );
   if (fromTeacherText.length > 0) {
     return fromTeacherText;
   }
@@ -268,7 +295,9 @@ export function buildTeacherRequirementCorpus(assignment) {
     required_technologies: resolveRequiredTechnologiesForProposal(assignment, {
       ...assignment,
       requirementText: [requirementText, fileText].filter(Boolean).join('\n'),
+      _extractedFileText: fileText,
     }),
+    _extractedAssignmentFileText: fileText,
   };
 }
 
@@ -281,10 +310,17 @@ export async function buildTeacherRequirementCorpusAsync(assignment) {
     const fileRef = assignment?.assignmentFile;
     if (fileRef) {
       const text = await extractRequirementFileText(fileRef);
-      return buildTeacherRequirementCorpus({
+      const corpus = buildTeacherRequirementCorpus({
         ...assignment,
         _extractedAssignmentFileText: text,
       });
+      corpus._extractedAssignmentFileText = text;
+      corpus._fileLoadMeta = {
+        assignmentFileLoaded: true,
+        assignmentFileEmpty: !String(text || '').trim(),
+        assignmentFileChars: String(text || '').length,
+      };
+      return corpus;
     }
     return buildTeacherRequirementCorpus(assignment);
   }
@@ -488,10 +524,27 @@ export async function evaluateProposalAgainstAssignmentRequirements(assignment, 
   }
 
   const corpus = await buildTeacherRequirementCorpusAsync(assignment);
-  const blockResult = evaluateRequirementBlock(assignment, proposalLike, '', assignment);
+  const extracted = String(corpus._extractedAssignmentFileText || '').trim();
+  const enrichedAssignment = {
+    ...assignment,
+    _extractedAssignmentFileText: extracted,
+  };
+  const blockResult = evaluateRequirementBlock(
+    enrichedAssignment,
+    proposalLike,
+    '',
+    enrichedAssignment,
+    {
+      requiredStackOverride: corpus.required_technologies || [],
+      fileLoadMeta: corpus._fileLoadMeta || null,
+    }
+  );
   return {
     ...blockResult,
     semanticCorpus: corpus,
+    strictTechRequirements: Boolean(
+      (corpus.required_technologies || []).length || assignment?.assignmentFile
+    ),
     hasAnyRule:
       blockResult.hasAnyRule ||
       Boolean(assignment?.assignmentFile) ||
@@ -504,40 +557,78 @@ export async function evaluateProposalAgainstAssignmentRequirements(assignment, 
   };
 }
 
-export function evaluateRequirementBlock(block, proposalLike, label = '', assignment = null) {
+export function evaluateRequirementBlock(
+  block,
+  proposalLike,
+  label = '',
+  assignment = null,
+  options = {}
+) {
   const requiredKeywords = toList(block?.requiredKeywords);
   const allowedTechnologies = toList(block?.allowedTechnologies);
   const requirementText = String(block?.requirementText || '').trim();
   const assignmentContext = assignment || block;
-  const implicitRequiredTerms = resolveRequiredTechnologiesForProposal(assignmentContext, block);
-  const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
+  const extractedFileText = String(
+    block?._extractedFileText ||
+      assignmentContext?._extractedAssignmentFileText ||
+      ''
+  ).trim();
+
+  // Prefer explicit allow-list; else tech inferred from requirements file / text / subject.
+  const requiredStack = canonicalizeTechList(
+    Array.isArray(options.requiredStackOverride) && options.requiredStackOverride.length
+      ? options.requiredStackOverride
+      : allowedTechnologies.length > 0
+        ? allowedTechnologies
+        : resolveRequiredTechnologiesForProposal(assignmentContext, {
+            ...block,
+            requirementText: [requirementText, extractedFileText].filter(Boolean).join('\n'),
+            _extractedFileText: extractedFileText,
+          })
+  );
 
   const proposalText = buildProposalRequirementText(proposalLike).toLowerCase();
   const mentionedTechnologies = detectMentionedTechnologies(proposalText);
-  const hasAllowedTechRule = allowedTechnologies.length > 0;
+  const hasRequiredStack = requiredStack.length > 0;
+  const requiredPrimary = primaryStackTechs(requiredStack);
+  const mentionedPrimary = primaryStackTechs(mentionedTechnologies);
+  const allowedExpanded = expandTechFamily(
+    requiredPrimary.length ? requiredPrimary : requiredStack
+  );
 
-  // Hard fail: student proposes a different stack than the allow-list (e.g. React when only PHP allowed).
-  const disallowedMentionedTech = hasAllowedTechRule
-    ? mentionedTechnologies.filter((t) => !expandTechFamily(canonicalAllowedTech).includes(t))
+  // Hard fail: student proposes a different language/framework than teacher requirements
+  // (e.g. PHP when the uploaded file requires Spring Boot — even if both mention MySQL).
+  const disallowedMentionedTech = hasRequiredStack
+    ? mentionedPrimary.filter((t) => !allowedExpanded.includes(t))
     : [];
   const noDisallowedTechPassed = disallowedMentionedTech.length === 0;
 
-  // Soft signals for UI — no longer used as automatic pass/fail.
-  const matchedAllowedTech = allowedTechnologies.filter((t) => proposalText.includes(t.toLowerCase()));
-  const missingAllowedTech = allowedTechnologies.filter((t) => !proposalText.includes(t.toLowerCase()));
+  // Must cover the required primary stack (Spring Boot / Java / PHP / …), not only a shared DB.
+  const stackToCover = requiredPrimary.length ? requiredPrimary : requiredStack;
+  const missingRequiredStack =
+    stackToCover.length > 0 && !proposalCoversAllowedTech(proposalText, stackToCover)
+      ? [...stackToCover]
+      : [];
+
+  // Soft signals for UI.
+  const matchedAllowedTech = requiredStack.filter((t) =>
+    proposalCoversAllowedTech(proposalText, [t])
+  );
+  const missingAllowedTech = missingRequiredStack;
   const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
-  const missingImplicitTerms = implicitRequiredTerms.filter((t) => !proposalText.includes(t.toLowerCase()));
+  const missingImplicitTerms = missingRequiredStack;
 
   const hasAnyRule =
     Boolean(requirementText) ||
-    Boolean(String(block?.requirementFile || '').trim()) ||
-    hasAllowedTechRule ||
-    requiredKeywords.length > 0 ||
-    implicitRequiredTerms.length > 0;
+    Boolean(String(block?.requirementFile || block?.assignmentFile || '').trim()) ||
+    Boolean(extractedFileText) ||
+    hasRequiredStack ||
+    requiredKeywords.length > 0;
 
   const minChars = Number(process.env.REQUIREMENT_MIN_PROPOSAL_CHARS || 80);
   const tooShort = proposalText.replace(/\s+/g, ' ').trim().length < minChars;
 
+  const fileMeta = options.fileLoadMeta || {};
   const reasons = [];
   if (tooShort) {
     reasons.push(
@@ -545,26 +636,45 @@ export function evaluateRequirementBlock(block, proposalLike, label = '', assign
     );
   }
   if (!noDisallowedTechPassed) {
-    reasons.push(`Disallowed technologies detected: ${disallowedMentionedTech.join(', ')}`);
+    reasons.push(
+      `Disallowed technologies detected: ${disallowedMentionedTech.join(', ')}. ` +
+        `This assignment requires: ${requiredStack.join(', ')}. ` +
+        `Rewrite the proposal to use the required stack (from the teacher requirements file / allowed technologies).`
+    );
+  }
+  if (missingRequiredStack.length) {
+    reasons.push(
+      `Missing required technology stack in the proposal: ${missingRequiredStack.join(', ')}. ` +
+        `Name and explain these technologies in the title, description, or features.`
+    );
+  }
+  if (fileMeta.assignmentFileEmpty) {
+    reasons.push(
+      'Teacher requirements file could not be read. Re-upload as .docx, .txt, .md, or .pdf so AI can verify proposals.'
+    );
   }
 
-  const passed = !tooShort && noDisallowedTechPassed;
-  const needsSemantic = passed && hasAnyRule;
+  const passed =
+    !tooShort &&
+    noDisallowedTechPassed &&
+    missingRequiredStack.length === 0 &&
+    !fileMeta.assignmentFileEmpty;
 
   return {
     hasAnyRule,
     passed,
-    needsSemantic,
+    needsSemantic: passed && hasAnyRule,
     missingKeywords,
     missingAllowedTech,
     missingImplicitTerms,
     disallowedMentionedTech,
     matchedAllowedTech,
-    implicitRequiredTerms,
+    implicitRequiredTerms: requiredStack,
     summary: passed
       ? `${label ? `${label}: ` : ''}Structural requirement gate passed; semantic meaning check runs next.`.trim()
       : `${label ? `${label} — ` : ''}Requirement gate failed. ${reasons.join(' | ')}`.trim(),
     semanticCorpus: buildTeacherRequirementCorpus(assignmentContext),
+    strictTechRequirements: hasRequiredStack,
   };
 }
 
