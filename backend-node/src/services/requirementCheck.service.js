@@ -291,7 +291,21 @@ export function buildTeacherRequirementCorpus(assignment) {
       .join('\n');
     if (feBody.trim()) sections.push(`Frontend requirements:\n${feBody.trim()}`);
     if (beBody.trim()) sections.push(`Backend requirements:\n${beBody.trim()}`);
-    // Fallback stub if files exist but text not loaded yet (sync callers).
+
+    const feTechs = resolveRequiredTechnologiesForProposal(assignment, {
+      ...fe,
+      requirementText: feBody || fe.requirementText,
+      _extractedFileText: fe._extractedFileText || feBody,
+    });
+    const beTechs = resolveRequiredTechnologiesForProposal(assignment, {
+      ...be,
+      requirementText: beBody || be.requirementText,
+      _extractedFileText: be._extractedFileText || beBody,
+    });
+
+    // Stubs alone (filename only) are NOT usable requirement content for AI matching.
+    const hasRealFeContent = Boolean(feBody.trim());
+    const hasRealBeContent = Boolean(beBody.trim());
     if (!sections.length) {
       if (fe.requirementFile) {
         sections.push(
@@ -304,20 +318,18 @@ export function buildTeacherRequirementCorpus(assignment) {
         );
       }
     }
-    const required = [
-      ...resolveRequiredTechnologiesForProposal(assignment, {
-        ...fe,
-        requirementText: feBody || fe.requirementText,
-      }),
-      ...resolveRequiredTechnologiesForProposal(assignment, {
-        ...be,
-        requirementText: beBody || be.requirementText,
-      }),
-    ];
+
     return {
       requirement_text: sections.join('\n\n'),
       requirement_sections: sections,
-      required_technologies: [...new Set(required)],
+      required_technologies: [...new Set([...feTechs, ...beTechs])],
+      frontend_requirement_text: feBody.trim(),
+      backend_requirement_text: beBody.trim(),
+      frontend_required_technologies: feTechs,
+      backend_required_technologies: beTechs,
+      hasRealCollaborativeContent: hasRealFeContent || hasRealBeContent,
+      hasRealFrontendContent: hasRealFeContent,
+      hasRealBackendContent: hasRealBeContent,
     };
   }
 
@@ -380,6 +392,7 @@ export async function buildTeacherRequirementCorpusAsync(assignment) {
   const loaded = await loadCollaborativeRequirementFileTexts(assignment);
   const fe = { ...(assignment.frontendTechRequirements || {}) };
   const be = { ...(assignment.backendTechRequirements || {}) };
+  // Prefer raw extracted file text for tech detection (not mixed typed stubs).
   fe._extractedFileText = loaded.frontendText;
   be._extractedFileText = loaded.backendText;
 
@@ -397,6 +410,8 @@ export async function buildTeacherRequirementCorpusAsync(assignment) {
     frontendChars: loaded.frontendText.length,
     backendChars: loaded.backendText.length,
   };
+  corpus._frontendExtractedText = loaded.frontendText;
+  corpus._backendExtractedText = loaded.backendText;
   return corpus;
 }
 
@@ -428,16 +443,25 @@ function proposalCoversAllowedTech(proposalText, allowedTechnologies) {
 
 /**
  * Collaborative structural gate:
- * - Always treat uploaded FE/BE requirement files as rules (hasAnyRule).
- * - Union FE+BE allow-lists (or techs inferred from file text) for stack checks.
+ * - Read both FE and BE requirement files.
+ * - Proposal must cover each side's primary stack (React on FE, Spring/PHP/… on BE).
+ * - Meaning match against both files is done next via dual MiniLM checks.
  */
 function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverride = null) {
   const fe = assignment?.frontendTechRequirements || {};
   const be = assignment?.backendTechRequirements || {};
   const corpus = corpusOverride || buildTeacherRequirementCorpus(assignment);
 
-  let feAllowed = canonicalizeTechList(toList(fe.allowedTechnologies));
-  let beAllowed = canonicalizeTechList(toList(be.allowedTechnologies));
+  let feAllowed = canonicalizeTechList(
+    toList(fe.allowedTechnologies).length
+      ? toList(fe.allowedTechnologies)
+      : corpus.frontend_required_technologies || []
+  );
+  let beAllowed = canonicalizeTechList(
+    toList(be.allowedTechnologies).length
+      ? toList(be.allowedTechnologies)
+      : corpus.backend_required_technologies || []
+  );
 
   // Infer stack from each side's requirement file/text when teachers only uploaded files.
   if (!feAllowed.length) {
@@ -449,24 +473,41 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
     beAllowed = detectMentionedTechnologies(beBlob);
   }
 
+  const fePrimary = primaryStackTechs(feAllowed);
+  const bePrimary = primaryStackTechs(beAllowed);
+  const feStack = fePrimary.length ? fePrimary : feAllowed;
+  const beStack = bePrimary.length ? bePrimary : beAllowed;
+
   const unionAllowed = [...new Set([...feAllowed, ...beAllowed, ...(corpus.required_technologies || [])])];
 
   const proposalText = buildProposalRequirementText(proposalLike);
   const proposalLower = proposalText.toLowerCase();
   const mentionedTechnologies = detectMentionedTechnologies(proposalLower);
+  const mentionedPrimary = primaryStackTechs(mentionedTechnologies);
 
   const minChars = Number(process.env.REQUIREMENT_MIN_PROPOSAL_CHARS || 80);
   const tooShort = proposalLower.replace(/\s+/g, ' ').trim().length < minChars;
 
-  const hasAllowedTechRule = unionAllowed.length > 0;
+  const feExpanded = expandTechFamily(feStack);
+  const beExpanded = expandTechFamily(beStack);
+  const allowedExpanded = expandTechFamily(
+    primaryStackTechs(unionAllowed).length ? primaryStackTechs(unionAllowed) : unionAllowed
+  );
+
+  const hasAllowedTechRule = feStack.length > 0 || beStack.length > 0;
   const disallowedMentionedTech = hasAllowedTechRule
-    ? mentionedTechnologies.filter((t) => !expandTechFamily(unionAllowed).includes(t))
+    ? mentionedPrimary.filter((t) => !allowedExpanded.includes(t))
     : [];
 
-  const missingFrontendTech =
-    feAllowed.length > 0 && !proposalCoversAllowedTech(proposalLower, feAllowed) ? [...feAllowed] : [];
-  const missingBackendTech =
-    beAllowed.length > 0 && !proposalCoversAllowedTech(proposalLower, beAllowed) ? [...beAllowed] : [];
+  // Each side must be covered (OR-groups within that side).
+  const missingFeGroups = requiredTechGroups(feStack).filter(
+    (g) => !proposalCoversAllowedTech(proposalLower, g)
+  );
+  const missingBeGroups = requiredTechGroups(beStack).filter(
+    (g) => !proposalCoversAllowedTech(proposalLower, g)
+  );
+  const missingFrontendTech = missingFeGroups.map((g) => formatTechGroup(g));
+  const missingBackendTech = missingBeGroups.map((g) => formatTechGroup(g));
 
   const fileMeta = corpus._fileLoadMeta || {};
   const reasons = [];
@@ -477,46 +518,51 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
   }
   if (disallowedMentionedTech.length) {
     reasons.push(
-      `Disallowed technologies for this collaborative assignment: ${disallowedMentionedTech.join(', ')}. Allowed: ${unionAllowed.join(', ') || 'none'}.`
+      `Disallowed technologies for this collaborative assignment: ${disallowedMentionedTech.join(', ')}. ` +
+        `Frontend expects: ${feStack.join(', ') || 'n/a'}; backend expects: ${beStack.join(', ') || 'n/a'}.`
     );
   }
   if (missingFrontendTech.length) {
     reasons.push(
-      `Missing frontend technology in the proposal: ${missingFrontendTech.join(', ')}. Name it in the title, description, or features and explain how you use it.`
+      `Missing frontend technology from the frontend teacher requirements file: ${missingFrontendTech.join(', ')}. ` +
+        `Name and explain it in the title, description, or features.`
     );
   }
   if (missingBackendTech.length) {
     reasons.push(
-      `Missing backend technology in the proposal: ${missingBackendTech.join(', ')}. Name it in the title, description, or features and explain how you use it.`
+      `Missing backend technology from the backend teacher requirements file: ${missingBackendTech.join(', ')}. ` +
+        `Name and explain it in the title, description, or features.`
     );
   }
-  // Unreadable teacher files are an infra issue — never hard-reject the student for that.
+
   const fileReadIssues = [];
   if (fileMeta.frontendFileEmpty) {
     fileReadIssues.push(
-      'Frontend requirements file could not be read (unsupported type or empty). Teacher should re-upload as .docx, .txt, .md, or .pdf.'
+      'Frontend requirements file could not be read. Teacher should re-upload as .docx, .txt, .md, or .pdf.'
     );
   }
   if (fileMeta.backendFileEmpty) {
     fileReadIssues.push(
-      'Backend requirements file could not be read (unsupported type or empty). Teacher should re-upload as .docx, .txt, .md, or .pdf.'
+      'Backend requirements file could not be read. Teacher should re-upload as .docx, .txt, .md, or .pdf.'
     );
   }
 
   const hasFiles = Boolean(fe.requirementFile || be.requirementFile);
+  const hasRealContent = Boolean(corpus.hasRealCollaborativeContent);
   const hasAnyRule =
     blockHasRequirementRules(fe) ||
     blockHasRequirementRules(be) ||
     unionAllowed.length > 0 ||
     hasFiles ||
-    Boolean(String(corpus.requirement_text || '').trim());
+    hasRealContent;
 
   const bothFilesReadable =
     (!fe.requirementFile || !fileMeta.frontendFileEmpty) &&
     (!be.requirementFile || !fileMeta.backendFileEmpty);
-  const corpusHasText = Boolean(String(corpus.requirement_text || '').trim());
-  // Semantic can still run when typed allow-lists / text exist even if a file failed to parse.
-  const canCheckAgainstRequirements = corpusHasText || unionAllowed.length > 0;
+
+  // Only real extracted/typed requirement text counts — not "file: path.docx" stubs.
+  const canCheckAgainstRequirements =
+    hasRealContent || feStack.length > 0 || beStack.length > 0;
 
   const structuralOk =
     !tooShort &&
@@ -524,7 +570,6 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
     missingFrontendTech.length === 0 &&
     missingBackendTech.length === 0;
 
-  // Nothing usable to compare against → teacher review (not auto-reject).
   const needsTeacherFileReview = Boolean(hasFiles && !canCheckAgainstRequirements);
 
   if (needsTeacherFileReview) {
@@ -533,13 +578,16 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
       passed: true,
       needsReview: true,
       needsSemantic: false,
+      collaborative: true,
       missingKeywords: [],
       missingAllowedTech: [],
       missingImplicitTerms: [],
       disallowedMentionedTech: [],
       matchedAllowedTech: [],
       implicitRequiredTerms: unionAllowed,
-      summary: `Requirement files could not be read for AI checking. Sent to teacher for manual review. ${fileReadIssues.join(' ')}`.trim(),
+      frontendRequiredTech: feStack,
+      backendRequiredTech: beStack,
+      summary: `Collaborative requirement files could not be read for AI checking. Sent to teacher for manual review. ${fileReadIssues.join(' ')}`.trim(),
       semanticCorpus: corpus,
       strictTechRequirements: true,
     };
@@ -550,16 +598,19 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
     passed: structuralOk,
     needsReview: false,
     needsSemantic: structuralOk && canCheckAgainstRequirements,
+    collaborative: true,
     missingKeywords: [],
     missingAllowedTech: [...missingFrontendTech, ...missingBackendTech],
     missingImplicitTerms: [...missingFrontendTech, ...missingBackendTech],
     disallowedMentionedTech,
     matchedAllowedTech: unionAllowed.filter((t) => proposalCoversAllowedTech(proposalLower, [t])),
     implicitRequiredTerms: unionAllowed,
+    frontendRequiredTech: feStack,
+    backendRequiredTech: beStack,
     summary: structuralOk
-      ? bothFilesReadable
-        ? 'Structural collaborative requirement gate passed; semantic meaning check runs next against both FE and BE requirement files.'
-        : `Structural gate passed using available requirement text/technologies. ${fileReadIssues.join(' ')}`.trim()
+      ? bothFilesReadable && hasRealContent
+        ? 'Structural collaborative gate passed (FE + BE stacks present). Next: AI compares the proposal to both teacher requirement files.'
+        : `Structural gate passed using available FE/BE technologies. ${fileReadIssues.join(' ')}`.trim()
       : `Requirement gate failed. ${reasons.join(' | ')}`,
     semanticCorpus: corpus,
     strictTechRequirements: true,
@@ -574,18 +625,19 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
 export async function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
   if (assignment?.isCollaborative) {
     const corpus = await buildTeacherRequirementCorpusAsync(assignment);
-    // Attach extracted text onto blocks for tech inference inside evaluateCollaborativeRequirements.
     const fe = {
       ...(assignment.frontendTechRequirements || {}),
-      _extractedFileText: corpus.requirement_sections
-        ?.find((s) => String(s).startsWith('Frontend requirements:'))
-        ?.replace(/^Frontend requirements:\n?/, '') || '',
+      _extractedFileText:
+        corpus._frontendExtractedText ||
+        corpus.frontend_requirement_text ||
+        '',
     };
     const be = {
       ...(assignment.backendTechRequirements || {}),
-      _extractedFileText: corpus.requirement_sections
-        ?.find((s) => String(s).startsWith('Backend requirements:'))
-        ?.replace(/^Backend requirements:\n?/, '') || '',
+      _extractedFileText:
+        corpus._backendExtractedText ||
+        corpus.backend_requirement_text ||
+        '',
     };
     return evaluateCollaborativeRequirements(
       { ...assignment, frontendTechRequirements: fe, backendTechRequirements: be },
@@ -794,36 +846,36 @@ export function evaluateRequirementBlock(
 /**
  * Merge MiniLM semantic result into the requirement check object used by the workflow.
  * verdict: reject | review | pass
- * Policy: mismatch rejects — but if the proposal already covers every required tech
- * OR-group from the teacher file, do not reject on AI paraphrase / alternate-DB noise.
+ *
+ * Solo: if the required stack is clearly covered, allow a soft pass when MiniLM is noisy.
+ * Collaborative: never soft-pass on tech names alone — both requirement files must meaningfully match.
  */
 export function applySemanticRequirementResult(structuralCheck, semanticResult) {
   const verdict = String(semanticResult?.verdict || 'reject').toLowerCase();
   const similarity = Number(semanticResult?.similarity ?? 0);
   let summary = String(semanticResult?.summary || '').trim() || structuralCheck.summary;
 
+  const isCollaborative = Boolean(structuralCheck.collaborative);
+
   const required = canonicalizeTechList(
     structuralCheck.implicitRequiredTerms ||
       structuralCheck.semanticCorpus?.required_technologies ||
       []
   );
-  const matched = new Set(
-    canonicalizeTechList([
-      ...(structuralCheck.matchedAllowedTech || []),
-      ...(structuralCheck.disallowedMentionedTech ? [] : []),
-    ])
-  );
-  // Also treat expanded matches from structural cover.
+  const matched = new Set(canonicalizeTechList([...(structuralCheck.matchedAllowedTech || [])]));
   const groups = requiredTechGroups(required);
   const stackCovered =
     groups.length > 0 &&
     groups.every((g) => g.some((t) => matched.has(t) || expandTechFamily([t]).some((x) => matched.has(x))));
 
-  if (verdict === 'pass' || (stackCovered && similarity >= 0.28 && structuralCheck.passed !== false)) {
+  // Collaborative: never soft-pass on tech names alone — FE+BE requirement files must match.
+  const allowStackRescue = !isCollaborative && stackCovered && similarity >= 0.28;
+
+  if (verdict === 'pass' || (allowStackRescue && structuralCheck.passed !== false)) {
     const passSummary =
       verdict === 'pass'
         ? summary
-        : `Proposal matches the teacher requirements stack (Java/Spring Boot, relational DB, etc.) with similarity ${similarity.toFixed(2)}.`;
+        : `Proposal matches the teacher requirements stack (similarity ${similarity.toFixed(2)}).`;
     return {
       ...structuralCheck,
       passed: true,
@@ -835,7 +887,6 @@ export function applySemanticRequirementResult(structuralCheck, semanticResult) 
     };
   }
 
-  // Borderline / unclear match = reject (no "send to teacher as passed").
   if (verdict === 'review') {
     summary =
       summary ||
@@ -852,6 +903,64 @@ export function applySemanticRequirementResult(structuralCheck, semanticResult) 
     semanticVerdict: 'reject',
     semanticSimilarity: similarity,
     summary,
+  };
+}
+
+/**
+ * Collaborative: proposal must pass semantic match against BOTH FE and BE requirement files.
+ */
+export function mergeCollaborativeSemanticResults(structuralCheck, feSemantic, beSemantic) {
+  const fe = applySemanticRequirementResult(
+    { ...structuralCheck, collaborative: true, strictTechRequirements: true },
+    feSemantic || { verdict: 'reject', similarity: 0, summary: 'Frontend requirements check failed.' }
+  );
+  const be = applySemanticRequirementResult(
+    { ...structuralCheck, collaborative: true, strictTechRequirements: true },
+    beSemantic || { verdict: 'reject', similarity: 0, summary: 'Backend requirements check failed.' }
+  );
+
+  const feSim = Number(fe.semanticSimilarity ?? 0);
+  const beSim = Number(be.semanticSimilarity ?? 0);
+  const bothPass = fe.passed && be.passed;
+
+  if (bothPass) {
+    return {
+      ...structuralCheck,
+      passed: true,
+      needsReview: false,
+      semanticVerdict: 'pass',
+      semanticSimilarity: Math.min(feSim, beSim),
+      summary:
+        `Proposal matches both teacher requirement files ` +
+        `(frontend similarity ${feSim.toFixed(2)}, backend similarity ${beSim.toFixed(2)}).`,
+      matchedAllowedTech: structuralCheck.matchedAllowedTech,
+      collaborative: true,
+      strictTechRequirements: true,
+      frontendSemanticVerdict: fe.semanticVerdict,
+      backendSemanticVerdict: be.semanticVerdict,
+    };
+  }
+
+  const parts = [];
+  if (!fe.passed) {
+    parts.push(`Frontend requirements not met: ${fe.summary || 'mismatch'}`);
+  }
+  if (!be.passed) {
+    parts.push(`Backend requirements not met: ${be.summary || 'mismatch'}`);
+  }
+
+  return {
+    ...structuralCheck,
+    passed: false,
+    needsReview: false,
+    semanticVerdict: 'reject',
+    semanticSimilarity: Math.min(feSim || 1, beSim || 1),
+    summary: `Rejected automatically: ${parts.join(' | ')}`,
+    matchedAllowedTech: structuralCheck.matchedAllowedTech,
+    collaborative: true,
+    strictTechRequirements: true,
+    frontendSemanticVerdict: fe.semanticVerdict,
+    backendSemanticVerdict: be.semanticVerdict,
   };
 }
 

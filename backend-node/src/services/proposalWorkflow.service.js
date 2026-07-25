@@ -18,6 +18,7 @@ import { Class } from '../models/Class.js';
 import { analyzeProposalPayload, analyzeRequirementsPayload } from './aiClient.service.js';
 import {
   applySemanticRequirementResult,
+  mergeCollaborativeSemanticResults,
   buildProposalRequirementText,
   evaluateProposalAgainstAssignmentRequirements,
   evaluateRequirementBlock,
@@ -821,16 +822,74 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   } else if (requirementCheck.needsSemantic !== false && requirementCheck.hasAnyRule) {
     try {
       const corpus = requirementCheck.semanticCorpus || {};
-      const semanticRaw = await analyzeRequirementsPayload({
-        requirement_text: corpus.requirement_text || '',
-        requirement_sections: corpus.requirement_sections || [],
-        required_technologies: corpus.required_technologies || [],
-        proposal_text: buildProposalRequirementText(proposal),
-        strict_tech_requirements: Boolean(
-          assignment?.isCollaborative || requirementCheck.strictTechRequirements
-        ),
-      });
-      requirementCheck = applySemanticRequirementResult(requirementCheck, semanticRaw);
+      const proposalText = buildProposalRequirementText(proposal);
+
+      if (assignment?.isCollaborative || requirementCheck.collaborative) {
+        // Compare against BOTH teacher requirement files — must pass frontend AND backend.
+        const feText = String(corpus.frontend_requirement_text || '').trim();
+        const beText = String(corpus.backend_requirement_text || '').trim();
+        const combinedFallback = String(corpus.requirement_text || '').trim();
+
+        const [feRaw, beRaw] = await Promise.all([
+          analyzeRequirementsPayload({
+            requirement_text: feText || combinedFallback,
+            requirement_sections: feText ? [feText] : corpus.requirement_sections || [],
+            required_technologies: corpus.frontend_required_technologies || [],
+            proposal_text: proposalText,
+            strict_tech_requirements: true,
+          }),
+          analyzeRequirementsPayload({
+            requirement_text: beText || combinedFallback,
+            requirement_sections: beText ? [beText] : corpus.requirement_sections || [],
+            required_technologies: corpus.backend_required_technologies || [],
+            proposal_text: proposalText,
+            strict_tech_requirements: true,
+          }),
+        ]);
+
+        // If only one side has a real file, require that side; otherwise both.
+        const hasFe = Boolean(feText);
+        const hasBe = Boolean(beText);
+        if (hasFe && hasBe) {
+          requirementCheck = mergeCollaborativeSemanticResults(requirementCheck, feRaw, beRaw);
+        } else if (hasFe) {
+          requirementCheck = applySemanticRequirementResult(
+            { ...requirementCheck, collaborative: true },
+            feRaw
+          );
+          if (requirementCheck.passed) {
+            requirementCheck.summary = `Frontend requirements matched. ${requirementCheck.summary}`;
+          }
+        } else if (hasBe) {
+          requirementCheck = applySemanticRequirementResult(
+            { ...requirementCheck, collaborative: true },
+            beRaw
+          );
+          if (requirementCheck.passed) {
+            requirementCheck.summary = `Backend requirements matched. ${requirementCheck.summary}`;
+          }
+        } else {
+          // No readable file text — do not auto-accept; teacher review.
+          requirementCheck = {
+            ...requirementCheck,
+            passed: true,
+            needsReview: true,
+            semanticVerdict: 'review',
+            summary:
+              'Collaborative FE/BE requirement files were empty or unreadable. Sent to teacher for manual review.',
+          };
+        }
+      } else {
+        const semanticRaw = await analyzeRequirementsPayload({
+          requirement_text: corpus.requirement_text || '',
+          requirement_sections: corpus.requirement_sections || [],
+          required_technologies: corpus.required_technologies || [],
+          proposal_text: proposalText,
+          strict_tech_requirements: Boolean(requirementCheck.strictTechRequirements),
+        });
+        requirementCheck = applySemanticRequirementResult(requirementCheck, semanticRaw);
+      }
+
       proposal.requirementCheckPassed = requirementCheck.passed;
       proposal.requirementCheckSummary = requirementCheck.summary;
       proposal.requirementSemanticSimilarity = requirementCheck.semanticSimilarity ?? null;
