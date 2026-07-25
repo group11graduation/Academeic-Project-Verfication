@@ -681,11 +681,12 @@ export function evaluateRequirementBlock(
 /**
  * Merge MiniLM semantic result into the requirement check object used by the workflow.
  * verdict: reject | review | pass
+ * Policy: any mismatch / borderline ("review") is a hard reject — only clear "pass" continues.
  */
 export function applySemanticRequirementResult(structuralCheck, semanticResult) {
   const verdict = String(semanticResult?.verdict || 'reject').toLowerCase();
   const similarity = Number(semanticResult?.similarity ?? 0);
-  const summary = String(semanticResult?.summary || '').trim() || structuralCheck.summary;
+  let summary = String(semanticResult?.summary || '').trim() || structuralCheck.summary;
 
   if (verdict === 'pass') {
     return {
@@ -699,15 +700,14 @@ export function applySemanticRequirementResult(structuralCheck, semanticResult) 
     };
   }
 
+  // Borderline / unclear match = reject (no "send to teacher as passed").
   if (verdict === 'review') {
-    return {
-      ...structuralCheck,
-      passed: true,
-      needsReview: true,
-      semanticVerdict: 'review',
-      semanticSimilarity: similarity,
-      summary,
-    };
+    summary =
+      summary ||
+      `Rejected automatically: proposal does not clearly meet teacher requirements (similarity ${similarity.toFixed(2)}).`;
+    if (!/reject/i.test(summary)) {
+      summary = `Rejected automatically: ${summary.replace(/^Borderline requirement match/i, 'requirement match unclear')}`;
+    }
   }
 
   return {

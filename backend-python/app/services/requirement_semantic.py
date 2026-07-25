@@ -2,8 +2,8 @@
 Semantic requirement check: teacher requirement paragraphs vs student proposal text.
 
 Uses the same MiniLM sentence-transformer + cosine similarity as plagiarism detection.
-Rejects casual / conversational text that does not address the assignment requirements,
-accepts paraphrases with the same meaning, and routes borderline scores to teacher review.
+Rejects casual / conversational text and any insufficient match (including former
+"borderline" scores). Only a clear pass continues; mismatches are never sent as review-pass.
 """
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ MODELS_CACHE = settings.models_cache_dir
 
 # Calibrated defaults — override via env after evaluating real pairs.
 # MiniLM alone often scores ~0.25–0.45 for good paraphrases of requirements.
-# Scores below REJECT: clear fail (casual chat, unrelated, bare keywords only).
-# Scores between REJECT and PASS: teacher review.
+# Scores below PASS_AT (or missing required tech context): hard reject.
+# Scores at/above PASS_AT with required tech clearly described: pass.
 # Scores at/above PASS: automatic clear for requirements.
 REQUIREMENT_REJECT_BELOW = float(os.getenv("AI_REQUIREMENT_REJECT_BELOW", "0.28"))
 REQUIREMENT_PASS_AT = float(os.getenv("AI_REQUIREMENT_PASS_AT", "0.45"))
@@ -288,9 +288,9 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
     Compare full teacher requirement text to full student proposal text.
 
     Verdicts:
-      - reject: clearly does not meet requirements (incl. casual English / bare keywords)
-      - review: borderline — human teacher should decide
-      - pass: clearly addresses the requirements in meaning
+      - reject: does not meet requirements (low similarity, missing tech, or borderline)
+      - pass: clearly addresses the requirements in meaning (and required tech in context)
+      - review: unused for mismatches (Node also maps any non-pass to reject)
     """
     requirement_text = _clip(getattr(body, "requirement_text", "") or "")
     proposal_text = _clip(getattr(body, "proposal_text", "") or "")
@@ -445,71 +445,45 @@ def analyze_requirement_semantic(body: Any) -> dict[str, Any]:
         combined = min(combined, REQUIREMENT_REJECT_BELOW - 0.01)
         reasons.append("casual_english_not_addressing_requirements")
 
-    # Missing tech context: prefer teacher review over hard reject when the write-up is real prose.
-    # Collaborative (strict_tech): missing FE/BE stack in context is always a hard reject.
+    # Policy: any requirements mismatch (low similarity, missing tech context, borderline) = hard reject.
+    # Only a clear pass (high similarity + required tech in context) continues the workflow.
     substantial = len(proposal_text) >= 160 and not _is_keyword_only_shell(
         proposal_text, required_technologies or []
     )
-    if missing_tech_context and combined < REQUIREMENT_PASS_AT and not substantial and not strict_tech:
-        combined = min(combined, (REQUIREMENT_REJECT_BELOW + REQUIREMENT_PASS_AT) / 2)
+    if missing_tech_context and combined < REQUIREMENT_PASS_AT and not substantial:
+        combined = min(combined, REQUIREMENT_REJECT_BELOW - 0.01)
 
-    hard_reject_tech = bool(
-        missing_tech_context
-        and (
-            strict_tech
-            or (
-                tech_context_score < TECH_CONTEXT_PASS * 0.85
-                and combined < REQUIREMENT_PASS_AT
-                and not substantial
-            )
-        )
-    )
+    hard_reject_tech = bool(missing_tech_context)
 
-    if combined < REQUIREMENT_REJECT_BELOW or hard_reject_tech:
+    if (
+        combined < REQUIREMENT_PASS_AT
+        or hard_reject_tech
+        or combined < REQUIREMENT_REJECT_BELOW
+    ):
         verdict = "reject"
-        summary = (
-            f"Rejected automatically: the proposal does not meaningfully match the teacher requirements "
-            f"(similarity {combined:.2f}). Casual English, unrelated text, or only naming technologies "
-            f"without explaining the project is not accepted. Rewrite the proposal so it clearly addresses "
-            f"the assignment requirements in your own words."
-        )
+        if combined < REQUIREMENT_REJECT_BELOW or (hard_reject_tech and combined < REQUIREMENT_PASS_AT):
+            summary = (
+                f"Rejected automatically: the proposal does not meaningfully match the teacher requirements "
+                f"(similarity {combined:.2f}). Casual English, unrelated text, or only naming technologies "
+                f"without explaining the project is not accepted. Rewrite the proposal so it clearly addresses "
+                f"the assignment requirements in your own words."
+            )
+        else:
+            # Was "borderline / review" — now always reject on mismatch.
+            summary = (
+                f"Rejected automatically: requirement match is insufficient (similarity {combined:.2f}). "
+                f"The proposal must clearly and fully meet the teacher requirements."
+            )
+            reasons.append("insufficient_similarity")
         if missing_tech_context:
             summary += f" Missing clear use of: {', '.join(missing_tech_context)}."
-    elif combined < REQUIREMENT_PASS_AT or (
-        missing_tech_context and substantial and combined >= REQUIREMENT_REJECT_BELOW and not strict_tech
-    ):
-        verdict = "review"
-        summary = (
-            f"Borderline requirement match (similarity {combined:.2f}). "
-            f"The AI is unsure whether the proposal fully meets the teacher requirements — "
-            f"a teacher should review this manually."
-        )
-        if missing_tech_context:
-            summary += f" Please also make required technologies clearer: {', '.join(missing_tech_context)}."
-        reasons.append("borderline_similarity")
+            reasons.append("missing_tech_context_reject")
     else:
         verdict = "pass"
         summary = (
             f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f})."
         )
-        if missing_tech_context:
-            if strict_tech:
-                verdict = "reject"
-                summary = (
-                    f"Rejected automatically: collaborative proposal must clearly describe both required "
-                    f"stacks in context. Missing clear use of: {', '.join(missing_tech_context)}."
-                )
-                reasons.append("strict_tech_reject")
-            else:
-                # High overall similarity but still no clear tech-in-context signal.
-                verdict = "review"
-                summary = (
-                    f"Overall proposal is related to the requirements (similarity {combined:.2f}), "
-                    f"but technology context is unclear for: {', '.join(missing_tech_context)}. "
-                    f"Teacher review recommended."
-                )
-                reasons.append("tech_context_borderline")
-        elif required_technologies:
+        if required_technologies:
             summary = (
                 f"Proposal meaningfully addresses teacher requirements (similarity {combined:.2f}) "
                 f"and clearly describes required technologies: {', '.join(required_technologies)}."
