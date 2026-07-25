@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from typing import Any
 
@@ -28,6 +29,12 @@ logger = logging.getLogger(__name__)
 
 SAME_SEMESTER_REJECT = float(os.getenv("AI_SAME_SEMESTER_REJECT", "0.55"))
 PREVIOUS_SEMESTER_WARN = float(os.getenv("AI_PREVIOUS_SEMESTER_WARN", "0.50"))
+# Previous-semester flags must also clear this MiniLM floor so generic CRUD/auth
+# wording (login, admin, dashboard) cannot alone match unrelated domains
+# (e.g. Employee Management vs LPG "Has Gas").
+PREVIOUS_SEMESTER_SBERT_FLOOR = float(
+    os.getenv("AI_PREVIOUS_SEMESTER_SBERT_FLOOR", "0.48")
+)
 USE_TFIDF_FALLBACK = os.getenv("USE_TFIDF_FALLBACK", "false").lower() in ("1", "true", "yes")
 # Always blend TF-IDF / lexical with embeddings so near-copy proposals are caught
 # (MiniLM alone often scored ~0.50–0.55 on near-identical TaskFlow texts).
@@ -38,7 +45,67 @@ SAME_SEMESTER_MAX_DOCS = int(os.getenv("AI_SAME_SEMESTER_MAX_DOCS", "40"))
 LEGACY_MAX_DOCS = int(os.getenv("AI_LEGACY_MAX_DOCS", "40"))
 MAX_TEXT_CHARS = int(os.getenv("AI_MAX_TEXT_CHARS", "3500"))
 
+# Shared by almost every student web app — inflate TF-IDF/lexical across unrelated topics.
+_GENERIC_WEBAPP_NOISE = re.compile(
+    r"\b("
+    r"secure(?:\s+user)?\s+login|role[-\s]?based\s+access(?:\s+control)?|bcrypt|"
+    r"administrator|standard\s+user|crud(?:\s+operations?)?|"
+    r"create,?\s*read,?\s*update(?:,?\s*and\s*delete)?|"
+    r"access[-\s]?denied|spring\s+security|responsive(?:\s+user)?\s+interface|"
+    r"database[-\s]?driven|web\s+application|layered\s+architecture|"
+    r"controller,?\s*service,?\s*repository|maven\s+dependency|"
+    r"password\s+encryption|session\s+invalidation"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_STOP_TITLE = {
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "of",
+    "for",
+    "to",
+    "in",
+    "on",
+    "with",
+    "based",
+    "using",
+    "system",
+    "application",
+    "platform",
+    "project",
+    "secure",
+    "web",
+    "management",
+}
+
 _st_model = None
+
+
+def _strip_generic_webapp_noise(text: str) -> str:
+    """Remove shared CRUD/auth boilerplate so TF-IDF/lexical focus on domain words."""
+    if not text:
+        return ""
+    cleaned = _GENERIC_WEBAPP_NOISE.sub(" ", text)
+    return " ".join(cleaned.split())
+
+
+def _title_tokens(text: str) -> set[str]:
+    """Rough title tokens from the start of proposal text (title is usually first)."""
+    head = " ".join((text or "").split()[:16])
+    toks = re.findall(r"[a-z0-9]+", head.lower())
+    return {t for t in toks if len(t) > 2 and t not in _STOP_TITLE}
+
+
+def _domain_title_overlap(query: str, doc: str) -> float:
+    a = _title_tokens(query)
+    b = _title_tokens(doc)
+    if not a or not b:
+        return 0.0
+    return len(a & b) / float(max(len(a), len(b)))
 
 
 def _get_sentence_transformer():
@@ -253,34 +320,72 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
     same_texts = [_clip_text(s.text) for s in same_items]
     leg_texts = [_clip_text(s.text) for s in leg_items]
 
+    # Lexical/TF-IDF on noise-stripped text so shared "login/admin/CRUD" does not dominate.
+    text_lex = _strip_generic_webapp_noise(text)
+    same_lex = [_strip_generic_webapp_noise(t) for t in same_texts]
+    leg_lex = [_strip_generic_webapp_noise(t) for t in leg_texts]
+
     backend = "sentence_transformers"
     use_tfidf_only = USE_TFIDF_FALLBACK
-    score_rows: list[tuple[float, int | None, float, int | None]] = []
+    sbert_row: tuple[float, int | None, float, int | None] | None = None
+    tfidf_row: tuple[float, int | None, float, int | None] | None = None
+    lex_row: tuple[float, int | None, float, int | None] | None = None
 
     if not use_tfidf_only:
         try:
-            score_rows.append(_max_cosine_semantic_dual(text, same_texts, leg_texts))
+            sbert_row = _max_cosine_semantic_dual(text, same_texts, leg_texts)
         except Exception as e:
             logger.warning("sentence-transformers failed (%s); using TF-IDF fallback", e)
             use_tfidf_only = True
             backend = "tfidf"
 
-    # Always run TF-IDF + lexical when hybrid is on (or as sole backend).
     if use_tfidf_only or USE_HYBRID_OVERLAP:
         t_tf = time.perf_counter()
-        tfidf_row = _max_cosine_tfidf_dual(text, same_texts, leg_texts)
-        score_rows.append(tfidf_row)
+        tfidf_row = _max_cosine_tfidf_dual(text_lex, same_lex, leg_lex)
         logger.info("proposal embedding_path=tfidf dual_ms=%.1f", (time.perf_counter() - t_tf) * 1000)
         if USE_HYBRID_OVERLAP:
-            score_rows.append(_max_lexical_ratio_dual(text, same_texts, leg_texts))
+            lex_row = _max_lexical_ratio_dual(text_lex, same_lex, leg_lex)
             backend = "hybrid_sbert_tfidf_lexical" if not use_tfidf_only else "hybrid_tfidf_lexical"
         elif use_tfidf_only:
             backend = "tfidf"
 
+    score_rows = [r for r in (sbert_row, tfidf_row, lex_row) if r is not None]
     if not score_rows:
         same_max, same_i, leg_max, leg_i = 0.0, None, 0.0, None
     else:
-        same_max, same_i, leg_max, leg_i = _pick_best_dual(score_rows)
+        # Same-semester: keep max across scorers (catch near-copies).
+        same_max, same_i, _, _ = _pick_best_dual(score_rows)
+
+        # Previous-semester: prefer the peer MiniLM picks; do not let TF-IDF/lexical alone
+        # flag unrelated domains that only share generic web-app wording.
+        if sbert_row is not None:
+            _, _, sbert_leg, sbert_leg_i = sbert_row
+            leg_i = sbert_leg_i
+            leg_max = float(sbert_leg)
+            # Allow a small hybrid lift only when embeddings already see real similarity.
+            if sbert_leg >= PREVIOUS_SEMESTER_SBERT_FLOOR * 0.9:
+                hybrid_leg = max(
+                    sbert_leg,
+                    (tfidf_row[2] if tfidf_row else 0.0),
+                    (lex_row[2] if lex_row else 0.0),
+                )
+                # Blend toward hybrid, but never far above SBERT for unrelated topics.
+                leg_max = min(hybrid_leg, max(sbert_leg, sbert_leg * 0.5 + hybrid_leg * 0.5))
+        else:
+            _, _, leg_max, leg_i = _pick_best_dual(score_rows)
+
+        # Domain gate: Employee Management vs HAS GAS / LPG should not warn.
+        if leg_i is not None and leg_i < len(leg_texts):
+            domain = _domain_title_overlap(text, leg_texts[leg_i])
+            if domain < 0.12 and leg_max < (PREVIOUS_SEMESTER_WARN + 0.12):
+                reasons_cap = min(leg_max, PREVIOUS_SEMESTER_WARN - 0.02)
+                logger.info(
+                    "legacy domain_gate overlap=%.3f capped legacy_max %.3f→%.3f",
+                    domain,
+                    leg_max,
+                    reasons_cap,
+                )
+                leg_max = reasons_cap
 
     matched_proposal_id = (
         same_items[same_i].id if same_i is not None and same_i < len(same_items) else None
@@ -289,7 +394,9 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
 
     if same_max >= SAME_SEMESTER_REJECT:
         verdict = "reject_same_semester"
-    elif leg_max >= PREVIOUS_SEMESTER_WARN:
+    elif leg_max >= PREVIOUS_SEMESTER_WARN and (
+        sbert_row is None or float(sbert_row[2]) >= PREVIOUS_SEMESTER_SBERT_FLOOR
+    ):
         verdict = "warn_previous_semester"
     else:
         verdict = "ok"
@@ -314,7 +421,8 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
         "verdict": verdict,
         "summary": (
             f"backend={backend}, same_semester={same_max:.3f}, legacy={leg_max:.3f}, "
-            f"reject_at={SAME_SEMESTER_REJECT:.2f}, warn_at={PREVIOUS_SEMESTER_WARN:.2f}"
+            f"reject_at={SAME_SEMESTER_REJECT:.2f}, warn_at={PREVIOUS_SEMESTER_WARN:.2f}, "
+            f"sbert_floor={PREVIOUS_SEMESTER_SBERT_FLOOR:.2f}"
         ),
         "backend": backend,
     }
