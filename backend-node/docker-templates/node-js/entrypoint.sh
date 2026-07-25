@@ -445,15 +445,104 @@ node_modules_incomplete() {
   [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null)" ] || [ ! -d node_modules/.bin ]
 }
 
+preview_cache_dir() {
+  mkdir -p .preview-cache 2>/dev/null || true
+  printf '%s' ".preview-cache"
+}
+
+# Deterministic sha256 of package manifests (deps layer).
+compute_deps_hash() {
+  node -e '
+    const fs = require("fs");
+    const crypto = require("crypto");
+    const h = crypto.createHash("sha256");
+    for (const f of ["package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml"]) {
+      if (!fs.existsSync(f)) continue;
+      h.update(f + "\0");
+      h.update(fs.readFileSync(f));
+      h.update("\0");
+    }
+    process.stdout.write(h.digest("hex"));
+  ' 2>/dev/null || printf ''
+}
+
+# Deterministic sha256 of all files under src/ (sorted paths). Empty/missing src → empty string (always miss).
+compute_frontend_src_hash() {
+  node -e '
+    const fs = require("fs");
+    const path = require("path");
+    const crypto = require("crypto");
+    function walk(dir, out) {
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_e) { return; }
+      for (const e of entries) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p, out);
+        else if (e.isFile()) out.push(p);
+      }
+    }
+    if (!fs.existsSync("src") || !fs.statSync("src").isDirectory()) {
+      process.stdout.write("");
+      process.exit(0);
+    }
+    const files = [];
+    walk("src", files);
+    files.sort();
+    const h = crypto.createHash("sha256");
+    for (const f of files) {
+      h.update(f.split(path.sep).join("/") + "\0");
+      h.update(fs.readFileSync(f));
+      h.update("\0");
+    }
+    process.stdout.write(h.digest("hex"));
+  ' 2>/dev/null || printf ''
+}
+
+read_cache_hash() {
+  # $1 = marker name (node_modules | dist)
+  f="$(preview_cache_dir)/$1.hash"
+  if [ -f "$f" ]; then
+    tr -d '[:space:]' < "$f"
+  else
+    printf ''
+  fi
+}
+
+write_cache_hash() {
+  # $1 = marker name, $2 = hash
+  name="$1"
+  hash="$2"
+  [ -n "$hash" ] || return 0
+  dir="$(preview_cache_dir)"
+  printf '%s\n' "$hash" > "$dir/$name.hash"
+}
+
+deps_cache_hit() {
+  current="$(compute_deps_hash)"
+  stored="$(read_cache_hash node_modules)"
+  [ -n "$current" ] && [ -n "$stored" ] && [ "$current" = "$stored" ]
+}
+
+frontend_build_cache_hit() {
+  # Requires existing dist or build output AND matching src hash marker.
+  current="$(compute_frontend_src_hash)"
+  stored="$(read_cache_hash dist)"
+  [ -n "$current" ] && [ -n "$stored" ] && [ "$current" = "$stored" ]
+}
+
 ensure_node_modules() {
   label="${1:-npm}"
-  if node_modules_incomplete; then
-    echo "[preview] ${label} install (may take several minutes)…"
+  deps_hash="$(compute_deps_hash)"
+  if node_modules_incomplete || ! deps_cache_hit; then
+    if node_modules_incomplete; then
+      echo "[preview] cache miss, rebuilding node_modules (${label} install — may take several minutes)…"
+    else
+      echo "[preview] cache miss, rebuilding node_modules (package manifests changed)"
+    fi
     npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
-  elif [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
-    echo "[preview] cached workspace: reusing node_modules"
+    write_cache_hash node_modules "$deps_hash"
   else
-    echo "[preview] reusing node_modules/"
+    echo "[preview] cache hit, reusing node_modules"
   fi
 }
 
@@ -469,6 +558,7 @@ ensure_vite_binary() {
     echo "[preview] vite binary missing after install — forcing clean reinstall"
     rm -rf node_modules
     npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+    write_cache_hash node_modules "$(compute_deps_hash)"
   fi
 }
 
@@ -740,28 +830,37 @@ run_frontend_preview() {
 
   patch_source_api_urls
 
-  if [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
-    echo "[preview] cached workspace — reusing node_modules / dist / build when available"
+  src_hash="$(compute_frontend_src_hash)"
+  build_cache_ok=0
+  if frontend_build_cache_hit; then
+    build_cache_ok=1
   fi
 
-if [ -d dist ] && [ -f dist/index.html ]; then
-    echo "[preview] reusing cached frontend dist/"
+  if [ "$build_cache_ok" = "1" ] && [ -d dist ] && [ -f dist/index.html ]; then
+    echo "[preview] cache hit, reusing dist/"
     patch_built_bundle_urls
     echo "[preview] launching UI…"
     serve_dir "$(pwd)/dist"
-fi
-if [ -d build ] && [ -f build/index.html ]; then
-    echo "[preview] reusing cached frontend build/"
+  fi
+  if [ "$build_cache_ok" = "1" ] && [ -d build ] && [ -f build/index.html ]; then
+    echo "[preview] cache hit, reusing build/"
     patch_built_bundle_urls
     echo "[preview] launching UI…"
     serve_dir "$(pwd)/build"
   fi
-  if [ -d build/web ] && [ -f build/web/index.html ]; then
+  if [ -d dist ] && [ -f dist/index.html ] && [ "$build_cache_ok" != "1" ]; then
+    echo "[preview] cache miss, rebuilding dist/"
+  elif [ -d build ] && [ -f build/index.html ] && [ "$build_cache_ok" != "1" ]; then
+    echo "[preview] cache miss, rebuilding build/"
+  fi
+
+  if [ -d build/web ] && [ -f build/web/index.html ] && [ "$build_cache_ok" = "1" ]; then
     patch_built_bundle_urls
     echo "[preview] launching UI…"
     serve_dir "$(pwd)/build/web"
   fi
-if [ ! -f package.json ]; then
+
+  if [ ! -f package.json ]; then
     if [ -f index.html ]; then
       serve_dir "$(pwd)"
     fi
@@ -785,6 +884,8 @@ if [ ! -f package.json ]; then
       log_build_tail /tmp/preview-frontend-build.log 50
     else
       patch_built_bundle_urls
+      src_hash="$(compute_frontend_src_hash)"
+      write_cache_hash dist "$src_hash"
       if [ -d dist ] && [ -f dist/index.html ]; then
         serve_dir "$(pwd)/dist"
       fi
@@ -794,6 +895,8 @@ if [ ! -f package.json ]; then
     echo "[preview] Create-React-App: npm run build (production bundle, faster 2nd start)…"
     if npm run build 2>&1; then
       patch_built_bundle_urls
+      src_hash="$(compute_frontend_src_hash)"
+      write_cache_hash dist "$src_hash"
       if [ -d build ] && [ -f build/index.html ]; then
         serve_dir "$(pwd)/build"
       fi
@@ -804,6 +907,8 @@ if [ ! -f package.json ]; then
   fi
   if npm run build 2>/dev/null; then
     patch_built_bundle_urls
+    src_hash="$(compute_frontend_src_hash)"
+    write_cache_hash dist "$src_hash"
     if [ -d dist ] && [ -f dist/index.html ]; then
       serve_dir "$(pwd)/dist"
     fi
