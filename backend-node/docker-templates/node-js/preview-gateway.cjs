@@ -2,6 +2,8 @@
 /**
  * ScholarVerify preview gateway: static SPA + reverse-proxy to Express API.
  * Injects API boot + login fallback into index.html in-memory (no bind-mount writes).
+ *
+ * Routing: try backend first for non-asset paths; fall back to SPA static on GET/HEAD 404/errors.
  */
 'use strict';
 
@@ -14,8 +16,6 @@ const STATIC_ROOT = path.resolve(process.argv[2] || process.cwd());
 const LISTEN_PORT = Number(process.env.UI_PORT || process.env.PORT || 3000);
 const API_PORT = Number(process.env.API_PORT || 5050);
 const API_HOST = process.env.PREVIEW_API_UPSTREAM_HOST || '127.0.0.1';
-
-const PROXY_PREFIXES = ['/api', '/auth', '/users', '/user', '/socket.io', '/uploads', '/static/uploads'];
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -72,10 +72,19 @@ function wrapHtml(html) {
   return `${boot}${fallbackBlock}${html}`;
 }
 
-function shouldProxy(pathname) {
+/** True for real static assets (.js, .css, .png, …). Excludes .html (SPA shell). */
+function isStaticAssetRequest(pathname) {
   const p = String(pathname || '').split('?')[0];
-  if (p === '/login' || p === '/register' || p === '/signup') return false;
-  return PROXY_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
+  const m = p.match(/\.([a-zA-Z0-9]+)$/);
+  if (!m) return false;
+  const ext = m[1].toLowerCase();
+  if (ext === 'html' || ext === 'htm') return false;
+  return true;
+}
+
+function isSafeStaticFallbackMethod(method) {
+  const m = String(method || 'GET').toUpperCase();
+  return m === 'GET' || m === 'HEAD';
 }
 
 function send(res, status, body, headers = {}) {
@@ -95,42 +104,90 @@ function safeJoin(root, reqPath) {
   return full;
 }
 
-function proxy(req, res) {
-  const headers = { ...req.headers, host: `${API_HOST}:${API_PORT}` };
-  delete headers['accept-encoding'];
-  const opts = {
-    hostname: API_HOST,
-    port: API_PORT,
-    path: req.url,
-    method: req.method,
-    headers,
-    timeout: 30000,
-  };
-  const upstream = http.request(opts, (up) => {
-    const outHeaders = { ...up.headers };
-    outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
-    outHeaders['access-control-allow-credentials'] = 'true';
-    res.writeHead(up.statusCode || 502, outHeaders);
-    up.pipe(res);
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
   });
-  upstream.on('timeout', () => {
-    upstream.destroy();
-    if (!res.headersSent) send(res, 504, 'Upstream API timeout');
-  });
-  upstream.on('error', (err) => {
-    if (!res.headersSent) {
-      send(
-        res,
-        502,
-        JSON.stringify({
-          message: 'Preview API proxy error — backend may still be starting',
-          error: String(err && err.message ? err.message : err),
-        }),
-        { 'Content-Type': 'application/json' }
-      );
-    }
-  });
-  req.pipe(upstream);
+}
+
+function jsonError(res, status, message, error) {
+  return send(
+    res,
+    status,
+    JSON.stringify({
+      message,
+      error: error != null ? String(error) : undefined,
+    }),
+    { 'Content-Type': 'application/json' }
+  );
+}
+
+/**
+ * Try upstream API first. On GET/HEAD 404 or connection failure → SPA static.
+ * On POST/PUT/… errors/timeouts → 502/504 (never serve index.html for mutations).
+ */
+function proxyTryThenStatic(req, res) {
+  const method = String(req.method || 'GET').toUpperCase();
+  const canFallback = isSafeStaticFallbackMethod(method);
+
+  readRequestBody(req)
+    .then((body) => {
+      const headers = { ...req.headers, host: `${API_HOST}:${API_PORT}` };
+      delete headers['accept-encoding'];
+      delete headers['transfer-encoding'];
+      headers['content-length'] = String(body.length);
+
+      const opts = {
+        hostname: API_HOST,
+        port: API_PORT,
+        path: req.url,
+        method,
+        headers,
+        timeout: 30000,
+      };
+
+      const upstream = http.request(opts, (up) => {
+        const status = up.statusCode || 502;
+        if (status === 404 && canFallback) {
+          up.resume();
+          return serveStatic(req, res);
+        }
+        const outHeaders = { ...up.headers };
+        outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+        outHeaders['access-control-allow-credentials'] = 'true';
+        res.writeHead(status, outHeaders);
+        up.pipe(res);
+      });
+
+      upstream.on('timeout', () => {
+        upstream.destroy();
+        if (res.headersSent) return;
+        if (canFallback) return serveStatic(req, res);
+        return jsonError(res, 504, 'Upstream API timeout');
+      });
+
+      upstream.on('error', (err) => {
+        if (res.headersSent) return;
+        if (canFallback) return serveStatic(req, res);
+        return jsonError(
+          res,
+          502,
+          'Preview API proxy error — backend may still be starting',
+          err && err.message ? err.message : err
+        );
+      });
+
+      if (body.length) upstream.write(body);
+      upstream.end();
+    })
+    .catch((err) => {
+      if (res.headersSent) return;
+      if (canFallback) return serveStatic(req, res);
+      return jsonError(res, 502, 'Failed to read request body', err && err.message ? err.message : err);
+    });
 }
 
 function sendHtml(res, data) {
@@ -205,8 +262,8 @@ const server = http.createServer((req, res) => {
     pathname = '/';
   }
 
-  if (shouldProxy(pathname)) return proxy(req, res);
-  return serveStatic(req, res);
+  if (isStaticAssetRequest(pathname)) return serveStatic(req, res);
+  return proxyTryThenStatic(req, res);
 });
 
 server.on('error', (err) => {
