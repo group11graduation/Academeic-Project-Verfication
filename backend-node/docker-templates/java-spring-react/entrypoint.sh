@@ -43,6 +43,10 @@ run_serve() {
 }
 
 hold_port_with_fallback() {
+  if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
+    # Thymeleaf preview maps the host port directly to Spring :8080 — no React placeholder.
+    return 0
+  fi
   if [ "$PREVIEW_WORKSPACE_CACHED" = "1" ]; then
     echo "[preview] holding :${PORT} with placeholder (cached workspace — usually 1–3 min)"
   else
@@ -701,6 +705,40 @@ wait_for_spring_briefly() {
 }
 
 hold_port_with_fallback
+
+# Spring Boot + Thymeleaf (server-rendered) — UI is the Spring app on :8080 (no React).
+if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
+  PORT="${PORT:-8080}"
+  API_PORT="${API_PORT:-8080}"
+  LISTEN="tcp://0.0.0.0:${PORT}"
+  SPRING_SUBDIR="${SPRING_SUBDIR:-.}"
+  echo "[preview] Spring+Thymeleaf mode spring=$SPRING_SUBDIR port=${PORT}"
+  release_port_holder
+  cd "$ROOT/$SPRING_SUBDIR" 2>/dev/null || cd "$ROOT" || exit 1
+  export SERVER_PORT="$API_PORT"
+  export SPRING_PROFILES_ACTIVE=preview
+  # Reuse the same async Spring starter, then wait and keep the process in foreground via wait.
+  start_spring_backend_async || {
+    echo "[preview] Spring start failed — check /tmp/preview-spring.log"
+    diagnose_spring_startup_failures /tmp/preview-spring.log
+    serve_fallback_forever
+  }
+  wait_for_spring_briefly || true
+  # Keep container alive while Spring runs in background; if it dies, show fallback.
+  while true; do
+    if [ -n "${SPRING_BG_PID:-}" ] && kill -0 "$SPRING_BG_PID" 2>/dev/null; then
+      if tcp_port_open "$API_PORT"; then
+        echo "[preview] Thymeleaf app listening on :${API_PORT}"
+      fi
+      wait "$SPRING_BG_PID" || true
+      echo "[preview] Spring process exited — see /tmp/preview-spring.log"
+      diagnose_spring_startup_failures /tmp/preview-spring.log
+      break
+    fi
+    sleep 5
+  done
+  serve_fallback_forever
+fi
 
 if [ "$PREVIEW_SPRING_MODE" = "1" ] && [ -n "$SPRING_SUBDIR" ] && [ -n "$FRONTEND_SUBDIR" ]; then
   echo "[preview] Spring+React mode spring=$SPRING_SUBDIR frontend=$FRONTEND_SUBDIR API=$API_PORT UI=$PORT public_api=${PREVIEW_PUBLIC_API_URL:-}"

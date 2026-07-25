@@ -17,6 +17,7 @@ const STACK_TO_TECH = {
   'php-apache': ['php', 'mysql', 'laravel'],
   'node-js': ['node.js', 'react'],
   'java-spring-react': ['java', 'spring boot', 'react'],
+  'java-spring-thymeleaf': ['java', 'spring boot', 'thymeleaf'],
   'static-html': [],
   'static-html-js': [],
   jupyter: ['python'],

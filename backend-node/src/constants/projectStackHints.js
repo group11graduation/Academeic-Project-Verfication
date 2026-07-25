@@ -4,6 +4,7 @@ export const PROJECT_STACK_HINT_VALUES = [
   'static-html-js',
   'node-js',
   'java-spring-react',
+  'java-spring-thymeleaf',
   'php-apache',
 ];
 

@@ -133,6 +133,22 @@ export function springReactDisplayLabel(pair) {
 }
 
 /**
+ * Locate a single Spring Boot project root (Thymeleaf / server-rendered — no React frontend).
+ */
+export async function resolveSpringOnlyRoot(buildContext) {
+  const springDirs = [];
+  await collectSpringCandidates(buildContext, buildContext, springDirs);
+  if (!springDirs.length) return null;
+  springDirs.sort((a, b) => b.score - a.score);
+  const spring = springDirs[0];
+  return {
+    springSubdir: spring.rel,
+    springKind: spring.kind,
+    detectionNote: `Spring Boot + Thymeleaf (${spring.rel})`,
+  };
+}
+
+/**
  * Locate Spring Boot backend + React/Vite frontend folders (no Node API required).
  */
 export async function resolveSpringReactPair(buildContext) {

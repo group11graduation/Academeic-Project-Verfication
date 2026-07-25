@@ -25,7 +25,7 @@ import {
   resolvePreviewDatabaseName,
 } from './previewPhp.service.js';
 import { resolveFlutterNodePair, patchFlutterApiPort } from './previewFlutter.service.js';
-import { resolveSpringReactPair, patchSpringForPreview, springReactDisplayLabel } from './previewSpring.service.js';
+import { resolveSpringReactPair, resolveSpringOnlyRoot, patchSpringForPreview, springReactDisplayLabel } from './previewSpring.service.js';
 import { ensurePreviewDependencyCacheDirs } from './previewWorkspaceCache.service.js';
 import { resolveDockerHostPath } from '../config/dockerPaths.js';
 import { getPreviewProbeHost, previewProbeHostname, rewritePreviewUrlForProbe } from '../config/previewProbe.js';
@@ -95,6 +95,12 @@ export const STACK_BLUEPRINTS = {
     templateDir: 'java-spring-react',
     internalPort: 3000,
     imagePrefix: 'sv-project-spring-react',
+  },
+  /** Spring Boot + Thymeleaf (server-rendered HTML) — preview URL is the app on :8080 */
+  'java-spring-thymeleaf': {
+    templateDir: 'java-spring-react',
+    internalPort: 8080,
+    imagePrefix: 'sv-project-spring-thymeleaf',
   },
 };
 
@@ -284,6 +290,7 @@ function previewBaseImageFailureMessage(stack) {
     'php-apache': 'PHP preview is temporarily unavailable',
     jupyter: 'Jupyter preview is temporarily unavailable',
     'java-spring-react': 'React + Spring Boot preview is temporarily unavailable',
+    'java-spring-thymeleaf': 'Spring Boot + Thymeleaf preview is temporarily unavailable',
     'node-js': 'React + Express preview is temporarily unavailable',
     'static-html': 'Static HTML preview is temporarily unavailable',
     'static-html-js': 'Static HTML preview is temporarily unavailable',
@@ -720,7 +727,8 @@ function usesVolumePreviewStack(stack) {
     stack === 'static-html-js' ||
     stack === 'php-apache' ||
     stack === 'jupyter' ||
-    stack === 'java-spring-react'
+    stack === 'java-spring-react' ||
+    stack === 'java-spring-thymeleaf'
   );
 }
 
@@ -732,6 +740,9 @@ function previewProjectMountPath(stack) {
 
 /** Human-readable label for logs and teacher UI */
 export function previewStackDisplayName(stack, splitPair = null) {
+  if (stack === 'java-spring-thymeleaf') {
+    return 'Spring Boot + Thymeleaf';
+  }
   if (stack === 'java-spring-react') {
     return 'React + Spring Boot';
   }
@@ -751,6 +762,7 @@ export function previewStackDisplayName(stack, splitPair = null) {
     'static-html': 'HTML + CSS',
     'static-html-js': 'HTML + CSS + JavaScript',
     'java-spring-react': 'React + Spring Boot',
+    'java-spring-thymeleaf': 'Spring Boot + Thymeleaf',
   };
   return map[stack] || stack || 'Unknown';
 }
@@ -858,7 +870,7 @@ async function ensurePreviewBaseImage(stack, { flutterPair = null, forceRebuild 
   if (stack === 'jupyter') {
     return ensurePreviewJupyterBaseImage({ forceRebuild });
   }
-  if (stack === 'java-spring-react') {
+  if (stack === 'java-spring-react' || stack === 'java-spring-thymeleaf') {
     return ensurePreviewSpringReactBaseImage({ forceRebuild });
   }
   if (stack === 'static-html' || stack === 'static-html-js' || stack === 'node-js') {
@@ -878,6 +890,13 @@ export function inferStackHintFromAssignment(assignment) {
     return 'static-html';
   }
   // Spring before generic React so "React + Spring" never maps to Express/Node.
+  if (
+    /thymeleaf|spring\s*boot.*thymeleaf|thymeleaf.*spring|server[-\s]?side\s+java|java\s+spring\s+boot(?!\s*\+?\s*react)/i.test(
+      text
+    ) && !/react\s*\+\s*spring|spring\s*\+\s*react|react\s+with\s+spring/i.test(text)
+  ) {
+    return 'java-spring-thymeleaf';
+  }
   if (
     /spring\s*boot|springboot|java\s*\+\s*react|react\s*\+\s*spring|react\s+with\s+spring|spring\s*\+\s*react/.test(
       text
@@ -1115,12 +1134,18 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     signals.packageJsonPaths.length > 0 ||
     signals.viteConfig;
 
+  const hasSpringReactFrontend =
+    signals.jsxTsxFiles > 0 ||
+    signals.viteConfig ||
+    isStrongReactStaticSignal(reactStatic) ||
+    bestNodePkgScore >= 12;
+
   const reasons = [];
   let stack = null;
 
   const hint = options.stackHint || null;
   const weakNode = bestNodePkgScore < 12;
-  if (hint === 'static-html' && (signals.indexHtml || signals.htmlFiles > 0) && weakNode && !hasPhp) {
+  if (hint === 'static-html' && (signals.indexHtml || signals.htmlFiles > 0) && weakNode && !hasPhp && !hasStrongSpring) {
     return {
       stack: 'static-html',
       reasons: ['student declared HTML + CSS', `${signals.htmlFiles || 1} HTML file(s)`, `${signals.cssFiles} CSS file(s)`],
@@ -1131,7 +1156,8 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     hint === 'static-html-js' &&
     (signals.indexHtml || signals.htmlFiles > 0) &&
     weakNode &&
-    !hasPhp
+    !hasPhp &&
+    !hasStrongSpring
   ) {
     return {
       stack: 'static-html-js',
@@ -1145,7 +1171,8 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   }
 
   const plainStatic = detectPlainStaticStack(signals, bestNodePkgScore, reactStatic);
-  if (plainStatic) {
+  // Never treat Spring Boot (Thymeleaf templates are .html) as a static site.
+  if (plainStatic && !hasStrongSpring) {
     return {
       stack: plainStatic.stack,
       reasons: plainStatic.reasons,
@@ -1163,7 +1190,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   if (hasJupyter && !hasNode && !hasPhp) {
     stack = 'jupyter';
     reasons.push(`${signals.ipynbFiles} notebook(s)`);
-  } else if (!hasNode && !hasPhp && !hasJupyter && (signals.indexHtml || signals.htmlFiles > 0)) {
+  } else if (!hasNode && !hasPhp && !hasJupyter && !hasStrongSpring && (signals.indexHtml || signals.htmlFiles > 0)) {
     if (signals.jsFiles > 0) {
       stack = 'static-html-js';
       reasons.push('HTML + CSS + JavaScript static site');
@@ -1176,7 +1203,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
       if (signals.htmlFiles) reasons.push(`${signals.htmlFiles} HTML file(s)`);
       if (signals.cssFiles) reasons.push(`${signals.cssFiles} CSS file(s)`);
     }
-  } else if (hasStrongSpring && hasReactOrJsFrontend) {
+  } else if (hasStrongSpring && hasSpringReactFrontend) {
     // React + Spring Boot — never treat as Express/Node even if FE has package.json.
     stack = 'java-spring-react';
     reasons.push('Spring Boot Java backend with React/JavaScript frontend');
@@ -1187,6 +1214,15 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     if (signals.jsxTsxFiles) reasons.push(`${signals.jsxTsxFiles} JSX/TSX file(s)`);
     if (nodePkgCount) reasons.push(`${nodePkgCount} JavaScript package.json`);
     if (reactStatic.reactStatic) reasons.push(reactStatic.reason);
+  } else if (hasStrongSpring) {
+    // Spring Boot only (Thymeleaf / server-rendered pages) — not a static HTML site.
+    stack = 'java-spring-thymeleaf';
+    reasons.push('Spring Boot Java web app (Thymeleaf / server-rendered)');
+    if (signals.pomXmlCount) reasons.push(`${signals.pomXmlCount} pom.xml`);
+    if (signals.gradleBuild) reasons.push('Gradle build');
+    if (signals.springBootJava) reasons.push('@SpringBootApplication');
+    if (signals.springBootPom) reasons.push('spring-boot in pom.xml');
+    if (signals.htmlFiles) reasons.push(`${signals.htmlFiles} HTML template(s)`);
   } else if (hasNode && !hasPhp && !hasStrongSpring) {
     // React + Express / Node only when there is no Spring Boot backend.
     stack = 'node-js';
@@ -1216,20 +1252,34 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   }
 
   // ZIP file signals beat assignment hints: never force Node when Spring Boot is present.
-  if (stack === 'node-js' && hasStrongSpring && hasReactOrJsFrontend) {
+  if (stack === 'node-js' && hasStrongSpring && hasSpringReactFrontend) {
     stack = 'java-spring-react';
     reasons.push('overrode Node hint — Spring Boot + React frontend detected in ZIP');
   }
-  if (hint === 'java-spring-react' && !stack && hasReactOrJsFrontend && (signals.pomXmlCount || signals.gradleBuild)) {
+  if (stack === 'node-js' && hasStrongSpring && !hasSpringReactFrontend) {
+    stack = 'java-spring-thymeleaf';
+    reasons.push('overrode Node hint — Spring Boot (Thymeleaf) detected in ZIP');
+  }
+  if (hint === 'java-spring-react' && !stack && hasSpringReactFrontend && (signals.pomXmlCount || signals.gradleBuild)) {
     stack = 'java-spring-react';
     reasons.push('assignment hint (java-spring-react) with Java build files');
+  }
+  if (hint === 'java-spring-thymeleaf' && !stack && (signals.pomXmlCount || signals.gradleBuild || hasStrongSpring)) {
+    stack = 'java-spring-thymeleaf';
+    reasons.push('assignment hint (java-spring-thymeleaf) with Java build files');
   }
 
   if (!stack && hint && STACK_BLUEPRINTS[hint]) {
     // Generic "react" hint must not force Node when Spring files exist.
-    if (hint === 'node-js' && hasStrongSpring && hasReactOrJsFrontend) {
+    if (hint === 'node-js' && hasStrongSpring && hasSpringReactFrontend) {
       stack = 'java-spring-react';
       reasons.push('assignment hinted Node/React but ZIP has Spring Boot — using React + Spring Boot');
+    } else if (hint === 'node-js' && hasStrongSpring) {
+      stack = 'java-spring-thymeleaf';
+      reasons.push('assignment hinted Node/React but ZIP has Spring Boot only — using Thymeleaf preview');
+    } else if ((hint === 'static-html' || hint === 'static-html-js') && hasStrongSpring) {
+      stack = 'java-spring-thymeleaf';
+      reasons.push('assignment hinted static HTML but ZIP has Spring Boot — using Thymeleaf preview');
     } else {
       stack = hint;
       reasons.push(`assignment hint (${hint}) — no strong file signals`);
@@ -1238,7 +1288,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
 
   if (!stack) {
     const err = new Error(
-      'Could not detect project stack from files. Include index.html + CSS (HTML/CSS), index.html + CSS + .js (HTML/CSS/JS), package.json (Node), .php (PHP), or .ipynb (Jupyter).'
+      'Could not detect project stack from files. Include pom.xml (Spring Boot), index.html + CSS, package.json (Node), .php (PHP), or .ipynb (Jupyter).'
     );
     err.status = 400;
     throw err;
@@ -1357,6 +1407,7 @@ async function runPreviewContainer({
   mernPair = null,
   flutterPair = null,
   springPair = null,
+  springOnlyRoot = null,
   dockerNetwork = null,
   projectMount = null,
   memoryLimit = process.env.PREVIEW_SANDBOX_MEMORY || (apiHostPort ? '768m' : '512m'),
@@ -1389,6 +1440,7 @@ async function runPreviewContainer({
 
   const useDepCaches =
     stack === 'java-spring-react' ||
+    stack === 'java-spring-thymeleaf' ||
     stack === 'node-js' ||
     Boolean(mernPair) ||
     Boolean(flutterPair);
@@ -1421,6 +1473,14 @@ async function runPreviewContainer({
     args.push('-e', `SPRING_SUBDIR=${springPair.springSubdir}`);
     args.push('-e', `FRONTEND_SUBDIR=${springPair.frontendSubdir}`);
     args.push('-e', 'PREVIEW_SPRING_MODE=1');
+  } else if (stack === 'java-spring-thymeleaf' && springOnlyRoot) {
+    const publicUiUrl = buildPublicPreviewOrigin(hostPort);
+    args.push('-e', 'PORT=8080');
+    args.push('-e', 'API_PORT=8080');
+    args.push('-e', 'SERVER_PORT=8080');
+    args.push('-e', `PREVIEW_PUBLIC_UI_URL=${publicUiUrl}`);
+    args.push('-e', `SPRING_SUBDIR=${springOnlyRoot.springSubdir}`);
+    args.push('-e', 'PREVIEW_THYMELEAF_MODE=1');
   } else if (apiHostPort) {
     const publicApiUrl = buildPublicPreviewOrigin(apiHostPort);
     const publicUiUrl = buildPublicPreviewOrigin(hostPort);
@@ -1802,6 +1862,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   let mernPair = null;
   let flutterPair = null;
   let springPair = null;
+  let springOnlyRoot = null;
   if (stack === 'node-js') {
     flutterPair = await resolveFlutterNodePair(buildContext);
     if (!flutterPair) {
@@ -1813,7 +1874,19 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     if (!springPair) {
       const err = new Error(
         'Could not find Spring Boot (pom.xml / mvnw / Gradle) and React (package.json) in separate folders. ' +
-          'ZIP should contain e.g. backend/ with Java and frontend/ with React — not only one package.json.'
+          'ZIP should contain e.g. backend/ with Java and frontend/ with React — not only one package.json. ' +
+          'For Spring Boot + Thymeleaf (no React), upload a Spring project with pom.xml and templates/ only.'
+      );
+      err.status = 400;
+      throw err;
+    }
+  }
+  if (stack === 'java-spring-thymeleaf') {
+    springOnlyRoot = await resolveSpringOnlyRoot(buildContext);
+    if (!springOnlyRoot) {
+      const err = new Error(
+        'Could not find a Spring Boot project (pom.xml / mvnw / Gradle with spring-boot). ' +
+          'ZIP should include the Maven/Gradle project with src/main/java and optionally src/main/resources/templates for Thymeleaf.'
       );
       err.status = 400;
       throw err;
@@ -1830,6 +1903,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     flutterPair?.flutterSubdir ||
     mernPair?.frontendSubdir ||
     springPair?.frontendSubdir ||
+    springOnlyRoot?.springSubdir ||
     (await resolveAppSubdir(buildContext, stack));
 
   let imageTag = buildImageTag(imageKey, stack);
@@ -1958,6 +2032,26 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     };
   }
 
+  if (stack === 'java-spring-thymeleaf' && springOnlyRoot) {
+    const publicUiUrl = buildPublicPreviewOrigin(hostPort);
+    const springPatch = await patchSpringForPreview(buildContext, springOnlyRoot.springSubdir, {
+      apiHostPort: hostPort,
+      uiHostPort: hostPort,
+      publicUiUrl,
+    });
+    springPatchMeta = springPatch;
+    if (springPatch?.seedCredentials?.username) {
+      mergedCredentialEnv = {
+        ...mergedCredentialEnv,
+        PREVIEW_SEED_USERNAME: springPatch.seedCredentials.username,
+        PREVIEW_SEED_PASSWORD: springPatch.seedCredentials.password,
+        ADMIN_USERNAME: springPatch.seedCredentials.username,
+        LOGIN_USERNAME: springPatch.seedCredentials.username,
+        ADMIN_PASSWORD: springPatch.seedCredentials.password,
+      };
+    }
+  }
+
   if (splitStackPair && !springPair) {
     const publicApiUrl = apiHostPort ? buildPublicPreviewOrigin(apiHostPort) : '';
     const publicUiUrl = buildPublicPreviewOrigin(hostPort);
@@ -2036,11 +2130,13 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       mernPair,
       flutterPair,
       springPair,
+      springOnlyRoot,
       dockerNetwork: previewDockerNetwork,
       projectMount,
-      memoryLimit: springPair
-        ? process.env.PREVIEW_SPRING_SANDBOX_MEMORY || '1536m'
-        : process.env.PREVIEW_SANDBOX_MEMORY || '256m',
+      memoryLimit:
+        springPair || springOnlyRoot
+          ? process.env.PREVIEW_SPRING_SANDBOX_MEMORY || '1536m'
+          : process.env.PREVIEW_SANDBOX_MEMORY || '256m',
       workspaceCached,
     });
   } catch (e) {
@@ -2055,7 +2151,9 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   const previewApiUrl = apiHostPort ? buildPreviewUrl(apiHostPort, stack) : '';
   const stackDisplayName = springPair
     ? springReactDisplayLabel(springPair)
-    : previewStackDisplayName(stack, mernPair);
+    : springOnlyRoot
+      ? springOnlyRoot.detectionNote || 'Spring Boot + Thymeleaf'
+      : previewStackDisplayName(stack, mernPair);
 
   return {
     previewUrl,
@@ -2273,6 +2371,9 @@ export async function checkPreviewAppHttpReady({
   if (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js' || stack === 'java-spring-react') {
     urlsToTry.push(`${base}/index.html`);
   }
+  if (stack === 'java-spring-thymeleaf') {
+    urlsToTry.push(`${base}/login`, `${base}/`, `${base}/home`);
+  }
 
   let uiReady = false;
   const seenUrls = new Set();
@@ -2284,9 +2385,11 @@ export async function checkPreviewAppHttpReady({
     // Empty bodies / bare redirects are not proof the student SPA is up (serve
     // placeholder handoff and 301s previously unlocked preview too early).
     if (hit.redirect && (!hit.body || hit.body.length < 32)) continue;
-    if (!hit.body || hit.body.length < 64) continue;
+    // Spring Security login redirects / short HTML pages are valid for Thymeleaf apps.
+    const minBody = stack === 'java-spring-thymeleaf' ? 24 : 64;
+    if (!hit.body || hit.body.length < minBody) continue;
     if (isPreviewPlaceholderBody(hit.body)) continue;
-    if (hit.status >= 200 && hit.status < 400) {
+    if (hit.status >= 200 && hit.status < 500) {
       uiReady = true;
       break;
     }
@@ -2361,7 +2464,7 @@ export async function waitForPreviewReady({
   const springTimeout = Number(process.env.PREVIEW_SPRING_STARTUP_TIMEOUT_MS || 1_800_000);
   const portPublishGraceMs = PREVIEW_PORT_PUBLISH_GRACE_MS;
   const baseEffectiveTimeout =
-    stack === 'java-spring-react'
+    stack === 'java-spring-react' || stack === 'java-spring-thymeleaf'
       ? Math.max(timeoutMs, springTimeout)
       : stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js'
         ? Math.max(timeoutMs, nodeTimeout)
@@ -2459,6 +2562,7 @@ export async function waitForPreviewReady({
         stack === 'static-html' ||
         stack === 'static-html-js' ||
         stack === 'java-spring-react' ||
+        stack === 'java-spring-thymeleaf' ||
         !apiTarget ||
         sawApiPortOpen);
 

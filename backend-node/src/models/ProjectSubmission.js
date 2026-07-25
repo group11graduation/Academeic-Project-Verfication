@@ -28,7 +28,15 @@ const projectSubmissionSchema = new mongoose.Schema(
     /** Optional hint for preview auto-detect */
     projectStackHint: {
       type: String,
-      enum: ['', 'static-html', 'static-html-js', 'node-js', 'java-spring-react', 'php-apache'],
+      enum: [
+        '',
+        'static-html',
+        'static-html-js',
+        'node-js',
+        'java-spring-react',
+        'java-spring-thymeleaf',
+        'php-apache',
+      ],
       default: '',
     },
     /** ZIP extract + tech-audit pipeline state for teacher preview / upload validation */

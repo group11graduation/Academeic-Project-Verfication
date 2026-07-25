@@ -38,6 +38,7 @@ const PREVIEW_STACK_LABELS = {
     'static-html-js': 'HTML + CSS + JavaScript',
     'node-js': 'React + Express',
     'java-spring-react': 'React + Spring Boot',
+    'java-spring-thymeleaf': 'Spring Boot + Thymeleaf',
     'php-apache': 'PHP / Apache',
     jupyter: 'Jupyter notebook',
 };
@@ -1651,6 +1652,8 @@ const TeacherProposalStudentDetail = () => {
                                                                         ? 'Using cached Docker template — installing deps (1–5 min)…'
                                                                         : sess.previewStack === 'java-spring-react'
                                                                           ? 'First start: Maven + npm build (5–15 min)…'
+                                                                          : sess.previewStack === 'java-spring-thymeleaf'
+                                                                            ? 'First start: Maven packaging Spring Boot (3–12 min)…'
                                                                           : 'Installing dependencies & starting app (1–5 min)…'}
                                                         </span>
                                                     )}

@@ -380,7 +380,7 @@ async function detectAndApplyApiLoginRouteHint(session, {
         );
       }
     }
-    if (extractDir && backendSubdir && stack !== 'java-spring-react') {
+    if (extractDir && backendSubdir && stack !== 'java-spring-react' && stack !== 'java-spring-thymeleaf') {
       // Strip any previously injected Express aliases, then restart API so the
       // real /auth/login (etc.) is no longer shadowed.
       const removed = await previewMern
@@ -456,7 +456,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     const startupTimeout =
       deployResult.stack === 'static-html' || deployResult.stack === 'static-html-js'
         ? PREVIEW_STATIC_STARTUP_TIMEOUT_MS
-        : deployResult.stack === 'java-spring-react'
+        : deployResult.stack === 'java-spring-react' || deployResult.stack === 'java-spring-thymeleaf'
           ? PREVIEW_SPRING_STARTUP_TIMEOUT_MS
           : PREVIEW_STARTUP_TIMEOUT_MS;
     const wait = await dockerOrchestrator.waitForPreviewReady({

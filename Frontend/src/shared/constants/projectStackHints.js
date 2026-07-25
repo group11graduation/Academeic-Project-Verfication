@@ -4,6 +4,7 @@ export const PROJECT_STACK_OPTIONS = [
   { value: 'static-html-js', label: 'HTML + CSS + JavaScript' },
   { value: 'node-js', label: 'React + Express' },
   { value: 'java-spring-react', label: 'React + Spring Boot' },
+  { value: 'java-spring-thymeleaf', label: 'Spring Boot + Thymeleaf' },
   { value: 'php-apache', label: 'PHP and MySQL' },
 ];
 
@@ -16,6 +17,8 @@ export const PROJECT_STACK_HINT_HELP = {
     'React + Express only (not Spring). Include frontend and backend folders with package.json (e.g. client/ + server/, or a single React + Express app).',
   'java-spring-react':
     'React + Spring Boot only (not Express). Include Spring Boot backend (pom.xml or build.gradle) and React frontend (package.json) as sibling folders in the ZIP.',
+  'java-spring-thymeleaf':
+    'Spring Boot + Thymeleaf (no React). Include pom.xml (or Gradle), Java sources, and HTML templates under src/main/resources/templates. Preview runs the app on port 8080.',
   'php-apache':
     'Include index.php and PHP source files. MySQL scripts or config are optional but recommended for database projects.',
 };

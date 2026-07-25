@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
 import { resolveMernPair } from './previewMern.service.js';
-import { resolveSpringReactPair } from './previewSpring.service.js';
+import { resolveSpringReactPair, resolveSpringOnlyRoot } from './previewSpring.service.js';
 
 async function countProjectFiles(root, depth = 0) {
   if (depth > 8) return 0;
@@ -268,6 +268,30 @@ export async function runPreviewStructureAudit(extractDir, { stackHint = '', sta
         'missing_notebook',
         'Jupyter project is missing a .ipynb notebook file. The student must include at least one notebook in the ZIP.'
       );
+    }
+  } else if (stack === 'java-spring-thymeleaf') {
+    const springRoot = await resolveSpringOnlyRoot(extractDir);
+    if (!springRoot) {
+      fail(
+        failures,
+        'missing_spring_backend',
+        'Spring Boot + Thymeleaf project is missing a Java backend (pom.xml or build.gradle with Spring Boot). Include the Maven/Gradle project with src/main/java (and templates under src/main/resources/templates).',
+        'pom.xml'
+      );
+    } else {
+      const beAbs = path.join(extractDir, springRoot.springSubdir);
+      const hasPom =
+        (await pathExists(path.join(beAbs, 'pom.xml'))) ||
+        (await pathExists(path.join(beAbs, 'build.gradle'))) ||
+        (await pathExists(path.join(beAbs, 'build.gradle.kts')));
+      if (!hasPom) {
+        fail(
+          failures,
+          'missing_spring_build_file',
+          `Spring folder "${springRoot.springSubdir}" is missing pom.xml or build.gradle.`,
+          springRoot.springSubdir
+        );
+      }
     }
   } else if (stack === 'java-spring-react') {
     const pair = await resolveSpringReactPair(extractDir);
