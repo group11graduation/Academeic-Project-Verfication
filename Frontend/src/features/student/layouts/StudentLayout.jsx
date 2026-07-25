@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useLocation, Link, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, ChevronDown, Search } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Users, ChevronDown, Search } from 'lucide-react';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import StudentSidebar from '../components/StudentSidebar';
 import { useAuth } from '../../../context/authContext';
@@ -11,6 +11,7 @@ const pageTitles = [
     { match: /^\/student\/assignments\/[^/]+\/proposal/, title: 'Submit proposal' },
     { match: /^\/student\/assignments\/[^/]+/, title: 'Assignment detail' },
     { match: /^\/student\/assignments/, title: 'Assignments' },
+    { match: /^\/student\/groups/, title: 'My groups' },
     { match: /^\/student\/project\/[^/]+/, title: 'Project workspace' },
     { match: /^\/student\/project/, title: 'My projects' },
     { match: /^\/student\/profile/, title: 'Profile' },
@@ -23,8 +24,9 @@ function resolveTitle(pathname) {
 }
 
 const mobileNav = [
-    { label: 'Dashboard', to: '/student', icon: LayoutDashboard, end: true },
-    { label: 'Assignments', to: '/student/assignments', icon: BookOpen },
+    { label: 'Home', to: '/student', icon: LayoutDashboard, end: true },
+    { label: 'Groups', to: '/student/groups', icon: Users },
+    { label: 'Work', to: '/student/assignments', icon: BookOpen },
     { label: 'Projects', to: '/student/project', icon: FolderKanban },
     { label: 'Profile', to: '/student/profile', icon: UserRound },
 ];

@@ -7,6 +7,7 @@ import {
     MessageSquare,
     LogOut,
     ExternalLink,
+    Users,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import { BRAND, RAIL_GRADIENT } from '../../../shared/ui/brandTheme';
@@ -15,6 +16,7 @@ import ThemeToggle from '../../../shared/components/ThemeToggle';
 
 const navItems = [
     { label: 'Dashboard', to: '/student', icon: LayoutDashboard, end: true },
+    { label: 'My groups', to: '/student/groups', icon: Users },
     { label: 'Assignments', to: '/student/assignments', icon: BookOpen },
     { label: 'My Projects', to: '/student/project', icon: FolderKanban },
     { label: 'Contact teacher', to: '/student/messages', icon: MessageSquare },

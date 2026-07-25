@@ -39,6 +39,7 @@ import NormalAssignmentStudents from '../../features/teacher/pages/NormalAssignm
 import NormalAssignmentStudentDetail from '../../features/teacher/pages/NormalAssignmentStudentDetail';
 import StudentProposalSubmit from '../../features/student/pages/StudentProposalSubmit';
 import StudentMessages from '../../features/student/pages/StudentMessages';
+import StudentMyGroups from '../../features/student/pages/StudentMyGroups';
 import TeacherStudentMessages from '../../features/teacher/pages/TeacherStudentMessages';
 import TeacherMyProfile from '../../features/teacher/pages/TeacherMyProfile';
 
@@ -120,6 +121,7 @@ const AppRoutes = () => {
             >
                 <Route index element={<StudentMyProject />} />
                 <Route path="projects" element={<StudentMyProject />} />
+                <Route path="groups" element={<StudentMyGroups />} />
                 <Route path="assignments" element={<StudentAssignments />} />
                 <Route path="assignments/:id" element={<StudentAssignmentDetail />} />
                 <Route path="assignments/:assignmentId/proposal" element={<StudentProposalSubmit />} />

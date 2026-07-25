@@ -273,8 +273,46 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
             .lean())
         : null;
 
-    const isLeader = resolvedGroupInfo
-      ? String(resolvedGroupInfo.leader?._id || resolvedGroupInfo.leader) === String(userId)
+    let groupForClient = resolvedGroupInfo;
+    if (resolvedGroupInfo) {
+      const memberUserIds = [
+        resolvedGroupInfo.leader?._id || resolvedGroupInfo.leader,
+        ...(resolvedGroupInfo.members || []).map((m) => m?.user?._id || m?.user),
+      ]
+        .map((id) => String(id || ''))
+        .filter(Boolean);
+      const memberProfiles = memberUserIds.length
+        ? await StudentProfile.find({ user: { $in: memberUserIds } })
+            .select('user studentId')
+            .lean()
+        : [];
+      const studentIdByUser = new Map(memberProfiles.map((p) => [String(p.user), p.studentId || '']));
+      const leaderId = String(resolvedGroupInfo.leader?._id || resolvedGroupInfo.leader || '');
+      groupForClient = {
+        ...resolvedGroupInfo,
+        leader: resolvedGroupInfo.leader
+          ? {
+              ...resolvedGroupInfo.leader,
+              studentId: studentIdByUser.get(leaderId) || '',
+            }
+          : resolvedGroupInfo.leader,
+        members: (resolvedGroupInfo.members || []).map((m) => {
+          const uid = String(m?.user?._id || m?.user || '');
+          return {
+            ...m,
+            user: m?.user
+              ? {
+                  ...m.user,
+                  studentId: studentIdByUser.get(uid) || '',
+                }
+              : m.user,
+          };
+        }),
+      };
+    }
+
+    const isLeader = groupForClient
+      ? String(groupForClient.leader?._id || groupForClient.leader) === String(userId)
       : true;
     const approved = isProposalFullyApprovedForProject(proposal, assignment);
     const deadlineOpen = isProjectDeadlineOpen(assignment);
@@ -342,7 +380,7 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
     out.push({
       assignment,
       proposal: proposalOut,
-      group: resolvedGroupInfo,
+      group: groupForClient,
       isGroupLeader: isLeader,
       projectSubmissionAllowed,
       projectDeadline: assignment.projectDeadline || null,

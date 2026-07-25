@@ -5,12 +5,15 @@ import {
     ArrowUpRight,
     BookOpen,
     ChevronDown,
+    Crown,
     FileText,
     Loader2,
+    Users,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
 import studentService from '../../services/studentService';
 import { BRAND, BRAND_GRADIENT, PROJECT_NAME } from '../ui/brandTheme';
+import { buildStudentGroupsBySubject } from '../utils/studentGroupsBySubject';
 
 const statusBadge = (row) => {
     const s = row?.proposal?.status;
@@ -65,6 +68,10 @@ const StudentHomeDashboard = () => {
     }, [rows]);
 
     const recentRows = useMemo(() => rows.slice(0, 5), [rows]);
+    const groupsBySubject = useMemo(
+        () => buildStudentGroupsBySubject(rows, user?._id || user?.id),
+        [rows, user]
+    );
     const canOpenProject = (row) =>
         Boolean(row?.latestProjectSubmission || row?.proposal?.status === 'teacher_approved');
 
@@ -227,6 +234,66 @@ const StudentHomeDashboard = () => {
                         </div>
                     )}
                 </div>
+
+                {groupsBySubject.totalGroups > 0 ? (
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                        <div className="mb-3 flex items-center justify-between">
+                            <h2 className="flex items-center gap-2 text-sm font-black text-slate-900 dark:text-slate-100">
+                                <Users className="h-4 w-4 text-[#2a3fa4]" />
+                                My groups by subject
+                            </h2>
+                            <Link
+                                to="/student/groups"
+                                className="text-[10px] font-bold text-slate-500 hover:text-[#2a3fa4] dark:text-slate-400 dark:hover:text-blue-300"
+                            >
+                                View all
+                            </Link>
+                        </div>
+                        <div className="space-y-3">
+                            {groupsBySubject.subjects.slice(0, 4).map((subject) => (
+                                <div key={subject.subjectId}>
+                                    <p className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                                        {subject.subjectName}
+                                        {subject.subjectCode ? ` · ${subject.subjectCode}` : ''}
+                                    </p>
+                                    <div className="space-y-1.5">
+                                        {subject.groups.slice(0, 2).map((g) => (
+                                            <div
+                                                key={`${subject.subjectId}-${g.groupId}`}
+                                                className="flex items-center justify-between gap-2 rounded-lg bg-[#f8f9fc] px-3 py-2 dark:bg-[#0f172a]"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-[12px] font-bold text-slate-900 dark:text-slate-100">
+                                                        {g.groupName}
+                                                    </p>
+                                                    <p className="truncate text-[10px] font-medium text-slate-500">
+                                                        Leader: {g.leaderName}
+                                                        {g.youAreLeader ? ' (you)' : ''}
+                                                    </p>
+                                                </div>
+                                                <span
+                                                    className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
+                                                        g.youAreLeader
+                                                            ? 'bg-amber-50 text-amber-800'
+                                                            : 'bg-white text-slate-500 ring-1 ring-slate-200 dark:bg-transparent dark:ring-white/10'
+                                                    }`}
+                                                >
+                                                    {g.youAreLeader ? (
+                                                        <>
+                                                            <Crown className="h-2.5 w-2.5" /> Leader
+                                                        </>
+                                                    ) : (
+                                                        'Member'
+                                                    )}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
             </div>
 
             <div className="space-y-3">
