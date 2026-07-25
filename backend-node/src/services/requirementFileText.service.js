@@ -11,17 +11,44 @@ const MAX_CHARS = Number(process.env.AI_REQUIREMENT_FILE_MAX_CHARS || 12000);
  * Resolve teacher requirement file paths stored as:
  * - assignment-requirements/foo.docx
  * - /uploads/assignment-requirements/foo.docx
- * - absolute paths
+ * - uploads/assignment-requirements/foo.docx
+ * - absolute paths under the real upload root
+ *
+ * IMPORTANT: DB paths often look like `/uploads/...`. On both Windows and Linux,
+ * `path.isAbsolute('/uploads/...')` is true, so we must NOT treat those as OS roots —
+ * they are web paths relative to UPLOAD_DIR.
  */
 export function resolveRequirementFilePath(fileRef) {
   const raw = String(fileRef || '').trim();
   if (!raw) return null;
-  if (path.isAbsolute(raw)) return raw;
 
-  let cleaned = raw.replace(/\\/g, '/').replace(/^\/+/, '');
-  if (cleaned.startsWith('uploads/')) cleaned = cleaned.slice('uploads/'.length);
+  const uploadRoot = path.resolve(getUploadDir());
+  let cleaned = raw.replace(/\\/g, '/').trim();
 
-  return path.join(getUploadDir(), cleaned);
+  // Strip URL/query fragments if any.
+  cleaned = cleaned.split('?')[0].split('#')[0];
+
+  // Web-style upload URLs → relative to upload root.
+  cleaned = cleaned.replace(/^https?:\/\/[^/]+/i, '');
+  if (cleaned.startsWith('/uploads/')) cleaned = cleaned.slice('/uploads/'.length);
+  else if (cleaned.startsWith('uploads/')) cleaned = cleaned.slice('uploads/'.length);
+  else if (cleaned === '/uploads' || cleaned === 'uploads') cleaned = '';
+
+  cleaned = cleaned.replace(/^\/+/, '');
+
+  // True absolute path (e.g. /app/uploads/... or D:\...\uploads\...)
+  if (path.isAbsolute(raw.replace(/\\/g, '/'))) {
+    const absRaw = path.resolve(raw);
+    const rootWithSep = uploadRoot.endsWith(path.sep) ? uploadRoot : uploadRoot + path.sep;
+    if (absRaw === uploadRoot || absRaw.startsWith(rootWithSep)) {
+      return absRaw;
+    }
+    // Absolute but outside upload root and looks like a mistaken `/uploads/...` web path:
+    // fall through and join cleaned relative segment under upload root.
+  }
+
+  if (!cleaned) return null;
+  return path.resolve(uploadRoot, cleaned);
 }
 
 async function extractPdfText(absPath) {
@@ -47,7 +74,7 @@ export async function extractRequirementFileText(fileRef) {
   try {
     await fs.access(abs);
   } catch {
-    logger.warn(`[requirement-file] missing on disk: ${abs}`);
+    logger.warn(`[requirement-file] missing on disk: ${abs} (from ref: ${fileRef})`);
     return '';
   }
 
@@ -63,6 +90,12 @@ export async function extractRequirementFileText(fileRef) {
     }
     if (ext === '.pdf') {
       return (await extractPdfText(abs)).slice(0, MAX_CHARS);
+    }
+    if (ext === '.doc') {
+      logger.warn(
+        `[requirement-file] legacy .doc not supported (${abs}); ask teacher to re-upload as .docx`
+      );
+      return '';
     }
     // Unknown binary — try utf8 as last resort (may be empty garbage).
     const raw = await fs.readFile(abs, 'utf8').catch(() => '');

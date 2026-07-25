@@ -791,7 +791,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   proposal.requirementAllowedTechMatched = requirementCheck.matchedAllowedTech || [];
   proposal.requirementSemanticSimilarity = null;
   proposal.requirementSemanticVerdict = '';
-  proposal.requirementNeedsTeacherReview = false;
+  proposal.requirementNeedsTeacherReview = Boolean(requirementCheck.needsReview);
 
   if (!requirementCheck.passed) {
     proposal.status = 'requirements_rejected';
@@ -814,7 +814,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     };
   }
 
-  if (requirementCheck.needsSemantic !== false && requirementCheck.hasAnyRule) {
+  // Unreadable teacher requirement file (or similar): do not auto-reject; continue to plagiarism then teacher review.
+  if (requirementCheck.needsReview && requirementCheck.needsSemantic === false) {
+    proposal.requirementNeedsTeacherReview = true;
+    proposal.requirementSemanticVerdict = 'review';
+  } else if (requirementCheck.needsSemantic !== false && requirementCheck.hasAnyRule) {
     try {
       const corpus = requirementCheck.semanticCorpus || {};
       const semanticRaw = await analyzeRequirementsPayload({

@@ -438,14 +438,16 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
       `Missing backend technology in the proposal: ${missingBackendTech.join(', ')}. Name it in the title, description, or features and explain how you use it.`
     );
   }
+  // Unreadable teacher files are an infra issue — never hard-reject the student for that.
+  const fileReadIssues = [];
   if (fileMeta.frontendFileEmpty) {
-    reasons.push(
-      'Frontend requirements file could not be read (unsupported type or empty). Re-upload as .docx, .txt, .md, or .pdf.'
+    fileReadIssues.push(
+      'Frontend requirements file could not be read (unsupported type or empty). Teacher should re-upload as .docx, .txt, .md, or .pdf.'
     );
   }
   if (fileMeta.backendFileEmpty) {
-    reasons.push(
-      'Backend requirements file could not be read (unsupported type or empty). Re-upload as .docx, .txt, .md, or .pdf.'
+    fileReadIssues.push(
+      'Backend requirements file could not be read (unsupported type or empty). Teacher should re-upload as .docx, .txt, .md, or .pdf.'
     );
   }
 
@@ -457,38 +459,55 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
     hasFiles ||
     Boolean(String(corpus.requirement_text || '').trim());
 
-  // Collaborative with requirement files must always run semantic meaning check.
   const bothFilesReadable =
     (!fe.requirementFile || !fileMeta.frontendFileEmpty) &&
     (!be.requirementFile || !fileMeta.backendFileEmpty);
-  const corpusReady = Boolean(String(corpus.requirement_text || '').trim()) && bothFilesReadable;
+  const corpusHasText = Boolean(String(corpus.requirement_text || '').trim());
+  // Semantic can still run when typed allow-lists / text exist even if a file failed to parse.
+  const canCheckAgainstRequirements = corpusHasText || unionAllowed.length > 0;
 
-  const passed =
+  const structuralOk =
     !tooShort &&
     disallowedMentionedTech.length === 0 &&
     missingFrontendTech.length === 0 &&
-    missingBackendTech.length === 0 &&
-    (!hasFiles || corpusReady);
+    missingBackendTech.length === 0;
 
-  if (hasFiles && !corpusReady && !reasons.some((r) => r.includes('could not be read'))) {
-    reasons.push(
-      'Collaborative requirement files are required for AI checking but their content was not available. Teachers must re-upload readable FE and BE requirement files.'
-    );
+  // Nothing usable to compare against → teacher review (not auto-reject).
+  const needsTeacherFileReview = Boolean(hasFiles && !canCheckAgainstRequirements);
+
+  if (needsTeacherFileReview) {
+    return {
+      hasAnyRule: true,
+      passed: true,
+      needsReview: true,
+      needsSemantic: false,
+      missingKeywords: [],
+      missingAllowedTech: [],
+      missingImplicitTerms: [],
+      disallowedMentionedTech: [],
+      matchedAllowedTech: [],
+      implicitRequiredTerms: unionAllowed,
+      summary: `Requirement files could not be read for AI checking. Sent to teacher for manual review. ${fileReadIssues.join(' ')}`.trim(),
+      semanticCorpus: corpus,
+      strictTechRequirements: true,
+    };
   }
 
   return {
     hasAnyRule: hasAnyRule || hasFiles,
-    passed,
-    // Force semantic whenever collaborative has rules/files and structural gate passed.
-    needsSemantic: passed && (hasAnyRule || hasFiles),
+    passed: structuralOk,
+    needsReview: false,
+    needsSemantic: structuralOk && canCheckAgainstRequirements,
     missingKeywords: [],
     missingAllowedTech: [...missingFrontendTech, ...missingBackendTech],
     missingImplicitTerms: [...missingFrontendTech, ...missingBackendTech],
     disallowedMentionedTech,
     matchedAllowedTech: unionAllowed.filter((t) => proposalCoversAllowedTech(proposalLower, [t])),
     implicitRequiredTerms: unionAllowed,
-    summary: passed
-      ? 'Structural collaborative requirement gate passed; semantic meaning check runs next against both FE and BE requirement files.'
+    summary: structuralOk
+      ? bothFilesReadable
+        ? 'Structural collaborative requirement gate passed; semantic meaning check runs next against both FE and BE requirement files.'
+        : `Structural gate passed using available requirement text/technologies. ${fileReadIssues.join(' ')}`.trim()
       : `Requirement gate failed. ${reasons.join(' | ')}`,
     semanticCorpus: corpus,
     strictTechRequirements: true,
@@ -539,21 +558,26 @@ export async function evaluateProposalAgainstAssignmentRequirements(assignment, 
       fileLoadMeta: corpus._fileLoadMeta || null,
     }
   );
+  const hasCorpusText = Boolean(String(corpus.requirement_text || '').trim());
   return {
     ...blockResult,
     semanticCorpus: corpus,
     strictTechRequirements: Boolean(
-      (corpus.required_technologies || []).length || assignment?.assignmentFile
+      (corpus.required_technologies || []).length || extracted
     ),
     hasAnyRule:
       blockResult.hasAnyRule ||
       Boolean(assignment?.assignmentFile) ||
-      Boolean(String(corpus.requirement_text || '').trim()),
+      hasCorpusText,
+    // Respect early teacher-review path (unreadable file with no usable content).
     needsSemantic:
-      blockResult.passed &&
-      (blockResult.hasAnyRule ||
-        Boolean(assignment?.assignmentFile) ||
-        Boolean(String(corpus.requirement_text || '').trim())),
+      blockResult.needsReview
+        ? false
+        : Boolean(
+            blockResult.passed &&
+              blockResult.needsSemantic !== false &&
+              (blockResult.hasAnyRule || hasCorpusText || Boolean(extracted))
+          ),
   };
 }
 
@@ -648,30 +672,57 @@ export function evaluateRequirementBlock(
         `Name and explain these technologies in the title, description, or features.`
     );
   }
-  if (fileMeta.assignmentFileEmpty) {
-    reasons.push(
-      'Teacher requirements file could not be read. Re-upload as .docx, .txt, .md, or .pdf so AI can verify proposals.'
-    );
-  }
 
-  const passed =
-    !tooShort &&
-    noDisallowedTechPassed &&
-    missingRequiredStack.length === 0 &&
-    !fileMeta.assignmentFileEmpty;
+  const structuralOk =
+    !tooShort && noDisallowedTechPassed && missingRequiredStack.length === 0;
+
+  // Unreadable assignment file must not auto-reject students. If we have no other
+  // requirement text/tech to check against, send to teacher review instead.
+  const assignmentFileUnreadable = Boolean(fileMeta.assignmentFileEmpty);
+  const hasUsableRequirementContent =
+    Boolean(requirementText) ||
+    Boolean(extractedFileText) ||
+    hasRequiredStack ||
+    requiredKeywords.length > 0;
+  const needsTeacherFileReview =
+    assignmentFileUnreadable &&
+    !hasUsableRequirementContent &&
+    Boolean(String(block?.assignmentFile || assignmentContext?.assignmentFile || '').trim());
+
+  if (needsTeacherFileReview) {
+    return {
+      hasAnyRule: true,
+      passed: true,
+      needsReview: true,
+      needsSemantic: false,
+      missingKeywords,
+      missingAllowedTech,
+      missingImplicitTerms,
+      disallowedMentionedTech,
+      matchedAllowedTech,
+      implicitRequiredTerms: requiredStack,
+      summary:
+        'Teacher requirements file could not be read for AI checking. Sent to teacher for manual review. Re-upload as .docx, .txt, .md, or .pdf.',
+      semanticCorpus: buildTeacherRequirementCorpus(assignmentContext),
+      strictTechRequirements: false,
+    };
+  }
 
   return {
     hasAnyRule,
-    passed,
-    needsSemantic: passed && hasAnyRule,
+    passed: structuralOk,
+    needsReview: false,
+    needsSemantic: structuralOk && hasAnyRule && hasUsableRequirementContent,
     missingKeywords,
     missingAllowedTech,
     missingImplicitTerms,
     disallowedMentionedTech,
     matchedAllowedTech,
     implicitRequiredTerms: requiredStack,
-    summary: passed
-      ? `${label ? `${label}: ` : ''}Structural requirement gate passed; semantic meaning check runs next.`.trim()
+    summary: structuralOk
+      ? assignmentFileUnreadable
+        ? `${label ? `${label}: ` : ''}Structural gate passed using available technologies/text (requirements file was unreadable). Semantic check runs next.`.trim()
+        : `${label ? `${label}: ` : ''}Structural requirement gate passed; semantic meaning check runs next.`.trim()
       : `${label ? `${label} — ` : ''}Requirement gate failed. ${reasons.join(' | ')}`.trim(),
     semanticCorpus: buildTeacherRequirementCorpus(assignmentContext),
     strictTechRequirements: hasRequiredStack,
