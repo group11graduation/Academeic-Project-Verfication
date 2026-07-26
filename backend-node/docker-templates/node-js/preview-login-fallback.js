@@ -3,19 +3,21 @@
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  *
- * Marker V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary)
- * so SYADA admin stays on /admin/dashboard after login instead of bouncing home.
+ * Marker V10: do NOT rewrite plain role "admin" → "super_admin". That broke LoanFlow
+ * and similar MERN apps (admin|officer|borrower) with a /dashboard ↔ /admin/loans loop.
+ * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V9__) {
-    console.log('[DEBUG-SHIM] already installed V9 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V10__) {
+    console.log('[DEBUG-SHIM] already installed V10 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V10__ = true;
   window.__SV_LOGIN_FALLBACK_V9__ = true;
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v9', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v10', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -197,13 +199,33 @@
       .replace(/[\s-]+/g, '_');
   }
 
+  /**
+   * True only for explicit super-admin variants — NOT plain "admin".
+   * LoanFlow / many MERN apps use role === 'admin' | 'officer' | 'borrower'.
+   * Rewriting "admin" → "super_admin" caused ProtectedRoute bounce loops
+   * (/admin/loans requires admin → /dashboard → Navigate to /admin/loans).
+   */
   function isSuperAdminKey(key) {
-    return (
-      key === 'SUPER_ADMIN' ||
-      key === 'SUPERADMIN' ||
-      key === 'ADMIN' ||
-      key === 'ADMINISTRATOR'
-    );
+    return key === 'SUPER_ADMIN' || key === 'SUPERADMIN';
+  }
+
+  function pageHintHtml() {
+    try {
+      return (document.documentElement && document.documentElement.innerHTML) || '';
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  /** LoanFlow-style: officer+admin guards, loan_token storage, /admin/loans. */
+  function isLoanStyleApp() {
+    var html = pageHintHtml();
+    if (/loan_token|loan_user|LoanFlow/i.test(html)) return true;
+    if (/\/admin\/loans/.test(html) && /officer/.test(html) && /borrower/.test(html)) return true;
+    try {
+      if (localStorage.getItem('loan_token') || localStorage.getItem('loan_user')) return true;
+    } catch (_e2) {}
+    return false;
   }
 
   /**
@@ -220,16 +242,16 @@
     }
     if (/^\/admin(\/|$)/i.test(path)) return false;
     if (/manDash/i.test(path)) return true;
-    try {
-      var html = (document.documentElement && document.documentElement.innerHTML) || '';
-      if (/manDash/.test(html)) return true;
-      if (/\/admin\/dashboard/.test(html)) return false;
-    } catch (_e2) {}
+    var html = pageHintHtml();
+    if (/manDash/.test(html)) return true;
+    if (/\/admin\/dashboard/.test(html)) return false;
     // Default lowercase — fixes SYADA bounce-to-home after "successful" login.
     return false;
   }
 
   function canonicalSuperAdminRole() {
+    // LoanFlow allow-list is ['officer','admin'] — map privileged preview seeds there.
+    if (isLoanStyleApp()) return 'admin';
     return preferSkyPropertyRoleCasing() ? 'SUPER_ADMIN' : 'super_admin';
   }
 
@@ -238,6 +260,7 @@
     var role = String(user.role || '').trim();
     var key = roleKeyOf(role);
     var next = role;
+    // Leave plain admin/officer/borrower/user/member/teacher/student untouched.
     if (isSuperAdminKey(key)) next = canonicalSuperAdminRole();
     else if (key === 'SUBMANAGER') next = 'SUB_MANAGER';
     if (next === role) return user;
@@ -253,27 +276,44 @@
     return out;
   }
 
+  function authStorageKeys() {
+    return ['user', 'loan_user', 'authUser', 'currentUser', 'admin'];
+  }
+
   function fixStoredPreviewUserRole() {
-    try {
-      var raw = localStorage.getItem('user');
-      if (!raw) return;
-      var user = JSON.parse(raw);
-      if (!user || typeof user !== 'object') return;
-      var key = roleKeyOf(user.role);
-      if (!isSuperAdminKey(key) && key !== 'SUB_MANAGER' && key !== 'SUBMANAGER') return;
-      var want = isSuperAdminKey(key) ? canonicalSuperAdminRole() : 'SUB_MANAGER';
-      if (String(user.role) === want) return;
-      user.role = want;
-      localStorage.setItem('user', JSON.stringify(user));
-      console.log('[DEBUG-SHIM] reconciled stored user.role →', want);
+    var keys = authStorageKeys();
+    var changed = false;
+    for (var i = 0; i < keys.length; i++) {
       try {
-        window.dispatchEvent(new Event('userChanged'));
-      } catch (_e) {}
-      if (!sessionStorage.getItem('__sv_role_reload__')) {
-        sessionStorage.setItem('__sv_role_reload__', '1');
-        location.reload();
-      }
-    } catch (_e2) {}
+        var storageKey = keys[i];
+        var raw = localStorage.getItem(storageKey);
+        if (!raw) continue;
+        var user = JSON.parse(raw);
+        if (!user || typeof user !== 'object') continue;
+        var key = roleKeyOf(user.role);
+        var want = null;
+        if (isLoanStyleApp() && (isSuperAdminKey(key) || String(user.role) === 'super_admin')) {
+          want = 'admin';
+        } else if (isSuperAdminKey(key)) {
+          want = canonicalSuperAdminRole();
+        } else if (key === 'SUB_MANAGER' || key === 'SUBMANAGER') {
+          want = 'SUB_MANAGER';
+        }
+        if (!want || String(user.role) === want) continue;
+        user.role = want;
+        localStorage.setItem(storageKey, JSON.stringify(user));
+        changed = true;
+        console.log('[DEBUG-SHIM] reconciled', storageKey, 'role →', want);
+      } catch (_e2) {}
+    }
+    if (!changed) return;
+    try {
+      window.dispatchEvent(new Event('userChanged'));
+    } catch (_e3) {}
+    if (!sessionStorage.getItem('__sv_role_reload__')) {
+      sessionStorage.setItem('__sv_role_reload__', '1');
+      location.reload();
+    }
   }
   fixStoredPreviewUserRole();
 
@@ -282,13 +322,22 @@
     if (role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
       return '/manDash';
     }
+    // LoanFlow: staff land on applications, not a generic /admin/dashboard.
+    if (isLoanStyleApp() && (role === 'ADMIN' || role === 'OFFICER' || isSuperAdminKey(role))) {
+      return '/admin/loans';
+    }
     if (isSuperAdminKey(role) || role === 'EDITOR') {
       if (preferSkyPropertyRoleCasing()) return '/manDash';
       return '/admin/dashboard';
     }
+    // Plain "admin" — let the app navigate; only hard-fallback if still on /login.
+    if (role === 'ADMIN' || role === 'OFFICER') {
+      return null;
+    }
     if (role === 'TEACHER') return '/teacher';
     if (role === 'STUDENT') return '/student';
     if (role === 'MEMBER') return '/portal';
+    if (role === 'BORROWER') return '/dashboard';
     return '/';
   }
 
@@ -304,6 +353,8 @@
           var stillLogin =
             window.location && /login/i.test(String(window.location.pathname || ''));
           if (!stillLogin) return;
+          // null = do not steal navigation (app owns post-login routing).
+          if (target == null) return;
           if (target === '/') {
             window.location.assign('/');
           } else {

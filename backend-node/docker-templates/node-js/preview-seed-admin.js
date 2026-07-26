@@ -264,6 +264,15 @@ function loadPreviewEnv() {
       const enumValues = rolePath?.enumValues;
       if (Array.isArray(enumValues) && enumValues.length) {
         const vals = enumValues.map((v) => String(v));
+        // LoanFlow-style enums: borrower | officer | admin — never invent super_admin.
+        const hasBorrower = vals.some((v) => /^borrower$/i.test(v));
+        const hasOfficer = vals.some((v) => /^officer$/i.test(v));
+        const adminExact = vals.find((v) => /^admin$/i.test(v));
+        if ((hasBorrower || hasOfficer) && adminExact) return adminExact;
+        if (hasOfficer) {
+          const officerExact = vals.find((v) => /^officer$/i.test(v));
+          if (officerExact) return officerExact;
+        }
         // Prefer lowercase snake when present (SYADA Set.has). Keep SUPER_ADMIN
         // when that is the only enum value (Sky Property).
         const prefer = [
@@ -461,22 +470,14 @@ function loadPreviewEnv() {
 
       const rolePath = User.schema?.paths?.role;
       const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
-      // Prefer the most privileged role the schema allows. Picking the first
-      // /admin|manager|super/ match often chose plain "ADMIN", which many student
-      // UIs (e.g. Sky Property) do not map to any sidebar links — only SUPER_ADMIN.
-      const preferredRole =
-        enumValues.find((v) => /^super[_\s-]?admin$/i.test(v)) ||
-        enumValues.find((v) => /super[_\s-]?admin/i.test(v)) ||
-        enumValues.find((v) => /^manager$/i.test(v)) ||
-        enumValues.find((v) => /^admin$/i.test(v)) ||
-        enumValues.find((v) => /admin|manager|super/i.test(v)) ||
-        (!enumValues.length ? pickDefaultRole() : null);
+      // Use the same role picker as create — LoanFlow gets admin; SYADA/Sky get super_admin.
+      const preferredRole = pickDefaultRole();
       if (preferredRole && user && String(user.role) !== preferredRole) {
         await User.updateOne({ _id: user._id }, { $set: { role: preferredRole } });
         user.role = preferredRole;
-        console.log('[preview-seed] set role to', preferredRole);
+        console.log('[preview-seed] set role to', preferredRole, enumValues.length ? `(enum=${enumValues.join(',')})` : '(no enum)');
       }
-      lastSeededRole = String((user && user.role) || preferredRole || pickDefaultRole() || 'super_admin');
+      lastSeededRole = String((user && user.role) || preferredRole || 'super_admin');
 
       if (user?._id) {
         const flagSet = {};
