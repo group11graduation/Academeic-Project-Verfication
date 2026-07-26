@@ -28,7 +28,7 @@ import {
 import { resolveFlutterNodePair, patchFlutterApiPort } from './previewFlutter.service.js';
 import { resolveSpringReactPair, resolveSpringOnlyRoot, patchSpringForPreview, springReactDisplayLabel } from './previewSpring.service.js';
 import { ensurePreviewDependencyCacheDirs } from './previewWorkspaceCache.service.js';
-import { resolveDockerHostPath } from '../config/dockerPaths.js';
+import { resolveDockerHostPath, isHostVisibleDockerPath } from '../config/dockerPaths.js';
 import { getPreviewProbeHost, previewProbeHostname, rewritePreviewUrlForProbe } from '../config/previewProbe.js';
 import { logger } from '../config/logger.js';
 
@@ -139,6 +139,52 @@ function buildPublicPreviewOrigin(hostPort) {
 /** Host path for docker -v (resolves container paths when API runs in Docker). */
 function dockerVolumePath(hostPath) {
   return resolveDockerHostPath(hostPath);
+}
+
+/**
+ * Copy a template helper into PREVIEW_CACHE_ROOT so the host Docker daemon can bind-mount it.
+ * Image-only paths like /app/docker-templates/*.js are NOT visible to `docker run -v` and
+ * Docker then creates empty host directories → "mount … not a directory".
+ */
+function previewOverlayStagingDir() {
+  const cacheRoot =
+    process.env.PREVIEW_CACHE_ROOT || path.join(BACKEND_ROOT, 'data', 'preview-cache');
+  return path.join(cacheRoot, 'template-overlays');
+}
+
+function stagePreviewOverlayFile(srcPath, destFileName) {
+  if (!fsSync.existsSync(srcPath)) return null;
+  let st;
+  try {
+    st = fsSync.statSync(srcPath);
+  } catch {
+    return null;
+  }
+  if (!st.isFile()) {
+    logger.warn(`preview overlay skipped (not a file): ${srcPath}`);
+    return null;
+  }
+  const stagingDir = previewOverlayStagingDir();
+  if (!isHostVisibleDockerPath(stagingDir)) {
+    logger.warn(
+      `preview overlay skipped (cache not host-visible): ${destFileName} — using files baked into the preview image`
+    );
+    return null;
+  }
+  try {
+    fsSync.mkdirSync(stagingDir, { recursive: true });
+    const out = path.join(stagingDir, destFileName);
+    fsSync.copyFileSync(srcPath, out);
+    try {
+      fsSync.chmodSync(out, 0o644);
+    } catch {
+      /* ignore */
+    }
+    return out;
+  } catch (err) {
+    logger.warn(`preview overlay stage failed for ${destFileName}: ${err.message || err}`);
+    return null;
+  }
 }
 
 function previewNodeTemplateDir(flutterPair) {
@@ -1564,8 +1610,10 @@ async function runPreviewContainer({
     args.push('-v', `${dockerVolumePath(projectMount)}:${mountPath}`);
   }
 
-  // Always overlay latest Node preview helpers from the API host so MySQL seed/bootstrap
-  // fixes apply even when the base image is still cached ("Using cached Docker template").
+  // Overlay latest Node preview helpers via host-visible cache copies.
+  // Never bind-mount /app/docker-templates/* directly — that path lives only in the
+  // API image, so the host daemon creates empty directories and `docker run` fails with
+  // "mount … not a directory" (file vs directory).
   if (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js') {
     const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
     const overlayFiles = [
@@ -1580,23 +1628,34 @@ async function runPreviewContainer({
     ];
     for (const [name, dest] of overlayFiles) {
       const src = path.join(sharedNodeDir, name);
-      if (!fsSync.existsSync(src)) continue;
-      args.push('-v', `${dockerVolumePath(src)}:${dest}:ro`);
+      const stagedName = `${path.basename(dest).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const staged = stagePreviewOverlayFile(src, stagedName);
+      if (!staged) continue;
+      args.push('-v', `${dockerVolumePath(staged)}:${dest}:ro`);
     }
 
-    // Entrypoint must be LF — write a normalized temp copy (Windows bind mounts keep CRLF).
+    // Entrypoint must be LF — stage a normalized copy under the host-visible cache.
     const entrySrc = path.join(sharedNodeDir, 'entrypoint.sh');
     if (fsSync.existsSync(entrySrc)) {
       try {
-        const lfPath = path.join(os.tmpdir(), `sv-preview-entrypoint-${sanitizeDockerId(containerName)}.sh`);
-        const body = fsSync.readFileSync(entrySrc, 'utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        fsSync.writeFileSync(lfPath, body, { encoding: 'utf8', mode: 0o755 });
-        try {
-          fsSync.chmodSync(lfPath, 0o755);
-        } catch {
-          /* ignore on Windows */
+        const stagingDir = previewOverlayStagingDir();
+        if (!isHostVisibleDockerPath(stagingDir)) {
+          logger.warn('preview entrypoint overlay skipped: cache not host-visible');
+        } else {
+          fsSync.mkdirSync(stagingDir, { recursive: true });
+          const lfPath = path.join(
+            stagingDir,
+            `sv-preview-entrypoint-${sanitizeDockerId(containerName)}.sh`
+          );
+          const body = fsSync.readFileSync(entrySrc, 'utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+          fsSync.writeFileSync(lfPath, body, { encoding: 'utf8', mode: 0o755 });
+          try {
+            fsSync.chmodSync(lfPath, 0o755);
+          } catch {
+            /* ignore on Windows */
+          }
+          args.push('-v', `${dockerVolumePath(lfPath)}:/preview-entrypoint.sh:ro`);
         }
-        args.push('-v', `${dockerVolumePath(lfPath)}:/preview-entrypoint.sh:ro`);
       } catch (err) {
         logger.warn(`preview entrypoint overlay skipped: ${err.message || err}`);
       }

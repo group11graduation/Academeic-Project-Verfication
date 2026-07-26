@@ -35,7 +35,7 @@ function joinHostPath(hostSource, ...segments) {
 }
 
 /** Bind mounts for the current container (when API runs inside Docker with socket access). */
-function getSelfBindMounts() {
+export function getSelfBindMounts() {
   if (cachedMounts) return cachedMounts;
   try {
     const id = process.env.HOSTNAME || os.hostname();
@@ -50,6 +50,20 @@ function getSelfBindMounts() {
     cachedMounts = [];
   }
   return cachedMounts;
+}
+
+/**
+ * True when containerPath is under a host bind mount (so `docker run -v` can see it),
+ * or when this process is not inside a container with mounts (local Node on the host).
+ */
+export function isHostVisibleDockerPath(containerPath) {
+  const mounts = getSelfBindMounts().filter((m) => m.Type === 'bind' && m.Destination && m.Source);
+  if (!mounts.length) return true;
+  const posixResolved = path.resolve(containerPath).replace(/\\/g, '/');
+  return mounts.some((m) => {
+    const dest = path.posix.resolve(String(m.Destination).replace(/\\/g, '/'));
+    return posixResolved === dest || posixResolved.startsWith(`${dest}/`);
+  });
 }
 
 /**
