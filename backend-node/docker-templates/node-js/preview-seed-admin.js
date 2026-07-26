@@ -150,7 +150,7 @@ function loadPreviewEnv() {
       throw new Error('bcrypt or bcryptjs required');
     };
 
-    const rawUpsertDoc = async () => {
+    const rawUpsertDoc = async (roleForRaw = 'super_admin') => {
       const hashed = await hashPassword(rawPass);
       const db = mongoose.connection.db;
       const doc = {
@@ -161,7 +161,9 @@ function loadPreviewEnv() {
         name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
         firstName: 'Preview',
         lastName: 'Admin',
-        role: 'SUPER_ADMIN',
+        // Prefer lowercase snake — SYADA AdminLayout allows super_admin/manager/editor.
+        // Sky Property shim upgrades to SUPER_ADMIN on /manDash|/dashboard.
+        role: roleForRaw || 'super_admin',
         isAdmin: true,
         isActive: true,
         active: true,
@@ -230,12 +232,13 @@ function loadPreviewEnv() {
       const FlexUser =
         mongoose.models.User || mongoose.model('User', flexibleSchema);
       loadedModels.push({ Mod: FlexUser, path: '(flexible-inline)' });
-      await rawUpsertDoc();
+      await rawUpsertDoc('super_admin');
       // Continue into mongoose seed path below with FlexUser.
     }
 
     // Seed against every loaded model (use the last one's helpers via closure below).
     let User = loadedModels[0].Mod;
+    let lastSeededRole = 'super_admin';
 
     const comparePassword = async (plain, hash) => {
       if (!hash) return false;
@@ -261,13 +264,13 @@ function loadPreviewEnv() {
       const enumValues = rolePath?.enumValues;
       if (Array.isArray(enumValues) && enumValues.length) {
         const vals = enumValues.map((v) => String(v));
-        // SUPER_ADMIN before plain ADMIN — otherwise sidebar menus stay empty
-        // (Sky Property only renders links for SUPER_ADMIN / MANAGER / SUB_MANAGER).
+        // Prefer lowercase snake when present (SYADA Set.has). Keep SUPER_ADMIN
+        // when that is the only enum value (Sky Property).
         const prefer = [
+          'super_admin',
           'SUPER_ADMIN',
           'SuperAdmin',
           'superadmin',
-          'super_admin',
           'MANAGER',
           'manager',
           'ADMIN',
@@ -286,7 +289,8 @@ function loadPreviewEnv() {
         if (fuzzy) return fuzzy;
         return vals[0];
       }
-      return 'SUPER_ADMIN';
+      // No enum: prefer lowercase so Set(['super_admin']) apps (SYADA) accept login.
+      return 'super_admin';
     }
 
     function passwordFieldName() {
@@ -465,12 +469,14 @@ function loadPreviewEnv() {
         enumValues.find((v) => /super[_\s-]?admin/i.test(v)) ||
         enumValues.find((v) => /^manager$/i.test(v)) ||
         enumValues.find((v) => /^admin$/i.test(v)) ||
-        enumValues.find((v) => /admin|manager|super/i.test(v));
+        enumValues.find((v) => /admin|manager|super/i.test(v)) ||
+        (!enumValues.length ? pickDefaultRole() : null);
       if (preferredRole && user && String(user.role) !== preferredRole) {
         await User.updateOne({ _id: user._id }, { $set: { role: preferredRole } });
         user.role = preferredRole;
         console.log('[preview-seed] set role to', preferredRole);
       }
+      lastSeededRole = String((user && user.role) || preferredRole || pickDefaultRole() || 'super_admin');
 
       if (user?._id) {
         const flagSet = {};
@@ -499,7 +505,8 @@ function loadPreviewEnv() {
 
     // Always also upsert raw collections — covers apps that query Mongo without the
     // model we found, or that authenticate against a separate admins collection.
-    await rawUpsertDoc();
+    // Use the same role we just seeded — do NOT overwrite super_admin with SUPER_ADMIN.
+    await rawUpsertDoc(lastSeededRole || 'super_admin');
     console.log('[preview-seed] password verify:', anyVerified ? 'OK' : 'RAW_OK');
   } catch (err) {
     console.error('[preview-seed] failed:', err.message || err);

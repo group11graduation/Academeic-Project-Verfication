@@ -160,14 +160,23 @@ function sanitizeUser(user) {
   delete obj.passwordHash;
   delete obj.passcode;
   delete obj.__v;
-  // Student apps often gate nav on SUPER_ADMIN/MANAGER. Plain "admin"/"ADMIN"
-  // yields an empty sidebar (Sky Property / BMS). Normalize for preview.
+  // Preserve schema casing when possible. Many apps (SYADA) gate on lowercase
+  // `super_admin` via Set.has — forcing SUPER_ADMIN logs them in then kicks
+  // them out of /admin. Emit lowercase for super-admin equivalents; the
+  // login shim upgrades to SUPER_ADMIN on Sky Property routes (/manDash).
   let role = obj.role || 'user';
-  const roleKey = String(role).trim().toUpperCase().replace(/[\s-]+/g, '_');
-  if (roleKey === 'ADMIN' || roleKey === 'ADMINISTRATOR' || roleKey === 'SUPERADMIN') {
-    role = 'SUPER_ADMIN';
+  const originalRole = String(role);
+  const roleKey = originalRole.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if (roleKey === 'SUPER_ADMIN' || roleKey === 'SUPERADMIN') {
+    role = 'super_admin';
+  } else if (roleKey === 'ADMIN' || roleKey === 'ADMINISTRATOR') {
+    role = 'super_admin';
   } else if (roleKey === 'SUBMANAGER') {
     role = 'SUB_MANAGER';
+  } else if (roleKey === 'MANAGER') {
+    role = /[A-Z]/.test(originalRole) && originalRole === originalRole.toUpperCase()
+      ? 'MANAGER'
+      : 'manager';
   }
   return {
     id: obj._id || obj.id,
@@ -314,13 +323,13 @@ async function previewUniversalLogin(req, res, next) {
 
     const jwt = requireFromCwd('jsonwebtoken');
     if (!jwt) return next();
+    const safe = sanitizeUser(user);
     const token = jwt.sign(
-      { id: user._id, _id: user._id, role: user.role, email: user.email },
+      { id: user._id, _id: user._id, role: safe.role, email: user.email },
       longJwtSecret(),
       { expiresIn: '7d' }
     );
-    const safe = sanitizeUser(user);
-    console.log('[preview] universal login OK for', email);
+    console.log('[preview] universal login OK for', email, 'role=', safe.role);
     return res.json(
       normalizeLoginResponseBody({
         success: true,

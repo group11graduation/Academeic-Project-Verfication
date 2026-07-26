@@ -3,17 +3,18 @@
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  *
- * DEBUG BUILD: temporary console.log tracing — remove after login hang is diagnosed.
- * Marker V7 so gateway reinjects even if an older script was baked into index.html.
+ * Marker V8: role casing fix — SYADA requires lowercase `super_admin` in AdminLayout;
+ * Sky Property needs `SUPER_ADMIN` on /manDash|/dashboard. Path-based reconcile.
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V7__) {
-    console.log('[DEBUG-SHIM] already installed V7 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V8__) {
+    console.log('[DEBUG-SHIM] already installed V8 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
-  window.__SV_LOGIN_FALLBACK__ = true; // legacy flag
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v7', {
+  window.__SV_LOGIN_FALLBACK__ = true;
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v8', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -188,12 +189,55 @@
     );
   }
 
+  function roleKeyOf(role) {
+    return String(role || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+  }
+
+  function isSuperAdminKey(key) {
+    return (
+      key === 'SUPER_ADMIN' ||
+      key === 'SUPERADMIN' ||
+      key === 'ADMIN' ||
+      key === 'ADMINISTRATOR'
+    );
+  }
+
+  /**
+   * SYADA AdminLayout: Set(['super_admin','manager','editor']) — case-sensitive.
+   * Sky Property sidebar: SUPER_ADMIN / MANAGER / SUB_MANAGER.
+   * Choose casing from the current route (or page hints).
+   */
+  function preferSkyPropertyRoleCasing() {
+    var path = '';
+    try {
+      path = String((window.location && window.location.pathname) || '');
+    } catch (_e) {
+      path = '';
+    }
+    if (/^\/admin(\/|$)/i.test(path)) return false;
+    if (/manDash/i.test(path)) return true;
+    try {
+      var html = (document.documentElement && document.documentElement.innerHTML) || '';
+      if (/manDash/.test(html)) return true;
+      if (/\/admin\/dashboard/.test(html)) return false;
+    } catch (_e2) {}
+    // Default lowercase — fixes SYADA bounce-to-home after "successful" login.
+    return false;
+  }
+
+  function canonicalSuperAdminRole() {
+    return preferSkyPropertyRoleCasing() ? 'SUPER_ADMIN' : 'super_admin';
+  }
+
   function normalizePreviewUserRole(user) {
     if (!user || typeof user !== 'object') return user;
     var role = String(user.role || '').trim();
-    var key = role.toUpperCase().replace(/[\s-]+/g, '_');
+    var key = roleKeyOf(role);
     var next = role;
-    if (key === 'ADMIN' || key === 'ADMINISTRATOR' || key === 'SUPERADMIN') next = 'SUPER_ADMIN';
+    if (isSuperAdminKey(key)) next = canonicalSuperAdminRole();
     else if (key === 'SUBMANAGER') next = 'SUB_MANAGER';
     if (next === role) return user;
     var out = {};
@@ -213,14 +257,17 @@
       var raw = localStorage.getItem('user');
       if (!raw) return;
       var user = JSON.parse(raw);
-      var fixed = normalizePreviewUserRole(user);
-      if (!fixed || fixed === user || fixed.role === user.role) return;
-      localStorage.setItem('user', JSON.stringify(fixed));
-      console.log('[DEBUG-SHIM] upgraded stored user.role', user.role, '→', fixed.role);
+      if (!user || typeof user !== 'object') return;
+      var key = roleKeyOf(user.role);
+      if (!isSuperAdminKey(key) && key !== 'SUB_MANAGER' && key !== 'SUBMANAGER') return;
+      var want = isSuperAdminKey(key) ? canonicalSuperAdminRole() : 'SUB_MANAGER';
+      if (String(user.role) === want) return;
+      user.role = want;
+      localStorage.setItem('user', JSON.stringify(user));
+      console.log('[DEBUG-SHIM] reconciled stored user.role →', want);
       try {
         window.dispatchEvent(new Event('userChanged'));
       } catch (_e) {}
-      // Reload once so Sidebar re-reads SUPER_ADMIN and shows links.
       if (!sessionStorage.getItem('__sv_role_reload__')) {
         sessionStorage.setItem('__sv_role_reload__', '1');
         location.reload();
@@ -230,25 +277,17 @@
   fixStoredPreviewUserRole();
 
   function pickPostLoginPath(user) {
-    var role = String((user && (user.role || user.Role)) || '')
-      .trim()
-      .toUpperCase()
-      .replace(/[\s-]+/g, '_');
-    if (role === 'ADMIN' || role === 'ADMINISTRATOR' || role === 'SUPERADMIN') {
-      role = 'SUPER_ADMIN';
-    }
-    if (
-      role === 'MANAGER' ||
-      role === 'SUB_MANAGER' ||
-      role === 'SUBMANAGER'
-    ) {
+    var role = roleKeyOf((user && (user.role || user.Role)) || '');
+    if (role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
       return '/manDash';
     }
-    if (role === 'SUPER_ADMIN') {
-      return '/dashboard';
+    if (isSuperAdminKey(role) || role === 'EDITOR') {
+      if (preferSkyPropertyRoleCasing()) return '/manDash';
+      return '/admin/dashboard';
     }
     if (role === 'TEACHER') return '/teacher';
     if (role === 'STUDENT') return '/student';
+    if (role === 'MEMBER') return '/portal';
     return '/';
   }
 
