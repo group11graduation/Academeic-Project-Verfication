@@ -809,7 +809,7 @@ export async function patchFrontendLoginApiPath(extractDir, frontendSubdir, conf
 }
 
 const CORS_FIX_FILE = 'scholarverify-preview-cors.cjs';
-const CORS_FIX_MARKER = 'scholarverify-preview-cors-v4';
+const CORS_FIX_MARKER = 'scholarverify-preview-cors-v5';
 
 function buildCorsFixModule() {
   try {
@@ -853,7 +853,7 @@ function injectCorsFixRequire(content, requirePath) {
   // Upgrade legacy call marker comments so future runs know inject is present.
   if (hasInjectCall) {
     next = next.replace(
-      /\/\*\s*scholarverify-preview-cors-v[123]\s*\*\//g,
+      /\/\*\s*scholarverify-preview-cors-v[1234]\s*\*\//g,
       `/* ${CORS_FIX_MARKER} */`
     );
     return { content: next, changed: true };
@@ -967,6 +967,32 @@ function bodyMatchesPreviewAdmin(body) {
   return gotEmail === email && gotPass === pass;
 }
 
+function normalizeLoginJsonBuffer(buf, status) {
+  if (!(status >= 200 && status < 300)) return buf;
+  try {
+    const raw = Buffer.isBuffer(buf) ? buf.toString('utf8') : String(buf || '');
+    if (!raw || raw.charAt(0) !== '{') return buf;
+    const body = JSON.parse(raw);
+    if (!body || typeof body !== 'object' || body.success === false) return buf;
+    const nested = body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : {};
+    const token = body.token || body.accessToken || body.access_token || nested.token || nested.accessToken || nested.access_token;
+    const user = body.user || nested.user;
+    if (!token && !user) return buf;
+    const out = Object.assign({}, body, {
+      success: true,
+      token: token || body.token,
+      accessToken: body.accessToken || token,
+      access_token: body.access_token || token,
+      user: user || body.user,
+      message: body.message || 'Login successful',
+      data: Object.assign({}, nested, token ? { token } : {}, user ? { user } : {}, { success: true }),
+    });
+    return Buffer.from(JSON.stringify(out), 'utf8');
+  } catch (_e) {
+    return buf;
+  }
+}
+
 function reseedPreviewAdmin() {
   try {
     if (global.__svPreviewSeedAt && Date.now() - global.__svPreviewSeedAt < 45000) return true;
@@ -1070,7 +1096,7 @@ function installPreviewLoginAliases(app) {
       console.log('[preview] login alias ' + incoming + ' → ' + path + ' (' + result.status + ')');
       res.status(result.status);
       if (result.headers['content-type']) res.setHeader('Content-Type', result.headers['content-type']);
-      return res.send(result.body);
+      return res.send(normalizeLoginJsonBuffer(result.body, result.status));
     }
     // No alternate worked — fall through to the project's own handler on this path.
     console.log('[preview] login alias ' + incoming + ' → fallthrough to app handler');

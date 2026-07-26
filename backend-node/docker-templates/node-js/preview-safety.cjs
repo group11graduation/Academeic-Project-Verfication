@@ -1,4 +1,4 @@
-/* scholarverify-preview-cors-v4 — ScholarVerify preview safety (CORS + universal login) */
+/* scholarverify-preview-cors-v5 — ScholarVerify preview safety (CORS + universal login) */
 'use strict';
 const path = require('path');
 const { createRequire } = require('module');
@@ -27,7 +27,45 @@ function requireFromCwd(name) {
 
 function isLoginPath(reqPath) {
   const p = String(reqPath || '').split('?')[0];
-  return /\/(api\/)?(auth|users|user|v1\/auth)?\/?login\/?$/i.test(p);
+  return /\/(api\/)?(auth|users|user|v1\/auth)?\/?login\/?$/i.test(p) || LOGIN_PATHS.includes(p);
+}
+
+/**
+ * Many student UIs do `if (res.data.success)` then store token / clear spinner.
+ * Preview login historically returned token+user+message without `success`, which
+ * left the button stuck spinning. Normalize so token/user presence implies success.
+ */
+function normalizeLoginResponseBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  if (body.success === false) return body;
+  const nested =
+    body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? { ...body.data } : {};
+  const token =
+    body.token ||
+    body.accessToken ||
+    body.access_token ||
+    nested.token ||
+    nested.accessToken ||
+    nested.access_token ||
+    null;
+  const user = body.user || nested.user || null;
+  if (!token && !user) return body;
+  const out = { ...body };
+  if (token) {
+    out.token = token;
+    out.accessToken = out.accessToken || token;
+    out.access_token = out.access_token || token;
+  }
+  if (user) out.user = user;
+  out.success = true;
+  out.message = out.message || 'Login successful';
+  out.data = {
+    ...nested,
+    ...(token ? { token } : {}),
+    ...(user ? { user } : {}),
+    success: true,
+  };
+  return out;
 }
 
 function longJwtSecret() {
@@ -273,14 +311,17 @@ async function previewUniversalLogin(req, res, next) {
     );
     const safe = sanitizeUser(user);
     console.log('[preview] universal login OK for', email);
-    return res.json({
-      token,
-      accessToken: token,
-      access_token: token,
-      user: safe,
-      data: { token, user: safe },
-      message: 'Login successful',
-    });
+    return res.json(
+      normalizeLoginResponseBody({
+        success: true,
+        token,
+        accessToken: token,
+        access_token: token,
+        user: safe,
+        data: { token, user: safe, success: true },
+        message: 'Login successful',
+      })
+    );
   } catch (err) {
     console.error('[preview] universal login failed:', err && err.message ? err.message : err);
     return res.status(500).json({
@@ -292,9 +333,53 @@ async function previewUniversalLogin(req, res, next) {
 }
 
 function installPreviewCorsFix(app) {
-  if (!app || typeof app.use !== 'function' || app.__scholarVerifyCorsFix) return;
-  app.__scholarVerifyCorsFix = true;
+  if (!app || typeof app.use !== 'function') return;
   installPreviewRuntimeGuards();
+
+  // Ensure every login 200 body includes success+flattened token/user so student
+  // frontends that check `res.data.success` leave the spinner and store the JWT.
+  // Install even if CORS was already wired (upgrade path from v4 → v5).
+  if (!app.__scholarVerifyLoginNormalize) {
+    app.__scholarVerifyLoginNormalize = true;
+    app.use(function previewNormalizeLoginResponse(req, res, next) {
+      try {
+        if (String(req.method || '').toUpperCase() !== 'POST') return next();
+        const p = String(req.path || req.url || '').split('?')[0];
+        if (!isLoginPath(p)) return next();
+
+        const origJson = res.json.bind(res);
+        res.json = function svLoginJson(body) {
+          try {
+            return origJson(normalizeLoginResponseBody(body));
+          } catch (_e) {
+            return origJson(body);
+          }
+        };
+
+        const origSend = res.send.bind(res);
+        res.send = function svLoginSend(body) {
+          try {
+            if (body && typeof body === 'object' && !Buffer.isBuffer(body) && !Array.isArray(body)) {
+              return origSend(normalizeLoginResponseBody(body));
+            }
+            if (typeof body === 'string' && body.length > 1 && body.charAt(0) === '{') {
+              const parsed = JSON.parse(body);
+              return origSend(JSON.stringify(normalizeLoginResponseBody(parsed)));
+            }
+          } catch (_e2) {
+            /* fall through */
+          }
+          return origSend(body);
+        };
+      } catch (_e3) {
+        /* ignore */
+      }
+      return next();
+    });
+  }
+
+  if (app.__scholarVerifyCorsFix) return;
+  app.__scholarVerifyCorsFix = true;
 
   app.use(function previewCorsFix(req, res, next) {
     const requestOrigin =
@@ -359,4 +444,8 @@ function installPreviewCorsFix(app) {
   console.log('[preview] CORS + universal login installed');
 }
 
-module.exports = { installPreviewCorsFix, installPreviewRuntimeGuards };
+module.exports = {
+  installPreviewCorsFix,
+  installPreviewRuntimeGuards,
+  normalizeLoginResponseBody,
+};

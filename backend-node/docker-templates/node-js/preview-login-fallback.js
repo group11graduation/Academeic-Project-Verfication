@@ -176,6 +176,87 @@
     );
   }
 
+  /**
+   * Student UIs often do `if (res.data.success)` before storing the token / clearing
+   * the spinner. Preview (and many student backends) return token+user without
+   * `success`. Normalize so those checks pass and auth guards see a consistent key.
+   */
+  function normalizeLoginBody(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (obj.success === false) return obj;
+    var nested = obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data) ? obj.data : {};
+    var token =
+      obj.token ||
+      obj.accessToken ||
+      obj.access_token ||
+      nested.token ||
+      nested.accessToken ||
+      nested.access_token ||
+      null;
+    var user = obj.user || nested.user || null;
+    if (!token && !user) return obj;
+    var out = {};
+    try {
+      for (var k in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = obj[k];
+      }
+    } catch (_e) {
+      out = obj;
+    }
+    if (token) {
+      out.token = token;
+      out.accessToken = out.accessToken || token;
+      out.access_token = out.access_token || token;
+    }
+    if (user) out.user = user;
+    out.success = true;
+    out.message = out.message || 'Login successful';
+    out.data = {};
+    try {
+      for (var nk in nested) {
+        if (Object.prototype.hasOwnProperty.call(nested, nk)) out.data[nk] = nested[nk];
+      }
+    } catch (_e2) {}
+    if (token) out.data.token = token;
+    if (user) out.data.user = user;
+    out.data.success = true;
+    try {
+      if (token) {
+        localStorage.setItem('token', token);
+        localStorage.setItem('accessToken', token);
+        sessionStorage.setItem('token', token);
+      }
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+    } catch (_e3) {}
+    return out;
+  }
+
+  function rewriteLoginResponse(res) {
+    if (!res || res.status < 200 || res.status >= 300) return Promise.resolve(res);
+    var ct = '';
+    try {
+      ct = String(res.headers && res.headers.get ? res.headers.get('content-type') : '') || '';
+    } catch (_e) {}
+    if (ct && ct.indexOf('json') < 0) return Promise.resolve(res);
+    return res
+      .clone()
+      .json()
+      .then(function (body) {
+        var normalized = normalizeLoginBody(body);
+        if (normalized === body && body && body.success === true) return res;
+        return new Response(JSON.stringify(normalized), {
+          status: res.status,
+          statusText: res.statusText,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
+      .catch(function () {
+        return res;
+      });
+  }
+
   function isSameOriginApiPath(url) {
     var u = String(url || '');
     if (u.charAt(0) === '/' && /^\/(api|auth|users|user)\b/i.test(u)) return true;
@@ -270,12 +351,16 @@
           .call(window, nextInput, opts)
           .then(function (res) {
             if (timer) clearTimeout(timer);
-            if (!shouldRetry(res.status) || i >= candidates.length) return res;
+            if (!shouldRetry(res.status) || i >= candidates.length) {
+              return rewriteLoginResponse(res);
+            }
             return res
               .clone()
               .text()
               .then(function (text) {
-                if (!shouldRetry(res.status, text) || i >= candidates.length) return res;
+                if (!shouldRetry(res.status, text) || i >= candidates.length) {
+                  return rewriteLoginResponse(res);
+                }
                 return attempt();
               });
           })
@@ -336,6 +421,13 @@
               return;
             }
             try {
+              if (x.status >= 200 && x.status < 300 && text) {
+                var parsed = JSON.parse(text);
+                var normalized = normalizeLoginBody(parsed);
+                text = JSON.stringify(normalized);
+              }
+            } catch (_norm) {}
+            try {
               Object.defineProperty(xhr, 'status', {
                 get: function () {
                   return x.status;
@@ -343,12 +435,16 @@
               });
               Object.defineProperty(xhr, 'responseText', {
                 get: function () {
-                  return x.responseText;
+                  return text || x.responseText;
                 },
               });
               Object.defineProperty(xhr, 'response', {
                 get: function () {
-                  return x.response;
+                  try {
+                    return text ? JSON.parse(text) : x.response;
+                  } catch (_e2) {
+                    return text || x.response;
+                  }
                 },
               });
               Object.defineProperty(xhr, 'readyState', {
