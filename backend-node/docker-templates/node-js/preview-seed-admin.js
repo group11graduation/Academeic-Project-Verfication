@@ -51,7 +51,21 @@ function loadPreviewEnv() {
   let mongoose;
   try {
     loadPreviewEnv();
-    mongoose = requireFromCwd('mongoose');
+    // React + Express + MySQL projects do not ship mongoose — skip cleanly.
+    if (String(process.env.PREVIEW_DB_ENGINE || '').toLowerCase() === 'mysql') {
+      console.log('[preview-seed] skipped: PREVIEW_DB_ENGINE=mysql (use preview-seed-mysql.js)');
+      return;
+    }
+    try {
+      mongoose = requireFromCwd('mongoose');
+    } catch (err) {
+      console.log(
+        '[preview-seed] skipped: mongoose not installed in student project (' +
+          (err && err.message ? err.message : 'Cannot find module mongoose') +
+          ')'
+      );
+      return;
+    }
     for (const key of Object.keys(mongoose.models || {})) {
       delete mongoose.models[key];
     }

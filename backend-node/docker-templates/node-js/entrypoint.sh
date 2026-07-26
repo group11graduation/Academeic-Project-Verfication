@@ -595,7 +595,14 @@ write_preview_env_files() {
 
 write_mern_backend_env() {
   mongo="${MONGO_URI:-$MONGODB_URI}"
-  if [ -z "$mongo" ]; then
+  db_engine="${PREVIEW_DB_ENGINE:-}"
+  if [ -z "$db_engine" ] && [ -n "${DB_HOST:-}" ]; then
+    db_engine="mysql"
+  fi
+  if [ -z "$db_engine" ]; then
+    db_engine="mongo"
+  fi
+  if [ "$db_engine" != "mysql" ] && [ -z "$mongo" ]; then
     mongo="mongodb://host.docker.internal:27017/scholarverify_preview"
   fi
   # Base64 of a 64-byte key (HS512-safe). Legacy shorter default caused WeakKeyException on Spring HS512 apps.
@@ -607,15 +614,39 @@ write_mern_backend_env() {
   if [ -z "$cors" ] && [ -n "$PREVIEW_UI_HOST_PORT" ]; then
     cors="http://localhost:${PREVIEW_UI_HOST_PORT}"
   fi
+  db_host="${DB_HOST:-}"
+  db_name="${DB_NAME:-${MYSQL_DATABASE:-preview}}"
+  db_user="${DB_USER:-${MYSQL_USER:-root}}"
+  db_pass="${DB_PASS:-${DB_PASSWORD:-${MYSQL_PASSWORD:-}}}"
+  db_port="${DB_PORT:-${MYSQL_PORT:-3306}}"
   {
     echo "# ScholarVerify preview runtime"
     echo "PORT=$API_PORT"
     echo "HOST=0.0.0.0"
-    echo "MONGO_URI=$mongo"
-    echo "MONGODB_URI=$mongo"
     echo "JWT_SECRET=$jwt"
     echo "NODE_ENV=development"
     echo "PREVIEW_SANDBOX=1"
+    echo "PREVIEW_DB_ENGINE=$db_engine"
+    if [ "$db_engine" = "mysql" ]; then
+      echo "DB_HOST=$db_host"
+      echo "DB_PORT=$db_port"
+      echo "DB_NAME=$db_name"
+      echo "DB_DATABASE=$db_name"
+      echo "DB_USER=$db_user"
+      echo "DB_USERNAME=$db_user"
+      echo "DB_PASS=$db_pass"
+      echo "DB_PASSWORD=$db_pass"
+      echo "MYSQL_HOST=$db_host"
+      echo "MYSQL_PORT=$db_port"
+      echo "MYSQL_DATABASE=$db_name"
+      echo "MYSQL_USER=$db_user"
+      echo "MYSQL_PASSWORD=$db_pass"
+      echo "DATABASE_URL=mysql://${db_user}:${db_pass}@${db_host}:${db_port}/${db_name}"
+    else
+      echo "MONGO_URI=$mongo"
+      echo "MONGODB_URI=$mongo"
+      echo "DATABASE_URL=$mongo"
+    fi
     if [ -n "$cors" ]; then
       echo "CORS_ORIGIN=$cors"
       echo "FRONTEND_URL=$cors"
@@ -638,30 +669,49 @@ write_mern_backend_env() {
   cat .env.preview-runtime > .env
   if [ -f .env.project ]; then
     # Drop student localhost CORS/frontend URLs so they cannot override preview origins.
-    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
+    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|DB_HOST|DB_PORT|DB_NAME|DB_DATABASE|DB_USER|DB_USERNAME|DB_PASS|DB_PASSWORD|MYSQL_HOST|MYSQL_PORT|MYSQL_DATABASE|MYSQL_USER|MYSQL_PASSWORD|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|PREVIEW_DB_ENGINE|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
   fi
   rm -f .env.preview-runtime .env.preview-backup .env.student-original .env.student-filtered
   # Critical: do NOT export PORT=$API_PORT into this shell — that made the gateway
   # collide with Express (EADDRINUSE on :5000). Keep shell PORT = UI_PORT for gateway.
   export PORT="$UI_PORT"
   export HOST=0.0.0.0
-  export MONGO_URI="$mongo"
-  export MONGODB_URI="$mongo"
   export JWT_SECRET="$jwt"
   export PREVIEW_SANDBOX=1
-  echo "[preview] MONGO_URI=$mongo"
+  export PREVIEW_DB_ENGINE="$db_engine"
+  if [ "$db_engine" = "mysql" ]; then
+    export DB_HOST="$db_host"
+    export DB_NAME="$db_name"
+    export DB_USER="$db_user"
+    export DB_PASS="$db_pass"
+    echo "[preview] MySQL DB_HOST=$db_host DB_NAME=$db_name"
+  else
+    export MONGO_URI="$mongo"
+    export MONGODB_URI="$mongo"
+    echo "[preview] MONGO_URI=$mongo"
+  fi
 }
 
 wait_for_mongo_ready() {
+  if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
+    echo "[preview] skipping Mongo wait (MySQL preview)"
+    return 0
+  fi
   n=0
   while [ "$n" -lt 45 ]; do
     if node -e "
+      try { require('mongoose'); } catch (e) { process.exit(2); }
       const mongoose=require('mongoose');
       const uri=process.env.MONGO_URI||process.env.MONGODB_URI;
       if(!uri) process.exit(1);
       mongoose.connect(uri,{serverSelectionTimeoutMS:2000}).then(()=>mongoose.disconnect()).then(()=>process.exit(0)).catch(()=>process.exit(1));
     " >> /tmp/preview-backend.log 2>&1; then
       echo "[preview] MongoDB ready for seed"
+      return 0
+    fi
+    rc=$?
+    if [ "$rc" = "2" ]; then
+      echo "[preview] mongoose not in student project — skip Mongo wait"
       return 0
     fi
     n=$((n + 1))
@@ -671,12 +721,49 @@ wait_for_mongo_ready() {
   return 1
 }
 
+wait_for_mysql_ready() {
+  if [ "${PREVIEW_DB_ENGINE:-}" != "mysql" ] && [ -z "${DB_HOST:-}" ]; then
+    return 0
+  fi
+  n=0
+  while [ "$n" -lt 45 ]; do
+    if node -e "
+      const m=require('/preview-tools/node_modules/mysql2/promise');
+      const host=process.env.DB_HOST||process.env.MYSQL_HOST;
+      if(!host) process.exit(1);
+      m.createConnection({
+        host,
+        user: process.env.DB_USER||process.env.MYSQL_USER||'root',
+        password: process.env.DB_PASS||process.env.DB_PASSWORD||process.env.MYSQL_PASSWORD||'',
+        database: process.env.DB_NAME||process.env.MYSQL_DATABASE||'preview',
+        port: Number(process.env.DB_PORT||3306)
+      }).then(c=>c.query('SELECT 1').then(()=>c.end())).then(()=>process.exit(0)).catch(()=>process.exit(1));
+    " >> /tmp/preview-backend.log 2>&1; then
+      echo "[preview] MySQL ready for seed"
+      return 0
+    fi
+    n=$((n + 1))
+    sleep 2
+  done
+  echo "[preview] MySQL not ready after wait — seed may fail"
+  return 1
+}
+
 run_preview_admin_seed() {
   label="${1:-admin seed}"
   if [ -z "$PREVIEW_ADMIN_EMAIL" ] || [ ! -f package.json ]; then
     return 0
   fi
   echo "[preview] ${label}…"
+  if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
+    node /preview-seed-mysql.js >> /tmp/preview-backend.log 2>&1 || {
+      echo "[preview] ${label} (mysql) soft-failed — check /tmp/preview-backend.log"
+      tail -25 /tmp/preview-backend.log 2>/dev/null || true
+      return 0
+    }
+    grep '\[preview-seed-mysql\]' /tmp/preview-backend.log 2>/dev/null | tail -12 || true
+    return 0
+  fi
   node /preview-seed-admin.js >> /tmp/preview-backend.log 2>&1 || {
     echo "[preview] ${label} failed — check /tmp/preview-backend.log"
     tail -25 /tmp/preview-backend.log 2>/dev/null || true
@@ -722,7 +809,11 @@ start_mern_backend() {
   fi
 
   if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
-    wait_for_mongo_ready || true
+    if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
+      wait_for_mysql_ready || true
+    else
+      wait_for_mongo_ready || true
+    fi
     run_preview_admin_seed "pre-start admin seed" || true
   fi
 

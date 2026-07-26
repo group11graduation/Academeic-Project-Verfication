@@ -9,16 +9,20 @@ ENV APP_SUBDIR=.
 # Static placeholder + built dist folders — avoid npx download on every preview start.
 RUN npm install -g serve@14.2.4
 
+# mysql2 for React+Express+MySQL preview seeding (student apps may not include mongoose).
+RUN mkdir -p /preview-tools && cd /preview-tools && npm init -y >/dev/null 2>&1 && npm install mysql2@3.11.5 --omit=dev
+
 # Student project is bind-mounted at /app at container start — not baked into the image.
 COPY entrypoint.sh /preview-entrypoint.sh
 COPY preview-seed-admin.js /preview-seed-admin.js
+COPY preview-seed-mysql.js /preview-seed-mysql.js
 COPY preview-verify-login.js /preview-verify-login.js
 COPY preview-login-fallback.js /preview-login-fallback.js
 COPY preview-safety.cjs /preview-safety.cjs
 COPY preview-ensure-inject.cjs /preview-ensure-inject.cjs
 COPY preview-gateway.cjs /preview-gateway.cjs
 COPY preview-fallback /preview-fallback
-RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh /preview-seed-admin.js /preview-verify-login.js /preview-login-fallback.js /preview-safety.cjs /preview-ensure-inject.cjs /preview-gateway.cjs
+RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh /preview-seed-admin.js /preview-seed-mysql.js /preview-verify-login.js /preview-login-fallback.js /preview-safety.cjs /preview-ensure-inject.cjs /preview-gateway.cjs
 
 EXPOSE 3000
 ENTRYPOINT ["/preview-entrypoint.sh"]

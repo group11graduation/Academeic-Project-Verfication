@@ -1,6 +1,7 @@
 *
 !entrypoint.sh
 !preview-seed-admin.js
+!preview-seed-mysql.js
 !preview-verify-login.js
 !preview-login-fallback.js
 !preview-safety.cjs

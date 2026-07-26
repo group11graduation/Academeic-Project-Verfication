@@ -459,12 +459,14 @@ export async function patchBackendForPreview(
     publicUiUrl,
     jwtSecret = 'cHJldmlldy1zYW5kYm94LWp3dC1zZWNyZXQtZm9yLUhTNTEyLW5lZWRzLTY0LWJ5dGUta2V5LW1pbmltdW0hIQ==',
     loginApiPath = '',
+    mysqlEnv = null,
   }
 ) {
   const backendRoot = path.join(extractDir, backendSubdir);
   if (!(await pathExists(backendRoot))) return { files: 0 };
 
   let files = 0;
+  const useMysql = Boolean(mysqlEnv?.DB_HOST);
   const envNames = ['.env', '.env.local', '.env.development'];
   for (const name of envNames) {
     const envPath = path.join(backendRoot, name);
@@ -478,8 +480,10 @@ export async function patchBackendForPreview(
     }
     // eslint-disable-next-line no-await-in-loop
     let content = await fs.readFile(envPath, 'utf8');
-    for (const pattern of LOCAL_MONGO_PATTERNS) {
-      content = content.replace(pattern, mongoUri);
+    if (!useMysql && mongoUri) {
+      for (const pattern of LOCAL_MONGO_PATTERNS) {
+        content = content.replace(pattern, mongoUri);
+      }
     }
     // eslint-disable-next-line no-await-in-loop
     await fs.writeFile(envPath, content, 'utf8');
@@ -487,15 +491,36 @@ export async function patchBackendForPreview(
   }
 
   const previewEnv = [
-    '# ScholarVerify preview — do not use localhost Mongo inside Docker',
+    useMysql
+      ? '# ScholarVerify preview — MySQL sidecar (React + Express + MySQL)'
+      : '# ScholarVerify preview — do not use localhost Mongo inside Docker',
     'PORT=5050',
     'HOST=0.0.0.0',
-    `MONGO_URI=${mongoUri}`,
-    `MONGODB_URI=${mongoUri}`,
     `JWT_SECRET=${jwtSecret}`,
     'NODE_ENV=development',
     'PREVIEW_SANDBOX=1',
   ];
+  if (useMysql) {
+    previewEnv.push('PREVIEW_DB_ENGINE=mysql');
+    previewEnv.push(`DB_HOST=${mysqlEnv.DB_HOST}`);
+    previewEnv.push(`DB_PORT=${mysqlEnv.DB_PORT || '3306'}`);
+    previewEnv.push(`DB_NAME=${mysqlEnv.DB_NAME || 'preview'}`);
+    previewEnv.push(`DB_DATABASE=${mysqlEnv.DB_DATABASE || mysqlEnv.DB_NAME || 'preview'}`);
+    previewEnv.push(`DB_USER=${mysqlEnv.DB_USER || 'preview'}`);
+    previewEnv.push(`DB_USERNAME=${mysqlEnv.DB_USERNAME || mysqlEnv.DB_USER || 'preview'}`);
+    previewEnv.push(`DB_PASS=${mysqlEnv.DB_PASS || ''}`);
+    previewEnv.push(`DB_PASSWORD=${mysqlEnv.DB_PASSWORD || mysqlEnv.DB_PASS || ''}`);
+    previewEnv.push(`MYSQL_HOST=${mysqlEnv.MYSQL_HOST || mysqlEnv.DB_HOST}`);
+    previewEnv.push(`MYSQL_PORT=${mysqlEnv.MYSQL_PORT || '3306'}`);
+    previewEnv.push(`MYSQL_DATABASE=${mysqlEnv.MYSQL_DATABASE || mysqlEnv.DB_NAME || 'preview'}`);
+    previewEnv.push(`MYSQL_USER=${mysqlEnv.MYSQL_USER || mysqlEnv.DB_USER || 'preview'}`);
+    previewEnv.push(`MYSQL_PASSWORD=${mysqlEnv.MYSQL_PASSWORD || mysqlEnv.DB_PASS || ''}`);
+    if (mysqlEnv.DATABASE_URL) previewEnv.push(`DATABASE_URL=${mysqlEnv.DATABASE_URL}`);
+  } else if (mongoUri) {
+    previewEnv.push('PREVIEW_DB_ENGINE=mongo');
+    previewEnv.push(`MONGO_URI=${mongoUri}`);
+    previewEnv.push(`MONGODB_URI=${mongoUri}`);
+  }
   if (loginApiPath) {
     previewEnv.push(`PREVIEW_LOGIN_API_PATH=${loginApiPath}`);
   }
@@ -515,7 +540,9 @@ export async function patchBackendForPreview(
   await fs.writeFile(path.join(backendRoot, '.env'), `${previewEnv.join('\n')}`, 'utf8');
   files += 1;
 
-  files += await patchMongoInBackendSources(backendRoot, mongoUri);
+  if (!useMysql && mongoUri) {
+    files += await patchMongoInBackendSources(backendRoot, mongoUri);
+  }
 
   files += await patchDbNoExitOnPreviewFail(backendRoot);
   files += await walkRelaxCors(backendRoot);

@@ -33,6 +33,7 @@ const projectSubmissionSchema = new mongoose.Schema(
         'static-html',
         'static-html-js',
         'node-js',
+        'node-js-mysql',
         'java-spring-react',
         'java-spring-thymeleaf',
         'php-apache',

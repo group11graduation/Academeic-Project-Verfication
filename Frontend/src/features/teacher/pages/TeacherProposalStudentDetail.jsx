@@ -37,6 +37,7 @@ const PREVIEW_STACK_LABELS = {
     'static-html': 'HTML + CSS',
     'static-html-js': 'HTML + CSS + JavaScript',
     'node-js': 'React + Express',
+    'node-js-mysql': 'React + Express + MySQL',
     'java-spring-react': 'React + Spring Boot',
     'java-spring-thymeleaf': 'Spring Boot + Thymeleaf',
     'php-apache': 'PHP / Apache',

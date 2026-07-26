@@ -76,6 +76,12 @@ export const STACK_BLUEPRINTS = {
     internalPort: 3000,
     imagePrefix: 'sv-project-node',
   },
+  /** React + Express with MySQL/MariaDB (not MongoDB). Reuses node-js image + MySQL sidecar. */
+  'node-js-mysql': {
+    templateDir: 'node-js',
+    internalPort: 3000,
+    imagePrefix: 'sv-project-node-mysql',
+  },
   'static-html': {
     templateDir: 'node-js',
     internalPort: 3000,
@@ -164,6 +170,7 @@ async function previewNodeTemplateContentHash(templateDirName) {
   const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
   return previewTemplateContentHash(templateDirName, [
     path.join(sharedNodeDir, 'preview-seed-admin.js'),
+    path.join(sharedNodeDir, 'preview-seed-mysql.js'),
     path.join(sharedNodeDir, 'preview-verify-login.js'),
     path.join(sharedNodeDir, 'preview-login-fallback.js'),
     path.join(sharedNodeDir, 'preview-safety.cjs'),
@@ -241,6 +248,12 @@ async function stagePreviewBaseBuildDir(templateDirName) {
       await fs.writeFile(path.join(stageDir, 'preview-seed-admin.js'), seedScript.replace(/\r\n/g, '\n'));
     }
 
+    const mysqlSeedSrc = path.join(sharedNodeDir, 'preview-seed-mysql.js');
+    if (fsSync.existsSync(mysqlSeedSrc)) {
+      const mysqlSeed = await fs.readFile(mysqlSeedSrc, 'utf8');
+      await fs.writeFile(path.join(stageDir, 'preview-seed-mysql.js'), mysqlSeed.replace(/\r\n/g, '\n'));
+    }
+
     const verifyScriptSrc = path.join(sharedNodeDir, 'preview-verify-login.js');
     if (fsSync.existsSync(verifyScriptSrc)) {
       const verifyScript = await fs.readFile(verifyScriptSrc, 'utf8');
@@ -292,6 +305,7 @@ function previewBaseImageFailureMessage(stack) {
     'java-spring-react': 'React + Spring Boot preview is temporarily unavailable',
     'java-spring-thymeleaf': 'Spring Boot + Thymeleaf preview is temporarily unavailable',
     'node-js': 'React + Express preview is temporarily unavailable',
+    'node-js-mysql': 'React + Express + MySQL preview is temporarily unavailable',
     'static-html': 'Static HTML preview is temporarily unavailable',
     'static-html-js': 'Static HTML preview is temporarily unavailable',
   };
@@ -647,7 +661,7 @@ async function collectNodePackageDirs(dir, buildContext, found, depth = 0) {
  * For MERN repos, prefer the React frontend over the Express backend.
  */
 export async function resolveAppSubdir(buildContext, stack) {
-  if (stack === 'node-js') {
+  if (stack === 'node-js' || stack === 'node-js-mysql') {
     const found = [];
     await collectNodePackageDirs(buildContext, buildContext, found);
     if (found.length === 0) return '.';
@@ -752,11 +766,18 @@ export function previewStackDisplayName(stack, splitPair = null) {
     }
     return 'React + Express';
   }
+  if (stack === 'node-js-mysql') {
+    if (splitPair?.frontendFramework || splitPair?.backendFramework) {
+      return `${splitStackDisplayLabel(splitPair) || 'React + Express'} + MySQL`;
+    }
+    return 'React + Express + MySQL';
+  }
   if (splitPair?.frontendFramework || splitPair?.backendFramework) {
     return splitStackDisplayLabel(splitPair);
   }
   const map = {
     'node-js': 'React + Express',
+    'node-js-mysql': 'React + Express + MySQL',
     'php-apache': 'PHP / Apache',
     jupyter: 'Jupyter notebook',
     'static-html': 'HTML + CSS',
@@ -873,7 +894,7 @@ async function ensurePreviewBaseImage(stack, { flutterPair = null, forceRebuild 
   if (stack === 'java-spring-react' || stack === 'java-spring-thymeleaf') {
     return ensurePreviewSpringReactBaseImage({ forceRebuild });
   }
-  if (stack === 'static-html' || stack === 'static-html-js' || stack === 'node-js') {
+  if (stack === 'static-html' || stack === 'static-html-js' || stack === 'node-js' || stack === 'node-js-mysql') {
     return ensurePreviewNodeBaseImage(flutterPair, { forceRebuild });
   }
   const err = new Error(`No preview base image for stack: ${stack}`);
@@ -905,15 +926,96 @@ export function inferStackHintFromAssignment(assignment) {
     return 'java-spring-react';
   }
   if (/mern|express|react\s*\+\s*express|react\s+with\s+express|node\.?js|nest\.?js/.test(text)) {
+    if (/mysql|mariadb|sequelize|mysql2/.test(text)) return 'node-js-mysql';
     return 'node-js';
+  }
+  if (/react\s*\+\s*express\s*\+\s*mysql|express\s*\+\s*mysql|node.*mysql/.test(text)) {
+    return 'node-js-mysql';
   }
   if (/react|vite|next\.?js|vue|angular|frontend/.test(text)) {
     return 'node-js';
   }
   if (/javascript/.test(text) && !/react|node|vue|angular/.test(text)) return 'static-html-js';
-  if (/php|laravel|apache|mysql|xampp/.test(text)) return 'php-apache';
+  if (/php|laravel|apache|xampp/.test(text)) return 'php-apache';
   if (/jupyter|ipython|\.ipynb|python\s+notebook/.test(text)) return 'jupyter';
   return null;
+}
+
+async function detectNodeUsesMysql(projectPath, packageJsonPaths = []) {
+  let mysqlScore = 0;
+  let mongoScore = 0;
+  const pkgPaths = [...packageJsonPaths];
+  if (!pkgPaths.length) {
+    async function walk(dir, depth = 0) {
+      if (depth > 5 || pkgPaths.length > 12) return;
+      let entries = [];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === 'build') {
+          continue;
+        }
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          // eslint-disable-next-line no-await-in-loop
+          await walk(full, depth + 1);
+        } else if (entry.name === 'package.json') {
+          pkgPaths.push(full);
+        }
+      }
+    }
+    await walk(projectPath);
+  }
+
+  for (const pkgPath of pkgPaths) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
+      const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+      if (deps.mongoose || deps.mongodb) mongoScore += 3;
+      if (deps.mysql2 || deps.mysql || deps.mariadb) mysqlScore += 4;
+      if (deps.sequelize) mysqlScore += 1;
+      if (deps.knex) mysqlScore += 1;
+      if (deps.prisma || deps['@prisma/client']) mysqlScore += 1;
+      if (deps.typeorm) mysqlScore += 1;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Prisma / sequelize config hints
+  const configHints = [
+    'prisma/schema.prisma',
+    '.env',
+    '.env.example',
+    'backend/.env',
+    'server/.env',
+    'api/.env',
+  ];
+  for (const rel of configHints) {
+    const full = path.join(projectPath, rel);
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const text = (await fs.readFile(full, 'utf8')).slice(0, 20_000).toLowerCase();
+      if (/provider\s*=\s*"mysql"|mysql:\/\/|mariadb:\/\/|dialect:\s*['"]mysql['"]/.test(text)) {
+        mysqlScore += 3;
+      }
+      if (/mongodb:\/\/|mongoose|provider\s*=\s*"mongodb"/.test(text)) {
+        mongoScore += 2;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return mysqlScore >= 3 && mysqlScore > mongoScore;
+}
+
+function isNodeExpressStack(stack) {
+  return stack === 'node-js' || stack === 'node-js-mysql';
 }
 
 async function findReactStaticSignals(projectPath) {
@@ -1252,11 +1354,11 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   }
 
   // ZIP file signals beat assignment hints: never force Node when Spring Boot is present.
-  if (stack === 'node-js' && hasStrongSpring && hasSpringReactFrontend) {
+  if (isNodeExpressStack(stack) && hasStrongSpring && hasSpringReactFrontend) {
     stack = 'java-spring-react';
     reasons.push('overrode Node hint — Spring Boot + React frontend detected in ZIP');
   }
-  if (stack === 'node-js' && hasStrongSpring && !hasSpringReactFrontend) {
+  if (isNodeExpressStack(stack) && hasStrongSpring && !hasSpringReactFrontend) {
     stack = 'java-spring-thymeleaf';
     reasons.push('overrode Node hint — Spring Boot (Thymeleaf) detected in ZIP');
   }
@@ -1271,10 +1373,10 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
 
   if (!stack && hint && STACK_BLUEPRINTS[hint]) {
     // Generic "react" hint must not force Node when Spring files exist.
-    if (hint === 'node-js' && hasStrongSpring && hasSpringReactFrontend) {
+    if ((hint === 'node-js' || hint === 'node-js-mysql') && hasStrongSpring && hasSpringReactFrontend) {
       stack = 'java-spring-react';
       reasons.push('assignment hinted Node/React but ZIP has Spring Boot — using React + Spring Boot');
-    } else if (hint === 'node-js' && hasStrongSpring) {
+    } else if ((hint === 'node-js' || hint === 'node-js-mysql') && hasStrongSpring) {
       stack = 'java-spring-thymeleaf';
       reasons.push('assignment hinted Node/React but ZIP has Spring Boot only — using Thymeleaf preview');
     } else if ((hint === 'static-html' || hint === 'static-html-js') && hasStrongSpring) {
@@ -1292,6 +1394,19 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     );
     err.status = 400;
     throw err;
+  }
+
+  // Prefer MySQL sidecar when teacher selected it, or when package.json uses mysql2/mysql
+  // without mongoose (avoids "Cannot find module mongoose" on Express + MySQL ZIPs).
+  if (stack === 'node-js' || stack === 'node-js-mysql') {
+    const wantsMysql =
+      hint === 'node-js-mysql' ||
+      stack === 'node-js-mysql' ||
+      (await detectNodeUsesMysql(projectPath, signals.packageJsonPaths || []));
+    if (wantsMysql) {
+      stack = 'node-js-mysql';
+      reasons.push('MySQL/MariaDB client libraries detected (or assignment stack = React + Express + MySQL)');
+    }
   }
 
   return {
@@ -1442,6 +1557,7 @@ async function runPreviewContainer({
     stack === 'java-spring-react' ||
     stack === 'java-spring-thymeleaf' ||
     stack === 'node-js' ||
+    stack === 'node-js-mysql' ||
     Boolean(mernPair) ||
     Boolean(flutterPair);
   if (useDepCaches && process.env.PREVIEW_DEPENDENCY_CACHE !== 'false') {
@@ -1506,10 +1622,13 @@ async function runPreviewContainer({
     }
   }
 
-  if (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js') {
+  if (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js') {
     args.push('-e', `PORT=${internalPort}`, '-e', `APP_SUBDIR=${appSubdir}`);
     if (stack === 'static-html' || stack === 'static-html-js') {
       args.push('-e', `PREVIEW_STATIC_STACK=${stack}`);
+    }
+    if (stack === 'node-js-mysql') {
+      args.push('-e', 'PREVIEW_DB_ENGINE=mysql');
     }
   } else if (stack === 'php-apache') {
     args.push('-e', `APP_SUBDIR=${appSubdir}`);
@@ -1864,7 +1983,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   let flutterPair = null;
   let springPair = null;
   let springOnlyRoot = null;
-  if (stack === 'node-js') {
+  if (stack === 'node-js' || stack === 'node-js-mysql') {
     flutterPair = await resolveFlutterNodePair(buildContext);
     if (!flutterPair) {
       mernPair = await resolveMernPair(buildContext);
@@ -1978,30 +2097,58 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
           ADMIN_PASSWORD: springPatch.seedCredentials.password,
         };
       }
+    } else if (stack === 'node-js-mysql' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
+      sidecarPromise = startPreviewMysqlSidecar(projectId);
     } else if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
       sidecarPromise = startPreviewMongoSidecar(projectId);
     }
+  } else if (stack === 'node-js-mysql' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
+    // Single-folder Express + MySQL (no separate FE/BE pair) still needs MySQL.
+    sidecarPromise = startPreviewMysqlSidecar(projectId);
   }
 
   if (sidecarPromise) {
     const sidecar = await sidecarPromise;
     previewDockerNetwork = sidecar.networkName;
-    if (stack === 'php-apache') {
-      const previewDbName = await resolvePreviewDatabaseName(
-        path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
-      );
+    if (stack === 'php-apache' || stack === 'node-js-mysql') {
+      const previewDbName =
+        stack === 'node-js-mysql'
+          ? String(process.env.PREVIEW_MYSQL_DATABASE || PREVIEW_MYSQL_DATABASE || 'preview').replace(
+              /[^a-zA-Z0-9_]/g,
+              ''
+            ) || 'preview'
+          : await resolvePreviewDatabaseName(
+              path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
+            );
       mergedCredentialEnv = {
         ...mergedCredentialEnv,
+        PREVIEW_DB_ENGINE: 'mysql',
         DB_HOST: sidecar.mysqlName,
+        DB_PORT: '3306',
         DB_NAME: previewDbName,
-        DB_USER: 'root',
-        DB_PASS: PREVIEW_MYSQL_ROOT_PASSWORD,
+        DB_DATABASE: previewDbName,
+        DB_USER: stack === 'node-js-mysql' ? PREVIEW_MYSQL_USER : 'root',
+        DB_USERNAME: stack === 'node-js-mysql' ? PREVIEW_MYSQL_USER : 'root',
+        DB_PASS: stack === 'node-js-mysql' ? PREVIEW_MYSQL_PASSWORD : PREVIEW_MYSQL_ROOT_PASSWORD,
+        DB_PASSWORD: stack === 'node-js-mysql' ? PREVIEW_MYSQL_PASSWORD : PREVIEW_MYSQL_ROOT_PASSWORD,
+        MYSQL_HOST: sidecar.mysqlName,
+        MYSQL_PORT: '3306',
+        MYSQL_DATABASE: previewDbName,
+        MYSQL_USER: stack === 'node-js-mysql' ? PREVIEW_MYSQL_USER : 'root',
+        MYSQL_PASSWORD: stack === 'node-js-mysql' ? PREVIEW_MYSQL_PASSWORD : PREVIEW_MYSQL_ROOT_PASSWORD,
+        DATABASE_URL: `mysql://${
+          stack === 'node-js-mysql' ? PREVIEW_MYSQL_USER : 'root'
+        }:${
+          stack === 'node-js-mysql' ? PREVIEW_MYSQL_PASSWORD : PREVIEW_MYSQL_ROOT_PASSWORD
+        }@${sidecar.mysqlName}:3306/${previewDbName}`,
+        PREVIEW_SANDBOX: '1',
       };
       await ensurePreviewMysqlDatabase(sidecar.mysqlName, previewDbName);
     } else {
       const mongoUri = buildPreviewMongoUri(projectId, { sidecarHost: sidecar.mongoName });
       mergedCredentialEnv = {
         ...mergedCredentialEnv,
+        PREVIEW_DB_ENGINE: 'mongo',
         MONGO_URI: mongoUri,
         MONGODB_URI: mongoUri,
         DATABASE_URL: mongoUri,
@@ -2074,13 +2221,14 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     const mongoUri =
       mergedCredentialEnv.MONGO_URI ||
       mergedCredentialEnv.MONGODB_URI ||
-      buildPreviewMongoUri(projectId);
+      (stack === 'node-js-mysql' ? '' : buildPreviewMongoUri(projectId));
     await patchBackendForPreview(buildContext, splitStackPair.backendSubdir, {
       mongoUri,
       hostPort,
       publicUiUrl,
       jwtSecret: mergedCredentialEnv.JWT_SECRET,
       loginApiPath,
+      mysqlEnv: stack === 'node-js-mysql' ? mergedCredentialEnv : null,
     });
   }
 
@@ -2369,7 +2517,7 @@ export async function checkPreviewAppHttpReady({
   if (stack === 'php-apache') {
     urlsToTry.push(`${base}/index.php`);
   }
-  if (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js' || stack === 'java-spring-react') {
+  if (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js' || stack === 'java-spring-react') {
     urlsToTry.push(`${base}/index.html`);
   }
   if (stack === 'java-spring-thymeleaf') {
@@ -2409,7 +2557,7 @@ export async function checkPreviewAppHttpReady({
   const apiOpen = await isTcpPortOpen(apiCheckHost, apiTarget.port);
 
   // MERN / Node full-stack: UI ready is enough to unlock preview; API readiness tracked separately.
-  if (stack === 'node-js') {
+  if (stack === 'node-js' || stack === 'node-js-mysql') {
     return {
       ready: true,
       reason: apiOpen ? 'http_mern' : 'http_ui_api_pending',
@@ -2467,7 +2615,7 @@ export async function waitForPreviewReady({
   const baseEffectiveTimeout =
     stack === 'java-spring-react' || stack === 'java-spring-thymeleaf'
       ? Math.max(timeoutMs, springTimeout)
-      : stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js'
+      : stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js'
         ? Math.max(timeoutMs, nodeTimeout)
         : timeoutMs;
   const effectiveTimeout = Math.max(baseEffectiveTimeout, portPublishGraceMs);
@@ -2560,6 +2708,7 @@ export async function waitForPreviewReady({
     const uiProbeAllowed =
       portOpen &&
       (stack === 'node-js' ||
+        stack === 'node-js-mysql' ||
         stack === 'static-html' ||
         stack === 'static-html-js' ||
         stack === 'java-spring-react' ||
@@ -2578,7 +2727,7 @@ export async function waitForPreviewReady({
         // Unlocking on placeholder HTTP made teachers open a URL that later went
         // ERR_CONNECTION_REFUSED during the holder→serve handoff / OOM.
         if (
-          (stack === 'node-js' || stack === 'static-html' || stack === 'static-html-js') &&
+          (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js') &&
           lastLogTail &&
           !/\[preview\]\s*serve static:/i.test(lastLogTail)
         ) {
