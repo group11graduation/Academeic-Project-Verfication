@@ -263,31 +263,29 @@ function loadPreviewEnv() {
       const enumValues = rolePath?.enumValues;
       if (Array.isArray(enumValues) && enumValues.length) {
         const vals = enumValues.map((v) => String(v));
-        // Prefer an exact privileged role the schema already defines — never invent
-        // super_admin when the app only allows admin/officer/user (blank-page loops).
+        // Always pick the project's MAIN admin / privileged role (exact casing from enum).
         const hasBorrower = vals.some((v) => /^borrower$/i.test(v));
         const hasOfficer = vals.some((v) => /^officer$/i.test(v));
         const adminExact = vals.find((v) => /^admin$/i.test(v));
+        // LoanFlow: admin (not borrower).
         if ((hasBorrower || hasOfficer) && adminExact) return adminExact;
-        if (hasOfficer) {
+        if (hasOfficer && !adminExact) {
           const officerExact = vals.find((v) => /^officer$/i.test(v));
           if (officerExact) return officerExact;
         }
-        // If schema has plain admin but NOT super_admin, use admin (most MERN apps).
-        const hasSuper = vals.some((v) => /^super[_\s-]?admin$/i.test(v));
-        if (adminExact && !hasSuper) return adminExact;
-
         const prefer = [
           'super_admin',
           'SUPER_ADMIN',
           'SuperAdmin',
           'superadmin',
-          'MANAGER',
-          'manager',
           'ADMIN',
           'admin',
           'Admin',
+          'MANAGER',
+          'manager',
           'officer',
+          'Officer',
+          'editor',
           'user',
           'USER',
         ];
@@ -297,15 +295,14 @@ function loadPreviewEnv() {
         const fuzzy =
           vals.find((v) => /^super[_\s-]?admin$/i.test(v)) ||
           vals.find((v) => /super[_\s-]?admin/i.test(v)) ||
-          vals.find((v) => /^manager$/i.test(v)) ||
           vals.find((v) => /^admin$/i.test(v)) ||
+          vals.find((v) => /^manager$/i.test(v)) ||
           vals.find((v) => /admin/i.test(v));
         if (fuzzy) return fuzzy;
         return vals[0];
       }
-      // No enum: most student React+Express+Mongoose apps check role === 'admin'.
-      // Apps with Set(['super_admin','manager','editor']) define an enum — handled above.
-      // The browser shim also remaps admin → super_admin when it discovers that Set.
+      // No enum: default "admin" — most MERN/skincare apps use role === 'admin'.
+      // Shim upgrades to super_admin / SUPER_ADMIN when the SPA requires those.
       return 'admin';
     }
 

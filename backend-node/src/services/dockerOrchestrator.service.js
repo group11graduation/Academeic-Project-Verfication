@@ -1611,10 +1611,18 @@ async function runPreviewContainer({
   }
 
   // Overlay latest Node preview helpers via host-visible cache copies.
+  // Applies to EVERY new student ZIP preview (Mongo/MySQL/static) so fixes in
+  // preview-login-fallback.js / seed / gateway ship without rebuilding base images.
   // Never bind-mount /app/docker-templates/* directly — that path lives only in the
   // API image, so the host daemon creates empty directories and `docker run` fails with
   // "mount … not a directory" (file vs directory).
-  if (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js') {
+  if (
+    stack === 'node-js' ||
+    stack === 'node-js-mysql' ||
+    stack === 'node-js-flutter' ||
+    stack === 'static-html' ||
+    stack === 'static-html-js'
+  ) {
     const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
     const overlayFiles = [
       ['preview-seed-mysql.js', '/preview-seed-mysql.js'],

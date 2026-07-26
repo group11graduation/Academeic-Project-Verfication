@@ -3,19 +3,24 @@
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  *
- * Marker V15 (all React+Express+Mongoose previews):
- * - Ensure login user has name/fullName/firstName (Navbar a.name.charAt(0) crashes otherwise).
- * - Flatten display fields onto login JSON root + write userInfo (shop apps store whole response).
- * - Rewrite baked-in API URLs on same host/different port → gateway origin.
- * V14: sync-scan allow-lists at login; map roles onto discovered Sets.
- * V13: defer async scan until DOMContentLoaded.
+ * UNIVERSAL for every future React+Express(+Mongo/MySQL) ZIP upload:
+ * the node-backend overlays this file into each preview container at start, so new
+ * student projects get these fixes without per-project patches.
+ *
+ * Marker V17:
+ * - Preview login ALWAYS uses the project's main admin role (admin / super_admin /
+ *   SUPER_ADMIN / officer / …) — never leave teachers as user/member/borrower.
+ * - Post-login path prefers that app's admin home (/admin, /admin/dashboard, …).
+ * - Name/userInfo fields, LoanFlow loop break, sibling-port API rewrite, Set/roles scan.
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V15__) {
-    console.log('[DEBUG-SHIM] already installed V15 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V17__) {
+    console.log('[DEBUG-SHIM] already installed V17 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V17__ = true;
+  window.__SV_LOGIN_FALLBACK_V16__ = true;
   window.__SV_LOGIN_FALLBACK_V15__ = true;
   window.__SV_LOGIN_FALLBACK_V14__ = true;
   window.__SV_LOGIN_FALLBACK_V13__ = true;
@@ -26,7 +31,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v15', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v17', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -297,6 +302,18 @@
     while ((m = routeRe.exec(t))) {
       appHints.routes.push(m[1]);
     }
+    // window.location.href="/admin" style (skincare / shop admin homes).
+    var hrefRe =
+      /(?:location\.href|window\.location|assign|replace)\s*[=(]\s*['"`](\/[A-Za-z0-9/_-]{1,80})['"`]/g;
+    while ((m = hrefRe.exec(t))) {
+      appHints.routes.push(m[1]);
+    }
+    // role==="admin" / role===`super_admin` — remember exact privileged strings.
+    var roleEqRe =
+      /role\s*===\s*['"`](admin|Admin|ADMIN|super_admin|SUPER_ADMIN|SuperAdmin|officer|manager|editor|SUPERADMIN)['"`]/g;
+    while ((m = roleEqRe.exec(t))) {
+      addAllowList([m[1]]);
+    }
     appHints.routes = uniqStrings(appHints.routes);
   }
 
@@ -394,18 +411,21 @@
 
   function preferPrivilegedRole(vals) {
     var list = vals || [];
-    var has = function (re) {
-      return list.some(function (v) {
-        return re.test(String(v));
-      });
-    };
     var pickExact = function (candidates) {
       for (var i = 0; i < candidates.length; i++) {
         if (list.indexOf(candidates[i]) >= 0) return candidates[i];
       }
       return null;
     };
-    // CMS-style Set(['super_admin','manager','editor']) — plain "admin" is rejected.
+    // LoanFlow: never pick "borrower" for the preview admin account.
+    if (isLoanStyleApp()) {
+      return pickExact(['admin', 'ADMIN', 'Admin', 'officer', 'Officer']) || 'admin';
+    }
+    var has = function (re) {
+      return list.some(function (v) {
+        return re.test(String(v));
+      });
+    };
     var staffSetStyle =
       has(/^super_admin$/i) && has(/^manager$/i) && (has(/^editor$/i) || has(/^super_admin$/i));
     if (staffSetStyle || isStaffSetApp()) {
@@ -418,7 +438,6 @@
     if (isSkyPropertyApp()) {
       return pickExact(['SUPER_ADMIN', 'super_admin', 'MANAGER', 'manager', 'admin', 'ADMIN']) || list[0];
     }
-    // Generic MERN: prefer plain admin/officer when present.
     return (
       pickExact([
         'admin',
@@ -439,6 +458,27 @@
       list[0] ||
       null
     );
+  }
+
+  function isLoanStyleApp() {
+    var html = pageHintHtml();
+    if (/loan_token|loan_user|LoanFlow/i.test(html)) return true;
+    try {
+      if (localStorage.getItem('loan_token') || localStorage.getItem('loan_user')) return true;
+    } catch (_e) {}
+    var roles = allHintRoles();
+    var hasBorrower = roles.some(function (r) {
+      return /^borrower$/i.test(r);
+    });
+    var hasOfficer = roles.some(function (r) {
+      return /^officer$/i.test(r);
+    });
+    var hasAdmin = roles.some(function (r) {
+      return /^admin$/i.test(r);
+    });
+    if (hasBorrower && hasOfficer && hasAdmin) return true;
+    if (hasRoute('/admin/loans') && hasBorrower) return true;
+    return false;
   }
 
   function isSkyPropertyApp() {
@@ -521,53 +561,48 @@
   }
 
   /**
+   * The single "main admin" role this SPA expects for teacher preview login.
+   * Examples: admin (skincare), super_admin (SYADA), SUPER_ADMIN (Sky), officer/admin (LoanFlow).
+   */
+  function mainAdminRoleForApp() {
+    ensureHintsBeforeLogin();
+    if (isLoanStyleApp()) return 'admin';
+    if (isSkyPropertyApp()) return 'SUPER_ADMIN';
+    if (isStaffSetApp()) return 'super_admin';
+    if (appHints.allowLists.length) {
+      var picked = preferPrivilegedRole(allHintRoles());
+      if (picked) return picked;
+    }
+    var html = pageHintHtml();
+    if (/role\s*===\s*['"`]SUPER_ADMIN['"`]/.test(html) || /manDash/.test(html)) return 'SUPER_ADMIN';
+    if (/role\s*===\s*['"`]super_admin['"`]/.test(html)) return 'super_admin';
+    if (/role\s*===\s*['"`]admin['"`]/.test(html) || hasRoute('/admin')) return 'admin';
+    return 'admin';
+  }
+
+  /**
    * Map preview/login role onto a string this SPA will accept.
-   * Works for any React+Express+Mongoose project once allow-lists are known.
+   * Preview accounts always become the project's main admin role.
    */
   function canonicalRoleForApp(role) {
-    var current = String(role || '').trim();
-    if (!current) return current;
-    var key = roleKeyOf(current);
-
-    if (appHints.allowLists.length) {
-      if (roleAcceptedByHints(current)) return exactRoleFromHints(current);
-      var best = preferPrivilegedRole(allHintRoles());
-      if (best) return best;
-    }
-
-    // Staff-Set apps (SYADA-like): plain admin is rejected by Set.has.
-    if (isStaffSetApp()) {
-      if (key === 'MEMBER') return 'member';
-      if (isSuperAdminKey(key) || key === 'ADMIN' || key === 'ADMINISTRATOR' || current === 'admin') {
-        return 'super_admin';
-      }
-      if (key === 'MANAGER') return 'manager';
-      if (key === 'EDITOR') return 'editor';
-    }
-
-    if (isSkyPropertyApp() && (isSuperAdminKey(key) || key === 'ADMIN')) return 'SUPER_ADMIN';
-    if (isSuperAdminKey(key) && hasRoute('/admin/loans')) return 'admin';
-    return current;
+    // Teacher preview login: always the main privileged role for this project.
+    return mainAdminRoleForApp();
   }
 
   function normalizePreviewUserRole(user) {
     if (!user || typeof user !== 'object') return user;
     ensureHintsBeforeLogin();
-    var role = String(user.role || user.Role || '').trim();
-    var next = role ? canonicalRoleForApp(role) : role;
-    if (roleKeyOf(role) === 'SUBMANAGER') next = 'SUB_MANAGER';
-    var out = user;
-    if (next && next !== role) {
-      out = {};
-      try {
-        for (var k in user) {
-          if (Object.prototype.hasOwnProperty.call(user, k)) out[k] = user[k];
-        }
-      } catch (_e) {
-        out = user;
+    var next = mainAdminRoleForApp();
+    var out = {};
+    try {
+      for (var k in user) {
+        if (Object.prototype.hasOwnProperty.call(user, k)) out[k] = user[k];
       }
-      out.role = next;
+    } catch (_e) {
+      out = user;
     }
+    out.role = next;
+    console.log('[DEBUG-SHIM] preview main admin role →', next);
     return ensureUserDisplayFields(out);
   }
 
@@ -635,9 +670,8 @@
 
         function patchPerson(obj) {
           if (!obj || typeof obj !== 'object') return obj;
-          if (obj.role != null && (appHints.scanned || isStaffSetApp() || isSkyPropertyApp())) {
-            obj.role = canonicalRoleForApp(obj.role);
-          }
+          // Every future upload: stored preview session uses this app's main admin role.
+          obj.role = mainAdminRoleForApp();
           return ensureUserDisplayFields(obj);
         }
 
@@ -647,9 +681,11 @@
           next.fullName = next.fullName || next.user.fullName;
           next.firstName = next.firstName || next.user.firstName;
           next.email = next.email || next.user.email;
-          next.role = next.role || next.user.role;
-        } else {
+          next.role = next.user.role;
+        } else if (next.email || next.role || next.name || next.token || next._id) {
           next = patchPerson(next);
+        } else {
+          continue;
         }
 
         var serialized = JSON.stringify(next);
@@ -666,16 +702,19 @@
   }
 
   function pickPostLoginPath(user) {
-    var role = roleKeyOf((user && (user.role || user.Role)) || '');
+    var role = roleKeyOf((user && (user.role || user.Role)) || mainAdminRoleForApp());
     if (isSkyPropertyApp() || role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
       if (hasRoute('/manDash') || isSkyPropertyApp()) return '/manDash';
     }
-    if (isStaffSetApp() && role !== 'MEMBER') return '/admin/dashboard';
-    if (hasRoute('/admin/loans') && (role === 'ADMIN' || role === 'OFFICER' || isSuperAdminKey(role))) {
-      return '/admin/loans';
-    }
-    if (hasRoute('/admin/dashboard') && (isSuperAdminKey(role) || role === 'EDITOR' || role === 'ADMIN' || role === 'MANAGER')) {
-      return '/admin/dashboard';
+    if (isLoanStyleApp()) return '/admin/loans';
+    if (isStaffSetApp()) return '/admin/dashboard';
+    // Privileged roles → admin home for this SPA (skincare /shop apps use /admin).
+    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPERADMIN' || role === 'OFFICER' || role === 'EDITOR' || role === 'MANAGER') {
+      if (hasRoute('/admin/loans')) return '/admin/loans';
+      if (hasRoute('/admin/dashboard')) return '/admin/dashboard';
+      if (hasRoute('/admin')) return '/admin';
+      if (hasRoute('/manDash')) return '/manDash';
+      if (hasRoute('/dashboard')) return '/dashboard';
     }
     if (role === 'TEACHER' && hasRoute('/teacher')) return '/teacher';
     if (role === 'STUDENT' && hasRoute('/student')) return '/student';
@@ -725,7 +764,7 @@
     } catch (_e2) {}
   }
 
-  /** Soft-fix role if A↔B bounce is detected — never hammer location.reload. */
+  /** Break A↔B Navigate storms (LoanFlow dashboard↔admin/loans). One hard navigation only. */
   function installRedirectLoopGuard() {
     var recent = [];
     setInterval(function () {
@@ -748,9 +787,9 @@
         if (flips < 5) return;
         if (sessionStorage.getItem('__sv_loop_break__')) return;
         sessionStorage.setItem('__sv_loop_break__', '1');
-        console.warn('[DEBUG-SHIM] redirect loop detected', uniq[0], '↔', uniq[1], '— soft role fix');
-        var roles = allHintRoles();
-        var fixed = preferPrivilegedRole(roles) || 'admin';
+        ensureHintsBeforeLogin();
+        var fixed = mainAdminRoleForApp();
+        console.warn('[DEBUG-SHIM] redirect loop detected', uniq[0], '↔', uniq[1], '→ role', fixed);
         var keys = authStorageKeys();
         for (var k = 0; k < keys.length; k++) {
           try {
@@ -759,31 +798,26 @@
             var parsed = JSON.parse(raw);
             if (parsed && parsed.user && typeof parsed.user === 'object') {
               parsed.user.role = fixed;
+              parsed.user = ensureUserDisplayFields(parsed.user);
               localStorage.setItem(keys[k], JSON.stringify(parsed));
-            } else if (parsed && typeof parsed === 'object' && parsed.role != null) {
+            } else if (parsed && typeof parsed === 'object') {
               parsed.role = fixed;
+              parsed = ensureUserDisplayFields(parsed);
               localStorage.setItem(keys[k], JSON.stringify(parsed));
             }
           } catch (_e) {}
         }
-        try {
-          window.dispatchEvent(new Event('userChanged'));
-        } catch (_e4) {}
-        // One soft navigation max — prefer staff route, never bounce via full reload storm.
-        var safe = null;
-        if (hasRoute('/admin/loans')) safe = '/admin/loans';
-        else if (hasRoute('/admin/dashboard')) safe = '/admin/dashboard';
-        else if (hasRoute('/dashboard') && uniq.indexOf('/dashboard') < 0) safe = '/dashboard';
-        else if (uniq[0] && uniq[0] !== '/') safe = uniq[0];
-        if (safe && String(location.pathname) !== safe) {
-          try {
-            window.history.replaceState(null, '', safe);
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          } catch (_e5) {
-            window.location.replace(safe);
-          }
-        }
-        recent = [];
+        var safe = isLoanStyleApp()
+          ? '/admin/loans'
+          : hasRoute('/admin/loans')
+            ? '/admin/loans'
+            : hasRoute('/admin/dashboard')
+              ? '/admin/dashboard'
+              : uniq.indexOf('/admin/loans') >= 0
+                ? '/admin/loans'
+                : uniq[0];
+        // Full document navigation — resets React; avoid history+popstate (max update depth).
+        window.location.replace(safe);
       } catch (_e2) {}
     }, 300);
   }
@@ -891,6 +925,9 @@
         localStorage.setItem('user', JSON.stringify(user));
         // Shop / Harmony-style apps: localStorage.userInfo = entire login payload.
         localStorage.setItem('userInfo', JSON.stringify(out));
+        // LoanFlow-style apps: loan_token / loan_user.
+        localStorage.setItem('loan_user', JSON.stringify(user));
+        if (token) localStorage.setItem('loan_token', token);
       }
       console.log('[DEBUG-SHIM] normalizeLoginBody wrote localStorage', {
         hasToken: !!token,
