@@ -3,18 +3,19 @@
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  *
- * Marker V8: role casing fix — SYADA requires lowercase `super_admin` in AdminLayout;
- * Sky Property needs `SUPER_ADMIN` on /manDash|/dashboard. Path-based reconcile.
+ * Marker V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary)
+ * so SYADA admin stays on /admin/dashboard after login instead of bouncing home.
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V8__) {
-    console.log('[DEBUG-SHIM] already installed V8 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V9__) {
+    console.log('[DEBUG-SHIM] already installed V9 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V9__ = true;
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v8', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v9', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -418,15 +419,37 @@
 
   function rewriteToApiBase(url) {
     var apiBase = detectApiBase();
-    if (!apiBase) return url;
-    if (isLoopbackOrigin(url) || isSameOriginApiPath(url)) {
-      var parts = splitBaseAndPath(url.charAt(0) === '/' ? url : url);
-      if (url.charAt(0) === '/') {
-        return buildUrl(apiBase, url.split('?')[0]) + (url.indexOf('?') >= 0 ? url.slice(url.indexOf('?')) : '');
+    var next = String(url || '');
+    // SYADA (and similar Vite apps) call /dashboard/summary, /members, … in the
+    // browser, while Express mounts those under /api/*. Dev servers proxy this;
+    // preview static+gateway must rewrite or admin loads then looks "logged out".
+    try {
+      var abs = new URL(next, window.location.href);
+      var p = abs.pathname || '';
+      if (
+        !/^\/api(\/|$)/i.test(p) &&
+        !/^\/auth(\/|$)/i.test(p) &&
+        /^\/(dashboard|members|finance|reports|sports-members|portal)(\/|$)/i.test(p)
+      ) {
+        // Keep exact /dashboard as SPA for other projects; only nested API paths.
+        if (!/^\/dashboard\/?$/i.test(p)) {
+          abs.pathname = '/api' + p;
+          next = abs.toString();
+        }
       }
+    } catch (_e0) {}
+    if (!apiBase) return next;
+    if (isLoopbackOrigin(next) || isSameOriginApiPath(next)) {
+      if (next.charAt(0) === '/') {
+        return (
+          buildUrl(apiBase, next.split('?')[0]) +
+          (next.indexOf('?') >= 0 ? next.slice(next.indexOf('?')) : '')
+        );
+      }
+      var parts = splitBaseAndPath(next);
       return buildUrl(apiBase, parts.path || '/');
     }
-    return url;
+    return next;
   }
 
   var origFetch = window.fetch;

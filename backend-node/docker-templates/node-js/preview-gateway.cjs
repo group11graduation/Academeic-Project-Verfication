@@ -70,7 +70,7 @@ function wrapHtml(html) {
     `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};</script>`;
   const fallback = loadFallbackJs();
   const fallbackBlock =
-    fallback && !html.includes('__SV_LOGIN_FALLBACK_V8__')
+    fallback && !html.includes('__SV_LOGIN_FALLBACK_V9__')
       ? `<script>\n${fallback}\n</script>`
       : '';
   return `${boot}${fallbackBlock}${html}`;
@@ -97,6 +97,10 @@ function isApiProxyPath(pathname) {
   if (/^\/api(\/|$)/i.test(p)) return true;
   if (/^\/auth(\/|$)/i.test(p)) return true;
   if (/^\/(users|user|v1|graphql|socket\.io|uploads|static\/uploads)(\/|$)/i.test(p)) return true;
+  // SYADA / Vite-proxy style: frontend calls /dashboard/summary, /members, … (no /api).
+  // Bare /dashboard is often an SPA route (Sky Property) — exclude exact /dashboard.
+  if (/^\/dashboard\//i.test(p)) return true;
+  if (/^\/(members|finance|reports|sports-members|portal)(\/|$)/i.test(p)) return true;
   if (/\/login\/?$/i.test(p) && /^\/(api|auth|users|user|v1)\b/i.test(p)) return true;
   return false;
 }
@@ -107,14 +111,21 @@ function isBrowserNavigationRequest(req, pathname) {
   if (method !== 'GET' && method !== 'HEAD') return false;
   if (isApiProxyPath(pathname)) return false;
   if (isStaticAssetRequest(pathname)) return false;
+
+  const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+  const mode = String(req.headers['sec-fetch-mode'] || '').toLowerCase();
+  // Real top-level navigations (address bar, location.assign, link click).
+  if (dest === 'document' || mode === 'navigate') return true;
+
   const accept = String(req.headers.accept || '');
-  // Fetch/XHR often send */* or application/json — those can still go to API.
-  if (/application\/json/i.test(accept) && !/text\/html/i.test(accept)) return false;
-  if (/text\/html/i.test(accept)) return true;
-  // No Accept / navigation-like paths (/, /login, /dashboard, …)
-  if (!accept || accept === '*/*') {
-    if (pathname === '/' || pathname === '') return true;
-    if (!/\.[a-zA-Z0-9]+$/.test(pathname)) return true;
+  // Explicit document request.
+  if (/text\/html/i.test(accept) && !/application\/json/i.test(accept)) return true;
+
+  // Do NOT treat Accept: */* as navigation — fetch() defaults to */* and SYADA
+  // calls /dashboard/summary that way. Treating */* as SPA broke admin after login.
+  if (pathname === '/' || pathname === '') {
+    // Root with no fetch-metadata: prefer SPA (Express health text on GET /).
+    if (!dest && !mode) return true;
   }
   return false;
 }
@@ -158,9 +169,9 @@ function jsonError(res, status, message, error) {
 }
 
 /**
- * Proxy to Express. On GET/HEAD 404 → SPA.
- * Also: if GET wants a document and upstream returns non-HTML 200 (health text),
- * serve SPA instead (SYADA GET / → "API is running...").
+ * Proxy to Express. On GET/HEAD 404 → try /api + path (Vite-proxy apps like SYADA),
+ * then SPA. Also: if GET wants a document and upstream returns non-HTML 200
+ * (health text), serve SPA instead (SYADA GET / → "API is running...").
  */
 function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
   const method = String(req.method || 'GET').toUpperCase();
@@ -173,56 +184,77 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
       delete headers['transfer-encoding'];
       headers['content-length'] = String(body.length);
 
-      const opts = {
-        hostname: API_HOST,
-        port: API_PORT,
-        path: req.url,
-        method,
-        headers,
-        timeout: 30000,
-      };
+      const originalPath = req.url || '/';
+      const pathOnly = String(originalPath).split('?')[0] || '/';
+      const qs = String(originalPath).includes('?')
+        ? originalPath.slice(originalPath.indexOf('?'))
+        : '';
+      const pathsToTry = [originalPath];
+      if (!/^\/api(\/|$)/i.test(pathOnly) && !/^\/auth(\/|$)/i.test(pathOnly)) {
+        pathsToTry.push(`/api${pathOnly}${qs}`);
+      }
 
-      const upstream = http.request(opts, (up) => {
-        const status = up.statusCode || 502;
-        if (status === 404 && canFallback) {
-          up.resume();
-          return serveStatic(req, res);
-        }
+      function attempt(index) {
+        const tryPath = pathsToTry[index];
+        const opts = {
+          hostname: API_HOST,
+          port: API_PORT,
+          path: tryPath,
+          method,
+          headers,
+          timeout: 30000,
+        };
 
-        const upType = String(up.headers['content-type'] || '').toLowerCase();
-        const looksHtml = upType.includes('text/html');
-        if (preferSpaOnNonHtml && canFallback && status >= 200 && status < 400 && !looksHtml) {
-          up.resume();
-          return serveStatic(req, res);
-        }
+        const upstream = http.request(opts, (up) => {
+          const status = up.statusCode || 502;
+          if (status === 404 && index + 1 < pathsToTry.length) {
+            up.resume();
+            return attempt(index + 1);
+          }
+          if (status === 404 && canFallback) {
+            up.resume();
+            return serveStatic(req, res);
+          }
 
-        const outHeaders = { ...up.headers };
-        outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
-        outHeaders['access-control-allow-credentials'] = 'true';
-        res.writeHead(status, outHeaders);
-        up.pipe(res);
-      });
+          const upType = String(up.headers['content-type'] || '').toLowerCase();
+          const looksHtml = upType.includes('text/html');
+          if (preferSpaOnNonHtml && canFallback && status >= 200 && status < 400 && !looksHtml) {
+            up.resume();
+            return serveStatic(req, res);
+          }
 
-      upstream.on('timeout', () => {
-        upstream.destroy();
-        if (res.headersSent) return;
-        if (canFallback) return serveStatic(req, res);
-        return jsonError(res, 504, 'Upstream API timeout');
-      });
+          const outHeaders = { ...up.headers };
+          outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+          outHeaders['access-control-allow-credentials'] = 'true';
+          res.writeHead(status, outHeaders);
+          up.pipe(res);
+        });
 
-      upstream.on('error', (err) => {
-        if (res.headersSent) return;
-        if (canFallback) return serveStatic(req, res);
-        return jsonError(
-          res,
-          502,
-          'Preview API proxy error — backend may still be starting',
-          err && err.message ? err.message : err
-        );
-      });
+        upstream.on('timeout', () => {
+          upstream.destroy();
+          if (res.headersSent) return;
+          if (index + 1 < pathsToTry.length) return attempt(index + 1);
+          if (canFallback) return serveStatic(req, res);
+          return jsonError(res, 504, 'Upstream API timeout');
+        });
 
-      if (body.length) upstream.write(body);
-      upstream.end();
+        upstream.on('error', (err) => {
+          if (res.headersSent) return;
+          if (index + 1 < pathsToTry.length) return attempt(index + 1);
+          if (canFallback) return serveStatic(req, res);
+          return jsonError(
+            res,
+            502,
+            'Preview API proxy error — backend may still be starting',
+            err && err.message ? err.message : err
+          );
+        });
+
+        if (body.length) upstream.write(body);
+        upstream.end();
+      }
+
+      attempt(0);
     })
     .catch((err) => {
       if (res.headersSent) return;
