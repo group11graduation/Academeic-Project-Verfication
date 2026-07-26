@@ -738,16 +738,25 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (lastProbe.ready || logReady?.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
+      session.previewAppReady = true;
+      session.previewAppReadyReason = lastProbe.reason || logReady?.reason || 'ready';
+      session.previewApiReady = lastProbe.apiReady === true || logReady?.apiReady === true;
       if (deployResult.stack === 'php-apache') {
         await refreshPhpPreviewLoginHint(session, deployResult);
       }
       const reason = lastProbe.reason || logReady?.reason || 'ready';
       appendLog(session, 'info', `Preview ready (${reason}) at ${session.previewUrl}.`);
-      if (lastProbe.apiReady === false && deployResult.apiHostPort) {
+      if ((lastProbe.apiReady === false || logReady?.apiReady === false) && deployResult.apiHostPort) {
+        const dbHint =
+          deployResult.stack === 'node-js-mysql'
+            ? 'wait for MySQL sidecar / Express API'
+            : deployResult.stack === 'java-spring-react'
+              ? 'wait for Spring API'
+              : 'wait for Express API / MongoDB sidecar';
         appendLog(
           session,
           'warn',
-          `Student API on port ${deployResult.apiHostPort} is still starting — login may fail until the backend is up.`
+          `Student API on port ${deployResult.apiHostPort} is still starting — login may fail until the backend is up (${dbHint}).`
         );
       }
       if (session.extractDirPath) {
@@ -1143,8 +1152,12 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
     );
   } else if (deployResult.mernPair && deployResult.apiHostPort) {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
+    const dbHint =
+      deployResult.stack === 'node-js-mysql'
+        ? 'MySQL runs in a sidecar container for preview (no host MySQL setup required).'
+        : 'MongoDB runs in a sidecar container for preview (no host Mongo setup required).';
     session.previewLoginHint =
-      `${baseHint}React + Express preview: UI on port ${deployResult.hostPort}, Express API on port ${deployResult.apiHostPort}. MongoDB runs in a sidecar container for preview (no host Mongo setup required).`;
+      `${baseHint}React + Express preview: UI on port ${deployResult.hostPort}, Express API on port ${deployResult.apiHostPort}. ${dbHint}`;
     appendLog(
       session,
       'info',
@@ -1358,10 +1371,13 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
         const needsApi = apiPort > 0;
         const apiOk = !needsApi || session.apiPortReachable === true;
         const springUiWithoutApi = stack === 'java-spring-react' && !apiOk;
+        // Unlock Open preview when the SPA/gateway is up even if Express is still booting MySQL.
+        const mernUiWithoutApi =
+          (stack === 'node-js' || stack === 'node-js-mysql') && session.portReachable === true && !apiOk;
         // Prefer log-based unlock when the container is clearly serving the student app.
         // Never keep a log-based "ready" if HTTP still returns the install placeholder.
         const logAlreadyReady = session.previewAppReady === true;
-        if (apiOk || springUiWithoutApi) {
+        if (apiOk || springUiWithoutApi || mernUiWithoutApi) {
           const probe = await dockerOrchestrator.checkPreviewAppHttpReady({
             previewUrl: session.previewUrl,
             apiPreviewUrl: session.previewApiUrl || '',

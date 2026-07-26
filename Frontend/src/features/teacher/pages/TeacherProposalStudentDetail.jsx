@@ -1677,7 +1677,9 @@ const TeacherProposalStudentDetail = () => {
                                                             <span className="text-sm font-bold text-rose-700">
                                                                 {sess.previewStack === 'java-spring-react'
                                                                     ? `Spring API on :${sess.previewApiHostPort} is not ready — login will fail until it listens. Wait for Maven (first start) or Stop + Start preview so H2 is rebuilt into the jar. Check session logs for DIAGNOSIS.`
-                                                                    : `Student API on :${sess.previewApiHostPort} not ready — wait or check MongoDB.`}
+                                                                    : sess.previewStack === 'node-js-mysql'
+                                                                      ? `Student API on :${sess.previewApiHostPort} not ready — wait for MySQL sidecar / Express (not MongoDB).`
+                                                                      : `Student API on :${sess.previewApiHostPort} not ready — wait for Express API or check MongoDB sidecar.`}
                                                             </span>
                                                         )}
                                                     {previewOpenReady ? (

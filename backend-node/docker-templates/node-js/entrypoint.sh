@@ -571,10 +571,19 @@ start_mern_backend() {
   fi
 
   export PORT="$UI_PORT"
-  wait_for_tcp_port "$API_PORT" "student API" 240
+  # Do not block the UI for many minutes when MySQL/Express is slow — Open preview
+  # unlocks from the gateway; login waits until :5050 is up.
+  api_wait_max=90
+  if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
+    api_wait_max=120
+  fi
+  if ! wait_for_tcp_port "$API_PORT" "student API" "$api_wait_max"; then
+    echo "[preview] WARN: student API not listening yet on :${API_PORT} — starting UI anyway (login will work once API is up)"
+    tail -40 /tmp/preview-backend.log 2>/dev/null || true
+  fi
 
   # Many student apps seed or reset users on startup — seed again after API is listening.
-  if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
+  if [ -n "$PREVIEW_ADMIN_EMAIL" ] && tcp_port_open "$API_PORT"; then
     sleep 2
     run_preview_admin_seed "post-start admin seed" || true
     verify_preview_login || echo "[preview] login verify failed after post-start seed"

@@ -448,8 +448,50 @@ const LOCAL_MONGO_PATTERNS = [
 ];
 
 /**
- * Ensure student API boots inside Docker on :5000 with host MongoDB and permissive CORS for preview UI.
+ * Ensure student API boots inside Docker on :5050 with host MongoDB/MySQL and permissive CORS for preview UI.
  */
+export async function resolveNodeMysqlDatabaseName(backendRoot) {
+  const candidates = ['.env', '.env.example', '.env.local', '.env.development', '.env.project'];
+  for (const name of candidates) {
+    const envPath = path.join(backendRoot, name);
+    if (!(await pathExists(envPath))) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const content = await fs.readFile(envPath, 'utf8').catch(() => '');
+    if (!content) continue;
+    const fromUrl = content.match(
+      /(?:DATABASE_URL|MYSQL_URL)\s*=\s*["']?mysql:\/\/[^/"']+\/([A-Za-z0-9_]+)/i
+    );
+    if (fromUrl?.[1]) return fromUrl[1].replace(/[^a-zA-Z0-9_]/g, '') || null;
+    const fromKey = content.match(
+      /(?:^|\n)\s*(?:DB_NAME|DB_DATABASE|MYSQL_DATABASE|MYSQL_DB|DATABASE)\s*=\s*["']?([A-Za-z0-9_]+)/i
+    );
+    if (fromKey?.[1]) return fromKey[1].replace(/[^a-zA-Z0-9_]/g, '') || null;
+  }
+
+  // Scan a few common config files for database: 'payflow' style.
+  const configHints = [
+    'config/db.js',
+    'config/database.js',
+    'src/config/db.js',
+    'src/config/database.js',
+    'src/db.js',
+    'db.js',
+  ];
+  for (const rel of configHints) {
+    const full = path.join(backendRoot, rel);
+    if (!(await pathExists(full))) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const content = await fs.readFile(full, 'utf8').catch(() => '');
+    const m =
+      content.match(/database\s*:\s*['"]([A-Za-z0-9_]+)['"]/i) ||
+      content.match(/DB_NAME\s*[:=]\s*['"]([A-Za-z0-9_]+)['"]/i) ||
+      content.match(/mysql:\/\/[^/"']+\/([A-Za-z0-9_]+)/i);
+    if (m?.[1]) return m[1].replace(/[^a-zA-Z0-9_]/g, '') || null;
+  }
+
+  return process.env.PREVIEW_MYSQL_DATABASE || 'preview';
+}
+
 export async function patchBackendForPreview(
   extractDir,
   backendSubdir,
@@ -543,8 +585,15 @@ export async function patchBackendForPreview(
   if (!useMysql && mongoUri) {
     files += await patchMongoInBackendSources(backendRoot, mongoUri);
   }
+  if (useMysql && mysqlEnv?.DB_HOST) {
+    files += await patchMysqlHostInBackendSources(backendRoot, mysqlEnv.DB_HOST, {
+      dbName: mysqlEnv.DB_NAME || mysqlEnv.MYSQL_DATABASE || 'preview',
+      dbUser: mysqlEnv.DB_USER || mysqlEnv.MYSQL_USER || 'preview',
+      dbPass: mysqlEnv.DB_PASS || mysqlEnv.MYSQL_PASSWORD || 'preview',
+    });
+  }
 
-  files += await patchDbNoExitOnPreviewFail(backendRoot);
+  files += await patchDbNoExitOnPreviewFail(backendRoot, useMysql ? 'mysql' : 'mongo');
   files += await walkRelaxCors(backendRoot);
   files += await walkPatchShortJwtSecrets(backendRoot);
 
@@ -597,8 +646,56 @@ async function patchMongoInBackendSources(backendRoot, mongoUri, depth = 0) {
   return files;
 }
 
-/** Student BMS uses MONGO_URI; keep API process alive if Mongo is slow so login returns JSON not ERR_EMPTY_RESPONSE. */
-async function patchDbNoExitOnPreviewFail(backendRoot, depth = 0) {
+async function patchMysqlHostInBackendSources(backendRoot, dbHost, { dbName, dbUser, dbPass } = {}, depth = 0) {
+  if (depth > 8 || !dbHost) return 0;
+  let files = 0;
+  let entries;
+  try {
+    entries = await fs.readdir(backendRoot, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === 'build') {
+      continue;
+    }
+    const full = path.join(backendRoot, entry.name);
+    if (entry.isDirectory()) {
+      // eslint-disable-next-line no-await-in-loop
+      files += await patchMysqlHostInBackendSources(full, dbHost, { dbName, dbUser, dbPass }, depth + 1);
+      continue;
+    }
+    if (!/\.(js|mjs|cjs|ts|json|env|env\..+)$/i.test(entry.name) && !entry.name.startsWith('.env')) {
+      continue;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(full, 'utf8').catch(() => null);
+    if (content == null) continue;
+    const before = content;
+    content = content.replace(
+      /mysql:\/\/([^:@/]+):([^@/]+)@(localhost|127\.0\.0\.1)(:\d+)?\/([A-Za-z0-9_]+)/gi,
+      (_m, user, pass, _host, port, name) =>
+        `mysql://${dbUser || user}:${dbPass || pass}@${dbHost}${port || ':3306'}/${dbName || name}`
+    );
+    content = content.replace(
+      /(host\s*:\s*['"`])(localhost|127\.0\.0\.1)(['"`])/gi,
+      `$1${dbHost}$3`
+    );
+    content = content.replace(
+      /((?:DB_HOST|MYSQL_HOST|MYSQL_SERVER|DB_SERVER)\s*=\s*)(["']?)(localhost|127\.0\.0\.1)\2/gi,
+      `$1$2${dbHost}$2`
+    );
+    if (content !== before) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(full, content, 'utf8');
+      files += 1;
+    }
+  }
+  return files;
+}
+
+/** Student BMS uses MONGO_URI; keep API process alive if DB is slow so login returns JSON not ERR_EMPTY_RESPONSE. */
+async function patchDbNoExitOnPreviewFail(backendRoot, engine = 'mongo', depth = 0) {
   if (depth > 6) return 0;
   let files = 0;
   const dbPath = path.join(backendRoot, 'src', 'config', 'db.js');
@@ -606,8 +703,9 @@ async function patchDbNoExitOnPreviewFail(backendRoot, depth = 0) {
     let content = await fs.readFile(dbPath, 'utf8');
     if (!content.includes('PREVIEW_SANDBOX')) {
       const needle = 'process.exit(1);';
+      const dbLabel = engine === 'mysql' ? 'MySQL' : 'MongoDB';
       const replacement = `if (process.env.PREVIEW_SANDBOX === '1') {
-    console.warn('[preview] MongoDB unavailable — API stays up; ensure MongoDB runs on the host (port 27017)');
+    console.warn('[preview] ${dbLabel} unavailable — API stays up; check sidecar / env');
     return;
   }
   process.exit(1);`;

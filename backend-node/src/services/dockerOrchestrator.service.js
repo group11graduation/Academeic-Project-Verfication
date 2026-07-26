@@ -17,6 +17,7 @@ import {
   classifyPackageJson,
   discoverLoginApiPaths,
   preferLoginApiPath,
+  resolveNodeMysqlDatabaseName,
 } from './previewMern.service.js';
 import {
   patchPhpForPreview,
@@ -1829,9 +1830,14 @@ const PREVIEW_MYSQL_USER = process.env.PREVIEW_MYSQL_USER || 'preview';
 const PREVIEW_MYSQL_PASSWORD = process.env.PREVIEW_MYSQL_PASSWORD || 'preview';
 const PREVIEW_MYSQL_DATABASE = process.env.PREVIEW_MYSQL_DATABASE || 'bbms';
 
-async function startPreviewMysqlSidecar(projectId) {
+async function startPreviewMysqlSidecar(projectId, { database } = {}) {
   const networkName = previewNetworkName(projectId);
   const mysqlName = previewMysqlHostName(projectId);
+  const dbName =
+    String(database || process.env.PREVIEW_MYSQL_DATABASE || PREVIEW_MYSQL_DATABASE || 'preview').replace(
+      /[^a-zA-Z0-9_]/g,
+      ''
+    ) || 'preview';
   await ensureDockerNetwork(networkName);
   await removeContainerIfExists(mysqlName);
 
@@ -1849,7 +1855,7 @@ async function startPreviewMysqlSidecar(projectId) {
       '-e',
       `MARIADB_ROOT_PASSWORD=${PREVIEW_MYSQL_ROOT_PASSWORD}`,
       '-e',
-      `MARIADB_DATABASE=${PREVIEW_MYSQL_DATABASE}`,
+      `MARIADB_DATABASE=${dbName}`,
       '-e',
       `MARIADB_USER=${PREVIEW_MYSQL_USER}`,
       '-e',
@@ -1865,7 +1871,8 @@ async function startPreviewMysqlSidecar(projectId) {
         `docker exec ${mysqlName} mariadb-admin ping -h 127.0.0.1 -u${PREVIEW_MYSQL_USER} -p${PREVIEW_MYSQL_PASSWORD} --silent`,
         { timeoutMs: 8000 }
       );
-      return { networkName, mysqlName };
+      await ensurePreviewMysqlDatabase(mysqlName, dbName);
+      return { networkName, mysqlName, database: dbName };
     } catch {
       /* mysql still starting */
     }
@@ -1890,7 +1897,7 @@ async function ensurePreviewMysqlDatabase(mysqlName, dbName) {
       '-uroot',
       `-p${PREVIEW_MYSQL_ROOT_PASSWORD}`,
       '-e',
-      `CREATE DATABASE IF NOT EXISTS ${safeDb};`,
+      `CREATE DATABASE IF NOT EXISTS \`${safeDb}\`; GRANT ALL PRIVILEGES ON \`${safeDb}\`.* TO '${PREVIEW_MYSQL_USER}'@'%'; FLUSH PRIVILEGES;`,
     ],
     { timeoutMs: 30_000 }
   );
@@ -2098,13 +2105,20 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
         };
       }
     } else if (stack === 'node-js-mysql' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
-      sidecarPromise = startPreviewMysqlSidecar(projectId);
+      const backendRel = splitStackPair.backendSubdir || appSubdir || '.';
+      const resolvedDb = await resolveNodeMysqlDatabaseName(path.join(buildContext, backendRel)).catch(
+        () => 'preview'
+      );
+      sidecarPromise = startPreviewMysqlSidecar(projectId, { database: resolvedDb || 'preview' });
     } else if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
       sidecarPromise = startPreviewMongoSidecar(projectId);
     }
   } else if (stack === 'node-js-mysql' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
     // Single-folder Express + MySQL (no separate FE/BE pair) still needs MySQL.
-    sidecarPromise = startPreviewMysqlSidecar(projectId);
+    const resolvedDb = await resolveNodeMysqlDatabaseName(
+      path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
+    ).catch(() => 'preview');
+    sidecarPromise = startPreviewMysqlSidecar(projectId, { database: resolvedDb || 'preview' });
   }
 
   if (sidecarPromise) {
@@ -2113,7 +2127,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     if (stack === 'php-apache' || stack === 'node-js-mysql') {
       const previewDbName =
         stack === 'node-js-mysql'
-          ? String(process.env.PREVIEW_MYSQL_DATABASE || PREVIEW_MYSQL_DATABASE || 'preview').replace(
+          ? String(sidecar.database || process.env.PREVIEW_MYSQL_DATABASE || 'preview').replace(
               /[^a-zA-Z0-9_]/g,
               ''
             ) || 'preview'
@@ -2800,6 +2814,17 @@ export async function waitForPreviewReady({
   }
 
   if (apiTarget && !sawApiPortOpen && sawPortOpen) {
+    // Unlock UI for Node/MERN/MySQL when the SPA is up; API readiness is tracked separately.
+    if (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'java-spring-react') {
+      return {
+        ready: true,
+        reason: stack === 'java-spring-react' ? 'http_ui_spring_api_timeout' : 'http_ui_api_pending',
+        apiReady: false,
+        sawPortOpen,
+        sawApiPortOpen,
+        logs: lastLogTail,
+      };
+    }
     return { ready: false, reason: 'api_port_timeout', sawPortOpen, sawApiPortOpen };
   }
 
@@ -2831,7 +2856,11 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
   }
 
   if (/\[preview\]\s*serve static:/i.test(logText) || /\[preview\]\s*gateway listening/i.test(logText)) {
-    return { ready: true, reason: 'log_serve_static' };
+    const apiUp =
+      /\[preview\]\s*student API listening/i.test(logText) ||
+      /\[preview\]\s*.*listening on :5050/i.test(logText) ||
+      /\[preview-login\]\s*OK/i.test(logText);
+    return { ready: true, reason: 'log_serve_static', apiReady: apiUp };
   }
 
   return null;
