@@ -101,8 +101,65 @@ function isApiProxyPath(pathname) {
   // Bare /dashboard is often an SPA route (Sky Property) — exclude exact /dashboard.
   if (/^\/dashboard\//i.test(p)) return true;
   if (/^\/(members|finance|reports|sports-members|portal)(\/|$)/i.test(p)) return true;
+  // LoanFlow-style: axios calls /admin/loans, /loans/my, /repayments/my (same path as SPA).
+  // Browser navigations still get SPA via isBrowserNavigationRequest first.
+  if (/^\/admin\/(loans|repayments|loan-documents|users|loan-types)(\/|$)/i.test(p)) return true;
+  if (/^\/(loans|repayments|loan-documents|loan-types)(\/|$)/i.test(p)) return true;
   if (/\/login\/?$/i.test(p) && /^\/(api|auth|users|user|v1)\b/i.test(p)) return true;
   return false;
+}
+
+/** Ensure list keys exist as arrays so React UIs never see data.loans === undefined. */
+function normalizeApiListBody(body, reqPath) {
+  if (body == null) return body;
+  const pathOnly = String(reqPath || '').split('?')[0] || '';
+  if (Array.isArray(body)) {
+    if (/loan/i.test(pathOnly)) return { loans: body, data: body, success: true };
+    if (/product/i.test(pathOnly)) return { products: body, data: body, success: true };
+    if (/user/i.test(pathOnly)) return { users: body, data: body, success: true };
+    if (/notification/i.test(pathOnly)) return { notifications: body, data: body, success: true };
+    if (/repayment/i.test(pathOnly)) return { repayments: body, data: body, success: true };
+    if (/order/i.test(pathOnly)) return { orders: body, data: body, success: true };
+    return { data: body, items: body, success: true };
+  }
+  if (typeof body !== 'object') return body;
+  const out = { ...body };
+  const listKeys = [
+    'loans',
+    'loanTypes',
+    'users',
+    'items',
+    'products',
+    'notifications',
+    'orders',
+    'members',
+    'applications',
+    'repayments',
+    'documents',
+    'results',
+    'categories',
+  ];
+  for (const key of listKeys) {
+    if (Object.prototype.hasOwnProperty.call(out, key) && !Array.isArray(out[key])) {
+      out[key] = [];
+    }
+  }
+  if (/\/admin\/loans\/?$/i.test(pathOnly) || /\/loans(\/my)?\/?$/i.test(pathOnly)) {
+    if (!Array.isArray(out.loans)) {
+      out.loans = Array.isArray(out.data) ? out.data : Array.isArray(out.items) ? out.items : [];
+    }
+  }
+  if (/\/loan-types\/?$/i.test(pathOnly) && !Array.isArray(out.loanTypes)) out.loanTypes = [];
+  if (/\/notifications\/?$/i.test(pathOnly) && !Array.isArray(out.notifications)) {
+    out.notifications = [];
+  }
+  if (/\/repayments/i.test(pathOnly) && !Array.isArray(out.repayments)) {
+    out.repayments = Array.isArray(out.data) ? out.data : [];
+  }
+  if (/\/products/i.test(pathOnly) && !Array.isArray(out.products)) {
+    out.products = Array.isArray(out.data) ? out.data : [];
+  }
+  return out;
 }
 
 /** Browser document navigation → serve SPA even if Express has GET / health text. */
@@ -218,7 +275,22 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
 
           const upType = String(up.headers['content-type'] || '').toLowerCase();
           const looksHtml = upType.includes('text/html');
-          if (preferSpaOnNonHtml && canFallback && status >= 200 && status < 400 && !looksHtml) {
+          const looksJson = upType.includes('json');
+          // Prefer SPA only for plain-text health bodies (e.g. "API is running").
+          // NEVER replace application/json — LoanFlow axios GET /admin/loans was
+          // getting index.html, then data.loans was undefined and crashed the UI.
+          // Also skip when Content-Type is missing but Authorization is present
+          // (typical XHR API call).
+          const hasAuth = Boolean(req.headers.authorization || req.headers.Authorization);
+          if (
+            preferSpaOnNonHtml &&
+            canFallback &&
+            status >= 200 &&
+            status < 400 &&
+            !looksHtml &&
+            !looksJson &&
+            !hasAuth
+          ) {
             up.resume();
             return serveStatic(req, res);
           }
@@ -226,6 +298,32 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
           const outHeaders = { ...up.headers };
           outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
           outHeaders['access-control-allow-credentials'] = 'true';
+
+          // Buffer JSON so we can normalize list fields (loans/products/…) for
+          // UIs that do data.loans.length without null checks.
+          if (looksJson && status >= 200 && status < 300) {
+            const chunks = [];
+            up.on('data', (c) => chunks.push(c));
+            up.on('end', () => {
+              let buf = Buffer.concat(chunks);
+              try {
+                const parsed = JSON.parse(buf.toString('utf8'));
+                const normalized = normalizeApiListBody(parsed, tryPath);
+                buf = Buffer.from(JSON.stringify(normalized), 'utf8');
+                outHeaders['content-length'] = String(buf.length);
+                delete outHeaders['transfer-encoding'];
+              } catch (_e) {
+                /* keep original body */
+              }
+              res.writeHead(status, outHeaders);
+              res.end(buf);
+            });
+            up.on('error', () => {
+              if (!res.headersSent) jsonError(res, 502, 'Upstream response error');
+            });
+            return;
+          }
+
           res.writeHead(status, outHeaders);
           up.pipe(res);
         });
