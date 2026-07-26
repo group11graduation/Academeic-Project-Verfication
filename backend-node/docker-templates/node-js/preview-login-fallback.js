@@ -3,21 +3,25 @@
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  *
- * Marker V10: do NOT rewrite plain role "admin" → "super_admin". That broke LoanFlow
- * and similar MERN apps (admin|officer|borrower) with a /dashboard ↔ /admin/loans loop.
+ * Marker V11 (all React+Express+Mongoose previews):
+ * - Discover role allow-lists from the SPA bundle (roles:[…], Set([…])).
+ * - Never invent/rewrite roles the app does not accept (stops blank redirect loops).
+ * - Do not hard-redirect after login unless the app is still stuck on /login.
+ * V10: do not rewrite plain "admin" → "super_admin".
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V10__) {
-    console.log('[DEBUG-SHIM] already installed V10 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V11__) {
+    console.log('[DEBUG-SHIM] already installed V11 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V11__ = true;
   window.__SV_LOGIN_FALLBACK_V10__ = true;
   window.__SV_LOGIN_FALLBACK_V9__ = true;
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v10', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v11', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -199,12 +203,6 @@
       .replace(/[\s-]+/g, '_');
   }
 
-  /**
-   * True only for explicit super-admin variants — NOT plain "admin".
-   * LoanFlow / many MERN apps use role === 'admin' | 'officer' | 'borrower'.
-   * Rewriting "admin" → "super_admin" caused ProtectedRoute bounce loops
-   * (/admin/loans requires admin → /dashboard → Navigate to /admin/loans).
-   */
   function isSuperAdminKey(key) {
     return key === 'SUPER_ADMIN' || key === 'SUPERADMIN';
   }
@@ -217,52 +215,242 @@
     }
   }
 
-  /** LoanFlow-style: officer+admin guards, loan_token storage, /admin/loans. */
-  function isLoanStyleApp() {
-    var html = pageHintHtml();
-    if (/loan_token|loan_user|LoanFlow/i.test(html)) return true;
-    if (/\/admin\/loans/.test(html) && /officer/.test(html) && /borrower/.test(html)) return true;
+  /** Hints mined from the SPA (role guards + routes). Shared across all MERN previews. */
+  var appHints = {
+    allowLists: [],
+    routes: [],
+    scanned: false,
+  };
+
+  function uniqStrings(arr) {
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < arr.length; i++) {
+      var v = String(arr[i] || '').trim();
+      if (!v || seen[v]) continue;
+      seen[v] = true;
+      out.push(v);
+    }
+    return out;
+  }
+
+  function extractQuotedStrings(chunk) {
+    var out = [];
+    var re = /['"`]([^'"`]{1,64})['"`]/g;
+    var m;
+    while ((m = re.exec(String(chunk || '')))) {
+      out.push(m[1]);
+    }
+    return out;
+  }
+
+  function ingestHintText(text) {
+    if (!text) return;
+    var t = String(text);
+    var listRe =
+      /(?:roles|allowedRoles|allowed_roles|PERMITTED_ROLES|roleOptions)\s*[:=]\s*\[([^\]]{0,500})\]/gi;
+    var setRe = /Set\s*\(\s*\[([^\]]{0,500})\]\s*\)/g;
+    var m;
+    while ((m = listRe.exec(t))) {
+      var roles = extractQuotedStrings(m[1]).filter(function (r) {
+        return /^[A-Za-z][A-Za-z0-9_\-]{1,32}$/.test(r);
+      });
+      if (roles.length) appHints.allowLists.push(uniqStrings(roles));
+    }
+    while ((m = setRe.exec(t))) {
+      var setRoles = extractQuotedStrings(m[1]).filter(function (r) {
+        return /^[A-Za-z][A-Za-z0-9_\-]{1,32}$/.test(r);
+      });
+      if (setRoles.length) appHints.allowLists.push(uniqStrings(setRoles));
+    }
+    // Common staff tuples in minified guards: ["officer","admin"] / ['admin','user']
+    var tupleRe = /\[((?:['"`](?:admin|ADMIN|Admin|officer|Officer|manager|MANAGER|editor|borrower|user|USER|super_admin|SUPER_ADMIN|teacher|student|member)['"`]\s*,?\s*){1,8})\]/g;
+    while ((m = tupleRe.exec(t))) {
+      var tup = extractQuotedStrings(m[1]);
+      if (tup.length) appHints.allowLists.push(uniqStrings(tup));
+    }
+    var routeRe = /path\s*:\s*['"`](\/[A-Za-z0-9/_-]{1,80})['"`]/g;
+    while ((m = routeRe.exec(t))) {
+      appHints.routes.push(m[1]);
+    }
+    var toRe = /(?:to|navigate)\s*\(\s*['"`](\/[A-Za-z0-9/_-]{1,80})['"`]/g;
+    while ((m = toRe.exec(t))) {
+      appHints.routes.push(m[1]);
+    }
+    appHints.routes = uniqStrings(appHints.routes);
+  }
+
+  function scanAppBundles(done) {
+    ingestHintText(pageHintHtml());
+    var scripts = [];
     try {
-      if (localStorage.getItem('loan_token') || localStorage.getItem('loan_user')) return true;
-    } catch (_e2) {}
+      scripts = Array.prototype.slice.call(document.querySelectorAll('script[src]') || []);
+    } catch (_e) {
+      scripts = [];
+    }
+    var pending = 0;
+    var finished = false;
+    function finish() {
+      if (finished) return;
+      finished = true;
+      appHints.scanned = true;
+      appHints.allowLists = appHints.allowLists.filter(function (list) {
+        return list && list.length;
+      });
+      console.log('[DEBUG-SHIM] app hints', {
+        allowLists: appHints.allowLists.slice(0, 8),
+        routes: appHints.routes.slice(0, 20),
+      });
+      if (typeof done === 'function') done();
+    }
+    function oneDone() {
+      pending -= 1;
+      if (pending <= 0) finish();
+    }
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].src || scripts[i].getAttribute('src');
+      if (!src) continue;
+      // Skip huge vendor chunks when we can; still scan app bundles.
+      if (/node_modules|react-vendor|polyfill/i.test(src) && !/index|main|app|bundle/i.test(src)) {
+        continue;
+      }
+      pending += 1;
+      (function (url) {
+        fetch(url, { credentials: 'same-origin', cache: 'force-cache' })
+          .then(function (r) {
+            return r.ok ? r.text() : '';
+          })
+          .then(function (txt) {
+            if (txt && txt.length < 8000000) ingestHintText(txt);
+          })
+          .catch(function () {})
+          .then(oneDone);
+      })(src);
+    }
+    if (pending === 0) finish();
+    else setTimeout(finish, 4000);
+  }
+
+  function allHintRoles() {
+    var all = [];
+    for (var i = 0; i < appHints.allowLists.length; i++) {
+      all = all.concat(appHints.allowLists[i]);
+    }
+    return uniqStrings(all);
+  }
+
+  function roleAcceptedByHints(role) {
+    var lists = appHints.allowLists;
+    if (!lists.length) return true;
+    var key = roleKeyOf(role);
+    for (var i = 0; i < lists.length; i++) {
+      var list = lists[i];
+      for (var j = 0; j < list.length; j++) {
+        if (list[j] === role || roleKeyOf(list[j]) === key) return true;
+      }
+    }
+    // Also accept if role matches a known end-user role that appears in routes UI text.
     return false;
+  }
+
+  function exactRoleFromHints(role) {
+    var key = roleKeyOf(role);
+    var lists = appHints.allowLists;
+    for (var i = 0; i < lists.length; i++) {
+      for (var j = 0; j < lists[i].length; j++) {
+        if (lists[i][j] === role) return lists[i][j];
+        if (roleKeyOf(lists[i][j]) === key) return lists[i][j];
+      }
+    }
+    return role;
+  }
+
+  function preferPrivilegedRole(vals) {
+    var prefer = [
+      'super_admin',
+      'SUPER_ADMIN',
+      'SuperAdmin',
+      'admin',
+      'ADMIN',
+      'Admin',
+      'officer',
+      'Officer',
+      'manager',
+      'MANAGER',
+      'editor',
+      'EDITOR',
+    ];
+    for (var i = 0; i < prefer.length; i++) {
+      if (vals.indexOf(prefer[i]) >= 0) return prefer[i];
+    }
+    var fuzzy = vals.find(function (v) {
+      return /admin|officer|manager|editor/i.test(v);
+    });
+    return fuzzy || vals[0] || null;
+  }
+
+  function isSkyPropertyApp() {
+    var html = pageHintHtml();
+    if (/manDash/.test(html)) return true;
+    if (appHints.routes.indexOf('/manDash') >= 0) return true;
+    try {
+      if (/manDash/i.test(String(location.pathname || ''))) return true;
+    } catch (_e) {}
+    return false;
+  }
+
+  function isSyadaStyleApp() {
+    var html = pageHintHtml();
+    if (/\/admin\/dashboard/.test(html)) return true;
+    if (appHints.routes.indexOf('/admin/dashboard') >= 0) return true;
+    var roles = allHintRoles();
+    return (
+      roles.indexOf('super_admin') >= 0 &&
+      roles.indexOf('manager') >= 0 &&
+      roles.indexOf('editor') >= 0
+    );
+  }
+
+  function hasRoute(path) {
+    return appHints.routes.indexOf(path) >= 0 || pageHintHtml().indexOf(path) >= 0;
   }
 
   /**
-   * SYADA AdminLayout: Set(['super_admin','manager','editor']) — case-sensitive.
-   * Sky Property sidebar: SUPER_ADMIN / MANAGER / SUB_MANAGER.
-   * Choose casing from the current route (or page hints).
+   * Pick a role string this SPA will accept.
+   * Generic rule for all React+Express+Mongoose apps: never keep a role that
+   * every discovered allow-list rejects (that causes ProtectedRoute loops → blank UI).
    */
-  function preferSkyPropertyRoleCasing() {
-    var path = '';
-    try {
-      path = String((window.location && window.location.pathname) || '');
-    } catch (_e) {
-      path = '';
-    }
-    if (/^\/admin(\/|$)/i.test(path)) return false;
-    if (/manDash/i.test(path)) return true;
-    var html = pageHintHtml();
-    if (/manDash/.test(html)) return true;
-    if (/\/admin\/dashboard/.test(html)) return false;
-    // Default lowercase — fixes SYADA bounce-to-home after "successful" login.
-    return false;
-  }
+  function canonicalRoleForApp(role) {
+    var current = String(role || '').trim();
+    if (!current) return current;
 
-  function canonicalSuperAdminRole() {
-    // LoanFlow allow-list is ['officer','admin'] — map privileged preview seeds there.
-    if (isLoanStyleApp()) return 'admin';
-    return preferSkyPropertyRoleCasing() ? 'SUPER_ADMIN' : 'super_admin';
+    if (appHints.allowLists.length) {
+      if (roleAcceptedByHints(current)) return exactRoleFromHints(current);
+      var best = preferPrivilegedRole(allHintRoles());
+      if (best) return best;
+    }
+
+    var key = roleKeyOf(current);
+    if (isSkyPropertyApp() && (isSuperAdminKey(key) || key === 'ADMIN')) return 'SUPER_ADMIN';
+    if (isSyadaStyleApp() && (isSuperAdminKey(key) || key === 'ADMIN' || current === 'super_admin')) {
+      return 'super_admin';
+    }
+    // Generic MERN: leave plain admin/officer/user/etc. untouched.
+    if (isSuperAdminKey(key) && hasRoute('/admin/loans')) return 'admin';
+    if (isSuperAdminKey(key) && !isSyadaStyleApp() && !isSkyPropertyApp() && hasRoute('/dashboard')) {
+      // Many student apps only allow "admin"; super_admin blank-loops them.
+      if (!roleAcceptedByHints('super_admin') && roleAcceptedByHints('admin')) return 'admin';
+      // Without hints, prefer not inventing — keep as-is only if no conflicting plain admin route guards.
+    }
+    return current;
   }
 
   function normalizePreviewUserRole(user) {
     if (!user || typeof user !== 'object') return user;
-    var role = String(user.role || '').trim();
-    var key = roleKeyOf(role);
-    var next = role;
-    // Leave plain admin/officer/borrower/user/member/teacher/student untouched.
-    if (isSuperAdminKey(key)) next = canonicalSuperAdminRole();
-    else if (key === 'SUBMANAGER') next = 'SUB_MANAGER';
+    var role = String(user.role || user.Role || '').trim();
+    if (!role) return user;
+    var next = canonicalRoleForApp(role);
+    if (roleKeyOf(role) === 'SUBMANAGER') next = 'SUB_MANAGER';
     if (next === role) return user;
     var out = {};
     try {
@@ -277,7 +465,16 @@
   }
 
   function authStorageKeys() {
-    return ['user', 'loan_user', 'authUser', 'currentUser', 'admin'];
+    return [
+      'user',
+      'loan_user',
+      'authUser',
+      'currentUser',
+      'admin',
+      'auth',
+      'profile',
+      'loggedInUser',
+    ];
   }
 
   function fixStoredPreviewUserRole() {
@@ -288,20 +485,20 @@
         var storageKey = keys[i];
         var raw = localStorage.getItem(storageKey);
         if (!raw) continue;
-        var user = JSON.parse(raw);
-        if (!user || typeof user !== 'object') continue;
-        var key = roleKeyOf(user.role);
-        var want = null;
-        if (isLoanStyleApp() && (isSuperAdminKey(key) || String(user.role) === 'super_admin')) {
-          want = 'admin';
-        } else if (isSuperAdminKey(key)) {
-          want = canonicalSuperAdminRole();
-        } else if (key === 'SUB_MANAGER' || key === 'SUBMANAGER') {
-          want = 'SUB_MANAGER';
-        }
-        if (!want || String(user.role) === want) continue;
+        var parsed = JSON.parse(raw);
+        var user = parsed;
+        // Some apps store { user: {...}, token }
+        if (parsed && parsed.user && typeof parsed.user === 'object') user = parsed.user;
+        if (!user || typeof user !== 'object' || user.role == null) continue;
+        var want = canonicalRoleForApp(user.role);
+        if (String(user.role) === want) continue;
         user.role = want;
-        localStorage.setItem(storageKey, JSON.stringify(user));
+        if (parsed && parsed.user && typeof parsed.user === 'object') {
+          parsed.user = user;
+          localStorage.setItem(storageKey, JSON.stringify(parsed));
+        } else {
+          localStorage.setItem(storageKey, JSON.stringify(user));
+        }
         changed = true;
         console.log('[DEBUG-SHIM] reconciled', storageKey, 'role →', want);
       } catch (_e2) {}
@@ -315,55 +512,114 @@
       location.reload();
     }
   }
-  fixStoredPreviewUserRole();
 
   function pickPostLoginPath(user) {
     var role = roleKeyOf((user && (user.role || user.Role)) || '');
-    if (role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
-      return '/manDash';
+    // Only hard-code paths for clearly detected app families / discovered routes.
+    if (isSkyPropertyApp() || role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
+      if (hasRoute('/manDash') || isSkyPropertyApp()) return '/manDash';
     }
-    // LoanFlow: staff land on applications, not a generic /admin/dashboard.
-    if (isLoanStyleApp() && (role === 'ADMIN' || role === 'OFFICER' || isSuperAdminKey(role))) {
+    if (hasRoute('/admin/loans') && (role === 'ADMIN' || role === 'OFFICER' || isSuperAdminKey(role))) {
       return '/admin/loans';
     }
-    if (isSuperAdminKey(role) || role === 'EDITOR') {
-      if (preferSkyPropertyRoleCasing()) return '/manDash';
+    if (isSyadaStyleApp() && (isSuperAdminKey(role) || role === 'EDITOR' || role === 'MANAGER' || role === 'ADMIN')) {
       return '/admin/dashboard';
     }
-    // Plain "admin" — let the app navigate; only hard-fallback if still on /login.
-    if (role === 'ADMIN' || role === 'OFFICER') {
-      return null;
+    if (hasRoute('/admin/dashboard') && (isSuperAdminKey(role) || role === 'EDITOR')) {
+      return '/admin/dashboard';
     }
-    if (role === 'TEACHER') return '/teacher';
-    if (role === 'STUDENT') return '/student';
-    if (role === 'MEMBER') return '/portal';
-    if (role === 'BORROWER') return '/dashboard';
-    return '/';
+    if (role === 'TEACHER' && hasRoute('/teacher')) return '/teacher';
+    if (role === 'STUDENT' && hasRoute('/student')) return '/student';
+    if (role === 'MEMBER' && hasRoute('/portal')) return '/portal';
+    if (role === 'BORROWER' && hasRoute('/dashboard')) return '/dashboard';
+    // Prefer letting React Router navigate — wrong hard redirects → blank pages.
+    return null;
   }
 
   function redirectAfterPreviewLogin(user) {
     try {
       var path = window.location && window.location.pathname ? String(window.location.pathname) : '';
-      if (!/login/i.test(path)) return;
-      var target = pickPostLoginPath(user);
-      // Soft delay so the page's own navigate() can win; if it never runs
-      // (axios hung), hard-navigate so the teacher is not stuck on /login.
+      if (!/login|signin|sign-in/i.test(path)) return;
+      // Give the app time to navigate; only intervene if still stuck on login.
       setTimeout(function () {
         try {
           var stillLogin =
-            window.location && /login/i.test(String(window.location.pathname || ''));
+            window.location && /login|signin|sign-in/i.test(String(window.location.pathname || ''));
           if (!stillLogin) return;
-          // null = do not steal navigation (app owns post-login routing).
-          if (target == null) return;
-          if (target === '/') {
-            window.location.assign('/');
-          } else {
-            window.location.assign(target);
+          var target = pickPostLoginPath(user);
+          if (!target) {
+            // Last resort: common authenticated homes that exist in this SPA.
+            if (hasRoute('/dashboard')) target = '/dashboard';
+            else if (hasRoute('/home')) target = '/home';
+            else if (hasRoute('/app')) target = '/app';
+            else if (hasRoute('/')) target = '/';
           }
+          if (!target) return;
+          window.location.assign(target);
         } catch (_e) {}
-      }, 250);
+      }, 600);
     } catch (_e2) {}
   }
+
+  /** Break ProtectedRoute A↔B bounce loops that leave #root empty. */
+  function installRedirectLoopGuard() {
+    var recent = [];
+    setInterval(function () {
+      try {
+        var p = String((window.location && window.location.pathname) || '');
+        if (!p || /login|signin/i.test(p)) {
+          recent = [];
+          return;
+        }
+        if (recent.length && recent[recent.length - 1] === p) return;
+        recent.push(p);
+        if (recent.length > 16) recent = recent.slice(-16);
+        if (recent.length < 6) return;
+        var uniq = uniqStrings(recent);
+        if (uniq.length !== 2) return;
+        var flips = 0;
+        for (var i = 1; i < recent.length; i++) {
+          if (recent[i] !== recent[i - 1]) flips += 1;
+        }
+        if (flips < 5) return;
+        if (sessionStorage.getItem('__sv_loop_break__')) return;
+        sessionStorage.setItem('__sv_loop_break__', '1');
+        console.warn('[DEBUG-SHIM] redirect loop detected', uniq[0], '↔', uniq[1], '— fixing role');
+        var roles = allHintRoles();
+        var fixed = preferPrivilegedRole(roles) || canonicalRoleForApp('admin') || 'admin';
+        var keys = authStorageKeys();
+        for (var k = 0; k < keys.length; k++) {
+          try {
+            var raw = localStorage.getItem(keys[k]);
+            if (!raw) continue;
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.user && typeof parsed.user === 'object') {
+              parsed.user.role = fixed;
+              localStorage.setItem(keys[k], JSON.stringify(parsed));
+            } else if (parsed && typeof parsed === 'object' && parsed.role != null) {
+              parsed.role = fixed;
+              localStorage.setItem(keys[k], JSON.stringify(parsed));
+            }
+          } catch (_e) {}
+        }
+        var safe =
+          (hasRoute('/admin/loans') && '/admin/loans') ||
+          (hasRoute('/admin/dashboard') && '/admin/dashboard') ||
+          (hasRoute('/dashboard') && '/dashboard') ||
+          (hasRoute('/home') && '/home') ||
+          uniq[0] ||
+          '/';
+        window.location.replace(safe);
+      } catch (_e2) {}
+    }, 200);
+  }
+
+  scanAppBundles(function () {
+    fixStoredPreviewUserRole();
+  });
+  installRedirectLoopGuard();
+  // Early pass for already-cached hints in HTML.
+  fixStoredPreviewUserRole();
 
   /**
    * Student UIs often do `if (res.data.success)` before storing the token / clearing

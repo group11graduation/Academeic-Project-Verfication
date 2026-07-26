@@ -70,7 +70,7 @@ function wrapHtml(html) {
     `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};</script>`;
   const fallback = loadFallbackJs();
   const fallbackBlock =
-    fallback && !html.includes('__SV_LOGIN_FALLBACK_V10__')
+    fallback && !html.includes('__SV_LOGIN_FALLBACK_V11__')
       ? `<script>\n${fallback}\n</script>`
       : '';
   return `${boot}${fallbackBlock}${html}`;
