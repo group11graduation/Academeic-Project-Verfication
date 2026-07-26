@@ -3,7 +3,11 @@
  * ScholarVerify preview gateway: static SPA + reverse-proxy to Express API.
  * Injects API boot + login fallback into index.html in-memory (no bind-mount writes).
  *
- * Routing: try backend first for non-asset paths; fall back to SPA static on GET/HEAD 404/errors.
+ * Routing rules (important for apps like SYADA that return 200 text on GET /):
+ * - Static assets (.js/.css/…) → SPA dist
+ * - Browser navigations (Accept: text/html) on non-API paths → SPA (index.html)
+ * - /api/*, /auth/* (and similar) → Express upstream
+ * - Other GETs → try API; if 404 OR non-HTML body when client wants a page → SPA
  */
 'use strict';
 
@@ -65,8 +69,6 @@ function wrapHtml(html) {
     `<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=${JSON.stringify(base)};` +
     `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};</script>`;
   const fallback = loadFallbackJs();
-  // Prefer V7 marker so a stale inlined V1 script in on-disk index.html does not
-  // block injecting the current /preview-login-fallback.js from the image.
   const fallbackBlock =
     fallback && !html.includes('__SV_LOGIN_FALLBACK_V7__')
       ? `<script>\n${fallback}\n</script>`
@@ -87,6 +89,34 @@ function isStaticAssetRequest(pathname) {
 function isSafeStaticFallbackMethod(method) {
   const m = String(method || 'GET').toUpperCase();
   return m === 'GET' || m === 'HEAD';
+}
+
+/** Paths that must hit Express (never the React SPA). */
+function isApiProxyPath(pathname) {
+  const p = String(pathname || '').split('?')[0] || '/';
+  if (/^\/api(\/|$)/i.test(p)) return true;
+  if (/^\/auth(\/|$)/i.test(p)) return true;
+  if (/^\/(users|user|v1|graphql|socket\.io|uploads|static\/uploads)(\/|$)/i.test(p)) return true;
+  if (/\/login\/?$/i.test(p) && /^\/(api|auth|users|user|v1)\b/i.test(p)) return true;
+  return false;
+}
+
+/** Browser document navigation → serve SPA even if Express has GET / health text. */
+function isBrowserNavigationRequest(req, pathname) {
+  const method = String(req.method || 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  if (isApiProxyPath(pathname)) return false;
+  if (isStaticAssetRequest(pathname)) return false;
+  const accept = String(req.headers.accept || '');
+  // Fetch/XHR often send */* or application/json — those can still go to API.
+  if (/application\/json/i.test(accept) && !/text\/html/i.test(accept)) return false;
+  if (/text\/html/i.test(accept)) return true;
+  // No Accept / navigation-like paths (/, /login, /dashboard, …)
+  if (!accept || accept === '*/*') {
+    if (pathname === '/' || pathname === '') return true;
+    if (!/\.[a-zA-Z0-9]+$/.test(pathname)) return true;
+  }
+  return false;
 }
 
 function send(res, status, body, headers = {}) {
@@ -128,10 +158,11 @@ function jsonError(res, status, message, error) {
 }
 
 /**
- * Try upstream API first. On GET/HEAD 404 or connection failure → SPA static.
- * On POST/PUT/… errors/timeouts → 502/504 (never serve index.html for mutations).
+ * Proxy to Express. On GET/HEAD 404 → SPA.
+ * Also: if GET wants a document and upstream returns non-HTML 200 (health text),
+ * serve SPA instead (SYADA GET / → "API is running...").
  */
-function proxyTryThenStatic(req, res) {
+function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
   const method = String(req.method || 'GET').toUpperCase();
   const canFallback = isSafeStaticFallbackMethod(method);
 
@@ -157,6 +188,14 @@ function proxyTryThenStatic(req, res) {
           up.resume();
           return serveStatic(req, res);
         }
+
+        const upType = String(up.headers['content-type'] || '').toLowerCase();
+        const looksHtml = upType.includes('text/html');
+        if (preferSpaOnNonHtml && canFallback && status >= 200 && status < 400 && !looksHtml) {
+          up.resume();
+          return serveStatic(req, res);
+        }
+
         const outHeaders = { ...up.headers };
         outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
         outHeaders['access-control-allow-credentials'] = 'true';
@@ -265,7 +304,18 @@ const server = http.createServer((req, res) => {
   }
 
   if (isStaticAssetRequest(pathname)) return serveStatic(req, res);
-  return proxyTryThenStatic(req, res);
+
+  // SPA first for document navigations (/ , /login, /dashboard, …).
+  // Fixes Express apps that answer GET / with "API is running..." (HTTP 200 text).
+  if (isBrowserNavigationRequest(req, pathname)) {
+    return serveStatic(req, res);
+  }
+
+  if (isApiProxyPath(pathname)) {
+    return proxyTryThenStatic(req, res, { preferSpaOnNonHtml: false });
+  }
+
+  return proxyTryThenStatic(req, res, { preferSpaOnNonHtml: true });
 });
 
 server.on('error', (err) => {
