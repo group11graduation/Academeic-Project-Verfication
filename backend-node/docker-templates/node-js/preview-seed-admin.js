@@ -304,7 +304,8 @@ function loadPreviewEnv() {
         return vals[0];
       }
       // No enum: most student React+Express+Mongoose apps check role === 'admin'.
-      // SYADA/Sky define enums, so they still get super_admin / SUPER_ADMIN above.
+      // Apps with Set(['super_admin','manager','editor']) define an enum — handled above.
+      // The browser shim also remaps admin → super_admin when it discovers that Set.
       return 'admin';
     }
 

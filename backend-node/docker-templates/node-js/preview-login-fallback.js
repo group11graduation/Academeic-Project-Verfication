@@ -3,17 +3,21 @@
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  *
- * Marker V12: never location.reload() after role tweaks — that caused white↔home flicker.
- * Only soft-update localStorage; let React Router keep the document.
- * V11: discover role allow-lists; avoid inventing roles the SPA rejects.
- * V10: do not rewrite plain "admin" → "super_admin".
+ * Marker V14 (all future React+Express+Mongoose previews):
+ * - At login, sync-scan SPA bundles if hints are still empty, then map role onto
+ *   discovered allow-lists (Set([...]), roles:[...]) so AdminLayout-style guards work.
+ * - Never invent a role the SPA rejects; never location.reload() after tweaks.
+ * V13: defer async scan until DOMContentLoaded; SYADA title fallback.
+ * V12: never location.reload() after role tweaks.
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V12__) {
-    console.log('[DEBUG-SHIM] already installed V12 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V14__) {
+    console.log('[DEBUG-SHIM] already installed V14 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V14__ = true;
+  window.__SV_LOGIN_FALLBACK_V13__ = true;
   window.__SV_LOGIN_FALLBACK_V12__ = true;
   window.__SV_LOGIN_FALLBACK_V11__ = true;
   window.__SV_LOGIN_FALLBACK_V10__ = true;
@@ -21,7 +25,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v12', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v14', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -278,7 +282,7 @@
     while ((m = tupleRe.exec(t))) {
       addAllowList(extractQuotedStrings(m[1]));
     }
-    var routeRe = /path\s*:\s*['"`](\/[A-Za-z0-9/_-]{1,80})['"`]/g;
+    var routeRe = /(?:path|to)\s*:\s*['"`](\/[A-Za-z0-9/_-]{1,80})['"`]/g;
     while ((m = routeRe.exec(t))) {
       appHints.routes.push(m[1]);
     }
@@ -286,54 +290,61 @@
   }
 
   function scanAppBundles(done) {
-    ingestHintText(pageHintHtml());
-    var scripts = [];
-    try {
-      scripts = Array.prototype.slice.call(document.querySelectorAll('script[src]') || []);
-    } catch (_e) {
-      scripts = [];
-    }
-    var pending = 0;
-    var finished = false;
-    function finish() {
-      if (finished) return;
-      finished = true;
-      appHints.scanned = true;
-      appHints.allowLists = appHints.allowLists.filter(function (list) {
-        return list && list.length;
-      });
-      console.log('[DEBUG-SHIM] app hints', {
-        allowLists: appHints.allowLists.slice(0, 8),
-        routes: appHints.routes.slice(0, 20),
-      });
-      if (typeof done === 'function') done();
-    }
-    function oneDone() {
-      pending -= 1;
-      if (pending <= 0) finish();
-    }
-    for (var i = 0; i < scripts.length; i++) {
-      var src = scripts[i].src || scripts[i].getAttribute('src');
-      if (!src) continue;
-      // Skip huge vendor chunks when we can; still scan app bundles.
-      if (/node_modules|react-vendor|polyfill/i.test(src) && !/index|main|app|bundle/i.test(src)) {
-        continue;
+    function start() {
+      ingestHintText(pageHintHtml());
+      var scripts = [];
+      try {
+        scripts = Array.prototype.slice.call(document.querySelectorAll('script[src]') || []);
+      } catch (_e) {
+        scripts = [];
       }
-      pending += 1;
-      (function (url) {
-        fetch(url, { credentials: 'same-origin', cache: 'force-cache' })
-          .then(function (r) {
-            return r.ok ? r.text() : '';
-          })
-          .then(function (txt) {
-            if (txt && txt.length < 8000000) ingestHintText(txt);
-          })
-          .catch(function () {})
-          .then(oneDone);
-      })(src);
+      var pending = 0;
+      var finished = false;
+      function finish() {
+        if (finished) return;
+        finished = true;
+        appHints.scanned = true;
+        console.log('[DEBUG-SHIM] app hints', {
+          allowLists: appHints.allowLists.slice(0, 8),
+          routes: appHints.routes.slice(0, 20),
+        });
+        if (typeof done === 'function') done();
+      }
+      function oneDone() {
+        pending -= 1;
+        if (pending <= 0) finish();
+      }
+      for (var i = 0; i < scripts.length; i++) {
+        var src = scripts[i].src || scripts[i].getAttribute('src');
+        if (!src) continue;
+        if (/node_modules|react-vendor|polyfill/i.test(src) && !/index|main|app|bundle/i.test(src)) {
+          continue;
+        }
+        pending += 1;
+        (function (url) {
+          fetch(url, { credentials: 'same-origin', cache: 'force-cache' })
+            .then(function (r) {
+              return r.ok ? r.text() : '';
+            })
+            .then(function (txt) {
+              if (txt && txt.length < 8000000) ingestHintText(txt);
+            })
+            .catch(function () {})
+            .then(oneDone);
+        })(src);
+      }
+      if (pending === 0) finish();
+      else setTimeout(finish, 5000);
     }
-    if (pending === 0) finish();
-    else setTimeout(finish, 4000);
+    // CRITICAL: shim is injected BEFORE app <script src>, so querySelectorAll is
+    // empty if we scan synchronously. Wait for DOM (and a tick after load).
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(start, 0);
+      });
+    } else {
+      setTimeout(start, 0);
+    }
   }
 
   function allHintRoles() {
@@ -371,40 +382,52 @@
   }
 
   function preferPrivilegedRole(vals) {
-    // SYADA / Sky need super_* first; generic MERN student apps need plain admin first.
-    var prefer = isSyadaStyleApp() || isSkyPropertyApp()
-      ? [
-          'super_admin',
-          'SUPER_ADMIN',
-          'SuperAdmin',
-          'admin',
-          'ADMIN',
-          'Admin',
-          'manager',
-          'MANAGER',
-          'officer',
-          'editor',
-        ]
-      : [
-          'admin',
-          'ADMIN',
-          'Admin',
-          'officer',
-          'Officer',
-          'manager',
-          'MANAGER',
-          'editor',
-          'EDITOR',
-          'super_admin',
-          'SUPER_ADMIN',
-        ];
-    for (var i = 0; i < prefer.length; i++) {
-      if (vals.indexOf(prefer[i]) >= 0) return prefer[i];
+    var list = vals || [];
+    var has = function (re) {
+      return list.some(function (v) {
+        return re.test(String(v));
+      });
+    };
+    var pickExact = function (candidates) {
+      for (var i = 0; i < candidates.length; i++) {
+        if (list.indexOf(candidates[i]) >= 0) return candidates[i];
+      }
+      return null;
+    };
+    // CMS-style Set(['super_admin','manager','editor']) — plain "admin" is rejected.
+    var staffSetStyle =
+      has(/^super_admin$/i) && has(/^manager$/i) && (has(/^editor$/i) || has(/^super_admin$/i));
+    if (staffSetStyle || isStaffSetApp()) {
+      return (
+        pickExact(['super_admin', 'SUPER_ADMIN', 'SuperAdmin', 'manager', 'editor', 'admin', 'ADMIN']) ||
+        list[0] ||
+        null
+      );
     }
-    var fuzzy = vals.find(function (v) {
-      return /admin|officer|manager|editor/i.test(v);
-    });
-    return fuzzy || vals[0] || null;
+    if (isSkyPropertyApp()) {
+      return pickExact(['SUPER_ADMIN', 'super_admin', 'MANAGER', 'manager', 'admin', 'ADMIN']) || list[0];
+    }
+    // Generic MERN: prefer plain admin/officer when present.
+    return (
+      pickExact([
+        'admin',
+        'ADMIN',
+        'Admin',
+        'officer',
+        'Officer',
+        'manager',
+        'MANAGER',
+        'editor',
+        'EDITOR',
+        'super_admin',
+        'SUPER_ADMIN',
+      ]) ||
+      list.find(function (v) {
+        return /admin|officer|manager|editor/i.test(v);
+      }) ||
+      list[0] ||
+      null
+    );
   }
 
   function isSkyPropertyApp() {
@@ -417,16 +440,34 @@
     return false;
   }
 
-  function isSyadaStyleApp() {
+  /**
+   * Any SPA that gates admin UI with Set(['super_admin','manager','editor'])
+   * (SYADA and clones). Not limited to a specific brand name.
+   */
+  function isStaffSetApp() {
+    try {
+      if (/SYADA/i.test(String(document.title || ''))) return true;
+    } catch (_e0) {}
     var html = pageHintHtml();
-    if (/\/admin\/dashboard/.test(html)) return true;
-    if (appHints.routes.indexOf('/admin/dashboard') >= 0) return true;
+    if (/SYADA/i.test(html)) return true;
     var roles = allHintRoles();
-    return (
-      roles.indexOf('super_admin') >= 0 &&
-      roles.indexOf('manager') >= 0 &&
-      roles.indexOf('editor') >= 0
-    );
+    var hasSuper = roles.some(function (r) {
+      return /^super_admin$/i.test(r);
+    });
+    var hasManager = roles.some(function (r) {
+      return /^manager$/i.test(r);
+    });
+    var hasEditor = roles.some(function (r) {
+      return /^editor$/i.test(r);
+    });
+    var hasPlainAdmin = roles.some(function (r) {
+      return /^admin$/i.test(r);
+    });
+    // super_admin + manager (+ editor) without plain admin → Set.has apps.
+    if (hasSuper && hasManager && (hasEditor || !hasPlainAdmin)) return true;
+    if (appHints.routes.indexOf('/admin/dashboard') >= 0 && hasSuper && hasManager) return true;
+    if (/\/admin\/dashboard/.test(html) && /super_admin/.test(html) && /manager/.test(html)) return true;
+    return false;
   }
 
   function hasRoute(path) {
@@ -434,13 +475,48 @@
   }
 
   /**
-   * Pick a role string this SPA will accept.
-   * Generic rule for all React+Express+Mongoose apps: never keep a role that
-   * every discovered allow-list rejects (that causes ProtectedRoute loops → blank UI).
+   * Sync-scan bundles right before login normalize when async scan has not finished.
+   * By login time <script src> tags exist; empty hints were the V12/V13 race.
+   */
+  function ensureHintsBeforeLogin() {
+    if (appHints.allowLists.length && appHints.routes.length) return;
+    try {
+      ingestHintText(pageHintHtml());
+      var scripts = Array.prototype.slice.call(document.querySelectorAll('script[src]') || []);
+      for (var i = 0; i < scripts.length; i++) {
+        var src = scripts[i].src || scripts[i].getAttribute('src');
+        if (!src) continue;
+        if (/node_modules|react-vendor|polyfill/i.test(src) && !/index|main|app|bundle/i.test(src)) {
+          continue;
+        }
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', src, false);
+          xhr.send(null);
+          if (xhr.status >= 200 && xhr.status < 300 && xhr.responseText) {
+            var txt = xhr.responseText;
+            if (txt.length < 8000000) ingestHintText(txt);
+          }
+        } catch (_xe) {}
+      }
+      if (appHints.allowLists.length || appHints.routes.length) {
+        appHints.scanned = true;
+        console.log('[DEBUG-SHIM] sync hints before login', {
+          allowLists: appHints.allowLists.slice(0, 8),
+          routes: appHints.routes.slice(0, 20),
+        });
+      }
+    } catch (_e) {}
+  }
+
+  /**
+   * Map preview/login role onto a string this SPA will accept.
+   * Works for any React+Express+Mongoose project once allow-lists are known.
    */
   function canonicalRoleForApp(role) {
     var current = String(role || '').trim();
     if (!current) return current;
+    var key = roleKeyOf(current);
 
     if (appHints.allowLists.length) {
       if (roleAcceptedByHints(current)) return exactRoleFromHints(current);
@@ -448,23 +524,24 @@
       if (best) return best;
     }
 
-    var key = roleKeyOf(current);
+    // Staff-Set apps (SYADA-like): plain admin is rejected by Set.has.
+    if (isStaffSetApp()) {
+      if (key === 'MEMBER') return 'member';
+      if (isSuperAdminKey(key) || key === 'ADMIN' || key === 'ADMINISTRATOR' || current === 'admin') {
+        return 'super_admin';
+      }
+      if (key === 'MANAGER') return 'manager';
+      if (key === 'EDITOR') return 'editor';
+    }
+
     if (isSkyPropertyApp() && (isSuperAdminKey(key) || key === 'ADMIN')) return 'SUPER_ADMIN';
-    if (isSyadaStyleApp() && (isSuperAdminKey(key) || key === 'ADMIN' || current === 'super_admin')) {
-      return 'super_admin';
-    }
-    // Generic MERN: leave plain admin/officer/user/etc. untouched.
     if (isSuperAdminKey(key) && hasRoute('/admin/loans')) return 'admin';
-    if (isSuperAdminKey(key) && !isSyadaStyleApp() && !isSkyPropertyApp() && hasRoute('/dashboard')) {
-      // Many student apps only allow "admin"; super_admin blank-loops them.
-      if (!roleAcceptedByHints('super_admin') && roleAcceptedByHints('admin')) return 'admin';
-      // Without hints, prefer not inventing — keep as-is only if no conflicting plain admin route guards.
-    }
     return current;
   }
 
   function normalizePreviewUserRole(user) {
     if (!user || typeof user !== 'object') return user;
+    ensureHintsBeforeLogin();
     var role = String(user.role || user.Role || '').trim();
     if (!role) return user;
     var next = canonicalRoleForApp(role);
@@ -496,8 +573,7 @@
   }
 
   function fixStoredPreviewUserRole() {
-    // Wait for bundle scan so we don't flip admin↔super_admin across passes.
-    if (!appHints.scanned) return;
+    if (!appHints.scanned && !isStaffSetApp() && !isSkyPropertyApp()) return;
     var keys = authStorageKeys();
     var changed = false;
     for (var i = 0; i < keys.length; i++) {
@@ -509,12 +585,7 @@
         var user = parsed;
         if (parsed && parsed.user && typeof parsed.user === 'object') user = parsed.user;
         if (!user || typeof user !== 'object' || user.role == null) continue;
-        var want;
-        if (roleAcceptedByHints(user.role)) {
-          want = exactRoleFromHints(user.role);
-        } else {
-          want = canonicalRoleForApp(user.role);
-        }
+        var want = canonicalRoleForApp(user.role);
         if (String(user.role) === String(want)) continue;
         user.role = want;
         if (parsed && parsed.user && typeof parsed.user === 'object') {
@@ -531,7 +602,6 @@
     try {
       window.dispatchEvent(new Event('userChanged'));
     } catch (_e3) {}
-    // V12: NEVER location.reload() — full reloads caused white ↔ home flickering.
   }
 
   function pickPostLoginPath(user) {
@@ -539,13 +609,11 @@
     if (isSkyPropertyApp() || role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
       if (hasRoute('/manDash') || isSkyPropertyApp()) return '/manDash';
     }
+    if (isStaffSetApp() && role !== 'MEMBER') return '/admin/dashboard';
     if (hasRoute('/admin/loans') && (role === 'ADMIN' || role === 'OFFICER' || isSuperAdminKey(role))) {
       return '/admin/loans';
     }
-    if (isSyadaStyleApp() && (isSuperAdminKey(role) || role === 'EDITOR' || role === 'MANAGER' || role === 'ADMIN')) {
-      return '/admin/dashboard';
-    }
-    if (hasRoute('/admin/dashboard') && (isSuperAdminKey(role) || role === 'EDITOR')) {
+    if (hasRoute('/admin/dashboard') && (isSuperAdminKey(role) || role === 'EDITOR' || role === 'ADMIN' || role === 'MANAGER')) {
       return '/admin/dashboard';
     }
     if (role === 'TEACHER' && hasRoute('/teacher')) return '/teacher';
@@ -555,13 +623,33 @@
     return null;
   }
 
+  function tryRescueStuckLogin() {
+    try {
+      var path = String((window.location && window.location.pathname) || '');
+      if (!/login|signin|sign-in/i.test(path)) return;
+      if (sessionStorage.getItem('__sv_post_login_nav__')) return;
+      var token = localStorage.getItem('token') || localStorage.getItem('accessToken') || localStorage.getItem('loan_token');
+      if (!token) return;
+      ensureHintsBeforeLogin();
+      fixStoredPreviewUserRole();
+      var raw = localStorage.getItem('user') || localStorage.getItem('loan_user');
+      if (!raw) return;
+      var user = JSON.parse(raw);
+      if (user && user.user) user = user.user;
+      user = normalizePreviewUserRole(user);
+      var target = pickPostLoginPath(user);
+      if (!target) return;
+      sessionStorage.setItem('__sv_post_login_nav__', '1');
+      console.log('[DEBUG-SHIM] rescue stuck login →', target, 'role=', user && user.role);
+      window.location.assign(target);
+    } catch (_e) {}
+  }
+
   function redirectAfterPreviewLogin(user) {
     try {
       var path = window.location && window.location.pathname ? String(window.location.pathname) : '';
       if (!/login|signin|sign-in/i.test(path)) return;
       if (sessionStorage.getItem('__sv_post_login_nav__')) return;
-      // Long delay so the app's own navigate() always wins. Full-page assigns
-      // while React is mounting caused white ↔ home flicker.
       setTimeout(function () {
         try {
           var stillLogin =
@@ -641,9 +729,25 @@
 
   scanAppBundles(function () {
     fixStoredPreviewUserRole();
+    tryRescueStuckLogin();
   });
   installRedirectLoopGuard();
-  // Do NOT fix roles before hints are scanned (prevents admin↔super_admin flip + reload).
+  // Brand/title can be known before the JS scan finishes.
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(function () {
+          fixStoredPreviewUserRole();
+          tryRescueStuckLogin();
+        }, 50);
+      });
+    } else {
+      setTimeout(function () {
+        fixStoredPreviewUserRole();
+        tryRescueStuckLogin();
+      }, 50);
+    }
+  } catch (_eEarly) {}
 
   /**
    * Student UIs often do `if (res.data.success)` before storing the token / clearing
