@@ -1364,33 +1364,46 @@ const TeacherProposalStudentDetail = () => {
                                     const previewRunning = sess?.status === 'running';
                                     const previewStarting = sess?.status === 'starting';
                                     const previewOpenReady = isPreviewOpenReady(sess);
+                                    const loginSource = sess?.previewLoginSource || '';
+                                    const preferredType = sess?.previewLoginIdentifierType || 'email';
+                                    const preferredLabel = sess?.previewLoginIdentifierLabel || 'Email';
+                                    const fromProject =
+                                        loginSource === 'project_files' ||
+                                        loginSource === 'project_php_setup' ||
+                                        loginSource === 'project_seed_fallback' ||
+                                        loginSource === 'project_seed_script' ||
+                                        loginSource === 'bootstrap_log' ||
+                                        loginSource === 'bootstrap_log_assumed_username' ||
+                                        loginSource === 'project_spring_seed';
                                     const rawEmail =
                                         previewOpenReady && (sess?.previewLoginEmail || previewAdminEmail)
                                             ? sess?.previewLoginEmail || previewAdminEmail
                                             : '';
+                                    const realUsername = previewOpenReady
+                                        ? String(
+                                              sess?.previewLoginUsername ||
+                                                (rawEmail && !String(rawEmail).includes('@') ? rawEmail : '') ||
+                                                ''
+                                          ).trim()
+                                        : '';
+                                    // Never invent previewadmin when the student app uses a real username.
+                                    const displayUsername = realUsername;
                                     const displayEmail =
                                         rawEmail && String(rawEmail).includes('@')
                                             ? rawEmail
-                                            : previewOpenReady
+                                            : preferredType === 'email' && previewOpenReady && !fromProject
                                               ? 'admin@preview.demo'
                                               : '';
-                                    const displayUsername =
-                                        previewOpenReady
-                                            ? sess?.previewLoginUsername ||
-                                              (rawEmail && !String(rawEmail).includes('@') ? rawEmail : '') ||
-                                              'previewadmin'
-                                            : '';
                                     const displayPassword =
                                         previewOpenReady && (sess?.previewLoginPassword || previewAdminPassword)
                                             ? sess?.previewLoginPassword || previewAdminPassword
                                             : '';
-                                    const preferredType = sess?.previewLoginIdentifierType || 'email';
-                                    const preferredLabel = sess?.previewLoginIdentifierLabel || 'Email';
-                                    const loginSource = sess?.previewLoginSource || '';
-                                    const fromProject =
-                                        loginSource === 'project_files' ||
-                                        loginSource === 'project_php_setup' ||
-                                        loginSource === 'project_seed_fallback';
+                                    const showEmailField =
+                                        Boolean(displayEmail) &&
+                                        (preferredType === 'email' ||
+                                            (!displayUsername && Boolean(displayEmail)));
+                                    const showUsernameField =
+                                        Boolean(displayUsername) || preferredType === 'username';
                                     const loginUrl =
                                         sess?.previewLoginUrl ||
                                         (sess?.previewUrl ? `${String(sess.previewUrl).replace(/\/$/, '')}/login` : '');
@@ -1421,18 +1434,24 @@ const TeacherProposalStudentDetail = () => {
 
                                     return (
                                         <div className="mb-4 rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-sm">
-                                            <p className="text-sm font-black text-emerald-900">Preview ready — sign in to the student app</p>
+                                            <p className="text-sm font-black text-emerald-900">
+                                                {fromProject
+                                                    ? 'Real login (from this student project)'
+                                                    : 'Preview ready — sign in to the student app'}
+                                            </p>
                                             <p className="mt-1 mb-4 text-xs font-semibold text-slate-600">
-                                                This app prefers <strong>{preferredLabel}</strong>
-                                                {preferredType === 'email'
-                                                    ? ' (type an email address on the login form).'
-                                                    : preferredType === 'username'
-                                                      ? ' (use the username field if the form asks for it).'
-                                                      : '.'}{' '}
-                                                Both email and username are shown so you can use whichever field the student form has.
+                                                Use the <strong>{preferredLabel}</strong> field on the student login form
+                                                {preferredType === 'username'
+                                                    ? ' (Username + Password).'
+                                                    : preferredType === 'email'
+                                                      ? ' (Email + Password).'
+                                                      : '.'}
+                                                {fromProject
+                                                    ? ' These values were read from the project setup/seed scripts — not platform defaults.'
+                                                    : ' Platform defaults are shown when the ZIP does not declare credentials.'}
                                             </p>
                                             <div className="space-y-3">
-                                                {displayEmail ? (
+                                                {showEmailField ? (
                                                     <div>
                                                         <label
                                                             className="text-[10px] font-black uppercase tracking-widest text-slate-500"
@@ -1461,7 +1480,7 @@ const TeacherProposalStudentDetail = () => {
                                                         </div>
                                                     </div>
                                                 ) : null}
-                                                {displayUsername ? (
+                                                {showUsernameField ? (
                                                     <div>
                                                         <label
                                                             className="text-[10px] font-black uppercase tracking-widest text-slate-500"
@@ -1473,14 +1492,20 @@ const TeacherProposalStudentDetail = () => {
                                                             <input
                                                                 id="preview-admin-username"
                                                                 type="text"
-                                                                value={displayUsername}
+                                                                value={displayUsername || ''}
                                                                 readOnly
+                                                                placeholder={
+                                                                    fromProject
+                                                                        ? 'Detecting from setup script…'
+                                                                        : 'previewadmin'
+                                                                }
                                                                 className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
                                                             />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => copyText('Username', displayUsername)}
-                                                                className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                                                disabled={!displayUsername}
+                                                                className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                                                                 title="Copy username"
                                                             >
                                                                 <Copy className="h-4 w-4" />
@@ -1493,7 +1518,7 @@ const TeacherProposalStudentDetail = () => {
                                                         className="text-[10px] font-black uppercase tracking-widest text-slate-500"
                                                         htmlFor="preview-admin-password"
                                                     >
-                                                        Password
+                                                        Password{fromProject ? ' (use this)' : ''}
                                                     </label>
                                                     <div className="mt-1 flex gap-2">
                                                         <input

@@ -40,6 +40,14 @@ patch_pdo_localhost() {
   sed -i "s|mysqli_connect(\"localhost\"|mysqli_connect(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
 }
 
+# Returns 0 when the file looks like a setup/seed/bootstrap script (may seed app admins).
+is_bootstrap_php_file() {
+  base=$(basename "$1")
+  echo "$base" | grep -qiE '^(setup|install|migrate|migration|seed|reset|upgrade|init)' && return 0
+  echo "$1" | grep -qiE '/(setup|install|seed|reset|upgrade|migrate)[^/]*\.php$' && return 0
+  return 1
+}
+
 patch_one_php_file() {
   file="$1"
   [ -f "$file" ] || return 0
@@ -54,12 +62,20 @@ patch_one_php_file() {
     patch_config_var "$file" host "$DB_HOST"
     patch_config_var "$file" dbhost "$DB_HOST"
     patch_config_var "$file" db_host "$DB_HOST"
-    patch_config_var "$file" username "${DB_USER:-root}"
-    patch_config_var "$file" user "${DB_USER:-root}"
-    patch_config_var "$file" password "${DB_PASS:-preview-root}"
-    patch_config_var "$file" pass "${DB_PASS:-preview-root}"
     patch_config_var "$file" dbname "${DB_NAME:-bbms}"
     patch_config_var "$file" database "${DB_NAME:-bbms}"
+    patch_config_var "$file" dbuser "${DB_USER:-root}"
+    patch_config_var "$file" db_user "${DB_USER:-root}"
+    patch_config_var "$file" dbpass "${DB_PASS:-preview-root}"
+    patch_config_var "$file" db_pass "${DB_PASS:-preview-root}"
+    # Config/connection files use $username/$password for MySQL.
+    # Setup/seed/reset scripts often use the same names for the APP admin — do not rewrite those.
+    if ! is_bootstrap_php_file "$file"; then
+      patch_config_var "$file" username "${DB_USER:-root}"
+      patch_config_var "$file" user "${DB_USER:-root}"
+      patch_config_var "$file" password "${DB_PASS:-preview-root}"
+      patch_config_var "$file" pass "${DB_PASS:-preview-root}"
+    fi
     patch_pdo_localhost "$file"
   fi
 }

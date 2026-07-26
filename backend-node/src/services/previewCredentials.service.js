@@ -786,6 +786,18 @@ export function resolvePreviewLoginCredentials({
     formField.identifierLabel = 'Username';
     hint = hint || springAdmin.hint || 'Preview admin auto-seeded in Spring H2 database on first start.';
   } else if (
+    discovered.phpUsername &&
+    password &&
+    !isPlatformPlaceholderCredential(discovered.phpUsername, password)
+  ) {
+    // Real PHP setup/seed credentials — put these in the teacher box, not previewadmin.
+    username = discovered.phpUsername;
+    if (looksLikeEmail(username)) email = username;
+    source = 'project_php_setup';
+    formField.identifierType = looksLikeEmail(username) ? 'email' : 'username';
+    formField.identifierLabel = formField.identifierType === 'email' ? 'Email' : 'Username';
+    hint = hint || discovered.hint || `Login from PHP setup script: ${username}`;
+  } else if (
     discovered.seedScriptPassword &&
     (discovered.seedScriptEmail || discovered.seedScriptUsername) &&
     (!password || isPlatformPlaceholderCredential(email, password))
@@ -883,12 +895,19 @@ export async function buildPreviewLoginCredentials({
   springAdmin = null,
 } = {}) {
   const discovered = await discoverPreviewCredentialsFromExtract(extractDir, { loginPath });
-  if (phpAdmin?.username) {
-    discovered.username = phpAdmin.username;
-    if (phpAdmin.username.includes('@')) discovered.email = phpAdmin.username;
+  if (phpAdmin?.username || phpAdmin?.password) {
+    if (phpAdmin.username) {
+      discovered.username = phpAdmin.username;
+      if (phpAdmin.username.includes('@')) discovered.email = phpAdmin.username;
+      discovered.phpUsername = phpAdmin.username;
+    }
     if (phpAdmin.password) discovered.password = phpAdmin.password;
     if (phpAdmin.hint) discovered.hint = phpAdmin.hint;
-    discovered.phpUsername = phpAdmin.username;
+    // PHP student apps almost always login with username on /auth/login.php
+    if (phpAdmin.username && !String(phpAdmin.username).includes('@')) {
+      discovered.identifierType = 'username';
+      discovered.identifierLabel = 'Username';
+    }
   }
   return resolvePreviewLoginCredentials({
     teacherEmail,

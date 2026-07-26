@@ -300,29 +300,70 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
   const bootstrapLog = await dockerOrchestrator.readPreviewMysqlBootstrapLog(containerName);
   const bootstrapCredentials = parsePhpBootstrapCredentialsFromLog(bootstrapLog);
   const phpMeta = deployResult.phpPatchMeta || {};
+  const fromSetup = phpMeta.adminCredentials || {};
+  const setupUser = String(fromSetup.username || '').trim();
+  const setupPass = String(fromSetup.password || '').trim();
+  const setupLooksReal =
+    Boolean(setupUser && setupPass) &&
+    setupPass !== 'preview-root' &&
+    !/^(root|mysql|mariadb)$/i.test(setupUser);
+
+  const applyCreds = ({ username, password, identifierType, source, email }) => {
+    if (password) session.previewLoginPassword = password;
+    if (email && String(email).includes('@')) session.previewLoginEmail = email;
+    if (username) {
+      if (String(username).includes('@')) session.previewLoginEmail = username;
+      else session.previewLoginUsername = username;
+    }
+    session.previewLoginIdentifierType = identifierType || 'username';
+    session.previewLoginIdentifierLabel = identifierType === 'email' ? 'Email' : 'Username';
+    session.previewLoginSource = source;
+  };
+
+  // 1) Prefer credentials parsed from the student's setup/seed PHP (real app login).
+  if (setupLooksReal) {
+    applyCreds({
+      username: setupUser,
+      password: setupPass,
+      identifierType: setupUser.includes('@') ? 'email' : 'username',
+      source: 'project_php_setup',
+      email: setupUser.includes('@') ? setupUser : undefined,
+    });
+  } else if (bootstrapCredentials?.password) {
+    // 2) Else use bootstrap log (never MySQL sidecar password — parser already filters).
+    const bootUser = bootstrapCredentials.usernameAssumed
+      ? bootstrapCredentials.assumedUsername || 'admin'
+      : bootstrapCredentials.username;
+    applyCreds({
+      username: bootUser,
+      password: bootstrapCredentials.password,
+      identifierType: bootstrapCredentials.identifierType || 'username',
+      source: bootstrapCredentials.usernameAssumed
+        ? 'bootstrap_log_assumed_username'
+        : 'bootstrap_log',
+      email: bootUser && String(bootUser).includes('@') ? bootUser : undefined,
+    });
+  } else if (setupUser) {
+    // 3) At least surface the discovered username so the box is not previewadmin.
+    applyCreds({
+      username: setupUser,
+      password: session.previewLoginPassword,
+      identifierType: setupUser.includes('@') ? 'email' : 'username',
+      source: 'project_php_setup',
+    });
+  }
 
   session.previewLoginHint = buildPhpPreviewLoginHint({
     previewLoginUrl: session.previewLoginUrl,
     hostPort: deployResult.hostPort || session.hostPort,
     dbName: phpMeta.dbName || deployResult.dbName,
-    adminCredentials: phpMeta.adminCredentials || {},
+    adminCredentials: fromSetup,
     projectCredentials: {
-      username: session.previewLoginEmail,
+      username: session.previewLoginUsername || session.previewLoginEmail,
       password: session.previewLoginPassword,
     },
-    bootstrapCredentials,
+    bootstrapCredentials: setupLooksReal ? null : bootstrapCredentials,
   });
-
-  if (bootstrapCredentials?.password) {
-    session.previewLoginPassword = bootstrapCredentials.password;
-    session.previewLoginEmail = bootstrapCredentials.username || 'admin';
-    session.previewLoginIdentifierType = bootstrapCredentials.identifierType || 'username';
-    session.previewLoginIdentifierLabel =
-      bootstrapCredentials.identifierType === 'email' ? 'Email' : 'Username';
-    session.previewLoginSource = bootstrapCredentials.usernameAssumed
-      ? 'bootstrap_log_assumed_username'
-      : 'bootstrap_log';
-  }
 }
 
 /**

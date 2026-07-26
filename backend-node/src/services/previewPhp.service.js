@@ -345,47 +345,83 @@ export async function discoverPhpAdminCredentials(root) {
   let password = '';
   let hint = '';
 
+  const mysqlPass = String(
+    process.env.PREVIEW_MYSQL_ROOT_PASSWORD || process.env.DB_PASS || 'preview-root'
+  ).trim();
+
+  const accept = (user, pass, why) => {
+    const u = String(user || '').trim();
+    const p = String(pass || '').trim();
+    if (!u || !p) return false;
+    if (p === mysqlPass || p === 'preview-root') return false;
+    if (/^(root|mysql|mariadb)$/i.test(u)) return false;
+    username = u;
+    password = p;
+    hint = why;
+    return true;
+  };
+
   for (const scriptPath of scripts) {
     try {
       const content = await fs.readFile(scriptPath, 'utf8');
+      const base = path.basename(scriptPath);
+
       const userPassEcho = content.match(
-        /(?:User|Username|Login)\s*[:=]\s*['"]?(\w+)['"]?[^\n]{0,40}(?:Pass|Password)\s*[:=]\s*['"]?([^'"<\s]+)/i
+        /(?:User|Username|Login)\s*[:=]\s*['"]?([A-Za-z0-9._@-]+)['"]?[^\n]{0,80}(?:Pass|Password)\s*[:=]\s*['"]?([^'"<\s]+)/i
       );
-      if (userPassEcho) {
-        username = userPassEcho[1];
-        password = userPassEcho[2];
-        hint = `From ${path.basename(scriptPath)}`;
-        break;
+      if (userPassEcho && accept(userPassEcho[1], userPassEcho[2], `From ${base}`)) break;
+
+      const adminVars = content.match(
+        /\$admin_(?:user|username|login|name)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$admin_(?:pass|password|pwd)\s*=\s*['"]([^'"]+)['"]/i
+      );
+      if (adminVars && accept(adminVars[1], adminVars[2], `From ${base} $admin_* vars`)) break;
+
+      const adminVarsRev = content.match(
+        /\$admin_(?:pass|password|pwd)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$admin_(?:user|username|login|name)\s*=\s*['"]([^'"]+)['"]/i
+      );
+      if (adminVarsRev && accept(adminVarsRev[2], adminVarsRev[1], `From ${base} $admin_* vars`)) break;
+
+      const defaultAdmin = content.match(
+        /\$default_admin_(?:user|username)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$default_admin_(?:pass|password)\s*=\s*['"]([^'"]+)['"]/i
+      );
+      if (defaultAdmin && accept(defaultAdmin[1], defaultAdmin[2], `From ${base} default admin`)) break;
+
+      // password_hash('plain') … bind/execute with username nearby
+      const hashThenUser = content.match(
+        /password_hash\s*\(\s*['"]([^'"]+)['"][\s\S]{0,500}?(?:execute|bindValue|bindParam)\s*\(\s*(?:\[[^\]]*?['"]([^'"]+)['"]|['"]([^'"]+)['"])/i
+      );
+      if (hashThenUser) {
+        const user = hashThenUser[2] || hashThenUser[3];
+        if (accept(user, hashThenUser[1], `From ${base} seed user`)) break;
+      }
+
+      const userThenHash = content.match(
+        /(?:execute|bindValue|bindParam)\s*\(\s*(?:\[[^\]]*?['"]([^'"]+)['"]|['"]([^'"]+)['"])[\s\S]{0,500}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
+      );
+      if (userThenHash) {
+        const user = userThenHash[1] || userThenHash[2];
+        if (accept(user, userThenHash[3], `From ${base} seed user`)) break;
       }
 
       const plainPass = content.match(/password_hash\s*\(\s*['"]([^'"]+)['"]/i);
       const execUser = content.match(/execute\s*\(\s*\[\s*['"]([^'"]+)['"]/i);
-      if (plainPass && execUser) {
-        password = plainPass[1];
-        username = execUser[1];
-        hint = `From ${path.basename(scriptPath)} seed user`;
-        break;
-      }
-
-      const hashMatch = content.match(
-        /password_hash\s*\(\s*['"]([^'"]+)['"][\s\S]{0,400}?execute\s*\(\s*\[\s*['"]([^'"]+)['"]/
-      );
-      if (hashMatch) {
-        password = hashMatch[1];
-        username = hashMatch[2];
-        hint = `From ${path.basename(scriptPath)} seed user`;
-        break;
-      }
+      if (plainPass && execUser && accept(execUser[1], plainPass[1], `From ${base} seed user`)) break;
 
       const insertMatch = content.match(
-        /INSERT INTO\s+users[\s\S]{0,300}?VALUES\s*\(\s*['"]([^'"]+)['"][\s\S]{0,120}?['"]([^'"]+)['"][\s\S]{0,80}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
+        /INSERT INTO\s+[`]?(?:users|admins|accounts|tbl_users)[`]?[\s\S]{0,400}?VALUES\s*\(\s*['"]([^'"]+)['"][\s\S]{0,160}?['"]([^'"]+)['"][\s\S]{0,120}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
       );
-      if (insertMatch) {
-        username = insertMatch[1];
-        password = insertMatch[3];
-        hint = `From ${path.basename(scriptPath)} INSERT`;
-        break;
-      }
+      if (insertMatch && accept(insertMatch[1], insertMatch[3], `From ${base} INSERT`)) break;
+
+      // Common BBMS / blood-bank echo lines in setup scripts
+      const echoCreds = content.match(
+        /echo\s+['"][^'"]*(?:username|user|login)\s*[:=]\s*([A-Za-z0-9._@-]+)[^'"]*(?:password|pass)\s*[:=]\s*([^'"\s<]+)['"]/i
+      );
+      if (echoCreds && accept(echoCreds[1], echoCreds[2], `From ${base} echo`)) break;
+
+      const superadmin = content.match(
+        /['"](superadmin|admin|administrator)['"][\s\S]{0,200}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
+      );
+      if (superadmin && accept(superadmin[1], superadmin[2], `From ${base} role seed`)) break;
     } catch {
       /* ignore */
     }
@@ -435,12 +471,23 @@ async function patchPhpFile(filePath, options, { bootstrap = false, injectOverri
   content = definePatch.content;
   changed = changed || definePatch.changed;
 
-  const varPatch = patchPhpVariableAssignments(content, [
-    [['host', 'dbhost', 'db_host'], options.dbHost],
-    [['username', 'user', 'dbuser', 'db_user'], options.dbUser],
-    [['password', 'pass', 'dbpass', 'db_pass'], options.dbPass],
-    [['dbname', 'database', 'db_name'], options.dbName],
-  ]);
+  // Bootstrap/setup/seed scripts often use $username/$password for the APP admin
+  // account. Never rewrite those to MySQL root/preview-root or login breaks
+  // (BBMS-style apps) while UI still shows previewadmin.
+  const dbVarAssignments = bootstrap
+    ? [
+        [['host', 'dbhost', 'db_host'], options.dbHost],
+        [['dbuser', 'db_user', 'dbusername', 'db_username'], options.dbUser],
+        [['dbpass', 'db_pass', 'dbpassword', 'db_password'], options.dbPass],
+        [['dbname', 'database', 'db_name'], options.dbName],
+      ]
+    : [
+        [['host', 'dbhost', 'db_host'], options.dbHost],
+        [['username', 'user', 'dbuser', 'db_user'], options.dbUser],
+        [['password', 'pass', 'dbpass', 'db_pass'], options.dbPass],
+        [['dbname', 'database', 'db_name'], options.dbName],
+      ];
+  const varPatch = patchPhpVariableAssignments(content, dbVarAssignments);
   content = varPatch.content;
   changed = changed || varPatch.changed;
 
@@ -494,6 +541,16 @@ function normalizeBootstrapLogLine(line) {
     .trim();
 }
 
+/** MySQL sidecar password — must never be treated as the student app login password. */
+function isMysqlSidecarPassword(value) {
+  const pass = String(value || '').trim();
+  if (!pass) return false;
+  const mysqlPass = String(
+    process.env.PREVIEW_MYSQL_ROOT_PASSWORD || process.env.DB_PASS || 'preview-root'
+  ).trim();
+  return pass === mysqlPass || pass === 'preview-root';
+}
+
 /** Keep only the credential token — bootstrap logs often append HTML or punctuation after the value. */
 function sanitizeBootstrapCredential(raw, kind = 'password') {
   let value = normalizeBootstrapLogLine(raw).replace(/^['"]+|['"]+$/g, '');
@@ -529,6 +586,14 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
     const line = normalizeBootstrapLogLine(raw);
     if (!line) continue;
 
+    // Skip DB connection noise (host/user/pass for MySQL, not app login).
+    if (
+      /\b(DB_PASS|DB_PASSWORD|MYSQL_PASSWORD|mysqli_connect|new PDO|mysql:host)\b/i.test(line) ||
+      /database\s+password|db\s+pass(?:word)?/i.test(line)
+    ) {
+      continue;
+    }
+
     // Password reset echoes — last match wins (bootstrap scripts may run more than once).
     const passReset =
       line.match(/(?:admin\s+)?password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<>,;)]+)/i) ||
@@ -536,7 +601,10 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
       line.match(/password\s+(?:reset|changed|is|set|updated)[^:\n]*:\s*['"]?([^\s'"<>,;)]+)/i) ||
       line.match(/admin\s+password[^:\n]*:\s*['"]?([^\s'"<>,;)]+)/i);
     if (passReset) {
-      password = sanitizeBootstrapCredential(passReset[1], 'password');
+      const cleaned = sanitizeBootstrapCredential(passReset[1], 'password');
+      if (cleaned && !isMysqlSidecarPassword(cleaned)) {
+        password = cleaned;
+      }
       continue;
     }
 
@@ -544,7 +612,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
       const passKv = line.match(/(?:^|[^\w])(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"<>,;)]+)/i);
       if (passKv) {
         const cleaned = sanitizeBootstrapCredential(passKv[1], 'password');
-        if (cleaned.length >= 3) {
+        if (cleaned.length >= 3 && !isMysqlSidecarPassword(cleaned)) {
           password = cleaned;
         }
       }
@@ -563,7 +631,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
     );
     if (userKv) {
       const cleaned = sanitizeBootstrapCredential(userKv[1], 'username');
-      if (cleaned && !cleaned.includes('@')) {
+      if (cleaned && !cleaned.includes('@') && cleaned.toLowerCase() !== 'root') {
         username = cleaned;
       }
     }
@@ -576,9 +644,9 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
     if (pair) {
       const id = sanitizeBootstrapCredential(pair[1].trim(), pair[1].includes('@') ? 'email' : 'username');
       if (id.includes('@')) email = id;
-      else if (id) username = id;
+      else if (id && id.toLowerCase() !== 'root') username = id;
       const pass = sanitizeBootstrapCredential(pair[2].trim(), 'password');
-      if (pass) password = pass;
+      if (pass && !isMysqlSidecarPassword(pass)) password = pass;
     }
   }
 
@@ -586,7 +654,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
   username = sanitizeBootstrapCredential(username, 'username');
   email = sanitizeBootstrapCredential(email, 'email');
 
-  if (!password) return null;
+  if (!password || isMysqlSidecarPassword(password)) return null;
 
   const identifier = email || username;
   if (!identifier) {
