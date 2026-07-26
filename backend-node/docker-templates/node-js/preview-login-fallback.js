@@ -3,19 +3,20 @@
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
  *
- * Marker V14 (all future React+Express+Mongoose previews):
- * - At login, sync-scan SPA bundles if hints are still empty, then map role onto
- *   discovered allow-lists (Set([...]), roles:[...]) so AdminLayout-style guards work.
- * - Never invent a role the SPA rejects; never location.reload() after tweaks.
- * V13: defer async scan until DOMContentLoaded; SYADA title fallback.
- * V12: never location.reload() after role tweaks.
+ * Marker V15 (all React+Express+Mongoose previews):
+ * - Ensure login user has name/fullName/firstName (Navbar a.name.charAt(0) crashes otherwise).
+ * - Flatten display fields onto login JSON root + write userInfo (shop apps store whole response).
+ * - Rewrite baked-in API URLs on same host/different port → gateway origin.
+ * V14: sync-scan allow-lists at login; map roles onto discovered Sets.
+ * V13: defer async scan until DOMContentLoaded.
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V14__) {
-    console.log('[DEBUG-SHIM] already installed V14 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V15__) {
+    console.log('[DEBUG-SHIM] already installed V15 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V15__ = true;
   window.__SV_LOGIN_FALLBACK_V14__ = true;
   window.__SV_LOGIN_FALLBACK_V13__ = true;
   window.__SV_LOGIN_FALLBACK_V12__ = true;
@@ -25,7 +26,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v14', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v15', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -127,6 +128,16 @@
     return /https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(o);
   }
 
+  /** Vite-baked API URL on same VPS host but UI/API different published ports. */
+  function isPreviewSiblingOrigin(originOrUrl) {
+    try {
+      var u = new URL(String(originOrUrl || ''), window.location.href);
+      return u.hostname === window.location.hostname && u.host !== window.location.host;
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function isLoginUrl(url) {
     try {
       var u = String(url || '');
@@ -160,7 +171,7 @@
       pageOrigin = window.location.origin;
     } catch (_e) {}
     var origin = parts.origin || '';
-    if (apiBase && (!origin || origin === pageOrigin || isLoopbackOrigin(origin))) {
+    if (apiBase && (!origin || origin === pageOrigin || isLoopbackOrigin(origin) || isPreviewSiblingOrigin(origin))) {
       origin = apiBase;
     }
     if (!origin && apiBase) origin = apiBase;
@@ -543,10 +554,29 @@
     if (!user || typeof user !== 'object') return user;
     ensureHintsBeforeLogin();
     var role = String(user.role || user.Role || '').trim();
-    if (!role) return user;
-    var next = canonicalRoleForApp(role);
+    var next = role ? canonicalRoleForApp(role) : role;
     if (roleKeyOf(role) === 'SUBMANAGER') next = 'SUB_MANAGER';
-    if (next === role) return user;
+    var out = user;
+    if (next && next !== role) {
+      out = {};
+      try {
+        for (var k in user) {
+          if (Object.prototype.hasOwnProperty.call(user, k)) out[k] = user[k];
+        }
+      } catch (_e) {
+        out = user;
+      }
+      out.role = next;
+    }
+    return ensureUserDisplayFields(out);
+  }
+
+  /**
+   * Many student Navbars do user.name.charAt(0) with no null check.
+   * Preview seeds / lean login payloads often omit name → blank white crash.
+   */
+  function ensureUserDisplayFields(user) {
+    if (!user || typeof user !== 'object') return user;
     var out = {};
     try {
       for (var k in user) {
@@ -555,13 +585,32 @@
     } catch (_e) {
       out = user;
     }
-    out.role = next;
+    var email = String(out.email || out.username || '').trim();
+    var composed = [out.firstName || out.first_name, out.lastName || out.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    var name = String(
+      out.name || out.fullName || out.fullname || out.username || composed || (email ? email.split('@')[0] : '') || 'Preview User'
+    ).trim();
+    if (!name) name = 'Preview User';
+    out.name = name;
+    if (!out.fullName) out.fullName = name;
+    if (!out.firstName && !out.first_name) {
+      out.firstName = name.split(/\s+/)[0] || 'Preview';
+    }
+    if (!out.lastName && !out.last_name) {
+      var rest = name.split(/\s+/).slice(1).join(' ');
+      out.lastName = rest || 'Admin';
+    }
+    if (!out.username && email) out.username = email.split('@')[0];
     return out;
   }
 
   function authStorageKeys() {
     return [
       'user',
+      'userInfo',
       'loan_user',
       'authUser',
       'currentUser',
@@ -573,7 +622,6 @@
   }
 
   function fixStoredPreviewUserRole() {
-    if (!appHints.scanned && !isStaffSetApp() && !isSkyPropertyApp()) return;
     var keys = authStorageKeys();
     var changed = false;
     for (var i = 0; i < keys.length; i++) {
@@ -582,20 +630,33 @@
         var raw = localStorage.getItem(storageKey);
         if (!raw) continue;
         var parsed = JSON.parse(raw);
-        var user = parsed;
-        if (parsed && parsed.user && typeof parsed.user === 'object') user = parsed.user;
-        if (!user || typeof user !== 'object' || user.role == null) continue;
-        var want = canonicalRoleForApp(user.role);
-        if (String(user.role) === String(want)) continue;
-        user.role = want;
-        if (parsed && parsed.user && typeof parsed.user === 'object') {
-          parsed.user = user;
-          localStorage.setItem(storageKey, JSON.stringify(parsed));
-        } else {
-          localStorage.setItem(storageKey, JSON.stringify(user));
+        if (!parsed || typeof parsed !== 'object') continue;
+        var next = JSON.parse(raw);
+
+        function patchPerson(obj) {
+          if (!obj || typeof obj !== 'object') return obj;
+          if (obj.role != null && (appHints.scanned || isStaffSetApp() || isSkyPropertyApp())) {
+            obj.role = canonicalRoleForApp(obj.role);
+          }
+          return ensureUserDisplayFields(obj);
         }
+
+        if (next.user && typeof next.user === 'object') {
+          next.user = patchPerson(next.user);
+          next.name = next.name || next.user.name;
+          next.fullName = next.fullName || next.user.fullName;
+          next.firstName = next.firstName || next.user.firstName;
+          next.email = next.email || next.user.email;
+          next.role = next.role || next.user.role;
+        } else {
+          next = patchPerson(next);
+        }
+
+        var serialized = JSON.stringify(next);
+        if (serialized === raw) continue;
+        localStorage.setItem(storageKey, serialized);
         changed = true;
-        console.log('[DEBUG-SHIM] reconciled', storageKey, 'role →', want);
+        console.log('[DEBUG-SHIM] reconciled', storageKey);
       } catch (_e2) {}
     }
     if (!changed) return;
@@ -767,6 +828,20 @@
       nested.access_token ||
       null;
     var user = obj.user || nested.user || null;
+    // Some APIs return the user document at the top level (token + email/role/name).
+    if (!user && (obj.email || obj.role || obj.name || obj.fullName || obj._id || obj.id)) {
+      user = {
+        _id: obj._id || obj.id,
+        id: obj.id || obj._id,
+        email: obj.email,
+        username: obj.username,
+        role: obj.role || obj.Role,
+        name: obj.name,
+        fullName: obj.fullName,
+        firstName: obj.firstName || obj.first_name,
+        lastName: obj.lastName || obj.last_name,
+      };
+    }
     if (user) user = normalizePreviewUserRole(user);
     if (!token && !user) return obj;
     var out = {};
@@ -782,7 +857,19 @@
       out.accessToken = out.accessToken || token;
       out.access_token = out.access_token || token;
     }
-    if (user) out.user = user;
+    if (user) {
+      out.user = user;
+      // Flatten for apps that store the whole login JSON as userInfo and read .name/.role.
+      out.name = out.name || user.name;
+      out.fullName = out.fullName || user.fullName;
+      out.firstName = out.firstName || user.firstName;
+      out.lastName = out.lastName || user.lastName;
+      out.email = out.email || user.email;
+      out.username = out.username || user.username;
+      out.role = out.role || user.role;
+      out._id = out._id || user._id || user.id;
+      out.id = out.id || user.id || user._id;
+    }
     out.success = true;
     out.message = out.message || 'Login successful';
     out.data = {};
@@ -802,17 +889,20 @@
       }
       if (user) {
         localStorage.setItem('user', JSON.stringify(user));
+        // Shop / Harmony-style apps: localStorage.userInfo = entire login payload.
+        localStorage.setItem('userInfo', JSON.stringify(out));
       }
       console.log('[DEBUG-SHIM] normalizeLoginBody wrote localStorage', {
         hasToken: !!token,
         role: user && user.role,
+        name: user && user.name,
         success: true,
       });
       try {
         window.dispatchEvent(new Event('userChanged'));
         window.dispatchEvent(new Event('sv-preview-login'));
       } catch (_e4) {}
-      redirectAfterPreviewLogin(user);
+      redirectAfterPreviewLogin(user || out);
     } catch (_e3) {}
     return out;
   }
@@ -873,8 +963,23 @@
         }
       }
     } catch (_e0) {}
+
+    // Baked host:PORT from Vite (UI :8091, API :8576) → same-origin gateway.
+    try {
+      if (isPreviewSiblingOrigin(next)) {
+        var sib = new URL(next, window.location.href);
+        var base = apiBase || String(window.location.origin || '').replace(/\/$/, '');
+        if (base) {
+          next =
+            buildUrl(base, sib.pathname || '/') +
+            (sib.search || '') +
+            (sib.hash || '');
+        }
+      }
+    } catch (_eSib) {}
+
     if (!apiBase) return next;
-    if (isLoopbackOrigin(next) || isSameOriginApiPath(next)) {
+    if (isLoopbackOrigin(next) || isSameOriginApiPath(next) || isPreviewSiblingOrigin(next)) {
       if (next.charAt(0) === '/') {
         return (
           buildUrl(apiBase, next.split('?')[0]) +
