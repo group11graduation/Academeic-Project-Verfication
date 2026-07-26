@@ -22,6 +22,7 @@ const loginSchema = z.object({
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [signingIn, setSigningIn] = useState(false);
   const {
     register,
     handleSubmit,
@@ -35,6 +36,7 @@ const LoginPage = () => {
 
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
+  const busy = isSubmitting || signingIn;
 
   const workspacePath =
     user?.role === 'student'
@@ -54,20 +56,31 @@ const LoginPage = () => {
   }, [setValue]);
 
   const onSubmit = async (values) => {
-    if (rememberMe) {
-      saveRememberedCredentials(values.identifier, values.password);
-    } else {
-      clearRememberedCredentials();
-    }
+    setSigningIn(true);
+    try {
+      if (rememberMe) {
+        saveRememberedCredentials(values.identifier, values.password);
+      } else {
+        clearRememberedCredentials();
+      }
 
-    const result = await login(values.identifier, values.password, { rememberMe });
+      const result = await login(values.identifier, values.password, { rememberMe });
 
-    if (result.success) {
-      if (result.role === 'admin') navigate('/admin');
-      else if (result.role === 'teacher') navigate('/teacher');
-      else if (result.role === 'student') navigate('/student');
-    } else {
-      setFormError('root', { message: result.message || 'Login failed' });
+      if (result?.success) {
+        if (result.role === 'admin') navigate('/admin');
+        else if (result.role === 'teacher') navigate('/teacher');
+        else if (result.role === 'student') navigate('/student');
+        else navigate('/');
+      } else {
+        setFormError('root', { message: result?.message || 'Login failed' });
+      }
+    } catch (err) {
+      console.error('Login submit handler error:', err);
+      setFormError('root', {
+        message: err?.message || 'Login failed. Please try again.',
+      });
+    } finally {
+      setSigningIn(false);
     }
   };
 
@@ -158,7 +171,7 @@ const LoginPage = () => {
                 name="username"
                 autoComplete="username"
                 {...register('identifier')}
-                disabled={isSubmitting}
+                disabled={busy}
                 placeholder="Enter your email or student ID"
                 className="auth-input"
               />
@@ -177,7 +190,7 @@ const LoginPage = () => {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   {...register('password')}
-                  disabled={isSubmitting}
+                  disabled={busy}
                   placeholder="Enter your password"
                   className="auth-input pr-10"
                 />
@@ -210,11 +223,11 @@ const LoginPage = () => {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={busy}
               className="mt-0.5 w-full rounded-full bg-white py-2.5 text-sm font-bold shadow-[0_8px_24px_rgba(255,255,255,0.15)] transition hover:bg-white/95 active:scale-[0.99] disabled:opacity-60"
               style={{ color: BRAND.primaryDeep }}
             >
-              {isSubmitting ? (
+              {busy ? (
                 <span className="inline-flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Signing in…

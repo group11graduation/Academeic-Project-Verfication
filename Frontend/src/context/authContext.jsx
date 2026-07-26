@@ -8,6 +8,46 @@ import {
 
 const AuthContext = createContext();
 
+/**
+ * Normalize login JSON across shapes used by our API and some student/preview backends:
+ * - { success, token, user }
+ * - { token|accessToken|access_token, user, message } (no success)
+ * - { data: { token, user }, message }
+ */
+function extractLoginPayload(body) {
+  if (!body || typeof body !== 'object') {
+    return { token: null, user: null, message: '', explicitFail: false };
+  }
+  const nested = body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : {};
+  const token =
+    body.token ||
+    body.accessToken ||
+    body.access_token ||
+    nested.token ||
+    nested.accessToken ||
+    nested.access_token ||
+    null;
+  const user = body.user || nested.user || null;
+  const message = body.message || nested.message || '';
+  const explicitFail = body.success === false || nested.success === false;
+  return {
+    token: typeof token === 'string' && token.trim() ? token.trim() : null,
+    user: user && typeof user === 'object' ? user : null,
+    message: String(message || ''),
+    explicitFail,
+  };
+}
+
+function extractMeUser(body) {
+  if (!body || typeof body !== 'object') return null;
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    if (body.data.email || body.data.role || body.data._id || body.data.id) return body.data;
+    if (body.data.user && typeof body.data.user === 'object') return body.data.user;
+  }
+  if (body.user && typeof body.user === 'object') return body.user;
+  return null;
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => getStoredAuthToken());
@@ -44,9 +84,14 @@ export const AuthProvider = ({ children }) => {
       try {
         const res = await api.get('/auth/me');
         if (cancelled) return;
-        if (res.data.success) {
-          setUser(res.data.data);
+        const body = res.data || {};
+        const meUser = extractMeUser(body);
+        if (body.success === false) {
+          logout();
+        } else if (meUser) {
+          setUser(meUser);
         } else {
+          console.error('Auth /me returned unexpected shape:', body);
           logout();
         }
       } catch (err) {
@@ -76,22 +121,32 @@ export const AuthProvider = ({ children }) => {
         passcode: password,
       });
 
-      if (res.data.success) {
-        const { token: t, user: u } = res.data;
-        if (!t) {
-          return { success: false, message: 'Login succeeded but no token was returned' };
-        }
-        skipNextMeCheckRef.current = true;
-        setStoredAuthToken(t, Boolean(rememberMe));
-        setToken(t);
-        setUser(u);
-        return { success: true, role: u.role, roles: u.roles || [u.role] };
+      const { token: t, user: u, message, explicitFail } = extractLoginPayload(res.data);
+
+      // Do not require a `success` boolean — backends may only return token/user/message.
+      if (explicitFail || !t || !u) {
+        return {
+          success: false,
+          message:
+            message ||
+            (!t
+              ? 'Login succeeded but no token was returned'
+              : !u
+                ? 'Login succeeded but no user was returned'
+                : 'Login failed'),
+        };
       }
-      return { success: false, message: res.data.message || 'Login failed' };
+
+      skipNextMeCheckRef.current = true;
+      setStoredAuthToken(t, Boolean(rememberMe));
+      setToken(t);
+      setUser(u);
+      return { success: true, role: u.role, roles: u.roles || [u.role] };
     } catch (err) {
+      console.error('Login request failed:', err);
       return {
         success: false,
-        message: err.response?.data?.message || 'Login failed',
+        message: err.response?.data?.message || err.userMessage || 'Login failed',
       };
     }
   };
