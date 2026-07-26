@@ -7,18 +7,18 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V17:
- * - Preview login ALWAYS uses the project's main admin role (admin / super_admin /
- *   SUPER_ADMIN / officer / …) — never leave teachers as user/member/borrower.
- * - Post-login path prefers that app's admin home (/admin, /admin/dashboard, …).
- * - Name/userInfo fields, LoanFlow loop break, sibling-port API rewrite, Set/roles scan.
+ * Marker V18:
+ * - Normalize API JSON list fields (loans, products, …) so UIs that do data.loans.length
+ *   never crash when the backend omits the array (LoanFlow /admin/loans).
+ * V17: main admin role + admin home path for every project.
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V17__) {
-    console.log('[DEBUG-SHIM] already installed V17 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V18__) {
+    console.log('[DEBUG-SHIM] already installed V18 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V18__ = true;
   window.__SV_LOGIN_FALLBACK_V17__ = true;
   window.__SV_LOGIN_FALLBACK_V16__ = true;
   window.__SV_LOGIN_FALLBACK_V15__ = true;
@@ -31,7 +31,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v17', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v18', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -150,6 +150,102 @@
     } catch (_e) {
       return false;
     }
+  }
+
+  /**
+   * Student UIs often do `setLoans(res.data.loans)` then `loans.length`.
+   * Empty DBs / alternate response shapes omit the array → blank-page TypeError.
+   * Coerce common list fields to [] (and wrap bare arrays) for all future ZIPs.
+   */
+  function normalizeApiListBody(body, url) {
+    if (body == null) return body;
+    var path = '';
+    try {
+      path = new URL(String(url || ''), window.location.href).pathname || '';
+    } catch (_e) {
+      path = String(url || '');
+    }
+    if (Array.isArray(body)) {
+      if (/loan/i.test(path)) return { loans: body, data: body, success: true };
+      if (/product/i.test(path)) return { products: body, data: body, success: true };
+      if (/user/i.test(path)) return { users: body, data: body, success: true };
+      if (/notification/i.test(path)) return { notifications: body, data: body, success: true };
+      if (/repayment/i.test(path)) return { repayments: body, data: body, success: true };
+      if (/member/i.test(path)) return { members: body, data: body, success: true };
+      if (/order/i.test(path)) return { orders: body, data: body, success: true };
+      return { data: body, items: body, success: true };
+    }
+    if (typeof body !== 'object') return body;
+    var out = body;
+    try {
+      out = {};
+      for (var k in body) {
+        if (Object.prototype.hasOwnProperty.call(body, k)) out[k] = body[k];
+      }
+    } catch (_e2) {
+      out = body;
+    }
+    var listKeys = [
+      'loans',
+      'loanTypes',
+      'users',
+      'items',
+      'products',
+      'notifications',
+      'orders',
+      'members',
+      'applications',
+      'repayments',
+      'documents',
+      'results',
+      'categories',
+    ];
+    for (var i = 0; i < listKeys.length; i++) {
+      var key = listKeys[i];
+      if (Object.prototype.hasOwnProperty.call(out, key) && !Array.isArray(out[key])) {
+        out[key] = out[key] == null ? [] : [];
+      }
+    }
+    if (/\/admin\/loans\/?$/i.test(path) || /\/loans(\/my)?\/?$/i.test(path)) {
+      if (!Array.isArray(out.loans)) {
+        out.loans = Array.isArray(out.data) ? out.data : Array.isArray(out.items) ? out.items : [];
+      }
+    }
+    if (/\/loan-types\/?$/i.test(path) && !Array.isArray(out.loanTypes)) out.loanTypes = [];
+    if (/\/notifications\/?$/i.test(path) && !Array.isArray(out.notifications)) out.notifications = [];
+    if (/\/repayments/i.test(path) && !Array.isArray(out.repayments)) out.repayments = [];
+    if (/\/products/i.test(path) && !Array.isArray(out.products) && !Array.isArray(out.categories)) {
+      if ('products' in out || /products/i.test(path)) out.products = Array.isArray(out.products) ? out.products : [];
+    }
+    return out;
+  }
+
+  function rewriteJsonApiResponse(res, url) {
+    if (!res || res.status < 200 || res.status >= 300) return Promise.resolve(res);
+    var ct = '';
+    try {
+      ct = String(res.headers && res.headers.get ? res.headers.get('content-type') : '') || '';
+    } catch (_e) {}
+    // Many student APIs omit Content-Type; still try JSON for API-ish URLs.
+    var looksApi = /\/api\/|\/admin\/|\/loans|\/products|\/users/i.test(String(url || ''));
+    if (ct && ct.indexOf('json') < 0 && !looksApi) return Promise.resolve(res);
+    return res
+      .clone()
+      .json()
+      .then(function (body) {
+        var normalized = normalizeApiListBody(body, url);
+        try {
+          if (JSON.stringify(normalized) === JSON.stringify(body)) return res;
+        } catch (_eq) {}
+        return new Response(JSON.stringify(normalized), {
+          status: res.status,
+          statusText: res.statusText,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
+      .catch(function () {
+        return res;
+      });
   }
 
   function splitBaseAndPath(url) {
@@ -1049,9 +1145,16 @@
       // Always timeout loopback leftovers so the UI cannot stick on "Please wait…".
       var needsTimeout = isLoopbackOrigin(url) || (method === 'POST' && isLoginUrl(url));
       if (method !== 'POST' || !isLoginUrl(url)) {
-        if (!needsTimeout) return origFetch.call(this, input, init);
+        function afterApi(res) {
+          return rewriteJsonApiResponse(res, url);
+        }
+        if (!needsTimeout) {
+          return origFetch.call(this, input, init).then(afterApi);
+        }
         try {
-          if (typeof AbortController === 'undefined') return origFetch.call(this, input, init);
+          if (typeof AbortController === 'undefined') {
+            return origFetch.call(this, input, init).then(afterApi);
+          }
           var ctrlEarly = new AbortController();
           var tEarly = setTimeout(function () {
             try {
@@ -1062,9 +1165,10 @@
             .call(this, input, Object.assign({}, init || {}, { signal: ctrlEarly.signal }))
             .finally(function () {
               clearTimeout(tEarly);
-            });
+            })
+            .then(afterApi);
         } catch (_e4) {
-          return origFetch.call(this, input, init);
+          return origFetch.call(this, input, init).then(afterApi);
         }
       }
       var candidates = loginCandidates(url);
@@ -1265,6 +1369,54 @@
       xhr.send = function (b) {
         body = b;
         if (method !== 'POST' || !isLoginUrl(url)) {
+          // Capture-phase listener runs before axios onreadystatechange, so we can
+          // rewrite responseText before data.loans.length is evaluated.
+          try {
+            xhr.addEventListener(
+              'readystatechange',
+              function svNormalizeLists() {
+                try {
+                  if (xhr.readyState !== 4) return;
+                  if (!(xhr.status >= 200 && xhr.status < 300)) return;
+                  var text = '';
+                  try {
+                    text = String(xhr.responseText || '');
+                  } catch (_t) {
+                    text = '';
+                  }
+                  var first = text ? text.charAt(0) : '';
+                  var parsed = null;
+                  if (first === '{' || first === '[') {
+                    parsed = JSON.parse(text);
+                  } else {
+                    try {
+                      if (xhr.responseType === 'json' && xhr.response != null && typeof xhr.response === 'object') {
+                        parsed = xhr.response;
+                      }
+                    } catch (_r) {}
+                  }
+                  if (parsed == null) return;
+                  var normalized = normalizeApiListBody(parsed, url);
+                  var outText = JSON.stringify(normalized);
+                  try {
+                    Object.defineProperty(xhr, 'responseText', {
+                      configurable: true,
+                      get: function () {
+                        return outText;
+                      },
+                    });
+                    Object.defineProperty(xhr, 'response', {
+                      configurable: true,
+                      get: function () {
+                        return xhr.responseType === 'json' ? normalized : outText;
+                      },
+                    });
+                  } catch (_def) {}
+                } catch (_norm) {}
+              },
+              true
+            );
+          } catch (_add) {}
           return _send.apply(xhr, arguments);
         }
         var candidates = loginCandidates(url);
