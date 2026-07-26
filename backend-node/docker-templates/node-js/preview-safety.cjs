@@ -160,6 +160,15 @@ function sanitizeUser(user) {
   delete obj.passwordHash;
   delete obj.passcode;
   delete obj.__v;
+  // Student apps often gate nav on SUPER_ADMIN/MANAGER. Plain "admin"/"ADMIN"
+  // yields an empty sidebar (Sky Property / BMS). Normalize for preview.
+  let role = obj.role || 'user';
+  const roleKey = String(role).trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if (roleKey === 'ADMIN' || roleKey === 'ADMINISTRATOR' || roleKey === 'SUPERADMIN') {
+    role = 'SUPER_ADMIN';
+  } else if (roleKey === 'SUBMANAGER') {
+    role = 'SUB_MANAGER';
+  }
   return {
     id: obj._id || obj.id,
     _id: obj._id || obj.id,
@@ -168,9 +177,10 @@ function sanitizeUser(user) {
     email: obj.email || '',
     username: obj.username || '',
     phone: obj.phone || '',
-    role: obj.role || 'user',
+    role,
     isActive: obj.isActive !== false,
     ...obj,
+    role,
     password: undefined,
     passwordHash: undefined,
   };

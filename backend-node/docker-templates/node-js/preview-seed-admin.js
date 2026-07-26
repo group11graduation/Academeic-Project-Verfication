@@ -147,7 +147,7 @@ function loadPreviewEnv() {
         name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
         firstName: 'Preview',
         lastName: 'Admin',
-        role: 'admin',
+        role: 'SUPER_ADMIN',
         isAdmin: true,
         isActive: true,
         active: true,
@@ -247,23 +247,32 @@ function loadPreviewEnv() {
       const enumValues = rolePath?.enumValues;
       if (Array.isArray(enumValues) && enumValues.length) {
         const vals = enumValues.map((v) => String(v));
+        // SUPER_ADMIN before plain ADMIN — otherwise sidebar menus stay empty
+        // (Sky Property only renders links for SUPER_ADMIN / MANAGER / SUB_MANAGER).
         const prefer = [
-          'admin',
-          'ADMIN',
+          'SUPER_ADMIN',
           'SuperAdmin',
           'superadmin',
-          'SUPER_ADMIN',
-          'manager',
+          'super_admin',
           'MANAGER',
+          'manager',
+          'ADMIN',
+          'admin',
           'user',
           'USER',
         ];
         for (const p of prefer) {
           if (vals.includes(p)) return p;
         }
+        const fuzzy =
+          vals.find((v) => /^super[_\s-]?admin$/i.test(v)) ||
+          vals.find((v) => /super[_\s-]?admin/i.test(v)) ||
+          vals.find((v) => /^manager$/i.test(v)) ||
+          vals.find((v) => /admin/i.test(v));
+        if (fuzzy) return fuzzy;
         return vals[0];
       }
-      return 'admin';
+      return 'SUPER_ADMIN';
     }
 
     function passwordFieldName() {
@@ -434,10 +443,19 @@ function loadPreviewEnv() {
 
       const rolePath = User.schema?.paths?.role;
       const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
-      const adminLike = enumValues.find((v) => /admin|manager|super/i.test(v));
-      if (adminLike && user && String(user.role) !== adminLike) {
-        await User.updateOne({ _id: user._id }, { $set: { role: adminLike } });
-        console.log('[preview-seed] set role to', adminLike);
+      // Prefer the most privileged role the schema allows. Picking the first
+      // /admin|manager|super/ match often chose plain "ADMIN", which many student
+      // UIs (e.g. Sky Property) do not map to any sidebar links — only SUPER_ADMIN.
+      const preferredRole =
+        enumValues.find((v) => /^super[_\s-]?admin$/i.test(v)) ||
+        enumValues.find((v) => /super[_\s-]?admin/i.test(v)) ||
+        enumValues.find((v) => /^manager$/i.test(v)) ||
+        enumValues.find((v) => /^admin$/i.test(v)) ||
+        enumValues.find((v) => /admin|manager|super/i.test(v));
+      if (preferredRole && user && String(user.role) !== preferredRole) {
+        await User.updateOne({ _id: user._id }, { $set: { role: preferredRole } });
+        user.role = preferredRole;
+        console.log('[preview-seed] set role to', preferredRole);
       }
 
       if (user?._id) {

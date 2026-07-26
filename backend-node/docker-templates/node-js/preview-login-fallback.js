@@ -188,29 +188,67 @@
     );
   }
 
+  function normalizePreviewUserRole(user) {
+    if (!user || typeof user !== 'object') return user;
+    var role = String(user.role || '').trim();
+    var key = role.toUpperCase().replace(/[\s-]+/g, '_');
+    var next = role;
+    if (key === 'ADMIN' || key === 'ADMINISTRATOR' || key === 'SUPERADMIN') next = 'SUPER_ADMIN';
+    else if (key === 'SUBMANAGER') next = 'SUB_MANAGER';
+    if (next === role) return user;
+    var out = {};
+    try {
+      for (var k in user) {
+        if (Object.prototype.hasOwnProperty.call(user, k)) out[k] = user[k];
+      }
+    } catch (_e) {
+      out = user;
+    }
+    out.role = next;
+    return out;
+  }
+
+  function fixStoredPreviewUserRole() {
+    try {
+      var raw = localStorage.getItem('user');
+      if (!raw) return;
+      var user = JSON.parse(raw);
+      var fixed = normalizePreviewUserRole(user);
+      if (!fixed || fixed === user || fixed.role === user.role) return;
+      localStorage.setItem('user', JSON.stringify(fixed));
+      console.log('[DEBUG-SHIM] upgraded stored user.role', user.role, '→', fixed.role);
+      try {
+        window.dispatchEvent(new Event('userChanged'));
+      } catch (_e) {}
+      // Reload once so Sidebar re-reads SUPER_ADMIN and shows links.
+      if (!sessionStorage.getItem('__sv_role_reload__')) {
+        sessionStorage.setItem('__sv_role_reload__', '1');
+        location.reload();
+      }
+    } catch (_e2) {}
+  }
+  fixStoredPreviewUserRole();
+
   function pickPostLoginPath(user) {
     var role = String((user && (user.role || user.Role)) || '')
       .trim()
-      .toUpperCase();
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    if (role === 'ADMIN' || role === 'ADMINISTRATOR' || role === 'SUPERADMIN') {
+      role = 'SUPER_ADMIN';
+    }
     if (
       role === 'MANAGER' ||
       role === 'SUB_MANAGER' ||
-      role === 'SUBMANAGER' ||
-      role === 'SUB-MANAGER'
+      role === 'SUBMANAGER'
     ) {
       return '/manDash';
     }
-    if (
-      role === 'SUPER_ADMIN' ||
-      role === 'SUPERADMIN' ||
-      role === 'ADMIN' ||
-      role === 'ADMINISTRATOR'
-    ) {
+    if (role === 'SUPER_ADMIN') {
       return '/dashboard';
     }
     if (role === 'TEACHER') return '/teacher';
     if (role === 'STUDENT') return '/student';
-    // Prefer home / role redirect when the app has one; else dashboard.
     return '/';
   }
 
@@ -254,6 +292,7 @@
       nested.access_token ||
       null;
     var user = obj.user || nested.user || null;
+    if (user) user = normalizePreviewUserRole(user);
     if (!token && !user) return obj;
     var out = {};
     try {
