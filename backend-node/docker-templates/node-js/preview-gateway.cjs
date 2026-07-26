@@ -65,8 +65,10 @@ function wrapHtml(html) {
     `<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=${JSON.stringify(base)};` +
     `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};</script>`;
   const fallback = loadFallbackJs();
+  // Prefer V7 marker so a stale inlined V1 script in on-disk index.html does not
+  // block injecting the current /preview-login-fallback.js from the image.
   const fallbackBlock =
-    fallback && !html.includes('__SV_LOGIN_FALLBACK__')
+    fallback && !html.includes('__SV_LOGIN_FALLBACK_V7__')
       ? `<script>\n${fallback}\n</script>`
       : '';
   return `${boot}${fallbackBlock}${html}`;

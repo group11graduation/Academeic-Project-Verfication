@@ -2,10 +2,22 @@
  * Injected into student preview index.html so login works across Express route shapes.
  * On 404 / "Route not found", retries common API login paths against the API origin
  * (never against the SPA origin — that caused SYADA "Route not found" on /login).
+ *
+ * DEBUG BUILD: temporary console.log tracing — remove after login hang is diagnosed.
+ * Marker V7 so gateway reinjects even if an older script was baked into index.html.
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK__) return;
-  window.__SV_LOGIN_FALLBACK__ = true;
+  if (window.__SV_LOGIN_FALLBACK_V7__) {
+    console.log('[DEBUG-SHIM] already installed V7 — skip');
+    return;
+  }
+  window.__SV_LOGIN_FALLBACK_V7__ = true;
+  window.__SV_LOGIN_FALLBACK__ = true; // legacy flag
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v7', {
+    href: String(location.href || ''),
+    apiBase: window.__SV_API_BASE__ || null,
+    loginPath: window.__SV_LOGIN_API_PATH__ || null,
+  });
 
   var PATHS = [
     '/api' + '/auth/login',
@@ -176,6 +188,54 @@
     );
   }
 
+  function pickPostLoginPath(user) {
+    var role = String((user && (user.role || user.Role)) || '')
+      .trim()
+      .toUpperCase();
+    if (
+      role === 'MANAGER' ||
+      role === 'SUB_MANAGER' ||
+      role === 'SUBMANAGER' ||
+      role === 'SUB-MANAGER'
+    ) {
+      return '/manDash';
+    }
+    if (
+      role === 'SUPER_ADMIN' ||
+      role === 'SUPERADMIN' ||
+      role === 'ADMIN' ||
+      role === 'ADMINISTRATOR'
+    ) {
+      return '/dashboard';
+    }
+    if (role === 'TEACHER') return '/teacher';
+    if (role === 'STUDENT') return '/student';
+    // Prefer home / role redirect when the app has one; else dashboard.
+    return '/';
+  }
+
+  function redirectAfterPreviewLogin(user) {
+    try {
+      var path = window.location && window.location.pathname ? String(window.location.pathname) : '';
+      if (!/login/i.test(path)) return;
+      var target = pickPostLoginPath(user);
+      // Soft delay so the page's own navigate() can win; if it never runs
+      // (axios hung), hard-navigate so the teacher is not stuck on /login.
+      setTimeout(function () {
+        try {
+          var stillLogin =
+            window.location && /login/i.test(String(window.location.pathname || ''));
+          if (!stillLogin) return;
+          if (target === '/') {
+            window.location.assign('/');
+          } else {
+            window.location.assign(target);
+          }
+        } catch (_e) {}
+      }, 250);
+    } catch (_e2) {}
+  }
+
   /**
    * Student UIs often do `if (res.data.success)` before storing the token / clearing
    * the spinner. Preview (and many student backends) return token+user without
@@ -229,6 +289,16 @@
       if (user) {
         localStorage.setItem('user', JSON.stringify(user));
       }
+      console.log('[DEBUG-SHIM] normalizeLoginBody wrote localStorage', {
+        hasToken: !!token,
+        role: user && user.role,
+        success: true,
+      });
+      try {
+        window.dispatchEvent(new Event('userChanged'));
+        window.dispatchEvent(new Event('sv-preview-login'));
+      } catch (_e4) {}
+      redirectAfterPreviewLogin(user);
     } catch (_e3) {}
     return out;
   }
@@ -320,9 +390,15 @@
         }
       }
       var candidates = loginCandidates(url);
+      console.log('[DEBUG-SHIM] fetch LOGIN intercepted', {
+        url: url,
+        candidates: candidates.slice(),
+        candidateCount: candidates.length,
+      });
       var i = 0;
       function attempt() {
         var nextUrl = candidates[i++];
+        console.log('[DEBUG-SHIM] fetch trying candidate', i, '/', candidates.length, nextUrl);
         var nextInput = nextUrl;
         if (typeof input !== 'string' && typeof Request !== 'undefined') {
           try {
@@ -351,15 +427,22 @@
           .call(window, nextInput, opts)
           .then(function (res) {
             if (timer) clearTimeout(timer);
+            console.log('[DEBUG-SHIM] fetch candidate status', nextUrl, res && res.status);
             if (!shouldRetry(res.status) || i >= candidates.length) {
-              return rewriteLoginResponse(res);
+              return rewriteLoginResponse(res).then(function (out) {
+                console.log('[DEBUG-SHIM] fetch rewriteLoginResponse done', out && out.status);
+                return out;
+              });
             }
             return res
               .clone()
               .text()
               .then(function (text) {
                 if (!shouldRetry(res.status, text) || i >= candidates.length) {
-                  return rewriteLoginResponse(res);
+                  return rewriteLoginResponse(res).then(function (out) {
+                    console.log('[DEBUG-SHIM] fetch rewriteLoginResponse done', out && out.status);
+                    return out;
+                  });
                 }
                 return attempt();
               });
@@ -388,6 +471,9 @@
         method = String(m || 'GET').toUpperCase();
         url = rewriteToApiBase(String(u || ''));
         arguments[1] = url;
+        if (isLoginUrl(url) || method === 'POST') {
+          console.log('[DEBUG-SHIM] xhr.open', method, url);
+        }
         return _open.apply(xhr, arguments);
       };
       var _setHeader = xhr.setRequestHeader;
@@ -395,15 +481,134 @@
         headers[k] = v;
         return _setHeader.apply(xhr, arguments);
       };
+
+      function settleFromInner(x, text) {
+        var status = x.status;
+        var responseText = text != null ? text : '';
+        try {
+          responseText = text != null ? String(text) : String(x.responseText || '');
+        } catch (_e) {
+          responseText = '';
+        }
+        console.log('[DEBUG-SHIM] settleFromInner start', {
+          status: status,
+          textLen: responseText.length,
+          hasRsc: typeof xhr.onreadystatechange === 'function',
+          hasLoad: typeof xhr.onload === 'function',
+          hasLoadEnd: typeof xhr.onloadend === 'function',
+        });
+        try {
+          Object.defineProperty(xhr, 'status', {
+            configurable: true,
+            get: function () {
+              return status;
+            },
+          });
+          Object.defineProperty(xhr, 'statusText', {
+            configurable: true,
+            get: function () {
+              try {
+                return x.statusText || '';
+              } catch (_e2) {
+                return '';
+              }
+            },
+          });
+          Object.defineProperty(xhr, 'responseText', {
+            configurable: true,
+            get: function () {
+              return responseText;
+            },
+          });
+          Object.defineProperty(xhr, 'response', {
+            configurable: true,
+            get: function () {
+              try {
+                return responseText ? JSON.parse(responseText) : null;
+              } catch (_e3) {
+                return responseText;
+              }
+            },
+          });
+          Object.defineProperty(xhr, 'readyState', {
+            configurable: true,
+            get: function () {
+              return 4;
+            },
+          });
+        } catch (_e4) {
+          console.log('[DEBUG-SHIM] defineProperty failed', String(_e4 && _e4.message ? _e4.message : _e4));
+          try {
+            xhr.status = status;
+          } catch (_e5) {}
+        }
+        try {
+          xhr.getAllResponseHeaders = function () {
+            try {
+              return x.getAllResponseHeaders() || 'content-type: application/json\r\n';
+            } catch (_e6) {
+              return 'content-type: application/json\r\n';
+            }
+          };
+          xhr.getResponseHeader = function (name) {
+            try {
+              var v = x.getResponseHeader(name);
+              if (v != null) return v;
+            } catch (_e7) {}
+            if (String(name || '').toLowerCase() === 'content-type') return 'application/json';
+            return null;
+          };
+        } catch (_e8) {}
+
+        try {
+          console.log('[DEBUG-SHIM] firing onreadystatechange');
+          if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
+          console.log('[DEBUG-SHIM] after onreadystatechange');
+        } catch (_e9) {
+          console.log('[DEBUG-SHIM] onreadystatechange threw', _e9);
+        }
+        try {
+          console.log('[DEBUG-SHIM] firing onload');
+          if (typeof xhr.onload === 'function') xhr.onload();
+          console.log('[DEBUG-SHIM] after onload');
+        } catch (_e10) {
+          console.log('[DEBUG-SHIM] onload threw', _e10);
+        }
+        try {
+          console.log('[DEBUG-SHIM] firing onloadend');
+          if (typeof xhr.onloadend === 'function') xhr.onloadend();
+          else console.log('[DEBUG-SHIM] onloadend handler is NOT a function', typeof xhr.onloadend);
+          console.log('[DEBUG-SHIM] after onloadend — axios should resolve now');
+        } catch (_e11) {
+          console.log('[DEBUG-SHIM] onloadend threw', _e11);
+        }
+      }
+
       xhr.send = function (b) {
         body = b;
         if (method !== 'POST' || !isLoginUrl(url)) {
           return _send.apply(xhr, arguments);
         }
         var candidates = loginCandidates(url);
+        console.log('[DEBUG-SHIM] xhr.send LOGIN intercepted', {
+          url: url,
+          candidates: candidates.slice(),
+          candidateCount: candidates.length,
+        });
         var idx = 0;
         function tryNext() {
+          if (idx >= candidates.length) {
+            console.log('[DEBUG-SHIM] all login candidates exhausted');
+            try {
+              if (typeof xhr.onerror === 'function') xhr.onerror();
+            } catch (_e) {}
+            try {
+              if (typeof xhr.onloadend === 'function') xhr.onloadend();
+            } catch (_e2) {}
+            return;
+          }
           var next = candidates[idx++];
+          console.log('[DEBUG-SHIM] trying login candidate', idx, '/', candidates.length, next);
           var x = new OrigXHR();
           x.open('POST', next, true);
           Object.keys(headers).forEach(function (k) {
@@ -416,6 +621,11 @@
             try {
               text = x.responseText;
             } catch (_e) {}
+            console.log('[DEBUG-SHIM] candidate response', {
+              url: next,
+              status: x.status,
+              willRetry: shouldRetry(x.status, text) && idx < candidates.length,
+            });
             if (shouldRetry(x.status, text) && idx < candidates.length) {
               tryNext();
               return;
@@ -425,40 +635,24 @@
                 var parsed = JSON.parse(text);
                 var normalized = normalizeLoginBody(parsed);
                 text = JSON.stringify(normalized);
+                console.log('[DEBUG-SHIM] normalized login body success=', normalized && normalized.success);
               }
-            } catch (_norm) {}
-            try {
-              Object.defineProperty(xhr, 'status', {
-                get: function () {
-                  return x.status;
-                },
-              });
-              Object.defineProperty(xhr, 'responseText', {
-                get: function () {
-                  return text || x.responseText;
-                },
-              });
-              Object.defineProperty(xhr, 'response', {
-                get: function () {
-                  try {
-                    return text ? JSON.parse(text) : x.response;
-                  } catch (_e2) {
-                    return text || x.response;
-                  }
-                },
-              });
-              Object.defineProperty(xhr, 'readyState', {
-                get: function () {
-                  return 4;
-                },
-              });
-            } catch (_e) {}
-            if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
-            if (typeof xhr.onload === 'function') xhr.onload();
+            } catch (_norm) {
+              console.log('[DEBUG-SHIM] normalize failed', _norm);
+            }
+            settleFromInner(x, text);
           };
           x.onerror = function () {
+            console.log('[DEBUG-SHIM] candidate network error', next);
             if (idx < candidates.length) tryNext();
-            else if (typeof xhr.onerror === 'function') xhr.onerror();
+            else {
+              try {
+                if (typeof xhr.onerror === 'function') xhr.onerror();
+              } catch (_e) {}
+              try {
+                if (typeof xhr.onloadend === 'function') xhr.onloadend();
+              } catch (_e2) {}
+            }
           };
           x.send(body);
         }

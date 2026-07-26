@@ -196,7 +196,9 @@ export function Login() {
     const password = (form.elements.namedItem("password") as HTMLInputElement).value;
 
     try {
+      console.log('[DEBUG] calling loginRequest');
       const res = await loginRequest({ email, password });
+      console.log('[DEBUG] loginRequest resolved', res);
 
       localStorage.setItem("token", res.token);
       localStorage.setItem("user", JSON.stringify(res.user));
@@ -206,7 +208,8 @@ export function Login() {
 
       toast.success(`Welcome back, ${res.user.name}`);
 
-      const role = res.user.role; 
+      const role = res.user.role;
+      console.log('[DEBUG] about to navigate, role=', role);
 
       switch (role) {
         case "SUPER_ADMIN":
@@ -222,6 +225,7 @@ export function Login() {
           navigate("/dashboard");
       }
     } catch (error: any) {
+      console.log('[DEBUG] caught error', error);
       // Handle rate limiting (429) errors
       if (error.response?.status === 429) {
         const retryAfter = error.response?.headers?.['retry-after'] || error.response?.headers?.['x-ratelimit-reset'];
@@ -236,6 +240,7 @@ export function Login() {
         toast.error("Login failed. Please try again.");
       }
     } finally {
+      console.log('[DEBUG] finally ran, loading should be false now');
       setLoading(false);
     }
   };
