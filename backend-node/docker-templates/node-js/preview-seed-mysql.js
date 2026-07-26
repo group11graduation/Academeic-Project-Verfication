@@ -94,6 +94,28 @@ async function main() {
     }
   }
 
+  // Always bootstrap schema first (roles/users/migrations). Safe to call from old
+  // entrypoints that never invoked preview-mysql-bootstrap.js on their own.
+  try {
+    const bootstrapPath = fs.existsSync('/preview-mysql-bootstrap.js')
+      ? '/preview-mysql-bootstrap.js'
+      : path.join(__dirname, 'preview-mysql-bootstrap.js');
+    if (fs.existsSync(bootstrapPath)) {
+      console.log('[preview-seed-mysql] running schema bootstrap first…');
+      require('child_process').spawnSync(process.execPath, [bootstrapPath], {
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: 'inherit',
+        timeout: 240_000,
+      });
+    }
+  } catch (err) {
+    console.log(
+      '[preview-seed-mysql] bootstrap soft-fail',
+      err && err.message ? err.message : err
+    );
+  }
+
   const mysql = requireMysql2Promise();
   if (!mysql) {
     console.log('[preview-seed-mysql] skipped: mysql2/promise not available');

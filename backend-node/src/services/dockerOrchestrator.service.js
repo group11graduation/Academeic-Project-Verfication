@@ -376,9 +376,9 @@ async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } 
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
     const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
-    // Gateway is written at container start by entrypoint — do not force rebuild
-    // just because /preview-gateway.cjs is missing from a cached image.
-    if (existingHash && existingHash === contentHash) {
+    const hasMysqlBootstrap = await dockerImageHasPath(imageTag, '/preview-mysql-bootstrap.js');
+    // Rebuild when hash drifts OR older images lack MySQL schema bootstrap (PayFlow crash).
+    if (existingHash && existingHash === contentHash && hasMysqlBootstrap) {
       return { imageTag, reused: true };
     }
   }
@@ -1564,6 +1564,44 @@ async function runPreviewContainer({
     args.push('-v', `${dockerVolumePath(projectMount)}:${mountPath}`);
   }
 
+  // Always overlay latest Node preview helpers from the API host so MySQL seed/bootstrap
+  // fixes apply even when the base image is still cached ("Using cached Docker template").
+  if (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js') {
+    const sharedNodeDir = path.join(TEMPLATES_ROOT, 'node-js');
+    const overlayFiles = [
+      ['preview-seed-mysql.js', '/preview-seed-mysql.js'],
+      ['preview-mysql-bootstrap.js', '/preview-mysql-bootstrap.js'],
+      ['preview-seed-admin.js', '/preview-seed-admin.js'],
+      ['preview-verify-login.js', '/preview-verify-login.js'],
+      ['preview-login-fallback.js', '/preview-login-fallback.js'],
+      ['preview-safety.cjs', '/preview-safety.cjs'],
+      ['preview-gateway.cjs', '/preview-gateway.cjs'],
+      ['preview-gateway.cjs', '/usr/local/share/sv-preview-gateway.cjs'],
+    ];
+    for (const [name, dest] of overlayFiles) {
+      const src = path.join(sharedNodeDir, name);
+      if (!fsSync.existsSync(src)) continue;
+      args.push('-v', `${dockerVolumePath(src)}:${dest}:ro`);
+    }
+
+    // Entrypoint must be LF — write a normalized temp copy (Windows bind mounts keep CRLF).
+    const entrySrc = path.join(sharedNodeDir, 'entrypoint.sh');
+    if (fsSync.existsSync(entrySrc)) {
+      try {
+        const lfPath = path.join(os.tmpdir(), `sv-preview-entrypoint-${sanitizeDockerId(containerName)}.sh`);
+        const body = fsSync.readFileSync(entrySrc, 'utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        fsSync.writeFileSync(lfPath, body, { encoding: 'utf8', mode: 0o755 });
+        try {
+          fsSync.chmodSync(lfPath, 0o755);
+        } catch {
+          /* ignore on Windows */
+        }
+        args.push('-v', `${dockerVolumePath(lfPath)}:/preview-entrypoint.sh:ro`);
+      } catch (err) {
+        logger.warn(`preview entrypoint overlay skipped: ${err.message || err}`);
+      }
+    }
+  }
   const useDepCaches =
     stack === 'java-spring-react' ||
     stack === 'java-spring-thymeleaf' ||
@@ -2062,7 +2100,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
 
   const baseMetaPromise = ensurePreviewBaseImage(stack, {
     flutterPair,
-    forceRebuild: forceRebuild && process.env.PREVIEW_FORCE_REBUILD_BASE === 'true',
+    forceRebuild: Boolean(forceRebuild) || process.env.PREVIEW_FORCE_REBUILD_BASE === 'true',
   });
 
   let sidecarPromise = null;
@@ -2117,18 +2155,25 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       }
     } else if (stack === 'node-js-mysql' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
       const backendRel = splitStackPair.backendSubdir || appSubdir || '.';
-      const resolvedDb = await resolveNodeMysqlDatabaseName(path.join(buildContext, backendRel)).catch(
-        () => 'preview'
+      let resolvedDb = await resolveNodeMysqlDatabaseName(path.join(buildContext, backendRel)).catch(
+        () => PREVIEW_NODE_MYSQL_DATABASE
       );
+      // bbms is the PHP blood-bank default — never inherit it for Express+MySQL (PayFlow).
+      if (!resolvedDb || /^bbms$/i.test(resolvedDb)) {
+        resolvedDb = PREVIEW_NODE_MYSQL_DATABASE || 'preview';
+      }
       sidecarPromise = startPreviewMysqlSidecar(projectId, { database: resolvedDb || 'preview' });
     } else if (process.env.PREVIEW_SIDECAR_MONGO !== 'false') {
       sidecarPromise = startPreviewMongoSidecar(projectId);
     }
   } else if (stack === 'node-js-mysql' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
     // Single-folder Express + MySQL (no separate FE/BE pair) still needs MySQL.
-    const resolvedDb = await resolveNodeMysqlDatabaseName(
+    let resolvedDb = await resolveNodeMysqlDatabaseName(
       path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
-    ).catch(() => 'preview');
+    ).catch(() => PREVIEW_NODE_MYSQL_DATABASE);
+    if (!resolvedDb || /^bbms$/i.test(resolvedDb)) {
+      resolvedDb = PREVIEW_NODE_MYSQL_DATABASE || 'preview';
+    }
     sidecarPromise = startPreviewMysqlSidecar(projectId, { database: resolvedDb || 'preview' });
   }
 
