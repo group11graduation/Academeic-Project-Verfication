@@ -483,6 +483,24 @@ wait_for_mysql_ready() {
   return 1
 }
 
+run_preview_mysql_bootstrap() {
+  if [ "${PREVIEW_DB_ENGINE:-}" != "mysql" ] && [ -z "${DB_HOST:-}" ]; then
+    return 0
+  fi
+  if [ ! -f /preview-mysql-bootstrap.js ]; then
+    echo "[preview] WARN: preview-mysql-bootstrap.js missing from image"
+    return 0
+  fi
+  echo "[preview] MySQL schema bootstrap…"
+  node /preview-mysql-bootstrap.js >> /tmp/preview-backend.log 2>&1 || {
+    echo "[preview] MySQL bootstrap soft-failed — check /tmp/preview-backend.log"
+    tail -30 /tmp/preview-backend.log 2>/dev/null || true
+    return 0
+  }
+  grep '\[preview-mysql-bootstrap\]' /tmp/preview-backend.log 2>/dev/null | tail -20 || true
+  return 0
+}
+
 run_preview_admin_seed() {
   label="${1:-admin seed}"
   if [ -z "$PREVIEW_ADMIN_EMAIL" ] || [ ! -f package.json ]; then
@@ -537,6 +555,12 @@ start_mern_backend() {
 
   ensure_node_modules "backend npm"
   : > /tmp/preview-backend.log
+
+  if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
+    wait_for_mysql_ready || true
+    run_preview_mysql_bootstrap || true
+  fi
+
   if grep -q '"seed"' package.json 2>/dev/null; then
     echo "[preview] backend npm run seed…"
     npm run seed >> /tmp/preview-backend.log 2>&1 || true
@@ -544,7 +568,7 @@ start_mern_backend() {
 
   if [ -n "$PREVIEW_ADMIN_EMAIL" ]; then
     if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
-      wait_for_mysql_ready || true
+      :
     else
       wait_for_mongo_ready || true
     fi
@@ -553,22 +577,27 @@ start_mern_backend() {
 
   echo "[preview] starting backend on 0.0.0.0:${API_PORT} (internal; gateway owns :${UI_PORT})"
   # Force API_PORT into the child only — shell PORT stays UI_PORT for the gateway.
-  if grep -q '"start"' package.json 2>/dev/null; then
-    env PORT="$API_PORT" HOST=0.0.0.0 npm start >> /tmp/preview-backend.log 2>&1 &
-  elif grep -q '"dev"' package.json 2>/dev/null; then
-    env PORT="$API_PORT" HOST=0.0.0.0 npm run dev >> /tmp/preview-backend.log 2>&1 &
-  elif [ -f server.js ]; then
-    env PORT="$API_PORT" HOST=0.0.0.0 node server.js >> /tmp/preview-backend.log 2>&1 &
-  elif [ -f index.js ]; then
-    env PORT="$API_PORT" HOST=0.0.0.0 node index.js >> /tmp/preview-backend.log 2>&1 &
-  elif [ -f src/index.js ]; then
-    env PORT="$API_PORT" HOST=0.0.0.0 node src/index.js >> /tmp/preview-backend.log 2>&1 &
-  elif [ -f src/server.js ]; then
-    env PORT="$API_PORT" HOST=0.0.0.0 node src/server.js >> /tmp/preview-backend.log 2>&1 &
-  else
-    echo "[preview] no backend start script found" >> /tmp/preview-backend.log
-    return 1
-  fi
+  start_backend_once() {
+    if grep -q '"start"' package.json 2>/dev/null; then
+      env PORT="$API_PORT" HOST=0.0.0.0 npm start >> /tmp/preview-backend.log 2>&1 &
+    elif grep -q '"dev"' package.json 2>/dev/null; then
+      env PORT="$API_PORT" HOST=0.0.0.0 npm run dev >> /tmp/preview-backend.log 2>&1 &
+    elif [ -f server.js ]; then
+      env PORT="$API_PORT" HOST=0.0.0.0 node server.js >> /tmp/preview-backend.log 2>&1 &
+    elif [ -f index.js ]; then
+      env PORT="$API_PORT" HOST=0.0.0.0 node index.js >> /tmp/preview-backend.log 2>&1 &
+    elif [ -f src/index.js ]; then
+      env PORT="$API_PORT" HOST=0.0.0.0 node src/index.js >> /tmp/preview-backend.log 2>&1 &
+    elif [ -f src/server.js ]; then
+      env PORT="$API_PORT" HOST=0.0.0.0 node src/server.js >> /tmp/preview-backend.log 2>&1 &
+    else
+      echo "[preview] no backend start script found" >> /tmp/preview-backend.log
+      return 1
+    fi
+    return 0
+  }
+
+  start_backend_once || return 1
 
   export PORT="$UI_PORT"
   # Do not block the UI for many minutes when MySQL/Express is slow — Open preview
@@ -578,8 +607,17 @@ start_mern_backend() {
     api_wait_max=120
   fi
   if ! wait_for_tcp_port "$API_PORT" "student API" "$api_wait_max"; then
-    echo "[preview] WARN: student API not listening yet on :${API_PORT} — starting UI anyway (login will work once API is up)"
+    echo "[preview] WARN: student API not listening yet on :${API_PORT} — retrying MySQL bootstrap + restart"
     tail -40 /tmp/preview-backend.log 2>/dev/null || true
+    if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
+      run_preview_mysql_bootstrap || true
+      run_preview_admin_seed "retry admin seed" || true
+      start_backend_once || true
+      wait_for_tcp_port "$API_PORT" "student API" 60 || {
+        echo "[preview] WARN: student API still down — starting UI anyway"
+        tail -40 /tmp/preview-backend.log 2>/dev/null || true
+      }
+    fi
   fi
 
   # Many student apps seed or reset users on startup — seed again after API is listening.

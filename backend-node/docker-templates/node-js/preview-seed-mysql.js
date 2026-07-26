@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
  * Preview MySQL admin seed for React + Express + MySQL student projects.
- * Uses mysql2 from /preview-tools (baked into the node-js preview image).
- * Does not require mongoose in the student package.json.
+ * Uses mysql2/promise from /preview-tools (baked into the node-js preview image).
  */
 'use strict';
 
@@ -39,10 +38,10 @@ function loadEnvFileManual(envPath) {
 
 loadEnvFileManual(path.join(process.cwd(), '.env'));
 
-function requireMysql2() {
+function requireMysql2Promise() {
   const candidates = [
-    '/preview-tools/node_modules/mysql2',
-    path.join(__dirname, 'preview-tools', 'node_modules', 'mysql2'),
+    '/preview-tools/node_modules/mysql2/promise',
+    path.join(__dirname, 'preview-tools', 'node_modules', 'mysql2', 'promise'),
   ];
   for (const p of candidates) {
     try {
@@ -52,7 +51,7 @@ function requireMysql2() {
     }
   }
   try {
-    return createRequire(path.join(process.cwd(), 'package.json'))('mysql2');
+    return createRequire(path.join(process.cwd(), 'package.json'))('mysql2/promise');
   } catch {
     /* fall through */
   }
@@ -89,16 +88,15 @@ function pickConn() {
 
 async function main() {
   if (String(process.env.PREVIEW_DB_ENGINE || '').toLowerCase() !== 'mysql') {
-    // Still allow explicit run when DB_HOST is set (orchestrator may only set DB_*).
     if (!process.env.DB_HOST && !process.env.MYSQL_HOST) {
       console.log('[preview-seed-mysql] skipped: not a MySQL preview');
       return;
     }
   }
 
-  const mysql2 = requireMysql2();
-  if (!mysql2) {
-    console.log('[preview-seed-mysql] skipped: mysql2 not available');
+  const mysql = requireMysql2Promise();
+  if (!mysql) {
+    console.log('[preview-seed-mysql] skipped: mysql2/promise not available');
     return;
   }
 
@@ -134,18 +132,9 @@ async function main() {
   }
 
   const hash = bcrypt ? await bcrypt.hash(rawPass, 10) : rawPass;
-  const mysql = mysql2.promise ? mysql2 : { createConnection: null };
-  const createConnection = mysql2.createConnection
-    ? mysql2.createConnection.bind(mysql2)
-    : mysql2.promise?.createConnection?.bind(mysql2.promise);
-
-  if (!createConnection) {
-    console.log('[preview-seed-mysql] skipped: cannot create connection');
-    return;
-  }
 
   console.log('[preview-seed-mysql] connecting', conn.host, conn.database);
-  const connection = await createConnection({
+  const connection = await mysql.createConnection({
     host: conn.host,
     user: conn.user,
     password: conn.password,
@@ -155,43 +144,135 @@ async function main() {
   });
 
   try {
-    // Best-effort: create a users table if missing (common Express + MySQL shape).
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NULL,
-        email VARCHAR(255) NOT NULL,
-        username VARCHAR(255) NULL,
-        password VARCHAR(255) NULL,
-        passwordHash VARCHAR(255) NULL,
-        role VARCHAR(64) NULL,
-        isActive TINYINT(1) DEFAULT 1,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_users_email (email)
-      )
-    `);
+    // Discover columns if a real student schema already exists.
+    let columns = [];
+    try {
+      const [cols] = await connection.query('SHOW COLUMNS FROM users');
+      columns = (cols || []).map((c) => String(c.Field || c.field || '').toLowerCase());
+    } catch {
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NULL,
+          email VARCHAR(255) NOT NULL,
+          username VARCHAR(255) NULL,
+          password VARCHAR(255) NULL,
+          passwordHash VARCHAR(255) NULL,
+          role VARCHAR(64) NULL,
+          role_id INT NULL,
+          isActive TINYINT(1) DEFAULT 1,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_users_email (email)
+        )
+      `);
+      columns = [
+        'id',
+        'name',
+        'email',
+        'username',
+        'password',
+        'passwordhash',
+        'role',
+        'role_id',
+        'isactive',
+      ];
+    }
+
+    let roleId = null;
+    try {
+      const [roleRows] = await connection.query(
+        `SELECT id FROM roles WHERE name IN ('Admin','ADMIN','admin','SUPER_ADMIN','super_admin') OR slug IN ('admin','super_admin') LIMIT 1`
+      );
+      if (roleRows && roleRows[0] && roleRows[0].id != null) roleId = roleRows[0].id;
+    } catch {
+      /* roles table optional */
+    }
 
     const [rows] = await connection.query('SELECT id, email FROM users WHERE email = ? LIMIT 1', [
       email,
     ]);
+
+    const setParts = [];
+    const setVals = [];
+    if (columns.includes('name')) {
+      setParts.push('name = COALESCE(?, name)');
+      setVals.push(name);
+    }
+    if (columns.includes('username')) {
+      setParts.push('username = COALESCE(?, username)');
+      setVals.push(email.split('@')[0]);
+    }
+    if (columns.includes('password')) {
+      setParts.push('password = ?');
+      setVals.push(hash);
+    }
+    if (columns.includes('passwordhash')) {
+      setParts.push('passwordHash = ?');
+      setVals.push(hash);
+    }
+    if (columns.includes('role')) {
+      setParts.push(`role = COALESCE(role, 'admin')`);
+    }
+    if (columns.includes('role_id') && roleId != null) {
+      setParts.push('role_id = COALESCE(role_id, ?)');
+      setVals.push(roleId);
+    }
+    if (columns.includes('roleid') && roleId != null) {
+      setParts.push('roleId = COALESCE(roleId, ?)');
+      setVals.push(roleId);
+    }
+    if (columns.includes('isactive')) {
+      setParts.push('isActive = 1');
+    }
+
     if (rows && rows.length) {
-      await connection.query(
-        `UPDATE users SET
-          name = COALESCE(?, name),
-          username = COALESCE(?, username),
-          password = ?,
-          passwordHash = ?,
-          role = COALESCE(role, 'SUPER_ADMIN'),
-          isActive = 1
-         WHERE email = ?`,
-        [name, email.split('@')[0], hash, hash, email]
-      );
+      if (setParts.length) {
+        setVals.push(email);
+        await connection.query(`UPDATE users SET ${setParts.join(', ')} WHERE email = ?`, setVals);
+      }
       console.log('[preview-seed-mysql] updated preview admin', email);
     } else {
+      const insertCols = ['email'];
+      const insertVals = [email];
+      const placeholders = ['?'];
+      if (columns.includes('name')) {
+        insertCols.push('name');
+        insertVals.push(name);
+        placeholders.push('?');
+      }
+      if (columns.includes('username')) {
+        insertCols.push('username');
+        insertVals.push(email.split('@')[0]);
+        placeholders.push('?');
+      }
+      if (columns.includes('password')) {
+        insertCols.push('password');
+        insertVals.push(hash);
+        placeholders.push('?');
+      }
+      if (columns.includes('passwordhash')) {
+        insertCols.push('passwordHash');
+        insertVals.push(hash);
+        placeholders.push('?');
+      }
+      if (columns.includes('role')) {
+        insertCols.push('role');
+        insertVals.push('admin');
+        placeholders.push('?');
+      }
+      if (columns.includes('role_id') && roleId != null) {
+        insertCols.push('role_id');
+        insertVals.push(roleId);
+        placeholders.push('?');
+      }
+      if (columns.includes('isactive')) {
+        insertCols.push('isActive');
+        insertVals.push(1);
+        placeholders.push('?');
+      }
       await connection.query(
-        `INSERT INTO users (name, email, username, password, passwordHash, role, isActive)
-         VALUES (?, ?, ?, ?, ?, 'SUPER_ADMIN', 1)`,
-        [name, email, email.split('@')[0], hash, hash]
+        `INSERT INTO users (${insertCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
+        insertVals
       );
       console.log('[preview-seed-mysql] created preview admin', email);
     }
@@ -207,5 +288,5 @@ async function main() {
 
 main().catch((err) => {
   console.error('[preview-seed-mysql] failed:', err && err.message ? err.message : err);
-  process.exitCode = 0; // do not kill preview — student schema may differ
+  process.exitCode = 0;
 });

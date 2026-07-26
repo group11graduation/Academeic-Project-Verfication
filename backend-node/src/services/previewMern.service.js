@@ -489,7 +489,7 @@ export async function resolveNodeMysqlDatabaseName(backendRoot) {
     if (m?.[1]) return m[1].replace(/[^a-zA-Z0-9_]/g, '') || null;
   }
 
-  return process.env.PREVIEW_MYSQL_DATABASE || 'preview';
+  return process.env.PREVIEW_NODE_MYSQL_DATABASE || process.env.PREVIEW_MYSQL_DATABASE || 'preview';
 }
 
 export async function patchBackendForPreview(

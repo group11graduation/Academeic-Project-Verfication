@@ -172,6 +172,7 @@ async function previewNodeTemplateContentHash(templateDirName) {
   return previewTemplateContentHash(templateDirName, [
     path.join(sharedNodeDir, 'preview-seed-admin.js'),
     path.join(sharedNodeDir, 'preview-seed-mysql.js'),
+    path.join(sharedNodeDir, 'preview-mysql-bootstrap.js'),
     path.join(sharedNodeDir, 'preview-verify-login.js'),
     path.join(sharedNodeDir, 'preview-login-fallback.js'),
     path.join(sharedNodeDir, 'preview-safety.cjs'),
@@ -253,6 +254,15 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     if (fsSync.existsSync(mysqlSeedSrc)) {
       const mysqlSeed = await fs.readFile(mysqlSeedSrc, 'utf8');
       await fs.writeFile(path.join(stageDir, 'preview-seed-mysql.js'), mysqlSeed.replace(/\r\n/g, '\n'));
+    }
+
+    const mysqlBootstrapSrc = path.join(sharedNodeDir, 'preview-mysql-bootstrap.js');
+    if (fsSync.existsSync(mysqlBootstrapSrc)) {
+      const mysqlBootstrap = await fs.readFile(mysqlBootstrapSrc, 'utf8');
+      await fs.writeFile(
+        path.join(stageDir, 'preview-mysql-bootstrap.js'),
+        mysqlBootstrap.replace(/\r\n/g, '\n')
+      );
     }
 
     const verifyScriptSrc = path.join(sharedNodeDir, 'preview-verify-login.js');
@@ -1828,16 +1838,17 @@ const PREVIEW_MYSQL_IMAGE = process.env.PREVIEW_MYSQL_IMAGE || 'mariadb:11';
 const PREVIEW_MYSQL_ROOT_PASSWORD = process.env.PREVIEW_MYSQL_ROOT_PASSWORD || 'preview-root';
 const PREVIEW_MYSQL_USER = process.env.PREVIEW_MYSQL_USER || 'preview';
 const PREVIEW_MYSQL_PASSWORD = process.env.PREVIEW_MYSQL_PASSWORD || 'preview';
+/** Default DB for PHP BBMS previews. Node/Express MySQL uses resolveNodeMysqlDatabaseName → preview. */
 const PREVIEW_MYSQL_DATABASE = process.env.PREVIEW_MYSQL_DATABASE || 'bbms';
+const PREVIEW_NODE_MYSQL_DATABASE = process.env.PREVIEW_NODE_MYSQL_DATABASE || 'preview';
 
 async function startPreviewMysqlSidecar(projectId, { database } = {}) {
   const networkName = previewNetworkName(projectId);
   const mysqlName = previewMysqlHostName(projectId);
   const dbName =
-    String(database || process.env.PREVIEW_MYSQL_DATABASE || PREVIEW_MYSQL_DATABASE || 'preview').replace(
-      /[^a-zA-Z0-9_]/g,
-      ''
-    ) || 'preview';
+    String(
+      database || process.env.PREVIEW_MYSQL_DATABASE || PREVIEW_NODE_MYSQL_DATABASE || 'preview'
+    ).replace(/[^a-zA-Z0-9_]/g, '') || 'preview';
   await ensureDockerNetwork(networkName);
   await removeContainerIfExists(mysqlName);
 
@@ -2127,10 +2138,12 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     if (stack === 'php-apache' || stack === 'node-js-mysql') {
       const previewDbName =
         stack === 'node-js-mysql'
-          ? String(sidecar.database || process.env.PREVIEW_MYSQL_DATABASE || 'preview').replace(
-              /[^a-zA-Z0-9_]/g,
-              ''
-            ) || 'preview'
+          ? String(
+              sidecar.database ||
+                process.env.PREVIEW_NODE_MYSQL_DATABASE ||
+                PREVIEW_NODE_MYSQL_DATABASE ||
+                'preview'
+            ).replace(/[^a-zA-Z0-9_]/g, '') || 'preview'
           : await resolvePreviewDatabaseName(
               path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
             );
