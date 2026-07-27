@@ -1400,7 +1400,9 @@ const TeacherProposalStudentDetail = () => {
                                             : sessEmail || previewAdminEmail || '';
                                         if (rawEmail.includes('@')) {
                                             displayEmail = rawEmail;
-                                        } else if (!fromProject && preferredType === 'email') {
+                                        } else if (!fromProject) {
+                                            // Always surface platform email in the box so teachers can copy it,
+                                            // even when the preferred login field is Username.
                                             displayEmail = platformEmail;
                                         }
                                     }
@@ -1421,6 +1423,9 @@ const TeacherProposalStudentDetail = () => {
                                             (preferredType === 'username' || fromProject)
                                         ) {
                                             displayUsername = displayEmail.split('@')[0] || '';
+                                        }
+                                        if (!fromProject && !displayUsername && preferredType === 'username') {
+                                            displayUsername = platformUser;
                                         }
                                     }
 
@@ -1446,7 +1451,8 @@ const TeacherProposalStudentDetail = () => {
                                         }
                                     }
 
-                                    // Email + username must match the same person when both shown.
+                                    // Keep both when they refer to the same account (admin / admin@…).
+                                    // Only drop one when they clearly conflict.
                                     if (
                                         displayEmail.includes('@') &&
                                         displayUsername &&
@@ -1462,10 +1468,8 @@ const TeacherProposalStudentDetail = () => {
                                         }
                                     }
 
-                                    const showEmailField =
-                                        Boolean(displayEmail) &&
-                                        (preferredType === 'email' ||
-                                            (!displayUsername && Boolean(displayEmail)));
+                                    // Always show Email in the credentials box when we have one.
+                                    const showEmailField = Boolean(displayEmail);
                                     const showUsernameField =
                                         Boolean(displayUsername) ||
                                         (preferredType === 'username' && !fromProject);
@@ -1511,6 +1515,7 @@ const TeacherProposalStudentDetail = () => {
                                                     : preferredType === 'email'
                                                       ? ' (Email + Password).'
                                                       : '.'}
+                                                {' '}Email is shown below when available for copy.
                                                 {fromProject
                                                     ? ' These values were read from the project setup/seed scripts — not platform defaults.'
                                                     : ' Platform defaults are shown when the ZIP does not declare credentials.'}
