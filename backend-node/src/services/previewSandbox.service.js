@@ -310,32 +310,15 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
     !/^(root|mysql|mariadb)$/i.test(setupUser);
 
   const applyCreds = ({ username, password, identifierType, source, email }) => {
-    // Atomic replace — never leave previewadmin beside a project password.
-    session.previewLoginEmail = '';
-    session.previewLoginUsername = '';
-    session.previewLoginPassword = '';
-
-    if (password && isUsablePreviewPassword(password)) {
-      session.previewLoginPassword = password;
-    }
-    if (email && String(email).includes('@') && !looksLikeUnresolvedVariableToken(email)) {
-      session.previewLoginEmail = email;
-    }
-    if (username && !looksLikeUnresolvedVariableToken(username)) {
-      if (String(username).includes('@')) {
-        session.previewLoginEmail = username;
-        session.previewLoginUsername = String(username).split('@')[0] || '';
-      } else {
-        session.previewLoginUsername = username;
-      }
-    }
-    // If we only have email, derive username local-part for username forms.
-    if (!session.previewLoginUsername && session.previewLoginEmail?.includes('@')) {
-      session.previewLoginUsername = session.previewLoginEmail.split('@')[0] || '';
-    }
-    session.previewLoginIdentifierType = identifierType || 'username';
-    session.previewLoginIdentifierLabel = identifierType === 'email' ? 'Email' : 'Username';
-    session.previewLoginSource = source;
+    previewCredentials.applyCoherentLoginToSession(session, {
+      username,
+      password,
+      email,
+      source,
+      identifierType: identifierType || 'username',
+      identifierLabel: identifierType === 'email' ? 'Email' : 'Username',
+      allowPlatformDefaults: false,
+    });
   };
 
   // 1) Exact credentials written by preview-seed-admin.php (always matches DB).
@@ -370,15 +353,8 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
       email: bootstrapCredentials.email ||
         (bootUser && String(bootUser).includes('@') ? bootUser : undefined),
     });
-  } else if (setupUser && isUsablePreviewPassword(session.previewLoginPassword)) {
-    applyCreds({
-      username: setupUser,
-      password: session.previewLoginPassword,
-      identifierType: setupUser.includes('@') ? 'email' : 'username',
-      source: 'project_php_setup',
-      email: setupUser.includes('@') ? setupUser : undefined,
-    });
   }
+  // Do NOT pair setupUser with a previously stored password from another source.
 
   session.previewLoginHint = buildPhpPreviewLoginHint({
     previewLoginUrl: session.previewLoginUrl,
@@ -629,23 +605,31 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
             if (loginCheck.ok) {
               appendLog(session, 'info', loginCheck.message);
               if (loginCheck.workingCredentials) {
-                session.previewLoginEmail = loginCheck.workingCredentials.email;
-                session.previewLoginPassword = loginCheck.workingCredentials.password;
-                if (String(loginCheck.workingCredentials.email || '').includes('@')) {
-                  session.previewLoginIdentifierType = 'email';
-                  session.previewLoginIdentifierLabel = 'Email';
-                }
-                session.previewLoginSource = 'project_seed_fallback';
-                session.previewLoginHint = previewLoginVerify.mergePreviewLoginRouteHint(
-                  `Use project login ${loginCheck.workingCredentials.email} / ${loginCheck.workingCredentials.password} (platform preview admin was rejected by this app).`,
-                  previewLoginVerify.buildApiLoginRouteHint({
-                    previewApiUrl: session.previewApiUrl,
-                    apiHostPort: deployResult.apiHostPort || session.previewApiHostPort,
-                    detectedPath: routeProbe.path,
-                    found: routeProbe.found,
-                    stack: deployResult.stack || session.previewStack,
-                  })
-                );
+                previewCredentials.applyCoherentLoginToSession(session, {
+                  email: loginCheck.workingCredentials.email,
+                  username: String(loginCheck.workingCredentials.email || '').includes('@')
+                    ? String(loginCheck.workingCredentials.email).split('@')[0]
+                    : loginCheck.workingCredentials.username || '',
+                  password: loginCheck.workingCredentials.password,
+                  source: 'project_seed_fallback',
+                  identifierType: String(loginCheck.workingCredentials.email || '').includes('@')
+                    ? 'email'
+                    : 'username',
+                  identifierLabel: String(loginCheck.workingCredentials.email || '').includes('@')
+                    ? 'Email'
+                    : 'Username',
+                  hint: previewLoginVerify.mergePreviewLoginRouteHint(
+                    `Use project login ${loginCheck.workingCredentials.email} / ${loginCheck.workingCredentials.password} (platform preview admin was rejected by this app).`,
+                    previewLoginVerify.buildApiLoginRouteHint({
+                      previewApiUrl: session.previewApiUrl,
+                      apiHostPort: deployResult.apiHostPort || session.previewApiHostPort,
+                      detectedPath: routeProbe.path,
+                      found: routeProbe.found,
+                      stack: deployResult.stack || session.previewStack,
+                    })
+                  ),
+                  allowPlatformDefaults: false,
+                });
                 appendLog(
                   session,
                   'info',
@@ -1108,6 +1092,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       email: session.previewLoginEmail,
       password: session.previewLoginPassword,
       username: session.previewLoginUsername || undefined,
+      source: session.previewLoginSource || '',
       mongoUri: previewMern.buildPreviewMongoUri(session._id.toString()),
     });
 

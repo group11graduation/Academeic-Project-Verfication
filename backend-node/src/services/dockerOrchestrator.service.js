@@ -2392,6 +2392,8 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       DEFAULT_ADMIN_USERNAME: seedUser,
       DEFAULT_ADMIN_PASSWORD: safeSeedPass,
       PREVIEW_PASSWORD_MODE: 'bcrypt',
+      // Keep classic admin rows usable with the same password we show teachers.
+      PREVIEW_SEED_ALSO_RESET_ADMIN: '1',
     };
     if (seedUser.includes('@')) {
       mergedCredentialEnv.ADMIN_EMAIL = seedUser;

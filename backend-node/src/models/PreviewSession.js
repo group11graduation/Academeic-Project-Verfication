@@ -53,9 +53,11 @@ const previewSessionSchema = new mongoose.Schema(
         'preview_seed_admin',
         'bootstrap_log',
         'bootstrap_log_assumed_username',
-      ],
+      ], // keep in sync with src/constants/previewLoginSources.js
       default: '',
     },
+    /** True when credentials came from the student project / seed (not platform defaults). */
+    previewLoginFromProject: { type: Boolean, default: false },
     previewLoginHint: { type: String, default: '' },
     /** True when reusing a cached extract workspace (faster 2nd+ start) */
     previewWorkspaceCached: { type: Boolean, default: false },

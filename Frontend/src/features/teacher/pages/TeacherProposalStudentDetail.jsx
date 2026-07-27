@@ -1368,6 +1368,7 @@ const TeacherProposalStudentDetail = () => {
                                     const preferredType = sess?.previewLoginIdentifierType || 'email';
                                     const preferredLabel = sess?.previewLoginIdentifierLabel || 'Email';
                                     const fromProject =
+                                        Boolean(sess?.previewLoginFromProject) ||
                                         loginSource === 'project_files' ||
                                         loginSource === 'project_php_setup' ||
                                         loginSource === 'project_seed_fallback' ||

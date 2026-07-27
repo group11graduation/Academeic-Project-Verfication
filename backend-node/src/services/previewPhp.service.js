@@ -396,9 +396,8 @@ export async function discoverPhpAdminCredentials(root) {
         if (accept(user, userThenHash[3], `From ${base} seed user`)) break;
       }
 
-      const plainPass = content.match(/password_hash\s*\(\s*['"]([^'"]+)['"]/i);
-      const execUser = content.match(/execute\s*\(\s*\[\s*['"]([^'"]+)['"]/i);
-      if (plainPass && execUser && accept(execUser[1], plainPass[1], `From ${base} seed user`)) break;
+      // Prefer paired patterns above. Do NOT accept independent password_hash() +
+      // execute(['user']) matches from distant parts of the file — that mixes rows.
 
       const insertMatch = content.match(
         /INSERT INTO\s+[`]?(?:users|admins|accounts|tbl_users)[`]?[\s\S]{0,400}?VALUES\s*\(\s*['"]([^'"]+)['"][\s\S]{0,160}?['"]([^'"]+)['"][\s\S]{0,120}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
@@ -819,18 +818,29 @@ export function buildPhpPreviewLoginHint({
     }
   }
 
-  const user = projectCredentials.username || adminCredentials.username;
-  const pass = projectCredentials.password || adminCredentials.password;
-  if (user && pass) {
-    if (phpCredentialsLookLikePlatformDefault(user, pass)) {
+  // Never mix username from one source with password from another.
+  const projectUser = projectCredentials.username;
+  const projectPass = projectCredentials.password;
+  const setupUser = adminCredentials.username;
+  const setupPass = adminCredentials.password;
+  if (projectUser && projectPass) {
+    if (phpCredentialsLookLikePlatformDefault(projectUser, projectPass)) {
       parts.push(
-        `Default guess (may not match this project): ${user} / ${pass}. If login fails, check the preview log for credentials printed by setup/reset scripts.`
+        `Default guess (may not match this project): ${projectUser} / ${projectPass}. If login fails, check the preview log for credentials printed by setup/reset scripts.`
       );
     } else {
-      parts.push(`Try project login: ${user} / ${pass}.`);
+      parts.push(`Try project login: ${projectUser} / ${projectPass}.`);
     }
-  } else if (user) {
-    parts.push(`Try username: ${user} (check README or setup script for password).`);
+  } else if (setupUser && setupPass) {
+    if (phpCredentialsLookLikePlatformDefault(setupUser, setupPass)) {
+      parts.push(
+        `Default guess (may not match this project): ${setupUser} / ${setupPass}. If login fails, check the preview log for credentials printed by setup/reset scripts.`
+      );
+    } else {
+      parts.push(`Try project login: ${setupUser} / ${setupPass}.`);
+    }
+  } else if (projectUser || setupUser) {
+    parts.push(`Try username: ${projectUser || setupUser} (check README or setup script for password).`);
   } else {
     parts.push('Check README or setup_db.php for default admin username/password.');
   }

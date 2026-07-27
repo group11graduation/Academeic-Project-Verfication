@@ -1,6 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { discoverPhpAdminCredentials, discoverPhpLoginPath } from './previewPhp.service.js';
+import { isProjectLoginSource, isKnownLoginSource } from '../constants/previewLoginSources.js';
+
+export { PREVIEW_LOGIN_SOURCES, PROJECT_PREVIEW_LOGIN_SOURCES, isProjectLoginSource } from '../constants/previewLoginSources.js';
 
 const EMAIL_ENV_KEYS = [
   'ADMIN_EMAIL',
@@ -796,9 +799,10 @@ function emailMatchesUsername(email, username) {
 }
 
 /**
- * Build one coherent login identity — never mix platform defaults with project values.
+ * Enforce one coherent login identity for ANY preview project.
+ * Never mix platform defaults with project passwords, or email/username from different people.
  */
-function finalizeCredentialSet({
+export function coerceCoherentCredentialSet({
   email = '',
   username = '',
   password = '',
@@ -814,6 +818,18 @@ function finalizeCredentialSet({
   let nextPassword = String(password || '').trim();
   ({ email: nextEmail, username: nextUsername } = normalizeDiscoveredEmailUsername(nextEmail, nextUsername));
 
+  // Never treat MySQL sidecar / unresolved PHP tokens as app passwords.
+  if (
+    nextPassword === 'preview-root' ||
+    nextPassword === (process.env.PREVIEW_MYSQL_ROOT_PASSWORD || 'preview-root') ||
+    /^\$[A-Za-z_]/.test(nextPassword) ||
+    /^(pass|password|passwd|pwd)$/i.test(nextPassword)
+  ) {
+    nextPassword = '';
+  }
+
+  const fromProject = isProjectLoginSource(source) || (!allowPlatformDefaults && source !== 'platform_default' && source !== 'teacher_provided' && Boolean(source));
+
   if (allowPlatformDefaults || source === 'platform_default' || source === 'teacher_provided') {
     if (!looksLikeEmail(nextEmail)) nextEmail = defaults.email;
     if (!nextUsername) nextUsername = defaults.username;
@@ -826,12 +842,24 @@ function finalizeCredentialSet({
     if (isPlatformDefaultEmail(nextEmail) && nextPassword && nextPassword !== defaults.password) {
       nextEmail = '';
     }
-    if (!nextUsername && looksLikeEmail(nextEmail) && identifierType === 'username') {
+    if (!nextUsername && looksLikeEmail(nextEmail)) {
       nextUsername = nextEmail.split('@')[0] || '';
     }
     if (!nextEmail && looksLikeEmail(nextUsername)) {
       nextEmail = nextUsername;
       nextUsername = nextEmail.split('@')[0] || nextUsername;
+    }
+  }
+
+  // Email + username must describe the same person when both are set.
+  if (looksLikeEmail(nextEmail) && nextUsername && !emailMatchesUsername(nextEmail, nextUsername)) {
+    if (identifierType === 'username' || fromProject) {
+      // Prefer username for PHP-style logins; drop unrelated email.
+      if (!emailMatchesUsername(nextEmail, nextUsername)) {
+        nextEmail = '';
+      }
+    } else {
+      nextUsername = nextEmail.split('@')[0] || '';
     }
   }
 
@@ -844,16 +872,59 @@ function finalizeCredentialSet({
     identifier = nextUsername;
   }
 
+  const safeSource = isKnownLoginSource(source) ? source : fromProject ? 'project_files' : 'platform_default';
+
   return {
     identifier: identifier || nextUsername || nextEmail,
     password: nextPassword,
     identifierType,
     identifierLabel,
-    source,
+    source: safeSource,
     hint,
     email: nextEmail,
     username: nextUsername,
+    fromProject: isProjectLoginSource(safeSource),
   };
+}
+
+/** @deprecated use coerceCoherentCredentialSet */
+function finalizeCredentialSet(opts) {
+  return coerceCoherentCredentialSet(opts);
+}
+
+/**
+ * Atomically replace session login fields with one coherent set.
+ * Clears stale username/email/password first so partial updates cannot mix sources.
+ */
+export function applyCoherentLoginToSession(session, raw = {}) {
+  if (!session) return session;
+  const resolved = coerceCoherentCredentialSet({
+    email: raw.email,
+    username: raw.username,
+    password: raw.password,
+    source: raw.source || 'platform_default',
+    identifierType: raw.identifierType || 'email',
+    identifierLabel: raw.identifierLabel || 'Email',
+    hint: raw.hint || '',
+    allowPlatformDefaults:
+      raw.allowPlatformDefaults === true ||
+      raw.source === 'platform_default' ||
+      raw.source === 'teacher_provided',
+  });
+
+  session.previewLoginEmail = '';
+  session.previewLoginUsername = '';
+  session.previewLoginPassword = '';
+
+  session.previewLoginEmail = resolved.email || '';
+  session.previewLoginUsername = resolved.username || '';
+  session.previewLoginPassword = resolved.password || '';
+  session.previewLoginIdentifierType = resolved.identifierType || 'email';
+  session.previewLoginIdentifierLabel = resolved.identifierLabel || 'Email';
+  session.previewLoginSource = resolved.source || '';
+  session.previewLoginFromProject = Boolean(resolved.fromProject);
+  if (resolved.hint) session.previewLoginHint = resolved.hint;
+  return session;
 }
 
 export function resolvePreviewLoginCredentials({
@@ -1004,38 +1075,17 @@ export function resolvePreviewLoginCredentials({
 
 export function applyResolvedLoginCredentials(session, resolved) {
   if (!session || !resolved) return session;
-  const defaults = platformDefaultLogin();
-  let email = resolved.email || '';
-  let username = resolved.username || '';
-  ({ email, username } = normalizeDiscoveredEmailUsername(email, username));
-
-  const fromProject = ![
-    'platform_default',
-    'teacher_provided',
-    '',
-  ].includes(String(resolved.source || ''));
-
-  if (!fromProject) {
-    if (!looksLikeEmail(email)) email = defaults.email;
-    if (!username) username = defaults.username;
-  } else {
-    // Never leave a platform default username/email beside a project password.
-    if (isPlatformDefaultUsername(username) && resolved.password && resolved.password !== defaults.password) {
-      username = '';
-    }
-    if (isPlatformDefaultEmail(email) && resolved.password && resolved.password !== defaults.password) {
-      email = '';
-    }
-  }
-
-  session.previewLoginEmail = email;
-  session.previewLoginUsername = username;
-  session.previewLoginPassword = resolved.password || (fromProject ? '' : defaults.password);
-  session.previewLoginIdentifierType = resolved.identifierType || 'email';
-  session.previewLoginIdentifierLabel = resolved.identifierLabel || 'Email';
-  session.previewLoginSource = resolved.source || session.previewLoginSource || '';
-  if (resolved.hint) session.previewLoginHint = resolved.hint;
-  return session;
+  return applyCoherentLoginToSession(session, {
+    email: resolved.email,
+    username: resolved.username,
+    password: resolved.password,
+    source: resolved.source || 'platform_default',
+    identifierType: resolved.identifierType || 'email',
+    identifierLabel: resolved.identifierLabel || 'Email',
+    hint: resolved.hint || '',
+    allowPlatformDefaults:
+      resolved.source === 'platform_default' || resolved.source === 'teacher_provided',
+  });
 }
 
 export async function buildPreviewLoginCredentials({
@@ -1059,7 +1109,6 @@ export async function buildPreviewLoginCredentials({
       } else if (phpAdmin.username?.includes('@')) {
         discovered.email = phpAdmin.username;
       } else {
-        // Keep only paired email; clear scrapes that don't match this username.
         discovered.email = phpAdmin.email && emailMatchesUsername(phpAdmin.email, phpAdmin.username || '')
           ? phpAdmin.email
           : '';
@@ -1075,7 +1124,6 @@ export async function buildPreviewLoginCredentials({
     }
     if (phpAdmin.password) discovered.password = phpAdmin.password;
     if (phpAdmin.hint) discovered.hint = phpAdmin.hint;
-    // PHP student apps almost always login with username on /auth/login.php
     if (phpAdmin.username && !String(phpAdmin.username).includes('@')) {
       discovered.identifierType = 'username';
       discovered.identifierLabel = 'Username';
@@ -1089,15 +1137,55 @@ export async function buildPreviewLoginCredentials({
   });
 }
 
-/** Env vars injected into preview containers (many student apps read different names). */
-export function buildPreviewCredentialEnvVars({ email, password, username, mongoUri = null }) {
+/**
+ * Env vars injected into preview containers (many student apps read different names).
+ * Uses the SAME coherent set shown to the teacher — never invent previewadmin beside a project password.
+ */
+export function buildPreviewCredentialEnvVars({
+  email,
+  password,
+  username,
+  source = '',
+  mongoUri = null,
+} = {}) {
   const defaults = platformDefaultLogin();
-  let seedEmail = String(email || '').trim();
-  let seedUsername = String(username || '').trim();
-  ({ email: seedEmail, username: seedUsername } = normalizeDiscoveredEmailUsername(seedEmail, seedUsername));
-  if (!looksLikeEmail(seedEmail)) seedEmail = defaults.email;
-  if (!seedUsername) seedUsername = defaults.username;
-  const seedPassword = String(password || '').trim() || defaults.password;
+  const coherent = coerceCoherentCredentialSet({
+    email,
+    username,
+    password,
+    source: source || (password && password !== defaults.password ? 'project_files' : 'platform_default'),
+    identifierType: username && !String(username).includes('@') ? 'username' : 'email',
+    identifierLabel: username && !String(username).includes('@') ? 'Username' : 'Email',
+    allowPlatformDefaults: !isProjectLoginSource(source) && (!password || password === defaults.password),
+  });
+
+  let seedEmail = coherent.email;
+  let seedUsername = coherent.username;
+  let seedPassword = coherent.password;
+
+  // Only fill platform defaults when this really is a platform-default seed.
+  if (!coherent.fromProject) {
+    if (!looksLikeEmail(seedEmail)) seedEmail = defaults.email;
+    if (!seedUsername) seedUsername = defaults.username;
+    if (!seedPassword) seedPassword = defaults.password;
+  } else {
+    // Project seed: require a real identity; derive username from email when needed.
+    if (!seedUsername && looksLikeEmail(seedEmail)) seedUsername = seedEmail.split('@')[0] || '';
+    if (!looksLikeEmail(seedEmail) && looksLikeEmail(seedUsername)) seedEmail = seedUsername;
+    // Last-resort placeholders only if seed script requires non-empty values.
+    if (!seedUsername) seedUsername = looksLikeEmail(seedEmail) ? seedEmail.split('@')[0] : 'admin';
+    if (!looksLikeEmail(seedEmail)) seedEmail = `${seedUsername}@preview.local`;
+    if (!seedPassword) seedPassword = defaults.password;
+  }
+
+  // Never inject MySQL sidecar password as app login.
+  if (
+    seedPassword === 'preview-root' ||
+    seedPassword === (process.env.PREVIEW_MYSQL_ROOT_PASSWORD || 'preview-root')
+  ) {
+    seedPassword = defaults.password;
+  }
+
   const pairs = {
     PREVIEW_ADMIN_EMAIL: seedEmail,
     PREVIEW_ADMIN_PASSWORD: seedPassword,
