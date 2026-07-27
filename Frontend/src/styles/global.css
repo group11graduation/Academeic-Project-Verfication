@@ -25,6 +25,9 @@
     --sv-muted: #51628f;
     --sv-input-text: #0f172a;
     --sv-input-placeholder: #6b7280;
+    /* UI + forms — readable geometric sans; headings use Literata */
+    --sv-font-sans: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    --sv-font-display: "Literata", "Georgia", serif;
   }
 
   .dark {
@@ -64,12 +67,29 @@
     @apply antialiased transition-colors duration-300;
     background-color: var(--sv-page-bg);
     color: var(--sv-text);
+    font-family: var(--sv-font-sans);
     font-size: 1rem;
-    line-height: 1.5;
+    line-height: 1.55;
+    letter-spacing: -0.011em;
     margin: 0;
     width: 100%;
     max-width: 100%;
     overflow-x: clip;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--sv-font-display);
+    letter-spacing: -0.02em;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font-family: var(--sv-font-sans);
   }
 
   /* Content images only — do not apply to inline SVG icons (Lucide) */

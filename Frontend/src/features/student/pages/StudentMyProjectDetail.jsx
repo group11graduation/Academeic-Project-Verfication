@@ -27,15 +27,20 @@ import { getApiOrigin } from '../../../lib/api';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY } from '../../../shared/ui/zendentaLayout';
 import { getApiErrorMessage } from '../../../shared/utils/apiErrors';
 import { PROJECT_STACK_OPTIONS, PROJECT_STACK_HINT_HELP } from '../../../shared/constants/projectStackHints';
+import {
+    formatConsistencyCheckHuman,
+    humanizeModelOrServerError,
+} from '../../../shared/utils/humanizeErrors';
 
 function formatProjectUploadFeedback(payload = {}, fallback = '') {
     const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
-    const message =
+    const rawMessage =
         (typeof data?.reason === 'string' && data.reason.trim()) ||
         (typeof payload?.message === 'string' && payload.message.trim()) ||
         (typeof data?.message === 'string' && data.message.trim()) ||
         (typeof data?.techMatch?.message === 'string' && data.techMatch.message.trim()) ||
         fallback;
+    const message = humanizeModelOrServerError(rawMessage, rawMessage);
     const approved = Array.isArray(data?.approvedTech)
         ? data.approvedTech
         : Array.isArray(data?.techMatch?.approvedTech)
@@ -50,29 +55,17 @@ function formatProjectUploadFeedback(payload = {}, fallback = '') {
         data?.detectedStack || data?.techMatch?.detectedStack || data?.failures?.[0]?.path || '';
     const cc = data?.consistencyCheck && typeof data.consistencyCheck === 'object' ? data.consistencyCheck : null;
     const parts = [message].filter(Boolean);
-    if (approved.length) parts.push(`Approved proposal tech: ${approved.join(', ')}.`);
+    if (approved.length) {
+        parts.push(`Your approved technologies: ${approved.join(', ')}.`);
+    }
     if (detected || zipTech.length) {
-        parts.push(
-            `Uploaded ZIP detected as: ${detected || 'unknown'}${
-                zipTech.length ? ` (${zipTech.join(', ')})` : ''
-            }.`
-        );
+        const stackLabel = detected && detected !== 'unknown' ? detected : 'could not be identified clearly';
+        const techList = zipTech.length ? ` Related signals: ${zipTech.slice(0, 8).join(', ')}.` : '';
+        parts.push(`What we found in your ZIP: ${stackLabel}.${techList}`);
     }
-    if (cc) {
-        const bits = [];
-        if (cc.tech_verdict) bits.push(`tech: ${cc.tech_verdict}`);
-        if (cc.description_verdict) bits.push(`description: ${cc.description_verdict}`);
-        if (cc.overall_verdict) bits.push(`overall: ${cc.overall_verdict}`);
-        if (typeof cc.tech_match_score === 'number') {
-            bits.push(`tech score ${(cc.tech_match_score * 100).toFixed(0)}%`);
-        }
-        if (typeof cc.description_match_score === 'number') {
-            bits.push(`description score ${(cc.description_match_score * 100).toFixed(0)}%`);
-        }
-        if (bits.length) parts.push(`Consistency check — ${bits.join(', ')}.`);
-        if (cc.needs_review) parts.push('Flagged for teacher review.');
-    }
-    return parts.join(' ');
+    const consistencyLines = formatConsistencyCheckHuman(cc);
+    if (consistencyLines) parts.push(consistencyLines);
+    return parts.filter(Boolean).join('\n\n');
 }
 
 const StudentMyProjectDetail = () => {
@@ -269,11 +262,11 @@ const StudentMyProjectDetail = () => {
             if (res.success && data?.accepted === false) {
                 const msg = formatProjectUploadFeedback(
                     res,
-                    data?.reason || 'Upload rejected by consistency check.'
+                    data?.reason || 'Your project ZIP was not accepted.'
                 );
                 setCodeZipTone('error');
                 setCodeZipMessage(msg);
-                await appError(msg);
+                await appError(msg, { title: 'Upload not accepted' });
                 return;
             }
             if (res.success && data?.accepted !== false) {
@@ -283,35 +276,47 @@ const StudentMyProjectDetail = () => {
                 const base = updated
                     ? `Accepted (v${v}): ${data?.originalFilename || selectedZipFile.name}.`
                     : `Accepted: ${data?.originalFilename || selectedZipFile.name}.`;
-                const full = [base, techLine].filter(Boolean).join(' ');
+                const full = [base, techLine].filter(Boolean).join('\n\n');
                 setCodeZipTone('success');
                 if (data?.consistencyCheck?.needs_review) {
-                    const reviewMsg = [full, 'Accepted with needs-review flag for your teacher.'].join(' ');
+                    const reviewMsg = [
+                        full,
+                        'Your ZIP was saved, but it is flagged for teacher review because the description check was weak.',
+                    ]
+                        .filter(Boolean)
+                        .join('\n\n');
                     setCodeZipMessage(reviewMsg);
-                    await appWarning(reviewMsg);
+                    await appWarning(reviewMsg, { title: 'Accepted with review flag' });
                 } else {
                     setCodeZipMessage(full);
-                    await appSuccess(full);
+                    await appSuccess(full, { title: 'Project uploaded' });
                 }
                 setSelectedZipFile(null);
                 setSelectedScreenshotFile(null);
                 const assignRes = await studentService.getAssignment(assignmentId);
                 if (assignRes.success) setRow(assignRes.data);
             } else {
-                const msg = formatProjectUploadFeedback(res, res.message || 'Upload rejected.');
+                const msg = formatProjectUploadFeedback(res, res.message || 'Upload was rejected.');
                 setCodeZipTone('error');
                 setCodeZipMessage(msg);
-                await appError(msg);
+                await appError(msg, { title: 'Upload not accepted' });
             }
         } catch (e) {
             const data = e.response?.data || {};
             const msg = formatProjectUploadFeedback(
                 data,
-                getApiErrorMessage(e, 'Upload rejected. Check that your ZIP matches the approved proposal technology.')
+                getApiErrorMessage(e, 'Upload was rejected. Check that your ZIP matches the approved proposal technology.')
             );
             setCodeZipTone('error');
             setCodeZipMessage(msg);
-            await appError(msg);
+            const status = e.response?.status;
+            const title =
+                status === 409
+                    ? 'Already submitted'
+                    : status === 403
+                      ? 'Not allowed'
+                      : 'Upload not accepted';
+            await appError(msg, { title });
         } finally {
             setCodeZipBusy(false);
             if (zipInputRef.current) zipInputRef.current.value = '';
@@ -694,7 +699,7 @@ const StudentMyProjectDetail = () => {
                                               ? 'Rejected'
                                               : 'Status'}
                                     </p>
-                                    <p className="leading-relaxed">{codeZipMessage}</p>
+                                    <p className="leading-relaxed whitespace-pre-wrap">{codeZipMessage}</p>
                                 </div>
                             )}
                         </div>

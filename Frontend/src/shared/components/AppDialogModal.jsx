@@ -101,7 +101,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                     <div className="min-w-0 flex-1">
                         <h2
                             id="app-dialog-title"
-                            className="text-[18px] font-extrabold tracking-tight text-[var(--sv-text)]"
+                            className="font-display text-[19px] font-semibold tracking-tight text-[var(--sv-text)]"
                         >
                             {title ||
                                 (type === 'confirm'
@@ -116,7 +116,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                         </h2>
                         <p
                             id="app-dialog-message"
-                            className="mt-2 whitespace-pre-wrap text-[14px] font-medium leading-relaxed text-[var(--sv-muted)]"
+                            className="mt-2.5 whitespace-pre-wrap text-[14px] font-medium leading-[1.65] text-[var(--sv-muted)]"
                         >
                             {message}
                         </p>
