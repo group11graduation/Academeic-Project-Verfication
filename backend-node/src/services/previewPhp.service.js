@@ -310,11 +310,12 @@ if (getenv('PREVIEW_SANDBOX') === '1' || getenv('DB_HOST')) {
   if ($__svHost = getenv('DB_HOST')) {
     $host = $__svHost; $dbhost = $__svHost; $db_host = $__svHost;
   }
+  // Use db-specific names only — never overwrite $username/$password used for app login.
   if ($__svUser = getenv('DB_USER')) {
-    $username = $__svUser; $user = $__svUser; $dbuser = $__svUser; $db_user = $__svUser;
+    $dbuser = $__svUser; $db_user = $__svUser; $dbusername = $__svUser; $db_username = $__svUser;
   }
   if (($__svPass = getenv('DB_PASS')) !== false) {
-    $password = $__svPass; $pass = $__svPass; $dbpass = $__svPass; $db_pass = $__svPass;
+    $dbpass = $__svPass; $db_pass = $__svPass; $dbpassword = $__svPass; $db_password = $__svPass;
   }
   if ($__svName = getenv('DB_NAME')) {
     $dbname = $__svName; $database = $__svName; $db_name = $__svName;
@@ -380,6 +381,16 @@ export async function discoverPhpAdminCredentials(root) {
         /\$admin_(?:pass|password|pwd)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$admin_(?:user|username|login|name)\s*=\s*['"]([^'"]+)['"]/i
       );
       if (adminVarsRev && accept(adminVarsRev[2], adminVarsRev[1], `From ${base} $admin_* vars`)) break;
+
+      const adminUsernameVar = content.match(
+        /\$admin_username\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$admin_password\s*=\s*['"]([^'"]+)['"]/i
+      );
+      if (adminUsernameVar && accept(adminUsernameVar[1], adminUsernameVar[2], `From ${base} admin_username`)) break;
+
+      const unamePass = content.match(
+        /\$(?:uname|login_name)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$(?:pass|passwd)\s*=\s*['"]([^'"]+)['"]/i
+      );
+      if (unamePass && accept(unamePass[1], unamePass[2], `From ${base} uname/pass`)) break;
 
       const defaultAdmin = content.match(
         /\$default_admin_(?:user|username)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$default_admin_(?:pass|password)\s*=\s*['"]([^'"]+)['"]/i
@@ -483,8 +494,11 @@ async function patchPhpFile(filePath, options, { bootstrap = false, injectOverri
       ]
     : [
         [['host', 'dbhost', 'db_host'], options.dbHost],
-        [['username', 'user', 'dbuser', 'db_user'], options.dbUser],
-        [['password', 'pass', 'dbpass', 'db_pass'], options.dbPass],
+        [['dbuser', 'db_user', 'dbusername', 'db_username'], options.dbUser],
+        [['dbpass', 'db_pass', 'dbpassword', 'db_password'], options.dbPass],
+        // Legacy configs that use $username/$password for mysqli — patch only when clearly DB vars.
+        [['username', 'user'], options.dbUser],
+        [['password', 'pass'], options.dbPass],
         [['dbname', 'database', 'db_name'], options.dbName],
       ];
   const varPatch = patchPhpVariableAssignments(content, dbVarAssignments);
@@ -576,6 +590,23 @@ function sanitizeBootstrapCredential(raw, kind = 'password') {
  */
 export function parsePhpBootstrapCredentialsFromLog(logText = '') {
   if (!logText?.trim()) return null;
+
+  const seeded = logText.match(
+    /ScholarVerify admin seeded[^:]*:\s*username=([^\s]+)\s+password=([^\s<]+)/i
+  );
+  if (seeded) {
+    const username = sanitizeBootstrapCredential(seeded[1], 'username');
+    const password = sanitizeBootstrapCredential(seeded[2], 'password');
+    if (username && password && !isMysqlSidecarPassword(password)) {
+      return {
+        username,
+        password,
+        identifierType: username.includes('@') ? 'email' : 'username',
+        source: 'preview_seed_admin',
+        usernameAssumed: false,
+      };
+    }
+  }
 
   let username = '';
   let email = '';

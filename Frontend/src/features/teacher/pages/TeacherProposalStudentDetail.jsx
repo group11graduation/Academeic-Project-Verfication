@@ -1372,6 +1372,7 @@ const TeacherProposalStudentDetail = () => {
                                         loginSource === 'project_php_setup' ||
                                         loginSource === 'project_seed_fallback' ||
                                         loginSource === 'project_seed_script' ||
+                                        loginSource === 'preview_seed_admin' ||
                                         loginSource === 'bootstrap_log' ||
                                         loginSource === 'bootstrap_log_assumed_username' ||
                                         loginSource === 'project_spring_seed';

@@ -320,8 +320,17 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
     session.previewLoginSource = source;
   };
 
-  // 1) Prefer credentials parsed from the student's setup/seed PHP (real app login).
-  if (setupLooksReal) {
+  // 1) Exact credentials written by preview-seed-admin.php (always matches DB).
+  if (bootstrapCredentials?.source === 'preview_seed_admin') {
+    applyCreds({
+      username: bootstrapCredentials.username,
+      password: bootstrapCredentials.password,
+      identifierType: bootstrapCredentials.identifierType || 'username',
+      source: 'preview_seed_admin',
+      email: bootstrapCredentials.username?.includes('@') ? bootstrapCredentials.username : undefined,
+    });
+  } else if (setupLooksReal) {
+    // 2) Credentials parsed from the student's setup/seed PHP source.
     applyCreds({
       username: setupUser,
       password: setupPass,
@@ -330,7 +339,6 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
       email: setupUser.includes('@') ? setupUser : undefined,
     });
   } else if (bootstrapCredentials?.password) {
-    // 2) Else use bootstrap log (never MySQL sidecar password — parser already filters).
     const bootUser = bootstrapCredentials.usernameAssumed
       ? bootstrapCredentials.assumedUsername || 'admin'
       : bootstrapCredentials.username;
@@ -344,7 +352,6 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
       email: bootUser && String(bootUser).includes('@') ? bootUser : undefined,
     });
   } else if (setupUser) {
-    // 3) At least surface the discovered username so the box is not previewadmin.
     applyCreds({
       username: setupUser,
       password: session.previewLoginPassword,
@@ -362,7 +369,8 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
       username: session.previewLoginUsername || session.previewLoginEmail,
       password: session.previewLoginPassword,
     },
-    bootstrapCredentials: setupLooksReal ? null : bootstrapCredentials,
+    bootstrapCredentials:
+      bootstrapCredentials?.source === 'preview_seed_admin' ? bootstrapCredentials : setupLooksReal ? null : bootstrapCredentials,
   });
 }
 
@@ -1591,6 +1599,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
       await refreshPhpPreviewLoginHint(session, {
         hostPort: session.hostPort,
       });
+      await session.save();
     }
   }
 

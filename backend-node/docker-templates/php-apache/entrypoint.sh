@@ -301,6 +301,10 @@ if [ -n "$DB_HOST" ]; then
   ensure_preview_database
   run_bootstrap_scripts
   check_bootstrap_tables
+  if [ -f /preview-seed-admin.php ]; then
+    echo "[preview] running preview-seed-admin.php"
+    php /preview-seed-admin.php >> /tmp/preview-mysql.log 2>&1 || true
+  fi
   wait_for_mysql || true
 fi
 

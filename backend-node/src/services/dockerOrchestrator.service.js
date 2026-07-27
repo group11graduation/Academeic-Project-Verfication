@@ -350,6 +350,10 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     if (fsSync.existsSync(bootstrapSrc)) {
       await fs.copyFile(bootstrapSrc, path.join(stageDir, 'preview-bootstrap.php'));
     }
+    const phpSeedSrc = path.join(templateDir, 'preview-seed-admin.php');
+    if (fsSync.existsSync(phpSeedSrc)) {
+      await fs.copyFile(phpSeedSrc, path.join(stageDir, 'preview-seed-admin.php'));
+    }
   }
 
   return stageDir;
@@ -1669,6 +1673,46 @@ async function runPreviewContainer({
       }
     }
   }
+
+  if (stack === 'php-apache') {
+    const sharedPhpDir = path.join(TEMPLATES_ROOT, 'php-apache');
+    const phpOverlayFiles = [
+      ['preview-bootstrap.php', '/preview-bootstrap.php'],
+      ['preview-seed-admin.php', '/preview-seed-admin.php'],
+    ];
+    for (const [name, dest] of phpOverlayFiles) {
+      const src = path.join(sharedPhpDir, name);
+      const stagedName = `php-${path.basename(dest).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const staged = stagePreviewOverlayFile(src, stagedName);
+      if (!staged) continue;
+      args.push('-v', `${dockerVolumePath(staged)}:${dest}:ro`);
+    }
+    const phpEntrySrc = path.join(sharedPhpDir, 'entrypoint.sh');
+    if (fsSync.existsSync(phpEntrySrc)) {
+      try {
+        const stagingDir = previewOverlayStagingDir();
+        if (!isHostVisibleDockerPath(stagingDir)) {
+          logger.warn('preview PHP entrypoint overlay skipped: cache not host-visible');
+        } else {
+          fsSync.mkdirSync(stagingDir, { recursive: true });
+          const lfPath = path.join(
+            stagingDir,
+            `sv-preview-php-entrypoint-${sanitizeDockerId(containerName)}.sh`
+          );
+          const body = fsSync.readFileSync(phpEntrySrc, 'utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+          fsSync.writeFileSync(lfPath, body, { encoding: 'utf8', mode: 0o755 });
+          try {
+            fsSync.chmodSync(lfPath, 0o755);
+          } catch {
+            /* ignore on Windows */
+          }
+          args.push('-v', `${dockerVolumePath(lfPath)}:/preview-entrypoint.sh:ro`);
+        }
+      } catch (err) {
+        logger.warn(`preview PHP entrypoint overlay skipped: ${err.message || err}`);
+      }
+    }
+  }
   const useDepCaches =
     stack === 'java-spring-react' ||
     stack === 'java-spring-thymeleaf' ||
@@ -2317,6 +2361,26 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       adminCredentials: patched.adminCredentials || {},
       patchedFiles: patched.files || 0,
     };
+    const phpUser = String(patched.adminCredentials?.username || '').trim();
+    const phpPass = String(patched.adminCredentials?.password || '').trim();
+    if (phpUser && phpPass && phpPass !== PREVIEW_MYSQL_ROOT_PASSWORD) {
+      mergedCredentialEnv = {
+        ...mergedCredentialEnv,
+        PREVIEW_SEED_USERNAME: phpUser,
+        PREVIEW_SEED_PASSWORD: phpPass,
+        ADMIN_USERNAME: phpUser,
+        LOGIN_USERNAME: phpUser,
+        ADMIN_PASSWORD: phpPass,
+        PREVIEW_ADMIN_PASSWORD: phpPass,
+        DEFAULT_ADMIN_USERNAME: phpUser,
+        DEFAULT_ADMIN_PASSWORD: phpPass,
+      };
+      if (phpUser.includes('@')) {
+        mergedCredentialEnv.ADMIN_EMAIL = phpUser;
+        mergedCredentialEnv.PREVIEW_ADMIN_EMAIL = phpUser;
+        mergedCredentialEnv.LOGIN_EMAIL = phpUser;
+      }
+    }
   }
 
   if (stack === 'java-spring-thymeleaf' && springOnlyRoot) {

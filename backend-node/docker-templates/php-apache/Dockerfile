@@ -9,6 +9,7 @@ WORKDIR /var/www/html
 
 # Student project is bind-mounted at /var/www/html at container start.
 COPY preview-bootstrap.php /preview-bootstrap.php
+COPY preview-seed-admin.php /preview-seed-admin.php
 COPY entrypoint.sh /preview-entrypoint.sh
 RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh
 
