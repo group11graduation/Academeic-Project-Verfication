@@ -228,112 +228,158 @@ async function main() {
       : columns.includes('id')
         ? 'id'
         : null;
-    const selectId = idCol || 'email';
-    const [rows] = await connection.query(
-      `SELECT ${selectId} AS id, email FROM users WHERE email = ? LIMIT 1`,
-      [email]
-    );
 
-    const setParts = [];
-    const setVals = [];
-    if (columns.includes('name')) {
-      setParts.push('name = COALESCE(?, name)');
-      setVals.push(name);
+    // Never derive username from admin@preview.demo → "admin" (collides with dump row).
+    // Also ignore PREVIEW_SEED_USERNAME=admin when seeding the platform preview email.
+    const envUsername = String(
+      process.env.PREVIEW_SEED_USERNAME || process.env.ADMIN_USERNAME || process.env.LOGIN_USERNAME || ''
+    ).trim();
+    let seedUsername = envUsername || 'previewadmin';
+    const local = (email.split('@')[0] || 'previewadmin').trim();
+    if (!envUsername) {
+      seedUsername = local.toLowerCase() === 'admin' ? 'previewadmin' : local;
     }
-    if (columns.includes('username')) {
-      setParts.push('username = COALESCE(?, username)');
-      setVals.push(email.split('@')[0]);
+    if (/@preview\.demo$/i.test(email) && seedUsername.toLowerCase() === 'admin') {
+      seedUsername = 'previewadmin';
     }
-    // Prefer snake_case password_hash (PayFlow) over camelCase passwordHash / password.
-    if (columns.includes('password_hash')) {
-      setParts.push('password_hash = ?');
-      setVals.push(hash);
-    } else if (columns.includes('password')) {
-      setParts.push('password = ?');
-      setVals.push(hash);
-    }
-    if (columns.includes('passwordhash')) {
-      setParts.push('passwordHash = ?');
-      setVals.push(hash);
-    }
-    if (columns.includes('role')) {
-      setParts.push(`role = COALESCE(role, 'admin')`);
-    }
-    if (columns.includes('role_id') && roleId != null) {
-      setParts.push('role_id = COALESCE(role_id, ?)');
-      setVals.push(roleId);
-    }
-    if (columns.includes('roleid') && roleId != null) {
-      setParts.push('roleId = COALESCE(roleId, ?)');
-      setVals.push(roleId);
-    }
-    if (columns.includes('isactive')) {
-      setParts.push('isActive = 1');
-    }
-    if (columns.includes('status')) {
-      setParts.push(`status = 'active'`);
+    if (seedUsername.toLowerCase() === 'admin' && /preview\.demo|previewadmin/i.test(email)) {
+      seedUsername = 'previewadmin';
     }
 
-    if (rows && rows.length) {
-      if (setParts.length) {
-        setVals.push(email);
-        await connection.query(`UPDATE users SET ${setParts.join(', ')} WHERE email = ?`, setVals);
+    const passwordCol = columns.includes('password_hash')
+      ? 'password_hash'
+      : columns.includes('password')
+        ? 'password'
+        : columns.includes('passwordhash')
+          ? 'passwordHash'
+          : null;
+
+    async function findUserRow(whereSql, params) {
+      const selectId = idCol || 'email';
+      const [found] = await connection.query(
+        `SELECT ${selectId} AS id, email${columns.includes('username') ? ', username' : ''} FROM users WHERE ${whereSql} LIMIT 1`,
+        params
+      );
+      return found && found[0] ? found[0] : null;
+    }
+
+    async function upsertAdmin({ targetEmail, targetUsername, targetHash, label }) {
+      let row =
+        (await findUserRow('email = ?', [targetEmail])) ||
+        (columns.includes('username')
+          ? await findUserRow('username = ?', [targetUsername])
+          : null);
+
+      // Fall back to classic dump admin so we can reset its password/email.
+      if (!row && columns.includes('username') && targetUsername !== 'admin') {
+        row = await findUserRow('username = ?', ['admin']);
+        // Only reuse dump admin when we're resetting the project admin identity.
+        if (row && label !== 'project-admin') row = null;
       }
-      console.log('[preview-seed-mysql] updated preview admin', email);
-    } else {
-      const insertCols = ['email'];
-      const insertVals = [email];
-      const placeholders = ['?'];
-      if (columns.includes('name')) {
-        insertCols.push('name');
-        insertVals.push(name);
-        placeholders.push('?');
-      }
+
+      const setParts = [];
+      const setVals = [];
       if (columns.includes('username')) {
-        insertCols.push('username');
-        insertVals.push(email.split('@')[0]);
-        placeholders.push('?');
+        setParts.push('username = ?');
+        setVals.push(targetUsername);
       }
-      if (columns.includes('password_hash')) {
-        insertCols.push('password_hash');
-        insertVals.push(hash);
-        placeholders.push('?');
-      } else if (columns.includes('password')) {
-        insertCols.push('password');
-        insertVals.push(hash);
-        placeholders.push('?');
+      if (columns.includes('email')) {
+        setParts.push('email = ?');
+        setVals.push(targetEmail);
       }
-      if (columns.includes('passwordhash')) {
-        insertCols.push('passwordHash');
-        insertVals.push(hash);
-        placeholders.push('?');
+      if (passwordCol) {
+        setParts.push(`${passwordCol} = ?`);
+        setVals.push(targetHash);
+      }
+      if (columns.includes('name')) {
+        setParts.push('name = COALESCE(?, name)');
+        setVals.push(name);
       }
       if (columns.includes('role')) {
-        insertCols.push('role');
-        insertVals.push('admin');
-        placeholders.push('?');
+        setParts.push(`role = COALESCE(role, 'admin')`);
       }
       if (columns.includes('role_id') && roleId != null) {
-        insertCols.push('role_id');
-        insertVals.push(roleId);
-        placeholders.push('?');
+        setParts.push('role_id = ?');
+        setVals.push(roleId);
       }
-      if (columns.includes('isactive')) {
-        insertCols.push('isActive');
-        insertVals.push(1);
-        placeholders.push('?');
+      if (columns.includes('roleid') && roleId != null) {
+        setParts.push('roleId = ?');
+        setVals.push(roleId);
       }
-      if (columns.includes('status')) {
-        insertCols.push('status');
-        insertVals.push('active');
-        placeholders.push('?');
+      if (columns.includes('isactive')) setParts.push('isActive = 1');
+      if (columns.includes('status')) setParts.push(`status = 'active'`);
+
+      if (row) {
+        if (!setParts.length) return;
+        const where = idCol ? `${idCol} = ?` : 'email = ?';
+        setVals.push(row.id);
+        await connection.query(`UPDATE users SET ${setParts.join(', ')} WHERE ${where}`, setVals);
+        console.log('[preview-seed-mysql] updated', label, targetEmail, 'username=', targetUsername);
+        return;
       }
-      await connection.query(
-        `INSERT INTO users (${insertCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
-        insertVals
-      );
-      console.log('[preview-seed-mysql] created preview admin', email);
+
+      const insertCols = [];
+      const insertVals = [];
+      const placeholders = [];
+      const add = (col, val) => {
+        insertCols.push(col);
+        insertVals.push(val);
+        placeholders.push('?');
+      };
+      add('email', targetEmail);
+      if (columns.includes('username')) add('username', targetUsername);
+      if (columns.includes('name')) add('name', name);
+      if (passwordCol) add(passwordCol, targetHash);
+      if (columns.includes('role')) add('role', 'admin');
+      if (columns.includes('role_id') && roleId != null) add('role_id', roleId);
+      if (columns.includes('isactive')) add('isActive', 1);
+      if (columns.includes('status')) add('status', 'active');
+
+      try {
+        await connection.query(
+          `INSERT INTO users (${insertCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
+          insertVals
+        );
+        console.log('[preview-seed-mysql] created', label, targetEmail, 'username=', targetUsername);
+      } catch (err) {
+        const msg = err && err.message ? String(err.message) : '';
+        if (!/Duplicate/i.test(msg)) throw err;
+        // Username/email unique conflict — update whichever row already exists.
+        const whereParts = ['email = ?'];
+        const whereVals = [...setVals, targetEmail];
+        if (columns.includes('username')) {
+          whereParts.push('username = ?');
+          whereVals.push(targetUsername);
+        }
+        await connection.query(
+          `UPDATE users SET ${setParts.join(', ')} WHERE ${whereParts.join(' OR ')}`,
+          whereVals
+        );
+        console.log('[preview-seed-mysql] upserted after duplicate', label, targetEmail);
+      }
     }
+
+    // 1) Make the project's documented admin work (PayFlow UI: admin@payflow.app / password123).
+    const projectPass = String(process.env.PREVIEW_PROJECT_ADMIN_PASSWORD || 'password123');
+    const projectEmail = String(process.env.PREVIEW_PROJECT_ADMIN_EMAIL || 'admin@payflow.app')
+      .toLowerCase()
+      .trim();
+    const projectHash = bcrypt ? await bcrypt.hash(projectPass, 10) : projectPass;
+    await upsertAdmin({
+      targetEmail: projectEmail,
+      targetUsername: 'admin',
+      targetHash: projectHash,
+      label: 'project-admin',
+    });
+
+    // 2) Ensure platform preview credentials also work (teacher credential box).
+    await upsertAdmin({
+      targetEmail: email,
+      targetUsername: seedUsername,
+      targetHash: hash,
+      label: 'preview-admin',
+    });
+
     console.log('[preview-seed-mysql] password verify: OK');
   } finally {
     try {
