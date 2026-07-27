@@ -160,8 +160,16 @@ function sv_pick_column(array $cols, array $candidates): ?string
 {
     foreach ($candidates as $candidate) {
         $key = strtolower($candidate);
-        if (isset($cols[$key])) {
-            return $cols[$key]['Field'];
+        if (!array_key_exists($key, $cols)) {
+            continue;
+        }
+        $val = $cols[$key];
+        // Accept either SHOW COLUMNS row arrays or lowercase=>FieldName string maps.
+        if (is_array($val) && isset($val['Field']) && is_string($val['Field']) && $val['Field'] !== '') {
+            return $val['Field'];
+        }
+        if (is_string($val) && $val !== '') {
+            return $val;
         }
     }
     return null;
@@ -263,7 +271,17 @@ foreach ($candidates as $table) {
     }
 
     $userCol = sv_pick_column($cols, ['username', 'user_name', 'user', 'login', 'admin_username', 'name', 'email']);
-    $passCol = sv_pick_column($cols, ['password', 'pass', 'pwd', 'user_password', 'passwd', 'user_pass']);
+    $passCol = sv_pick_column($cols, [
+        'password_hash',
+        'password',
+        'pass',
+        'pwd',
+        'user_password',
+        'passwd',
+        'user_pass',
+        'hashed_password',
+        'pass_hash',
+    ]);
     if (!$userCol || !$passCol) {
         sv_log('skip table ' . $table . ' (no username/password columns)');
         continue;
