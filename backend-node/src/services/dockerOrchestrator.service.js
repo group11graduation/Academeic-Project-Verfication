@@ -24,6 +24,8 @@ import {
   discoverPhpLoginPath,
   previewMysqlHostName,
   resolvePreviewDatabaseName,
+  discoverPhpSqlDumpFiles,
+  splitPhpSqlStatements,
 } from './previewPhp.service.js';
 import { resolveFlutterNodePair, patchFlutterApiPort } from './previewFlutter.service.js';
 import { resolveSpringReactPair, resolveSpringOnlyRoot, patchSpringForPreview, springReactDisplayLabel } from './previewSpring.service.js';
@@ -2112,6 +2114,77 @@ async function ensurePreviewMysqlDatabase(mysqlName, dbName) {
   );
 }
 
+/**
+ * Import student database.sql dumps into the preview MySQL sidecar before the
+ * PHP container starts. Entrypoint import is a backup; this path is authoritative.
+ */
+async function importPhpSqlDumpsToMysql(mysqlName, dbName, projectRoot) {
+  const safeDb = String(dbName || '').replace(/[^a-zA-Z0-9_]/g, '');
+  if (!mysqlName || !safeDb || !projectRoot) return { importedFiles: 0, statements: 0 };
+
+  let tableCount = 0;
+  try {
+    const { stdout } = await spawnProcess(
+      'docker',
+      [
+        'exec',
+        mysqlName,
+        'mariadb',
+        '-uroot',
+        `-p${PREVIEW_MYSQL_ROOT_PASSWORD}`,
+        '-N',
+        '-e',
+        `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${safeDb}'`,
+      ],
+      { timeoutMs: 20_000 }
+    );
+    tableCount = Number(String(stdout || '').trim()) || 0;
+  } catch {
+    tableCount = 0;
+  }
+  if (tableCount > 0) {
+    return { importedFiles: 0, statements: 0, skipped: true, tableCount };
+  }
+
+  const files = await discoverPhpSqlDumpFiles(projectRoot);
+  let importedFiles = 0;
+  let statements = 0;
+  for (const filePath of files) {
+    let raw;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      raw = await fs.readFile(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    const stmts = splitPhpSqlStatements(raw);
+    for (const stmt of stmts) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await spawnProcess(
+          'docker',
+          [
+            'exec',
+            mysqlName,
+            'mariadb',
+            '-uroot',
+            `-p${PREVIEW_MYSQL_ROOT_PASSWORD}`,
+            safeDb,
+            '-e',
+            stmt,
+          ],
+          { timeoutMs: 60_000 }
+        );
+        statements += 1;
+      } catch {
+        /* skip failed statement (e.g. duplicate) */
+      }
+    }
+    importedFiles += 1;
+  }
+  return { importedFiles, statements };
+}
+
 async function stopPreviewMysqlSidecar(projectId) {
   await removeContainerIfExists(previewMysqlHostName(projectId));
 }
@@ -2401,6 +2474,17 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       mergedCredentialEnv.DB_NAME = patched.dbName;
       if (mergedCredentialEnv.DB_HOST) {
         await ensurePreviewMysqlDatabase(mergedCredentialEnv.DB_HOST, patched.dbName);
+        const phpRoot = path.join(buildContext, appSubdir === '.' ? '' : appSubdir);
+        const sqlImport = await importPhpSqlDumpsToMysql(
+          mergedCredentialEnv.DB_HOST,
+          patched.dbName,
+          phpRoot,
+        );
+        if (sqlImport.statements > 0) {
+          logger.info(
+            `PHP SQL import: ${sqlImport.importedFiles} file(s), ${sqlImport.statements} statement(s) into ${patched.dbName}`,
+          );
+        }
       }
     }
     phpLoginPath = patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));

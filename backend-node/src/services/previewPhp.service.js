@@ -339,6 +339,53 @@ function isPhpBootstrapScript(filePath) {
   return ['setup_db.php', 'upgrade_db.php', 'reset_admin.php', 'install.php'].includes(base);
 }
 
+/** Discover database.sql / schema.sql style dumps in a PHP project root. */
+export async function discoverPhpSqlDumpFiles(root) {
+  const found = new Set();
+  const names = ['database.sql', 'db.sql', 'schema.sql', 'dump.sql', 'data.sql'];
+  const dirs = [root, path.join(root, 'sql'), path.join(root, 'database'), path.join(root, 'db')];
+  for (const dir of dirs) {
+    for (const name of names) {
+      const filePath = path.join(dir, name);
+      // eslint-disable-next-line no-await-in-loop
+      if (await pathExists(filePath)) found.add(filePath);
+    }
+  }
+  for (const dir of [path.join(root, 'sql'), path.join(root, 'database')]) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const entries = await fs.readdir(dir);
+      for (const entry of entries) {
+        if (entry.toLowerCase().endsWith('.sql')) found.add(path.join(dir, entry));
+      }
+    } catch {
+      /* missing dir */
+    }
+  }
+  return [...found];
+}
+
+/**
+ * Split a student SQL dump into executable statements.
+ * Strips CREATE DATABASE / USE (caller already selected the DB) and full-line comments.
+ */
+export function splitPhpSqlStatements(sqlText) {
+  let sql = String(sqlText || '');
+  sql = sql.replace(/DELIMITER\s+\S+/gi, '');
+  sql = sql.replace(/CREATE\s+DEFINER=[^\s]+\s+/gi, 'CREATE ');
+  sql = sql.replace(/^\s*CREATE\s+DATABASE\s+[^;]+;/gim, '');
+  sql = sql.replace(/^\s*USE\s+[^;]+;/gim, '');
+  return sql
+    .split(';')
+    .map((stmt) =>
+      stmt
+        .replace(/^\s*--[^\n]*$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .trim(),
+    )
+    .filter(Boolean);
+}
+
 function syncCreateDatabaseStatement(content, dbName) {
   if (!dbName) return content;
   return content.replace(

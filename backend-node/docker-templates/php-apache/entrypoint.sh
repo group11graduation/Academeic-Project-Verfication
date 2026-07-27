@@ -269,11 +269,12 @@ import_sql_dumps() {
         if (\$sql === false || trim(\$sql) === '') continue;
         \$sql = preg_replace('/DELIMITER\\s+\\S+/i', '', \$sql);
         \$sql = preg_replace('/CREATE\\s+DEFINER=[^\\s]+\\s+/i', 'CREATE ', \$sql);
-        // Already connected to \$db — drop CREATE DATABASE / USE so student dumps still apply.
+        // Already connected to $db — drop CREATE DATABASE / USE so student dumps still apply.
         \$sql = preg_replace('/^\\s*CREATE\\s+DATABASE\\s+[^;]+;/im', '', \$sql);
         \$sql = preg_replace('/^\\s*USE\\s+[^;]+;/im', '', \$sql);
-        // Split on semicolons (not only semicolon+newline) so compact dumps work.
-        \$parts = preg_split('/;(?=\\s*(?:--|/\\*|\$|[A-Za-z]))/', \$sql);
+        // Simple split — student dumps rarely embed ; inside statements. (Do NOT use /…/\\*/…/
+        // lookaheads; the /\\* terminates a /…/ regex and yields 0 statements.)
+        \$parts = preg_split('/;\\s*/', \$sql);
         \$ok = 0; \$fail = 0;
         foreach (\$parts as \$stmt) {
           // Strip full-line SQL comments; do NOT skip just because a comment precedes CREATE TABLE.
