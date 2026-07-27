@@ -346,15 +346,14 @@ export async function discoverPhpAdminCredentials(root) {
   let password = '';
   let hint = '';
 
-  const mysqlPass = String(
-    process.env.PREVIEW_MYSQL_ROOT_PASSWORD || process.env.DB_PASS || 'preview-root'
-  ).trim();
-
   const accept = (user, pass, why) => {
     const u = String(user || '').trim();
-    const p = String(pass || '').trim();
+    let p = String(pass || '').trim();
+    // Strip accidental PHP source escape suffixes: "Admin@123\n" from echo "...$x\n"
+    p = p.replace(/\\n$/i, '').replace(/\\r$/i, '').trim();
     if (!u || !p) return false;
-    if (p === mysqlPass || p === 'preview-root') return false;
+    if (looksLikeUnresolvedVariableToken(u) || looksLikeUnresolvedVariableToken(p)) return false;
+    if (!isUsablePreviewPassword(p)) return false;
     if (/^(root|mysql|mariadb)$/i.test(u)) return false;
     username = u;
     password = p;
@@ -367,22 +366,31 @@ export async function discoverPhpAdminCredentials(root) {
       const content = await fs.readFile(scriptPath, 'utf8');
       const base = path.basename(scriptPath);
 
-      const userPassEcho = content.match(
-        /(?:User|Username|Login)\s*[:=]\s*['"]?([A-Za-z0-9._@-]+)['"]?[^\n]{0,80}(?:Pass|Password)\s*[:=]\s*['"]?([^'"<\s]+)/i
+      // Prefer literal password_hash('real-password') over echo "...$pass\n" source templates.
+      const hashThenUser = content.match(
+        /password_hash\s*\(\s*['"]([^'"]+)['"][\s\S]{0,500}?(?:execute|bindValue|bindParam)\s*\(\s*(?:\[[^\]]*?['"]([^'"]+)['"]|['"]([^'"]+)['"])/i
       );
-      if (userPassEcho && accept(userPassEcho[1], userPassEcho[2], `From ${base}`)) break;
-
-      const resetEcho = content.match(
-        /password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<]+)/i
-      );
-      if (resetEcho) {
-        const pass = resetEcho[1];
-        const userFromFile =
-          content.match(/\$admin_username\s*=\s*['"]([^'"]+)['"]/i)?.[1] ||
-          content.match(/username\s*[:=]\s*['"]?([A-Za-z0-9._@-]+)/i)?.[1] ||
-          'admin';
-        if (accept(userFromFile, pass, `From ${base} reset echo`)) break;
+      if (hashThenUser) {
+        const user = hashThenUser[2] || hashThenUser[3];
+        if (accept(user, hashThenUser[1], `From ${base} seed user`)) break;
       }
+
+      const userThenHash = content.match(
+        /(?:execute|bindValue|bindParam)\s*\(\s*(?:\[[^\]]*?['"]([^'"]+)['"]|['"]([^'"]+)['"])[\s\S]{0,500}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
+      );
+      if (userThenHash) {
+        const user = userThenHash[1] || userThenHash[2];
+        if (accept(user, userThenHash[3], `From ${base} seed user`)) break;
+      }
+
+      const plainPass = content.match(/password_hash\s*\(\s*['"]([^'"]+)['"]/i);
+      const execUser = content.match(/execute\s*\(\s*\[\s*['"]([^'"]+)['"]/i);
+      if (plainPass && execUser && accept(execUser[1], plainPass[1], `From ${base} seed user`)) break;
+
+      const insertMatch = content.match(
+        /INSERT INTO\s+[`]?(?:users|admins|accounts|tbl_users)[`]?[\s\S]{0,400}?VALUES\s*\(\s*['"]([^'"]+)['"][\s\S]{0,160}?['"]([^'"]+)['"][\s\S]{0,120}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
+      );
+      if (insertMatch && accept(insertMatch[1], insertMatch[3], `From ${base} INSERT`)) break;
 
       const adminVars = content.match(
         /\$admin_(?:user|username|login|name)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$admin_(?:pass|password|pwd)\s*=\s*['"]([^'"]+)['"]/i
@@ -409,42 +417,43 @@ export async function discoverPhpAdminCredentials(root) {
       );
       if (defaultAdmin && accept(defaultAdmin[1], defaultAdmin[2], `From ${base} default admin`)) break;
 
-      // password_hash('plain') … bind/execute with username nearby
-      const hashThenUser = content.match(
-        /password_hash\s*\(\s*['"]([^'"]+)['"][\s\S]{0,500}?(?:execute|bindValue|bindParam)\s*\(\s*(?:\[[^\]]*?['"]([^'"]+)['"]|['"]([^'"]+)['"])/i
-      );
-      if (hashThenUser) {
-        const user = hashThenUser[2] || hashThenUser[3];
-        if (accept(user, hashThenUser[1], `From ${base} seed user`)) break;
-      }
-
-      const userThenHash = content.match(
-        /(?:execute|bindValue|bindParam)\s*\(\s*(?:\[[^\]]*?['"]([^'"]+)['"]|['"]([^'"]+)['"])[\s\S]{0,500}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
-      );
-      if (userThenHash) {
-        const user = userThenHash[1] || userThenHash[2];
-        if (accept(user, userThenHash[3], `From ${base} seed user`)) break;
-      }
-
-      const plainPass = content.match(/password_hash\s*\(\s*['"]([^'"]+)['"]/i);
-      const execUser = content.match(/execute\s*\(\s*\[\s*['"]([^'"]+)['"]/i);
-      if (plainPass && execUser && accept(execUser[1], plainPass[1], `From ${base} seed user`)) break;
-
-      const insertMatch = content.match(
-        /INSERT INTO\s+[`]?(?:users|admins|accounts|tbl_users)[`]?[\s\S]{0,400}?VALUES\s*\(\s*['"]([^'"]+)['"][\s\S]{0,160}?['"]([^'"]+)['"][\s\S]{0,120}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
-      );
-      if (insertMatch && accept(insertMatch[1], insertMatch[3], `From ${base} INSERT`)) break;
-
-      // Common BBMS / blood-bank echo lines in setup scripts
-      const echoCreds = content.match(
-        /echo\s+['"][^'"]*(?:username|user|login)\s*[:=]\s*([A-Za-z0-9._@-]+)[^'"]*(?:password|pass)\s*[:=]\s*([^'"\s<]+)['"]/i
-      );
-      if (echoCreds && accept(echoCreds[1], echoCreds[2], `From ${base} echo`)) break;
-
       const superadmin = content.match(
         /['"](superadmin|admin|administrator)['"][\s\S]{0,200}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
       );
       if (superadmin && accept(superadmin[1], superadmin[2], `From ${base} role seed`)) break;
+
+      // Echo / "reset to:" lines last — source often contains "$pass\n" placeholders.
+      const userPassEcho = content.match(
+        /(?:User|Username|Login)\s*[:=]\s*['"]?([A-Za-z0-9._@-]+)['"]?[^\n]{0,80}(?:Pass|Password)\s*[:=]\s*['"]?([^'"<\s]+)/i
+      );
+      if (userPassEcho && accept(userPassEcho[1], userPassEcho[2], `From ${base}`)) break;
+
+      const resetEcho = content.match(
+        /password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<]+)/i
+      );
+      if (resetEcho) {
+        const pass = resetEcho[1];
+        const userFromFile =
+          content.match(/\$admin_username\s*=\s*['"]([^'"]+)['"]/i)?.[1] ||
+          content.match(/\$username\s*=\s*['"]([^'"]+)['"]/i)?.[1] ||
+          content.match(/(?:User|Username|Login)\s*[:=]\s*['"]([A-Za-z0-9._@-]+)['"]/i)?.[1] ||
+          'admin';
+        // If echo uses $pass, resolve from a nearby assignment: $pass = 'Admin@123';
+        let resolvedPass = pass;
+        if (looksLikeUnresolvedVariableToken(pass)) {
+          const varName = pass.replace(/^\$/, '').replace(/\\n$/i, '');
+          const assigned = content.match(
+            new RegExp(`\\$${varName}\\s*=\\s*['"]([^'"]+)['"]`, 'i')
+          );
+          if (assigned) resolvedPass = assigned[1];
+        }
+        if (accept(userFromFile, resolvedPass, `From ${base} reset echo`)) break;
+      }
+
+      const echoCreds = content.match(
+        /echo\s+['"][^'"]*(?:username|user|login)\s*[:=]\s*([A-Za-z0-9._@-]+)[^'"]*(?:password|pass)\s*[:=]\s*([^'"\s<]+)['"]/i
+      );
+      if (echoCreds && accept(echoCreds[1], echoCreds[2], `From ${base} echo`)) break;
     } catch {
       /* ignore */
     }
@@ -550,6 +559,34 @@ function platformDefaultPhpCredentials() {
   };
 }
 
+/**
+ * Reject PHP/shell variable tokens accidentally scraped from source echo strings
+ * like: echo "password reset to: $pass\n";
+ */
+export function looksLikeUnresolvedVariableToken(value) {
+  const v = String(value || '').trim();
+  if (!v) return true;
+  // "$pass", "$password", "$pass\n" (backslash-n from PHP source)
+  if (v.startsWith('$')) return true;
+  if (/\\n$/i.test(v) || v.endsWith('\\n')) return true;
+  if (/^(pass|password|pwd|passwd|user|username|email|admin_password|admin_pass)$/i.test(v)) {
+    return true;
+  }
+  return false;
+}
+
+export function isUsablePreviewPassword(value) {
+  const p = String(value || '')
+    .trim()
+    .replace(/\\n$/i, '')
+    .replace(/\\r$/i, '')
+    .trim();
+  if (!p || p.length < 3) return false;
+  if (looksLikeUnresolvedVariableToken(p)) return false;
+  if (isMysqlSidecarPassword(p)) return false;
+  return true;
+}
+
 function phpCredentialsLookLikePlatformDefault(user, pass) {
   const defaults = platformDefaultPhpCredentials();
   return pass === defaults.password && (user === defaults.email || user === defaults.username);
@@ -581,19 +618,23 @@ function isMysqlSidecarPassword(value) {
 function sanitizeBootstrapCredential(raw, kind = 'password') {
   let value = normalizeBootstrapLogLine(raw).replace(/^['"]+|['"]+$/g, '');
   if (!value) return '';
+  // Never keep PHP source placeholders like "$pass\n"
+  value = value.replace(/\\n$/i, '').replace(/\\r$/i, '').trim();
+  if (looksLikeUnresolvedVariableToken(value)) return '';
 
   if (kind === 'email') {
     const m = value.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
-    return m ? m[0] : value.split(/[\s<(,;]/)[0];
+    return m ? m[0] : value.split(/[\s<(,;)]/)[0];
   }
 
   if (kind === 'username') {
     const m = value.match(/^[A-Za-z0-9._@-]+/);
-    return m ? m[0] : value.split(/[\s<(,;]/)[0];
+    return m ? m[0] : value.split(/[\s<(,;)]/)[0];
   }
 
-  const m = value.match(/^[A-Za-z0-9@#$%^&*!\.\-_/+:=]+/);
-  return m ? m[0] : value.split(/[\s<(,]/)[0].replace(/[),.;:]+$/g, '');
+  // Allow common password specials; leading "$" already rejected above.
+  const m = value.match(/^[A-Za-z0-9@#%^&*!\.\-_/+:=]+/);
+  return m ? m[0] : value.split(/[\s<(,;)]/)[0].replace(/[),.;:]+$/g, '');
 }
 
 /**
@@ -609,7 +650,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
   if (seeded) {
     const username = sanitizeBootstrapCredential(seeded[1], 'username');
     const password = sanitizeBootstrapCredential(seeded[2], 'password');
-    if (username && password && !isMysqlSidecarPassword(password)) {
+    if (username && isUsablePreviewPassword(password)) {
       return {
         username,
         password,
@@ -645,7 +686,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
       line.match(/admin\s+password[^:\n]*:\s*['"]?([^\s'"<>,;)]+)/i);
     if (passReset) {
       const cleaned = sanitizeBootstrapCredential(passReset[1], 'password');
-      if (cleaned && !isMysqlSidecarPassword(cleaned)) {
+      if (isUsablePreviewPassword(cleaned)) {
         password = cleaned;
       }
       continue;
@@ -655,7 +696,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
       const passKv = line.match(/(?:^|[^\w])(?:pass(?:word)?)\s*[:=]\s*['"]?([^\s'"<>,;)]+)/i);
       if (passKv) {
         const cleaned = sanitizeBootstrapCredential(passKv[1], 'password');
-        if (cleaned.length >= 3 && !isMysqlSidecarPassword(cleaned)) {
+        if (isUsablePreviewPassword(cleaned)) {
           password = cleaned;
         }
       }
@@ -689,7 +730,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
       if (id.includes('@')) email = id;
       else if (id && id.toLowerCase() !== 'root') username = id;
       const pass = sanitizeBootstrapCredential(pair[2].trim(), 'password');
-      if (pass && !isMysqlSidecarPassword(pass)) password = pass;
+      if (isUsablePreviewPassword(pass)) password = pass;
     }
   }
 
@@ -697,7 +738,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
   username = sanitizeBootstrapCredential(username, 'username');
   email = sanitizeBootstrapCredential(email, 'email');
 
-  if (!password || isMysqlSidecarPassword(password)) return null;
+  if (!isUsablePreviewPassword(password)) return null;
 
   const identifier = email || username;
   if (!identifier) {

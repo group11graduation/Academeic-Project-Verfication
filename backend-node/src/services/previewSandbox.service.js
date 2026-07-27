@@ -10,7 +10,7 @@ import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as previewMern from './previewMern.service.js';
 import * as previewSpring from './previewSpring.service.js';
 import * as previewLoginVerify from './previewLoginVerify.service.js';
-import { buildPhpPreviewLoginHint, parsePhpBootstrapCredentialsFromLog } from './previewPhp.service.js';
+import { buildPhpPreviewLoginHint, parsePhpBootstrapCredentialsFromLog, looksLikeUnresolvedVariableToken, isUsablePreviewPassword } from './previewPhp.service.js';
 import {
   executeZipExtractionBarrier,
   executeTechAuditBarrier,
@@ -305,13 +305,16 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
   const setupPass = String(fromSetup.password || '').trim();
   const setupLooksReal =
     Boolean(setupUser && setupPass) &&
-    setupPass !== 'preview-root' &&
+    isUsablePreviewPassword(setupPass) &&
+    !looksLikeUnresolvedVariableToken(setupUser) &&
     !/^(root|mysql|mariadb)$/i.test(setupUser);
 
   const applyCreds = ({ username, password, identifierType, source, email }) => {
-    if (password) session.previewLoginPassword = password;
+    if (password && isUsablePreviewPassword(password)) {
+      session.previewLoginPassword = password;
+    }
     if (email && String(email).includes('@')) session.previewLoginEmail = email;
-    if (username) {
+    if (username && !looksLikeUnresolvedVariableToken(username)) {
       if (String(username).includes('@')) session.previewLoginEmail = username;
       else session.previewLoginUsername = username;
     }

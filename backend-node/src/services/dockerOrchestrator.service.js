@@ -2362,29 +2362,35 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       patchedFiles: patched.files || 0,
     };
     const phpUser = String(patched.adminCredentials?.username || '').trim();
-    const phpPass = String(patched.adminCredentials?.password || '').trim();
+    const phpPassRaw = String(patched.adminCredentials?.password || '').trim();
+    const phpPass = phpPassRaw.replace(/\\n$/i, '').trim();
+    const phpPassUsable =
+      Boolean(phpUser && phpPass) &&
+      !phpPass.startsWith('$') &&
+      phpPass !== PREVIEW_MYSQL_ROOT_PASSWORD &&
+      phpPass !== 'preview-root' &&
+      !/\\n/i.test(phpPassRaw);
     // Always inject a seed identity. Prefer project setup credentials; otherwise
     // keep platform previewadmin/Preview123! so preview-seed-admin.php can create it.
-    const seedUser =
-      phpUser && phpPass && phpPass !== PREVIEW_MYSQL_ROOT_PASSWORD && phpPass !== 'preview-root'
-        ? phpUser
-        : String(mergedCredentialEnv.PREVIEW_SEED_USERNAME || mergedCredentialEnv.ADMIN_USERNAME || 'previewadmin').trim() ||
-          'previewadmin';
-    const seedPass =
-      phpUser && phpPass && phpPass !== PREVIEW_MYSQL_ROOT_PASSWORD && phpPass !== 'preview-root'
-        ? phpPass
-        : String(mergedCredentialEnv.PREVIEW_SEED_PASSWORD || mergedCredentialEnv.ADMIN_PASSWORD || 'Preview123!').trim() ||
-          'Preview123!';
+    const seedUser = phpPassUsable
+      ? phpUser
+      : String(mergedCredentialEnv.PREVIEW_SEED_USERNAME || mergedCredentialEnv.ADMIN_USERNAME || 'previewadmin').trim() ||
+        'previewadmin';
+    const seedPass = phpPassUsable
+      ? phpPass
+      : String(mergedCredentialEnv.PREVIEW_SEED_PASSWORD || mergedCredentialEnv.ADMIN_PASSWORD || 'Preview123!').trim() ||
+        'Preview123!';
+    const safeSeedPass = seedPass.startsWith('$') || seedPass === 'preview-root' ? 'Preview123!' : seedPass;
     mergedCredentialEnv = {
       ...mergedCredentialEnv,
       PREVIEW_SEED_USERNAME: seedUser,
-      PREVIEW_SEED_PASSWORD: seedPass,
+      PREVIEW_SEED_PASSWORD: safeSeedPass,
       ADMIN_USERNAME: seedUser,
       LOGIN_USERNAME: seedUser,
-      ADMIN_PASSWORD: seedPass,
-      PREVIEW_ADMIN_PASSWORD: seedPass,
+      ADMIN_PASSWORD: safeSeedPass,
+      PREVIEW_ADMIN_PASSWORD: safeSeedPass,
       DEFAULT_ADMIN_USERNAME: seedUser,
-      DEFAULT_ADMIN_PASSWORD: seedPass,
+      DEFAULT_ADMIN_PASSWORD: safeSeedPass,
       PREVIEW_PASSWORD_MODE: 'bcrypt',
     };
     if (seedUser.includes('@')) {
