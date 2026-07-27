@@ -35,15 +35,35 @@ const result = await patchPhpForPreview(tmp, '.', {
 });
 
 const patched = await fs.promises.readFile(path.join(cfgDir, 'db.php'), 'utf8');
-const okHost = patched.includes("new mysqli('preview-mysql-test'") || patched.includes('new mysqli("preview-mysql-test"');
-const okPass = patched.includes('preview-root');
+const okHost = /new\s+mysqli\s*\(\s*getenv\s*\(\s*['"]DB_HOST['"]\s*\)/.test(patched);
+const okPass = patched.includes('preview-root') || /getenv\s*\(\s*['"]DB_PASS['"]\s*\)/.test(patched);
 const okDb = result.dbName === 'event_management';
+const noStale = !/preview-mysql-[a-z0-9]+/.test(patched);
 
-console.log({ files: result.files, dbName: result.dbName, okHost, okPass, okDb });
+console.log({ files: result.files, dbName: result.dbName, okHost, okPass, okDb, noStale });
 console.log(patched);
 
-if (!okHost || !okPass || !okDb) {
+if (!okHost || !okPass || !okDb || !noStale) {
   console.error('FAIL: mysqli patch regression');
   process.exit(1);
 }
 console.log('OK');
+
+// Second pass: stale sidecar hostname must flip to getenv (restart safety)
+await fs.promises.writeFile(
+  path.join(cfgDir, 'db.php'),
+  `<?php\n$conn = new mysqli("preview-mysql-OLDID123", "root", "preview-root", "event_management");\n`,
+  'utf8',
+);
+await patchPhpForPreview(tmp, '.', {
+  dbHost: 'preview-mysql-NEWID456',
+  dbUser: 'root',
+  dbPass: 'preview-root',
+  dbName: 'event_management',
+});
+const patched2 = await fs.promises.readFile(path.join(cfgDir, 'db.php'), 'utf8');
+if (!/getenv\s*\(\s*['"]DB_HOST['"]\s*\)/.test(patched2) || /preview-mysql-OLDID123/.test(patched2)) {
+  console.error('FAIL: stale sidecar host not rewritten\n', patched2);
+  process.exit(1);
+}
+console.log('OK stale-host rewrite');

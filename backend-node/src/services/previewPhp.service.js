@@ -243,42 +243,55 @@ function patchPhpDefines(content, { baseUrl, dbHost, dbName, dbUser, dbPass }) {
 }
 
 /**
- * Rewrite PDO DSNs and mysqli_connect / new mysqli(...) hosts for the sidecar.
- * Student ZIPs almost always hard-code localhost (Unix socket) which fails in Docker.
+ * Rewrite PDO DSNs and mysqli_connect / new mysqli(...) for the MySQL sidecar.
+ *
+ * IMPORTANT: Prefer getenv('DB_HOST') over baking the sidecar container name into
+ * files. Preview caches reuse the same ZIP mount across restarts; a hardcoded
+ * preview-mysql-<oldId> breaks DNS when the sidecar is recreated.
  */
 function patchPdoDsnHosts(content, dbHost, dbName, { dbUser = null, dbPass = null } = {}) {
   let changed = false;
-  if (dbHost) {
-    const hostRe =
-      /(mysql:host=)(localhost|127\.0\.0\.1|host\.docker\.internal)(?=;|['"])/gi;
-    if (hostRe.test(content)) {
-      content = content.replace(hostRe, `$1${dbHost}`);
-      changed = true;
-    }
-    const mysqliConnectRe =
-      /(mysqli_connect\s*\(\s*['"])(localhost|127\.0\.0\.1)(['"])/gi;
-    if (mysqliConnectRe.test(content)) {
-      content = content.replace(mysqliConnectRe, `$1${dbHost}$3`);
-      changed = true;
-    }
+  const hostFallback = dbHost || 'localhost';
 
-    // new mysqli("localhost", "user", "pass", "dbname") — common XAMPP style
-    const mysqliNewRe =
-      /new\s+mysqli\s*\(\s*(['"])(localhost|127\.0\.0\.1)\1\s*,\s*(['"])([^'"]*)\3\s*,\s*(['"])([^'"]*)\5(\s*(?:,\s*(['"])([^'"]*)\8)?)/gi;
-    content = content.replace(
-      mysqliNewRe,
-      (_m, q1, _host, q2, user, q3, pass, rest, q4, name) => {
-        changed = true;
-        const nextUser = dbUser != null && dbUser !== '' ? dbUser : user;
-        const nextPass = dbPass != null ? dbPass : pass;
-        const nextName = dbName && name != null ? dbName : name;
-        if (q4 != null && name != null) {
-          return `new mysqli(${q1}${dbHost}${q1}, ${q2}${nextUser}${q2}, ${q3}${nextPass}${q3}, ${q4}${nextName}${q4}`;
-        }
-        return `new mysqli(${q1}${dbHost}${q1}, ${q2}${nextUser}${q2}, ${q3}${nextPass}${q3}${rest || ''}`;
-      },
-    );
+  // PDO DSN host: localhost OR stale preview-mysql-* → current sidecar (updated every start)
+  const hostRe =
+    /(mysql:host=)(localhost|127\.0\.0\.1|host\.docker\.internal|preview-mysql-[a-zA-Z0-9]+)(?=;|['"])/gi;
+  if (hostRe.test(content)) {
+    content = content.replace(hostRe, `$1${hostFallback}`);
+    changed = true;
   }
+
+  // mysqli_connect('host', ...) — any literal host including stale sidecar names
+  content = content.replace(
+    /mysqli_connect\s*\(\s*(['"])([^'"]*)\1/gi,
+    (_m, _q, host) => {
+      if (/^getenv\s*\(/i.test(host)) return _m;
+      changed = true;
+      return `mysqli_connect(getenv('DB_HOST') ?: 'localhost'`;
+    },
+  );
+
+  // new mysqli("ANY_HOST", "user", "pass", "dbname") → getenv so restarts never go stale
+  const mysqliNewRe =
+    /new\s+mysqli\s*\(\s*(['"])([^'"]*)\1\s*,\s*(['"])([^'"]*)\3\s*,\s*(['"])([^'"]*)\5(\s*,\s*(['"])([^'"]*)\8)?/gi;
+  content = content.replace(
+    mysqliNewRe,
+    (_m, _q1, host, q2, user, q3, pass, _rest, q4, name) => {
+      if (/^getenv\s*\(/i.test(host)) return _m;
+      changed = true;
+      const nextUser = dbUser != null && dbUser !== '' ? dbUser : user;
+      const nextPass = dbPass != null ? dbPass : pass;
+      const nextName = dbName && name != null ? dbName : name;
+      const userExpr = `getenv('DB_USER') ?: ${q2}${nextUser}${q2}`;
+      const passExpr = `(getenv('DB_PASS') !== false ? getenv('DB_PASS') : ${q3}${nextPass}${q3})`;
+      if (q4 != null && name != null) {
+        const nameExpr = `getenv('DB_NAME') ?: ${q4}${nextName}${q4}`;
+        return `new mysqli(getenv('DB_HOST') ?: 'localhost', ${userExpr}, ${passExpr}, ${nameExpr}`;
+      }
+      return `new mysqli(getenv('DB_HOST') ?: 'localhost', ${userExpr}, ${passExpr}`;
+    },
+  );
+
   if (dbName) {
     const dbRe = /(mysql:host=[^;'"]+;dbname=)([^;'"]+)/gi;
     if (dbRe.test(content)) {

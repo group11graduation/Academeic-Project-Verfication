@@ -74,15 +74,12 @@ patch_pdo_localhost() {
   [ -n "$DB_HOST" ] || return 0
   sed -i "s|mysql:host=localhost|mysql:host=${DB_HOST}|g" "$file" 2>/dev/null || true
   sed -i "s|mysql:host=127.0.0.1|mysql:host=${DB_HOST}|g" "$file" 2>/dev/null || true
-  sed -i "s|mysqli_connect('localhost'|mysqli_connect('${DB_HOST}'|g" "$file" 2>/dev/null || true
-  sed -i "s|mysqli_connect(\"localhost\"|mysqli_connect(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
-  # new mysqli("localhost", "user", "pass", "db") — XAMPP student projects
-  sed -i "s|new mysqli('localhost'|new mysqli('${DB_HOST}'|g" "$file" 2>/dev/null || true
-  sed -i "s|new mysqli(\"localhost\"|new mysqli(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
-  sed -i "s|new mysqli('127.0.0.1'|new mysqli('${DB_HOST}'|g" "$file" 2>/dev/null || true
-  sed -i "s|new mysqli(\"127.0.0.1\"|new mysqli(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
-  sed -i "s|new \\\\mysqli('localhost'|new \\\\mysqli('${DB_HOST}'|g" "$file" 2>/dev/null || true
-  sed -i "s|new \\\\mysqli(\"localhost\"|new \\\\mysqli(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
+  # Refresh stale sidecar hostnames baked by a previous preview run
+  sed -i -E "s|mysql:host=preview-mysql-[A-Za-z0-9]+|mysql:host=${DB_HOST}|g" "$file" 2>/dev/null || true
+  # Prefer getenv so later restarts never keep a dead sidecar DNS name
+  sed -i -E "s|mysqli_connect\(\s*['\"][^'\"]+['\"]|mysqli_connect(getenv('DB_HOST') ?: 'localhost'|g" "$file" 2>/dev/null || true
+  sed -i -E "s|new mysqli\(\s*['\"][^'\"]+['\"]|new mysqli(getenv('DB_HOST') ?: 'localhost'|g" "$file" 2>/dev/null || true
+  sed -i -E "s|new \\\\mysqli\(\s*['\"][^'\"]+['\"]|new \\\\mysqli(getenv('DB_HOST') ?: 'localhost'|g" "$file" 2>/dev/null || true
 }
 
 # Rewrite empty MySQL password only in new mysqli(..., '', ...) forms.
@@ -90,8 +87,9 @@ patch_mysqli_empty_password() {
   file="$1"
   [ -f "$file" ] || return 0
   [ -n "$DB_PASS" ] || return 0
-  sed -i "s|new mysqli('\\([^']*\\)', '\\([^']*\\)', ''|new mysqli('\\1', '\\2', '${DB_PASS}'|g" "$file" 2>/dev/null || true
-  sed -i "s|new mysqli(\"\\([^\"]*\\)\", \"\\([^\"]*\\)\", \"\"|new mysqli(\"\\1\", \"\\2\", \"${DB_PASS}\"|g" "$file" 2>/dev/null || true
+  # new mysqli(getenv('DB_HOST') ?: 'localhost', 'user', '', 'db')
+  sed -i -E "s|(new[[:space:]]+mysqli\(getenv\('DB_HOST'\)[[:space:]]*\?:[[:space:]]*'localhost',[[:space:]]*'[^']*',[[:space:]]*)''|\1'${DB_PASS}'|g" "$file" 2>/dev/null || true
+  sed -i -E "s|(new[[:space:]]+mysqli\(getenv\('DB_HOST'\)[[:space:]]*\?:[[:space:]]*'localhost',[[:space:]]*\"[^\"]*\",[[:space:]]*)\"\"|\1\"${DB_PASS}\"|g" "$file" 2>/dev/null || true
 }
 
 # Returns 0 when the file looks like a setup/seed/bootstrap script (may seed app admins).
