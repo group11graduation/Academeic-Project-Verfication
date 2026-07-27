@@ -372,6 +372,18 @@ export async function discoverPhpAdminCredentials(root) {
       );
       if (userPassEcho && accept(userPassEcho[1], userPassEcho[2], `From ${base}`)) break;
 
+      const resetEcho = content.match(
+        /password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<]+)/i
+      );
+      if (resetEcho) {
+        const pass = resetEcho[1];
+        const userFromFile =
+          content.match(/\$admin_username\s*=\s*['"]([^'"]+)['"]/i)?.[1] ||
+          content.match(/username\s*[:=]\s*['"]?([A-Za-z0-9._@-]+)/i)?.[1] ||
+          'admin';
+        if (accept(userFromFile, pass, `From ${base} reset echo`)) break;
+      }
+
       const adminVars = content.match(
         /\$admin_(?:user|username|login|name)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$admin_(?:pass|password|pwd)\s*=\s*['"]([^'"]+)['"]/i
       );

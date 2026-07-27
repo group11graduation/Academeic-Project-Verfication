@@ -301,11 +301,23 @@ if [ -n "$DB_HOST" ]; then
   ensure_preview_database
   run_bootstrap_scripts
   check_bootstrap_tables
+  wait_for_mysql || true
   if [ -f /preview-seed-admin.php ]; then
     echo "[preview] running preview-seed-admin.php"
-    php /preview-seed-admin.php >> /tmp/preview-mysql.log 2>&1 || true
+    # Retry: bootstrap may create tables a few seconds after scripts return.
+    n=0
+    while [ "$n" -lt 5 ]; do
+      if php /preview-seed-admin.php >> /tmp/preview-mysql.log 2>&1; then
+        echo "[preview] preview-seed-admin.php OK"
+        break
+      fi
+      n=$((n + 1))
+      echo "[preview] preview-seed-admin.php retry $n/5"
+      sleep 3
+    done
+    # Surface seed result into Apache/container logs
+    grep -E 'seed-admin:|ScholarVerify admin seeded' /tmp/preview-mysql.log 2>/dev/null | tail -20 || true
   fi
-  wait_for_mysql || true
 fi
 
 chown -R www-data:www-data "$DOCROOT" 2>/dev/null || true

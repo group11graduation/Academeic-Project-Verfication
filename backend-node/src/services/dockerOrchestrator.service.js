@@ -2363,23 +2363,40 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     };
     const phpUser = String(patched.adminCredentials?.username || '').trim();
     const phpPass = String(patched.adminCredentials?.password || '').trim();
-    if (phpUser && phpPass && phpPass !== PREVIEW_MYSQL_ROOT_PASSWORD) {
-      mergedCredentialEnv = {
-        ...mergedCredentialEnv,
-        PREVIEW_SEED_USERNAME: phpUser,
-        PREVIEW_SEED_PASSWORD: phpPass,
-        ADMIN_USERNAME: phpUser,
-        LOGIN_USERNAME: phpUser,
-        ADMIN_PASSWORD: phpPass,
-        PREVIEW_ADMIN_PASSWORD: phpPass,
-        DEFAULT_ADMIN_USERNAME: phpUser,
-        DEFAULT_ADMIN_PASSWORD: phpPass,
-      };
-      if (phpUser.includes('@')) {
-        mergedCredentialEnv.ADMIN_EMAIL = phpUser;
-        mergedCredentialEnv.PREVIEW_ADMIN_EMAIL = phpUser;
-        mergedCredentialEnv.LOGIN_EMAIL = phpUser;
-      }
+    // Always inject a seed identity. Prefer project setup credentials; otherwise
+    // keep platform previewadmin/Preview123! so preview-seed-admin.php can create it.
+    const seedUser =
+      phpUser && phpPass && phpPass !== PREVIEW_MYSQL_ROOT_PASSWORD && phpPass !== 'preview-root'
+        ? phpUser
+        : String(mergedCredentialEnv.PREVIEW_SEED_USERNAME || mergedCredentialEnv.ADMIN_USERNAME || 'previewadmin').trim() ||
+          'previewadmin';
+    const seedPass =
+      phpUser && phpPass && phpPass !== PREVIEW_MYSQL_ROOT_PASSWORD && phpPass !== 'preview-root'
+        ? phpPass
+        : String(mergedCredentialEnv.PREVIEW_SEED_PASSWORD || mergedCredentialEnv.ADMIN_PASSWORD || 'Preview123!').trim() ||
+          'Preview123!';
+    mergedCredentialEnv = {
+      ...mergedCredentialEnv,
+      PREVIEW_SEED_USERNAME: seedUser,
+      PREVIEW_SEED_PASSWORD: seedPass,
+      ADMIN_USERNAME: seedUser,
+      LOGIN_USERNAME: seedUser,
+      ADMIN_PASSWORD: seedPass,
+      PREVIEW_ADMIN_PASSWORD: seedPass,
+      DEFAULT_ADMIN_USERNAME: seedUser,
+      DEFAULT_ADMIN_PASSWORD: seedPass,
+      PREVIEW_PASSWORD_MODE: 'bcrypt',
+    };
+    if (seedUser.includes('@')) {
+      mergedCredentialEnv.ADMIN_EMAIL = seedUser;
+      mergedCredentialEnv.PREVIEW_ADMIN_EMAIL = seedUser;
+      mergedCredentialEnv.LOGIN_EMAIL = seedUser;
+    }
+    // Never leave MySQL root password as the app login password.
+    if (mergedCredentialEnv.PREVIEW_SEED_PASSWORD === PREVIEW_MYSQL_ROOT_PASSWORD) {
+      mergedCredentialEnv.PREVIEW_SEED_PASSWORD = 'Preview123!';
+      mergedCredentialEnv.ADMIN_PASSWORD = 'Preview123!';
+      mergedCredentialEnv.PREVIEW_ADMIN_PASSWORD = 'Preview123!';
     }
   }
 
