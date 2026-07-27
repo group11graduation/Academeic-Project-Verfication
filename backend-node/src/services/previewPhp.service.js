@@ -344,9 +344,14 @@ export async function discoverPhpAdminCredentials(root) {
   const scripts = await discoverPhpBootstrapScripts(root);
   let username = '';
   let password = '';
+  let email = '';
   let hint = '';
 
-  const accept = (user, pass, why) => {
+  /**
+   * Accept one coherent (username, password[, email]) from the SAME regex match / seed row.
+   * Never stash password from one match and username from another.
+   */
+  const accept = (user, pass, why, pairedEmail = '') => {
     const u = String(user || '').trim();
     let p = String(pass || '').trim();
     // Strip accidental PHP source escape suffixes: "Admin@123\n" from echo "...$x\n"
@@ -358,6 +363,14 @@ export async function discoverPhpAdminCredentials(root) {
     username = u;
     password = p;
     hint = why;
+    const em = String(pairedEmail || '').trim();
+    if (u.includes('@')) {
+      email = u;
+    } else if (em.includes('@') && !looksLikeUnresolvedVariableToken(em)) {
+      email = em;
+    } else {
+      email = '';
+    }
     return true;
   };
 
@@ -390,7 +403,15 @@ export async function discoverPhpAdminCredentials(root) {
       const insertMatch = content.match(
         /INSERT INTO\s+[`]?(?:users|admins|accounts|tbl_users)[`]?[\s\S]{0,400}?VALUES\s*\(\s*['"]([^'"]+)['"][\s\S]{0,160}?['"]([^'"]+)['"][\s\S]{0,120}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
       );
-      if (insertMatch && accept(insertMatch[1], insertMatch[3], `From ${base} INSERT`)) break;
+      if (insertMatch) {
+        const a = insertMatch[1];
+        const b = insertMatch[2];
+        const pass = insertMatch[3];
+        // Same INSERT row: prefer username + optional email column in either order.
+        const user = a.includes('@') && !b.includes('@') ? b : a;
+        const rowEmail = a.includes('@') ? a : b.includes('@') ? b : '';
+        if (accept(user, pass, `From ${base} INSERT`, rowEmail)) break;
+      }
 
       const adminVars = content.match(
         /\$admin_(?:user|username|login|name)\s*=\s*['"]([^'"]+)['"][\s\S]{0,200}?\$admin_(?:pass|password|pwd)\s*=\s*['"]([^'"]+)['"]/i
@@ -459,7 +480,7 @@ export async function discoverPhpAdminCredentials(root) {
     }
   }
 
-  return { username, password, hint };
+  return { username, password, email, hint };
 }
 
 /**
@@ -645,15 +666,17 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
   if (!logText?.trim()) return null;
 
   const seeded = logText.match(
-    /ScholarVerify admin seeded[^:]*:\s*username=([^\s]+)\s+password=([^\s<]+)/i
+    /ScholarVerify admin seeded[^:]*:\s*username=([^\s]+)(?:\s+email=([^\s]+))?\s+password=([^\s<]+)/i
   );
   if (seeded) {
     const username = sanitizeBootstrapCredential(seeded[1], 'username');
-    const password = sanitizeBootstrapCredential(seeded[2], 'password');
+    const email = seeded[2] ? sanitizeBootstrapCredential(seeded[2], 'email') : '';
+    const password = sanitizeBootstrapCredential(seeded[3], 'password');
     if (username && isUsablePreviewPassword(password)) {
       return {
         username,
         password,
+        email: email && email.includes('@') ? email : undefined,
         identifierType: username.includes('@') ? 'email' : 'username',
         source: 'preview_seed_admin',
         usernameAssumed: false,

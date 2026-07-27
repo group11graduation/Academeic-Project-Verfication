@@ -634,15 +634,33 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
   }
 
   const phpAdmin = await discoverPhpAdminCredentials(extractDir);
-  if (phpAdmin.username && !username) username = phpAdmin.username;
-  if (phpAdmin.username && phpAdmin.username.includes('@') && !email) email = phpAdmin.username;
-  if (phpAdmin.password && !password) password = phpAdmin.password;
-  if (phpAdmin.hint && !hint) hint = phpAdmin.hint;
+  // PHP setup credentials are one paired match — never bolt on an unrelated UI email.
+  if (phpAdmin.username && phpAdmin.password) {
+    username = phpAdmin.username;
+    password = phpAdmin.password;
+    if (phpAdmin.email && String(phpAdmin.email).includes('@')) {
+      email = phpAdmin.email;
+    } else if (phpAdmin.username.includes('@')) {
+      email = phpAdmin.username;
+    } else if (email && emailMatchesUsername(email, phpAdmin.username)) {
+      // keep previously discovered email only when local-part matches this username
+    } else {
+      email = '';
+    }
+    if (phpAdmin.hint) hint = phpAdmin.hint;
+  } else {
+    if (phpAdmin.username && !username) username = phpAdmin.username;
+    if (phpAdmin.username && phpAdmin.username.includes('@') && !email) email = phpAdmin.username;
+    if (phpAdmin.password && !password) password = phpAdmin.password;
+    if (phpAdmin.hint && !hint) hint = phpAdmin.hint;
+  }
 
   const formField = await discoverProjectLoginFormField(extractDir, loginPath);
 
   // Pull email/password callouts from login UI source (e.g. "admin@syada.org / 123456").
   // Prefer these over .env username-only values when the UI documents staff login.
+  // Skip when we already have a coherent PHP username+password pair (avoid mixing).
+  const phpPairLocked = Boolean(phpAdmin.username && phpAdmin.password);
   {
     const loginFiles = await collectLoginCandidateFiles(extractDir, loginPath);
     const calloutFiles = [];
@@ -684,21 +702,29 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
             uiHint = `Found in ${path.relative(extractDir, filePath).replace(/\\/g, '/')}`;
           }
         }
-        if (picked.email && looksLikeEmail(picked.email)) {
-          if (!email || !looksLikeEmail(email) || /fresh\s*DB|default\s*staff/i.test(text)) {
-            email = picked.email;
-            if (picked.password) password = picked.password;
-            hint = `Found in ${path.basename(filePath)}`;
+        if (!phpPairLocked) {
+          if (picked.email && looksLikeEmail(picked.email)) {
+            if (!email || !looksLikeEmail(email) || /fresh\s*DB|default\s*staff/i.test(text)) {
+              email = picked.email;
+              if (picked.password) password = picked.password;
+              hint = `Found in ${path.basename(filePath)}`;
+            }
           }
+          if (picked.username && !username) username = picked.username;
+          if (picked.password && !password) password = picked.password;
+        } else if (
+          picked.email &&
+          looksLikeEmail(picked.email) &&
+          emailMatchesUsername(picked.email, phpAdmin.username)
+        ) {
+          email = picked.email;
         }
-        if (picked.username && !username) username = picked.username;
-        if (picked.password && !password) password = picked.password;
       } catch {
         /* ignore */
       }
     }
-    // UI-documented staff login wins over .env / platform placeholders.
-    if (uiEmail && uiPassword) {
+    // UI-documented staff login wins over .env / platform placeholders — but not over a PHP pair.
+    if (!phpPairLocked && uiEmail && uiPassword) {
       email = uiEmail;
       password = uiPassword;
       hint = uiHint || hint;
@@ -707,13 +733,32 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
 
   // Seed-script credentials (bcrypt.hash('password123') + admin@…) fill gaps and
   // override platform placeholders so loan-app / similar projects login correctly.
-  if (seedCreds.email && seedCreds.password) {
+  if (!phpPairLocked && seedCreds.email && seedCreds.password) {
     const placeholder = isPlatformPlaceholderCredential(email, password);
     if (!email || !password || placeholder) {
       email = seedCreds.email;
       password = seedCreds.password;
       hint = seedCreds.hint || hint;
     }
+  }
+
+  // Drop platform-default usernames bolted onto project passwords (e.g. from injected .env).
+  const defaults = platformDefaultLogin();
+  if (
+    username &&
+    String(username).toLowerCase() === defaults.username.toLowerCase() &&
+    password &&
+    password !== defaults.password
+  ) {
+    username = phpAdmin.username || (looksLikeEmail(email) ? email.split('@')[0] : '') || '';
+  }
+  if (
+    email &&
+    String(email).toLowerCase() === defaults.email.toLowerCase() &&
+    password &&
+    password !== defaults.password
+  ) {
+    email = phpAdmin.email || (phpAdmin.username?.includes('@') ? phpAdmin.username : '') || '';
   }
 
   return {
@@ -723,12 +768,91 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
     password,
     hint,
     phpUsername: phpAdmin.username || '',
+    phpEmail: phpAdmin.email || '',
     identifierType: formField.identifierType,
     identifierLabel: formField.identifierLabel,
     seedScriptEmail: seedCreds.email || '',
     seedScriptUsername: seedCreds.username || '',
     seedScriptPassword: seedCreds.password || '',
     seedScriptHint: seedCreds.hint || '',
+  };
+}
+
+function isPlatformDefaultUsername(value) {
+  const defaults = platformDefaultLogin();
+  return String(value || '').trim().toLowerCase() === defaults.username.toLowerCase();
+}
+
+function isPlatformDefaultEmail(value) {
+  const defaults = platformDefaultLogin();
+  return String(value || '').trim().toLowerCase() === defaults.email.toLowerCase();
+}
+
+/** True when email local-part matches username (same person, different columns). */
+function emailMatchesUsername(email, username) {
+  if (!looksLikeEmail(email) || !username) return false;
+  const local = String(email).split('@')[0].toLowerCase();
+  return local === String(username).trim().toLowerCase();
+}
+
+/**
+ * Build one coherent login identity — never mix platform defaults with project values.
+ */
+function finalizeCredentialSet({
+  email = '',
+  username = '',
+  password = '',
+  source = 'platform_default',
+  identifierType = 'email',
+  identifierLabel = 'Email',
+  hint = '',
+  allowPlatformDefaults = false,
+} = {}) {
+  const defaults = platformDefaultLogin();
+  let nextEmail = String(email || '').trim();
+  let nextUsername = String(username || '').trim();
+  let nextPassword = String(password || '').trim();
+  ({ email: nextEmail, username: nextUsername } = normalizeDiscoveredEmailUsername(nextEmail, nextUsername));
+
+  if (allowPlatformDefaults || source === 'platform_default' || source === 'teacher_provided') {
+    if (!looksLikeEmail(nextEmail)) nextEmail = defaults.email;
+    if (!nextUsername) nextUsername = defaults.username;
+    if (!nextPassword) nextPassword = defaults.password;
+  } else {
+    // Project / seed sourced: do not invent previewadmin or admin@preview.demo.
+    if (isPlatformDefaultUsername(nextUsername) && nextPassword && nextPassword !== defaults.password) {
+      nextUsername = '';
+    }
+    if (isPlatformDefaultEmail(nextEmail) && nextPassword && nextPassword !== defaults.password) {
+      nextEmail = '';
+    }
+    if (!nextUsername && looksLikeEmail(nextEmail) && identifierType === 'username') {
+      nextUsername = nextEmail.split('@')[0] || '';
+    }
+    if (!nextEmail && looksLikeEmail(nextUsername)) {
+      nextEmail = nextUsername;
+      nextUsername = nextEmail.split('@')[0] || nextUsername;
+    }
+  }
+
+  let identifier =
+    identifierType === 'username'
+      ? nextUsername || nextEmail
+      : nextEmail || nextUsername;
+  if (identifierType === 'email' && !looksLikeEmail(identifier) && nextEmail) identifier = nextEmail;
+  if (identifierType === 'username' && looksLikeEmail(identifier) && nextUsername && !looksLikeEmail(nextUsername)) {
+    identifier = nextUsername;
+  }
+
+  return {
+    identifier: identifier || nextUsername || nextEmail,
+    password: nextPassword,
+    identifierType,
+    identifierLabel,
+    source,
+    hint,
+    email: nextEmail,
+    username: nextUsername,
   };
 }
 
@@ -758,7 +882,6 @@ export function resolvePreviewLoginCredentials({
   let source = 'platform_default';
   let hint = discovered.hint || discovered.seedScriptHint || '';
 
-  // Always prepare BOTH email and username so teachers / seeds work for either form type.
   let email =
     discovered.email ||
     discovered.seedScriptEmail ||
@@ -773,15 +896,19 @@ export function resolvePreviewLoginCredentials({
 
   if (teacherOverride) {
     const teacherId = String(teacherEmail || '').trim();
-    if (looksLikeEmail(teacherId)) email = teacherId;
-    else if (teacherId) username = teacherId;
+    if (looksLikeEmail(teacherId)) {
+      email = teacherId;
+      username = teacherId.split('@')[0] || username;
+    } else if (teacherId) {
+      username = teacherId;
+    }
     password = String(teacherPassword || password || defaults.password).trim();
     source = 'teacher_provided';
   } else if (springAdmin?.username && springAdmin?.password) {
     username = springAdmin.username;
     password = springAdmin.password;
+    email = looksLikeEmail(username) ? username : '';
     source = 'project_spring_seed';
-    // Spring preview seed always logs in by username (CustomUserDetailsService / DaoAuth).
     formField.identifierType = 'username';
     formField.identifierLabel = 'Username';
     hint = hint || springAdmin.hint || 'Preview admin auto-seeded in Spring H2 database on first start.';
@@ -790,80 +917,89 @@ export function resolvePreviewLoginCredentials({
     password &&
     !isPlatformPlaceholderCredential(discovered.phpUsername, password)
   ) {
-    // Real PHP setup/seed credentials — put these in the teacher box, not previewadmin.
+    // One PHP setup match owns the identity — do not mix with unrelated UI emails.
     username = discovered.phpUsername;
-    if (looksLikeEmail(username)) email = username;
+    if (looksLikeEmail(username)) {
+      email = username;
+      username = username.split('@')[0] || username;
+    } else if (
+      looksLikeEmail(discovered.phpEmail) &&
+      emailMatchesUsername(discovered.phpEmail, username)
+    ) {
+      email = discovered.phpEmail;
+    } else if (
+      looksLikeEmail(discovered.email) &&
+      emailMatchesUsername(discovered.email, username)
+    ) {
+      email = discovered.email;
+    } else {
+      email = '';
+    }
     source = 'project_php_setup';
-    formField.identifierType = looksLikeEmail(username) ? 'email' : 'username';
+    formField.identifierType = looksLikeEmail(discovered.phpUsername) ? 'email' : 'username';
     formField.identifierLabel = formField.identifierType === 'email' ? 'Email' : 'Username';
-    hint = hint || discovered.hint || `Login from PHP setup script: ${username}`;
+    hint = hint || discovered.hint || `Login from PHP setup script: ${discovered.phpUsername}`;
   } else if (
     discovered.seedScriptPassword &&
     (discovered.seedScriptEmail || discovered.seedScriptUsername) &&
     (!password || isPlatformPlaceholderCredential(email, password))
   ) {
-    // Prefer real project seed (admin@loanapp.com / password123) over platform defaults.
-    email = discovered.seedScriptEmail || email;
-    username = discovered.seedScriptUsername || username;
+    email = discovered.seedScriptEmail || '';
+    username = discovered.seedScriptUsername || '';
     password = discovered.seedScriptPassword;
     source = 'project_seed_script';
     hint = discovered.seedScriptHint || hint || 'Credentials from project seed script.';
     ({ email, username } = normalizeDiscoveredEmailUsername(email, username));
   } else if ((email || username) && password) {
     source = discovered.phpUsername ? 'project_php_setup' : 'project_files';
+    // Strip platform defaults mixed with a project password.
+    if (isPlatformDefaultUsername(username) && password !== defaults.password) {
+      username = looksLikeEmail(email) ? email.split('@')[0] || '' : '';
+    }
+    if (isPlatformDefaultEmail(email) && password !== defaults.password) {
+      email = '';
+    }
+    // Email + username must describe the same person when both are shown.
+    if (looksLikeEmail(email) && username && !emailMatchesUsername(email, username)) {
+      // Prefer username+password (typical PHP login); drop the unrelated email.
+      if (formField.identifierType === 'username' || !looksLikeEmail(username)) {
+        email = '';
+      } else {
+        username = email.split('@')[0] || '';
+      }
+    }
+    if (!username && looksLikeEmail(email)) {
+      username = email.split('@')[0] || '';
+    }
   } else if (email || username || password) {
-    password = password || defaults.password;
+    password = password || '';
     source = discovered.phpUsername ? 'project_php_setup' : 'project_files';
     hint = hint || 'Partial credentials found in project files; fill in missing value if login fails.';
   } else {
     password = defaults.password;
+    email = defaults.email;
+    username = defaults.username;
     hint =
       hint ||
       'Uses preview defaults for both email and username — enter whichever the student login form asks for.';
   }
 
-  // Email field must always be a real address (student HTML type=email rejects "previewadmin").
-  if (!looksLikeEmail(email)) email = defaults.email;
-  if (!username) username = defaults.username;
-  if (!password) password = defaults.password;
-
-  // Primary identifier follows the detected form (email input → show email first).
-  let identifier = pickIdentifierForForm({ ...discovered, email, username }, formField);
-  if (!identifier) {
-    identifier = formField.identifierType === 'username' ? username : email;
-  }
-  if (formField.identifierType === 'email' && !looksLikeEmail(identifier)) {
-    identifier = email;
+  if (!hint) {
+    const idLabel = formField.identifierLabel;
+    const idVal = formField.identifierType === 'username' ? username || email : email || username;
+    hint = `Preferred: ${idLabel}=${idVal}.`;
   }
 
-  if (formField.identifierType === 'username' && looksLikeEmail(identifier) && username && !looksLikeEmail(username)) {
-    identifier = username;
-  } else if (looksLikeEmail(identifier) && formField.identifierType !== 'email' && !discovered.username) {
-    formField.identifierType = 'email';
-    formField.identifierLabel = 'Email';
-  }
-
-  if (!discovered.hint && source === 'platform_default') {
-    hint =
-      formField.identifierType === 'email'
-        ? `Student login expects an email. Use Email=${email}. Username=${username} is also seeded.`
-        : formField.identifierType === 'username'
-          ? `Student login expects a username. Use Username=${username}. Email=${email} is also seeded.`
-          : `Try ${formField.identifierLabel}=${identifier} on the student login page.`;
-  } else if (!hint) {
-    hint = `Preferred: ${formField.identifierLabel}=${identifier}. Email=${email}, Username=${username}.`;
-  }
-
-  return {
-    identifier,
-    password,
-    identifierType: formField.identifierType,
-    identifierLabel: formField.identifierLabel,
-    source,
-    hint,
+  return finalizeCredentialSet({
     email,
     username,
-  };
+    password,
+    source,
+    identifierType: formField.identifierType,
+    identifierLabel: formField.identifierLabel,
+    hint,
+    allowPlatformDefaults: source === 'platform_default' || source === 'teacher_provided',
+  });
 }
 
 export function applyResolvedLoginCredentials(session, resolved) {
@@ -872,13 +1008,29 @@ export function applyResolvedLoginCredentials(session, resolved) {
   let email = resolved.email || '';
   let username = resolved.username || '';
   ({ email, username } = normalizeDiscoveredEmailUsername(email, username));
-  if (!looksLikeEmail(email)) email = defaults.email;
-  if (!username) username = defaults.username;
 
-  // Always store a real email separately from username.
+  const fromProject = ![
+    'platform_default',
+    'teacher_provided',
+    '',
+  ].includes(String(resolved.source || ''));
+
+  if (!fromProject) {
+    if (!looksLikeEmail(email)) email = defaults.email;
+    if (!username) username = defaults.username;
+  } else {
+    // Never leave a platform default username/email beside a project password.
+    if (isPlatformDefaultUsername(username) && resolved.password && resolved.password !== defaults.password) {
+      username = '';
+    }
+    if (isPlatformDefaultEmail(email) && resolved.password && resolved.password !== defaults.password) {
+      email = '';
+    }
+  }
+
   session.previewLoginEmail = email;
   session.previewLoginUsername = username;
-  session.previewLoginPassword = resolved.password || defaults.password;
+  session.previewLoginPassword = resolved.password || (fromProject ? '' : defaults.password);
   session.previewLoginIdentifierType = resolved.identifierType || 'email';
   session.previewLoginIdentifierLabel = resolved.identifierLabel || 'Email';
   session.previewLoginSource = resolved.source || session.previewLoginSource || '';
@@ -898,8 +1050,28 @@ export async function buildPreviewLoginCredentials({
   if (phpAdmin?.username || phpAdmin?.password) {
     if (phpAdmin.username) {
       discovered.username = phpAdmin.username;
-      if (phpAdmin.username.includes('@')) discovered.email = phpAdmin.username;
       discovered.phpUsername = phpAdmin.username;
+    }
+    if (phpAdmin.email && String(phpAdmin.email).includes('@')) {
+      discovered.phpEmail = phpAdmin.email;
+      if (emailMatchesUsername(phpAdmin.email, phpAdmin.username || '')) {
+        discovered.email = phpAdmin.email;
+      } else if (phpAdmin.username?.includes('@')) {
+        discovered.email = phpAdmin.username;
+      } else {
+        // Keep only paired email; clear scrapes that don't match this username.
+        discovered.email = phpAdmin.email && emailMatchesUsername(phpAdmin.email, phpAdmin.username || '')
+          ? phpAdmin.email
+          : '';
+      }
+    } else if (phpAdmin.username?.includes('@')) {
+      discovered.email = phpAdmin.username;
+    } else if (
+      discovered.email &&
+      phpAdmin.username &&
+      !emailMatchesUsername(discovered.email, phpAdmin.username)
+    ) {
+      discovered.email = '';
     }
     if (phpAdmin.password) discovered.password = phpAdmin.password;
     if (phpAdmin.hint) discovered.hint = phpAdmin.hint;

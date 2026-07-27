@@ -406,9 +406,14 @@ foreach ($candidates as $table) {
     }
 
     // Verify the row can be found with the seeded username.
-    $check = $pdo->prepare('SELECT `' . $passCol . '` FROM `' . $safeTable . '` WHERE `' . $userCol . '` = ? LIMIT 1');
+    $check = $pdo->prepare(
+        'SELECT `' . $passCol . '`' .
+        ($emailCol ? ', `' . $emailCol . '` AS __sv_email' : '') .
+        ' FROM `' . $safeTable . '` WHERE `' . $userCol . '` = ? LIMIT 1'
+    );
     $check->execute([$seedUser]);
-    $stored = $check->fetchColumn();
+    $verifyRow = $check->fetch(PDO::FETCH_ASSOC);
+    $stored = $verifyRow ? ($verifyRow[$passCol] ?? false) : false;
     if ($stored === false || $stored === null || $stored === '') {
         sv_log('verify failed: no row with ' . $userCol . '=' . $seedUser . ' in ' . $table);
         continue;
@@ -430,8 +435,18 @@ foreach ($candidates as $table) {
         continue;
     }
 
-    echo '[preview] ScholarVerify admin seeded in ' . $table . ': username=' . $seedUser . ' password=' . $seedPass . "\n";
-    sv_log('SUCCESS table=' . $table . ' username=' . $seedUser . ' mode=' . $mode);
+    $rowEmail = '';
+    if ($emailCol && is_array($verifyRow) && !empty($verifyRow['__sv_email'])) {
+        $rowEmail = (string) $verifyRow['__sv_email'];
+    } elseif ($emailCol && is_array($verifyRow) && !empty($verifyRow[$emailCol])) {
+        $rowEmail = (string) $verifyRow[$emailCol];
+    } elseif (strpos($seedUser, '@') !== false) {
+        $rowEmail = $seedUser;
+    }
+
+    $emailPart = $rowEmail !== '' ? ' email=' . $rowEmail : '';
+    echo '[preview] ScholarVerify admin seeded in ' . $table . ': username=' . $seedUser . $emailPart . ' password=' . $seedPass . "\n";
+    sv_log('SUCCESS table=' . $table . ' username=' . $seedUser . ($rowEmail !== '' ? ' email=' . $rowEmail : '') . ' mode=' . $mode);
     $seeded = true;
     break;
 }

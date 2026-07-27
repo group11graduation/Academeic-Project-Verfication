@@ -1376,35 +1376,98 @@ const TeacherProposalStudentDetail = () => {
                                         loginSource === 'bootstrap_log' ||
                                         loginSource === 'bootstrap_log_assumed_username' ||
                                         loginSource === 'project_spring_seed';
-                                    const rawEmail =
-                                        previewOpenReady && (sess?.previewLoginEmail || previewAdminEmail)
-                                            ? sess?.previewLoginEmail || previewAdminEmail
-                                            : '';
-                                    const realUsername = previewOpenReady
-                                        ? String(
-                                              sess?.previewLoginUsername ||
-                                                (rawEmail && !String(rawEmail).includes('@') ? rawEmail : '') ||
-                                                ''
-                                          ).trim()
-                                        : '';
-                                    // Never invent previewadmin when the student app uses a real username.
-                                    const displayUsername = realUsername;
-                                    const displayEmail =
-                                        rawEmail && String(rawEmail).includes('@')
-                                            ? rawEmail
-                                            : preferredType === 'email' && previewOpenReady && !fromProject
-                                              ? 'admin@preview.demo'
-                                              : '';
-                                    const displayPassword =
-                                        previewOpenReady && (sess?.previewLoginPassword || previewAdminPassword)
-                                            ? sess?.previewLoginPassword || previewAdminPassword
-                                            : '';
+                                    // Project sources: only show the coherent session set — never
+                                    // merge React state / platform placeholders with project values.
+                                    const sessEmail = String(sess?.previewLoginEmail || '').trim();
+                                    const sessUsername = String(sess?.previewLoginUsername || '').trim();
+                                    const sessPassword = String(sess?.previewLoginPassword || '').trim();
+                                    const platformUser = 'previewadmin';
+                                    const platformEmail = 'admin@preview.demo';
+                                    const platformPass = 'Preview123!';
+
+                                    let displayPassword = '';
+                                    if (previewOpenReady) {
+                                        displayPassword = fromProject
+                                            ? sessPassword
+                                            : sessPassword || previewAdminPassword || '';
+                                    }
+
+                                    let displayEmail = '';
+                                    if (previewOpenReady) {
+                                        const rawEmail = fromProject
+                                            ? sessEmail
+                                            : sessEmail || previewAdminEmail || '';
+                                        if (rawEmail.includes('@')) {
+                                            displayEmail = rawEmail;
+                                        } else if (!fromProject && preferredType === 'email') {
+                                            displayEmail = platformEmail;
+                                        }
+                                    }
+
+                                    let displayUsername = '';
+                                    if (previewOpenReady) {
+                                        displayUsername = fromProject
+                                            ? sessUsername
+                                            : sessUsername ||
+                                              (displayEmail && !displayEmail.includes('@')
+                                                  ? displayEmail
+                                                  : '') ||
+                                              '';
+                                        // Derive local-part only when email is the sole identity from same set.
+                                        if (
+                                            !displayUsername &&
+                                            displayEmail.includes('@') &&
+                                            (preferredType === 'username' || fromProject)
+                                        ) {
+                                            displayUsername = displayEmail.split('@')[0] || '';
+                                        }
+                                    }
+
+                                    // Never show previewadmin / admin@preview.demo beside a project password.
+                                    if (
+                                        fromProject &&
+                                        displayPassword &&
+                                        displayPassword !== platformPass
+                                    ) {
+                                        if (
+                                            displayUsername &&
+                                            displayUsername.toLowerCase() === platformUser
+                                        ) {
+                                            displayUsername = displayEmail.includes('@')
+                                                ? displayEmail.split('@')[0] || ''
+                                                : '';
+                                        }
+                                        if (
+                                            displayEmail &&
+                                            displayEmail.toLowerCase() === platformEmail
+                                        ) {
+                                            displayEmail = '';
+                                        }
+                                    }
+
+                                    // Email + username must match the same person when both shown.
+                                    if (
+                                        displayEmail.includes('@') &&
+                                        displayUsername &&
+                                        displayEmail.split('@')[0].toLowerCase() !==
+                                            displayUsername.toLowerCase()
+                                    ) {
+                                        if (preferredType === 'username') {
+                                            displayEmail = '';
+                                        } else if (preferredType === 'email') {
+                                            displayUsername = displayEmail.split('@')[0] || '';
+                                        } else {
+                                            displayEmail = '';
+                                        }
+                                    }
+
                                     const showEmailField =
                                         Boolean(displayEmail) &&
                                         (preferredType === 'email' ||
                                             (!displayUsername && Boolean(displayEmail)));
                                     const showUsernameField =
-                                        Boolean(displayUsername) || preferredType === 'username';
+                                        Boolean(displayUsername) ||
+                                        (preferredType === 'username' && !fromProject);
                                     const loginUrl =
                                         sess?.previewLoginUrl ||
                                         (sess?.previewUrl ? `${String(sess.previewUrl).replace(/\/$/, '')}/login` : '');

@@ -310,13 +310,28 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
     !/^(root|mysql|mariadb)$/i.test(setupUser);
 
   const applyCreds = ({ username, password, identifierType, source, email }) => {
+    // Atomic replace — never leave previewadmin beside a project password.
+    session.previewLoginEmail = '';
+    session.previewLoginUsername = '';
+    session.previewLoginPassword = '';
+
     if (password && isUsablePreviewPassword(password)) {
       session.previewLoginPassword = password;
     }
-    if (email && String(email).includes('@')) session.previewLoginEmail = email;
+    if (email && String(email).includes('@') && !looksLikeUnresolvedVariableToken(email)) {
+      session.previewLoginEmail = email;
+    }
     if (username && !looksLikeUnresolvedVariableToken(username)) {
-      if (String(username).includes('@')) session.previewLoginEmail = username;
-      else session.previewLoginUsername = username;
+      if (String(username).includes('@')) {
+        session.previewLoginEmail = username;
+        session.previewLoginUsername = String(username).split('@')[0] || '';
+      } else {
+        session.previewLoginUsername = username;
+      }
+    }
+    // If we only have email, derive username local-part for username forms.
+    if (!session.previewLoginUsername && session.previewLoginEmail?.includes('@')) {
+      session.previewLoginUsername = session.previewLoginEmail.split('@')[0] || '';
     }
     session.previewLoginIdentifierType = identifierType || 'username';
     session.previewLoginIdentifierLabel = identifierType === 'email' ? 'Email' : 'Username';
@@ -330,10 +345,10 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
       password: bootstrapCredentials.password,
       identifierType: bootstrapCredentials.identifierType || 'username',
       source: 'preview_seed_admin',
-      email: bootstrapCredentials.username?.includes('@') ? bootstrapCredentials.username : undefined,
+      email: bootstrapCredentials.email ||
+        (bootstrapCredentials.username?.includes('@') ? bootstrapCredentials.username : undefined),
     });
   } else if (setupLooksReal) {
-    // 2) Credentials parsed from the student's setup/seed PHP source.
     applyCreds({
       username: setupUser,
       password: setupPass,
@@ -352,14 +367,16 @@ async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
       source: bootstrapCredentials.usernameAssumed
         ? 'bootstrap_log_assumed_username'
         : 'bootstrap_log',
-      email: bootUser && String(bootUser).includes('@') ? bootUser : undefined,
+      email: bootstrapCredentials.email ||
+        (bootUser && String(bootUser).includes('@') ? bootUser : undefined),
     });
-  } else if (setupUser) {
+  } else if (setupUser && isUsablePreviewPassword(session.previewLoginPassword)) {
     applyCreds({
       username: setupUser,
       password: session.previewLoginPassword,
       identifierType: setupUser.includes('@') ? 'email' : 'username',
       source: 'project_php_setup',
+      email: setupUser.includes('@') ? setupUser : undefined,
     });
   }
 
