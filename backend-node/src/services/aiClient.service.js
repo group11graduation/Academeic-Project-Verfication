@@ -15,9 +15,11 @@ function aiBaseUrl() {
 }
 
 function aiTimeoutMs(path) {
-  // Proposal / requirement analysis can be slow on first run (model download / warm-up).
+  // Proposal / requirement / consistency analysis can be slow on first run (model download / warm-up).
   const perPath =
-    path === '/analyze/proposal' || path === '/analyze/requirements'
+    path === '/analyze/proposal' ||
+    path === '/analyze/requirements' ||
+    path === '/analyze/consistency'
       ? process.env.AI_PROPOSAL_TIMEOUT_MS
       : process.env.AI_SERVICE_TIMEOUT_MS;
   return Number(perPath || process.env.AI_SERVICE_TIMEOUT_MS || 600000);
@@ -90,4 +92,13 @@ export async function analyzeCodePayload(payload) {
  */
 export async function analyzeScreenshotPayload(payload) {
   return postJson('/analyze/screenshot', payload);
+}
+
+/**
+ * Pre-upload consistency gate (synchronous).
+ * Body: `{ proposal_description, declared_tech, detected_tech, readme_text, routes, models }`.
+ * Returns tech/description scores + verdicts from Python POST /analyze/consistency.
+ */
+export async function analyzeConsistencyPayload(payload) {
+  return postJson('/analyze/consistency', payload);
 }

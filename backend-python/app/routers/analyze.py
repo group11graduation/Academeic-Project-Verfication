@@ -9,6 +9,8 @@ from app.models.schemas import (
     AnalysisJobStatus,
     CodeAnalyzeIn,
     CodeAnalyzeOut,
+    ConsistencyAnalyzeIn,
+    ConsistencyAnalyzeOut,
     FullAnalyzeIn,
     FullAnalyzeOut,
     ProposalAnalyzeIn,
@@ -34,6 +36,12 @@ def analyze_proposal_endpoint(body: ProposalAnalyzeIn):
 def analyze_requirements_endpoint(body: RequirementAnalyzeIn):
     """Teacher requirements vs proposal meaning (MiniLM) — not keyword-only matching."""
     return RequirementAnalyzeOut.model_validate(ac.analyze_requirements_sync(body))
+
+
+@router.post("/consistency", response_model=ConsistencyAnalyzeOut)
+def analyze_consistency_endpoint(body: ConsistencyAnalyzeIn):
+    """Pre-upload ZIP consistency (Jaccard tech + MiniLM description vs evidence). Synchronous only."""
+    return ConsistencyAnalyzeOut.model_validate(ac.analyze_consistency_sync(body))
 
 
 @router.post("/proposal/async", response_model=ProposalJobAccepted)

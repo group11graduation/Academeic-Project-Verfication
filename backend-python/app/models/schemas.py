@@ -199,3 +199,31 @@ class AnalysisJobStatus(BaseModel):
     job_kind: str | None = Field(default=None, description="proposal | code | screenshot | full")
     result: ProposalAnalyzeOut | CodeAnalyzeOut | ScreenshotAnalyzeOut | FullAnalyzeOut | None = None
     error: str | None = None
+
+
+# --- Pre-upload consistency (Node: POST /analyze/consistency) ---
+class ConsistencyAnalyzeIn(BaseModel):
+    """
+    Compare declared proposal tech + description against ZIP evidence
+    (detected deps, README, routes, models). Synchronous only.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    proposal_description: str = Field(default="", description="Proposal title + description + features")
+    declared_tech: list[str] = Field(default_factory=list)
+    detected_tech: list[str] = Field(default_factory=list)
+    readme_text: str = Field(default="")
+    routes: list[str] = Field(default_factory=list)
+    models: list[str] = Field(default_factory=list)
+
+
+class ConsistencyAnalyzeOut(BaseModel):
+    tech_match_score: float = Field(..., ge=0.0, le=1.0)
+    description_match_score: float = Field(..., ge=0.0, le=1.0)
+    tech_verdict: Literal["match", "mismatch", "skipped"]
+    description_verdict: Literal["match", "mismatch", "skipped"]
+    overall_verdict: Literal["consistent", "needs_review", "reject"]
+    summary: str = ""
+    backend: Literal["sentence_transformers", "tfidf"] = "sentence_transformers"
+    thresholds: dict[str, float] = Field(default_factory=dict)

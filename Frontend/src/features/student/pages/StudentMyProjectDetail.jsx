@@ -31,6 +31,7 @@ import { PROJECT_STACK_OPTIONS, PROJECT_STACK_HINT_HELP } from '../../../shared/
 function formatProjectUploadFeedback(payload = {}, fallback = '') {
     const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
     const message =
+        (typeof data?.reason === 'string' && data.reason.trim()) ||
         (typeof payload?.message === 'string' && payload.message.trim()) ||
         (typeof data?.message === 'string' && data.message.trim()) ||
         (typeof data?.techMatch?.message === 'string' && data.techMatch.message.trim()) ||
@@ -47,6 +48,7 @@ function formatProjectUploadFeedback(payload = {}, fallback = '') {
           : [];
     const detected =
         data?.detectedStack || data?.techMatch?.detectedStack || data?.failures?.[0]?.path || '';
+    const cc = data?.consistencyCheck && typeof data.consistencyCheck === 'object' ? data.consistencyCheck : null;
     const parts = [message].filter(Boolean);
     if (approved.length) parts.push(`Approved proposal tech: ${approved.join(', ')}.`);
     if (detected || zipTech.length) {
@@ -55,6 +57,20 @@ function formatProjectUploadFeedback(payload = {}, fallback = '') {
                 zipTech.length ? ` (${zipTech.join(', ')})` : ''
             }.`
         );
+    }
+    if (cc) {
+        const bits = [];
+        if (cc.tech_verdict) bits.push(`tech: ${cc.tech_verdict}`);
+        if (cc.description_verdict) bits.push(`description: ${cc.description_verdict}`);
+        if (cc.overall_verdict) bits.push(`overall: ${cc.overall_verdict}`);
+        if (typeof cc.tech_match_score === 'number') {
+            bits.push(`tech score ${(cc.tech_match_score * 100).toFixed(0)}%`);
+        }
+        if (typeof cc.description_match_score === 'number') {
+            bits.push(`description score ${(cc.description_match_score * 100).toFixed(0)}%`);
+        }
+        if (bits.length) parts.push(`Consistency check — ${bits.join(', ')}.`);
+        if (cc.needs_review) parts.push('Flagged for teacher review.');
     }
     return parts.join(' ');
 }
@@ -248,17 +264,35 @@ const StudentMyProjectDetail = () => {
                 projectStackHint,
                 selectedScreenshotFile
             );
-            if (res.success) {
-                const v = res.data?.version;
-                const updated = res.data?.isUpdate;
+            const data = res?.data && typeof res.data === 'object' ? res.data : res;
+            // Business rejects now return HTTP 200 with success:true and accepted:false
+            if (res.success && data?.accepted === false) {
+                const msg = formatProjectUploadFeedback(
+                    res,
+                    data?.reason || 'Upload rejected by consistency check.'
+                );
+                setCodeZipTone('error');
+                setCodeZipMessage(msg);
+                await appError(msg);
+                return;
+            }
+            if (res.success && data?.accepted !== false) {
+                const v = data?.version;
+                const updated = data?.isUpdate;
                 const techLine = formatProjectUploadFeedback(res, '');
                 const base = updated
-                    ? `Accepted (v${v}): ${res.data?.originalFilename || selectedZipFile.name}.`
-                    : `Accepted: ${res.data?.originalFilename || selectedZipFile.name}.`;
+                    ? `Accepted (v${v}): ${data?.originalFilename || selectedZipFile.name}.`
+                    : `Accepted: ${data?.originalFilename || selectedZipFile.name}.`;
                 const full = [base, techLine].filter(Boolean).join(' ');
                 setCodeZipTone('success');
-                setCodeZipMessage(full);
-                await appSuccess(full);
+                if (data?.consistencyCheck?.needs_review) {
+                    const reviewMsg = [full, 'Accepted with needs-review flag for your teacher.'].join(' ');
+                    setCodeZipMessage(reviewMsg);
+                    await appWarning(reviewMsg);
+                } else {
+                    setCodeZipMessage(full);
+                    await appSuccess(full);
+                }
                 setSelectedZipFile(null);
                 setSelectedScreenshotFile(null);
                 const assignRes = await studentService.getAssignment(assignmentId);

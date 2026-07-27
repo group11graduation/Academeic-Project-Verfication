@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     code_token_weight: float = 0.4
     code_ast_weight: float = 0.6
 
+    # Pre-upload consistency (Jaccard tech + MiniLM description vs ZIP evidence)
+    tech_mismatch_threshold: float = Field(
+        default_factory=lambda: float(os.getenv("TECH_MISMATCH_THRESHOLD", "0.3"))
+    )
+    description_mismatch_threshold: float = Field(
+        default_factory=lambda: float(os.getenv("DESCRIPTION_MISMATCH_THRESHOLD", "0.35"))
+    )
+
     # Request body limit for JSON uploads (bytes).
     max_request_body_bytes: int = Field(
         default_factory=lambda: int(os.getenv("MAX_REQUEST_BODY_BYTES", str(25 * 1024 * 1024)))

@@ -18,6 +18,7 @@ from app.models.schemas import (
     AnalysisJobStatus,
     CodeAnalyzeIn,
     CodeAnalyzeOut,
+    ConsistencyAnalyzeIn,
     FullAnalyzeIn,
     FullAnalyzeOut,
     ProposalAnalyzeIn,
@@ -30,6 +31,7 @@ from app.models.schemas import (
 )
 from app.services import analysis_job_store
 from app.services.code_analysis import analyze_code_similarity
+from app.services.consistency_check import analyze_consistency
 from app.services.image_analysis import analyze_screenshot_similarity
 from app.services.proposal_semantic import analyze_proposal_semantic
 from app.services.requirement_semantic import analyze_requirement_semantic
@@ -55,6 +57,10 @@ def analyze_proposal_sync(body: ProposalAnalyzeIn) -> dict[str, Any]:
 
 def analyze_requirements_sync(body: RequirementAnalyzeIn) -> dict[str, Any]:
     return analyze_requirement_semantic(body)
+
+
+def analyze_consistency_sync(body: ConsistencyAnalyzeIn) -> dict[str, Any]:
+    return analyze_consistency(body)
 
 
 def analyze_proposal_async(body: ProposalAnalyzeIn, background_tasks: BackgroundTasks) -> ProposalJobAccepted:

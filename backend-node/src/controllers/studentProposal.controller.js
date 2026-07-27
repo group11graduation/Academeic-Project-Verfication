@@ -64,10 +64,31 @@ export const submitProjectCode = asyncHandler(async (req, res) => {
     hint,
     screenshotFile || null
   );
+
+  if (result.accepted === false) {
+    return success(
+      res,
+      {
+        accepted: false,
+        reason: result.reason || 'Project ZIP rejected.',
+        consistencyCheck: result.consistencyCheck || null,
+        techMatch: result.techMatch || null,
+        isUpdate: Boolean(result.isUpdate),
+        verdict: result.verdict || 'rejected',
+        message: result.reason || 'Project ZIP rejected.',
+        ...(result.submission || {}),
+      },
+      200
+    );
+  }
+
   const status = result.isUpdate ? 200 : 201;
   return success(
     res,
     {
+      accepted: true,
+      reason: '',
+      consistencyCheck: result.consistencyCheck || null,
       ...result.submission,
       isUpdate: result.isUpdate,
       verdict: result.verdict || 'accepted',

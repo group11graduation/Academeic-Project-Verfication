@@ -18,8 +18,11 @@ const projectSubmissionSchema = new mongoose.Schema(
     assignment: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
     submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     group: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', default: null },
-    /** Relative to process.cwd() uploads root, e.g. project-code/<proposalId>/file.zip */
-    storedRelativePath: { type: String, required: true },
+    /**
+     * Relative to uploads root, e.g. project-code/<proposalId>/project.zip.
+     * Empty when the latest attempt was rejected before permanent save.
+     */
+    storedRelativePath: { type: String, default: '' },
     originalFilename: { type: String, default: '' },
     sizeBytes: { type: Number, default: 0 },
     mimeType: { type: String, default: 'application/zip' },
@@ -55,6 +58,19 @@ const projectSubmissionSchema = new mongoose.Schema(
         path: { type: String, default: '' },
       },
     ],
+    /**
+     * Pre-upload ML consistency check (POST /analyze/consistency).
+     * Stored on every attempt so teacher UI can show scores without recomputing.
+     */
+    consistencyCheck: {
+      tech_match_score: { type: Number, default: null },
+      description_match_score: { type: Number, default: null },
+      tech_verdict: { type: String, default: '' },
+      description_verdict: { type: String, default: '' },
+      overall_verdict: { type: String, default: '' },
+      needs_review: { type: Boolean, default: false },
+      checkedAt: { type: Date },
+    },
     lastExtractAt: { type: Date },
     lastExtractFileCount: { type: Number },
     lastAuditAt: { type: Date },
