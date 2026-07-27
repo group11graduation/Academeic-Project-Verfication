@@ -14,7 +14,6 @@ import {
     UserRound,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
-import { FACULTY_SIDEBAR_SUBTITLE } from '../ui/brandTheme';
 import { ShellSearchProvider, useShellSearch } from '../../context/shellSearchContext';
 import ThemeToggle from '../components/ThemeToggle';
 import ShellMobileDrawer from '../components/ShellMobileDrawer';
@@ -127,7 +126,7 @@ const DashboardLayoutInner = ({ children }) => {
         <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-[#f8fafc] font-sans antialiased dark:bg-[#020617] dark:text-slate-100">
             <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px dark:border-white/10 dark:bg-[#0b1220] lg:hidden">
                 <button type="button" onClick={() => navigate('/teacher')} className="flex min-w-0 flex-col gap-0.5 text-left">
-                    <ProjectVerifyLogo showMark={false} size="md" tagline={FACULTY_SIDEBAR_SUBTITLE} hideTextOnMobile={false} />
+                    <ProjectVerifyLogo showMark={false} size="md" tagline="" hideTextOnMobile={false} />
                 </button>
                 <div className="flex items-center gap-2">
                     <ThemeToggle compact />
@@ -243,15 +242,7 @@ const DashboardLayoutInner = ({ children }) => {
                                 onClick={() => navigate('/teacher')}
                                 className="mx-2 mb-1.5 mt-3 flex flex-col gap-1 rounded-lg px-1 py-1 text-left transition hover:opacity-90"
                             >
-                                <ProjectVerifyLogo showMark={false} size="md" tagline={FACULTY_SIDEBAR_SUBTITLE} />
-                                <span
-                                    className={`truncate text-[8px] font-bold uppercase tracking-[0.1em] ${
-                                        teacherDepartment ? 'text-[#1e56e3]' : 'text-slate-400'
-                                    }`}
-                                    title={teacherDepartment || 'Department not set'}
-                                >
-                                    {teacherDepartment || 'Department not set'}
-                                </span>
+                                <ProjectVerifyLogo showMark={false} size="md" tagline="" />
                             </button>
 
                             <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto pb-3 pl-0.5 pr-0.5">
