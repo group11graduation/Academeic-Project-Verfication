@@ -203,16 +203,36 @@ async function main() {
     let roleId = null;
     try {
       const [roleRows] = await connection.query(
-        `SELECT id FROM roles WHERE name IN ('Admin','ADMIN','admin','SUPER_ADMIN','super_admin') OR slug IN ('admin','super_admin') LIMIT 1`
+        `SELECT COALESCE(role_id, id) AS rid FROM roles
+         WHERE COALESCE(role_name, name) IN ('Admin','ADMIN','admin','SUPER_ADMIN','super_admin')
+            OR slug IN ('admin','super_admin')
+         LIMIT 1`
       );
-      if (roleRows && roleRows[0] && roleRows[0].id != null) roleId = roleRows[0].id;
+      if (roleRows && roleRows[0] && roleRows[0].rid != null) roleId = roleRows[0].rid;
     } catch {
-      /* roles table optional */
+      try {
+        const [roleRows] = await connection.query(
+          `SELECT role_id AS rid FROM roles WHERE role_name IN ('Admin','admin') LIMIT 1`
+        );
+        if (roleRows && roleRows[0] && roleRows[0].rid != null) roleId = roleRows[0].rid;
+      } catch {
+        /* roles table optional / different shape */
+      }
+    }
+    if (roleId == null && columns.includes('role_id')) {
+      roleId = 1; // PayFlow-style: Admin is usually role_id=1
     }
 
-    const [rows] = await connection.query('SELECT id, email FROM users WHERE email = ? LIMIT 1', [
-      email,
-    ]);
+    const idCol = columns.includes('user_id')
+      ? 'user_id'
+      : columns.includes('id')
+        ? 'id'
+        : null;
+    const selectId = idCol || 'email';
+    const [rows] = await connection.query(
+      `SELECT ${selectId} AS id, email FROM users WHERE email = ? LIMIT 1`,
+      [email]
+    );
 
     const setParts = [];
     const setVals = [];
@@ -224,7 +244,11 @@ async function main() {
       setParts.push('username = COALESCE(?, username)');
       setVals.push(email.split('@')[0]);
     }
-    if (columns.includes('password')) {
+    // Prefer snake_case password_hash (PayFlow) over camelCase passwordHash / password.
+    if (columns.includes('password_hash')) {
+      setParts.push('password_hash = ?');
+      setVals.push(hash);
+    } else if (columns.includes('password')) {
       setParts.push('password = ?');
       setVals.push(hash);
     }
@@ -245,6 +269,9 @@ async function main() {
     }
     if (columns.includes('isactive')) {
       setParts.push('isActive = 1');
+    }
+    if (columns.includes('status')) {
+      setParts.push(`status = 'active'`);
     }
 
     if (rows && rows.length) {
@@ -267,7 +294,11 @@ async function main() {
         insertVals.push(email.split('@')[0]);
         placeholders.push('?');
       }
-      if (columns.includes('password')) {
+      if (columns.includes('password_hash')) {
+        insertCols.push('password_hash');
+        insertVals.push(hash);
+        placeholders.push('?');
+      } else if (columns.includes('password')) {
         insertCols.push('password');
         insertVals.push(hash);
         placeholders.push('?');
@@ -290,6 +321,11 @@ async function main() {
       if (columns.includes('isactive')) {
         insertCols.push('isActive');
         insertVals.push(1);
+        placeholders.push('?');
+      }
+      if (columns.includes('status')) {
+        insertCols.push('status');
+        insertVals.push('active');
         placeholders.push('?');
       }
       await connection.query(

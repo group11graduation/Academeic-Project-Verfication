@@ -3,6 +3,9 @@
  * Preview MySQL schema bootstrap for React + Express + MySQL student projects.
  * Runs SQL dumps / npm migrate scripts before Express starts so apps that require
  * tables like `roles` (PayFlow) do not crash with "Table doesn't exist".
+ *
+ * Important: student SQL is often at /app/database/*.sql while Express cwd is
+ * /app/backend — we must search parent folders, not only process.cwd().
  */
 'use strict';
 
@@ -85,6 +88,31 @@ function pickConn() {
   return { host, user, password, database, port };
 }
 
+function collectSearchRoots(cwd) {
+  const roots = [];
+  const seen = new Set();
+  const add = (p) => {
+    const abs = path.resolve(p);
+    if (!abs || seen.has(abs) || !fs.existsSync(abs)) return;
+    seen.add(abs);
+    roots.push(abs);
+  };
+  add(cwd);
+  add(path.join(cwd, '..'));
+  add(path.join(cwd, '..', '..'));
+  add('/app');
+  add('/workspace');
+  add('/project');
+  // Explicit database folders next to backend/
+  add(path.join(cwd, '..', 'database'));
+  add(path.join(cwd, '..', 'db'));
+  add(path.join(cwd, '..', 'sql'));
+  add(path.join(cwd, 'database'));
+  add(path.join(cwd, 'db'));
+  add(path.join(cwd, 'sql'));
+  return roots;
+}
+
 function walkSqlFiles(root, depth = 0, out = []) {
   if (depth > 5 || !fs.existsSync(root)) return out;
   let entries;
@@ -111,7 +139,6 @@ function walkSqlFiles(root, depth = 0, out = []) {
       continue;
     }
     if (!/\.sql$/i.test(entry.name)) continue;
-    // Skip destructive dumps
     if (/drop[-_]?all|teardown|destroy|wipe/i.test(entry.name)) continue;
     out.push(full);
   }
@@ -121,19 +148,74 @@ function walkSqlFiles(root, depth = 0, out = []) {
 function rankSqlFile(filePath) {
   const base = path.basename(filePath).toLowerCase();
   let score = 50;
-  if (/^(schema|init|install|setup|create|database|db)/i.test(base)) score -= 30;
+  if (/^(schema|init|install|setup|create|database|db|payroll)/i.test(base)) score -= 40;
+  if (/payroll|schema|dump/i.test(base)) score -= 20;
   if (/migration|migrate/i.test(filePath)) score -= 10;
   if (/seed|demo|sample|dummy/i.test(base)) score += 40;
   if (/^\d+/.test(base)) score -= 5;
   return score;
 }
 
-async function runSqlFiles(connection, root) {
-  const files = walkSqlFiles(root)
-    .sort((a, b) => rankSqlFile(a) - rankSqlFile(b) || a.localeCompare(b))
-    .slice(0, 40);
+function sanitizeSqlDump(sql) {
+  return String(sql || '')
+    .replace(/^\s*USE\s+[`'"]?\w+[`'"]?\s*;/gim, '')
+    .replace(/DEFINER\s*=\s*`[^`]+`@`[^`]+`/gi, '')
+    .replace(/DEFINER\s*=\s*'[^']+'@'[^']+'/gi, '');
+}
+
+async function tableColumns(connection, table) {
+  try {
+    const [rows] = await connection.query(`SHOW COLUMNS FROM \`${table}\``);
+    return (rows || []).map((r) => String(r.Field || '').toLowerCase());
+  } catch {
+    return null;
+  }
+}
+
+async function dropIncompatibleSafetyTables(connection) {
+  // Our old minimal schema used roles.name / users.id — PayFlow needs roles.role_name / users.user_id.
+  const roleCols = await tableColumns(connection, 'roles');
+  const userCols = await tableColumns(connection, 'users');
+  if (!roleCols && !userCols) return false;
+
+  const rolesLooksMinimal =
+    roleCols && roleCols.includes('name') && !roleCols.includes('role_name');
+  const usersLooksMinimal =
+    userCols &&
+    userCols.includes('id') &&
+    !userCols.includes('user_id') &&
+    !userCols.includes('password_hash');
+
+  if (!rolesLooksMinimal && !usersLooksMinimal) return false;
+
+  console.log(
+    '[preview-mysql-bootstrap] dropping incompatible safety-net roles/users so project SQL can load'
+  );
+  await connection.query('SET FOREIGN_KEY_CHECKS=0');
+  try {
+    await connection.query('DROP TABLE IF EXISTS users');
+    await connection.query('DROP TABLE IF EXISTS roles');
+  } finally {
+    await connection.query('SET FOREIGN_KEY_CHECKS=1');
+  }
+  return true;
+}
+
+async function runSqlFiles(connection, roots) {
+  const files = [];
+  const seen = new Set();
+  for (const root of roots) {
+    for (const file of walkSqlFiles(root)) {
+      const abs = path.resolve(file);
+      if (seen.has(abs)) continue;
+      seen.add(abs);
+      files.push(abs);
+    }
+  }
+  files.sort((a, b) => rankSqlFile(a) - rankSqlFile(b) || a.localeCompare(b));
+
   let ran = 0;
-  for (const file of files) {
+  for (const file of files.slice(0, 40)) {
     let sql;
     try {
       sql = fs.readFileSync(file, 'utf8');
@@ -141,13 +223,12 @@ async function runSqlFiles(connection, root) {
       continue;
     }
     if (!sql || sql.trim().length < 12) continue;
-    // Strip USE statements that point at other DB names
-    sql = sql.replace(/^\s*USE\s+[`'"]?\w+[`'"]?\s*;/gim, '');
+    sql = sanitizeSqlDump(sql);
     try {
       // eslint-disable-next-line no-await-in-loop
       await connection.query(sql);
       ran += 1;
-      console.log('[preview-mysql-bootstrap] applied SQL', path.relative(root, file));
+      console.log('[preview-mysql-bootstrap] applied SQL', file);
     } catch (err) {
       console.log(
         '[preview-mysql-bootstrap] SQL soft-fail',
@@ -199,11 +280,8 @@ function runNpmMigrateScripts(root) {
       cwd: root,
       env: process.env,
       encoding: 'utf8',
-      timeout: 180_000,
-      shell: false,
+      timeout: 120_000,
     });
-    if (result.stdout) process.stdout.write(result.stdout.slice(-1500));
-    if (result.stderr) process.stderr.write(result.stderr.slice(-1500));
     if (result.status === 0) {
       ran += 1;
       console.log('[preview-mysql-bootstrap] npm run', key, 'OK');
@@ -211,94 +289,60 @@ function runNpmMigrateScripts(root) {
       console.log('[preview-mysql-bootstrap] npm run', key, 'exit', result.status);
     }
   }
-
-  // Direct CLI fallbacks when scripts are missing
-  const cliTries = [
-    {
-      kind: 'sequelize',
-      cmd: 'npx',
-      args: ['--yes', 'sequelize-cli', 'db:migrate'],
-      hint: () =>
-        fs.existsSync(path.join(root, '.sequelizerc')) ||
-        fs.existsSync(path.join(root, 'config', 'config.json')) ||
-        Boolean(scripts.sequelize),
-    },
-    {
-      kind: 'prisma',
-      cmd: 'npx',
-      args: ['--yes', 'prisma', 'db', 'push', '--accept-data-loss'],
-      hint: () => fs.existsSync(path.join(root, 'prisma')),
-    },
-    {
-      kind: 'knex',
-      cmd: 'npx',
-      args: ['--yes', 'knex', 'migrate:latest'],
-      hint: () =>
-        fs.existsSync(path.join(root, 'knexfile.js')) || fs.existsSync(path.join(root, 'knexfile.ts')),
-    },
-  ];
-  for (const tryCli of cliTries) {
-    if (!tryCli.hint()) continue;
-    console.log('[preview-mysql-bootstrap]', tryCli.cmd, tryCli.args.join(' '));
-    const result = spawnSync(tryCli.cmd, tryCli.args, {
-      cwd: root,
-      env: process.env,
-      encoding: 'utf8',
-      timeout: 180_000,
-      shell: false,
-    });
-    if (result.status === 0) {
-      ran += 1;
-      console.log('[preview-mysql-bootstrap] CLI OK', tryCli.kind);
-    } else {
-      console.log('[preview-mysql-bootstrap] CLI soft-fail', tryCli.kind, result.status);
-    }
-  }
   return ran;
 }
 
 async function ensureMinimalTables(connection) {
-  // Best-effort safety net for payroll / RBAC apps that crash if roles is missing.
+  const roleCols = await tableColumns(connection, 'roles');
+  const userCols = await tableColumns(connection, 'users');
+
+  // Real project schema already present (PayFlow / similar).
+  if (roleCols && roleCols.includes('role_name') && userCols && userCols.includes('password_hash')) {
+    console.log('[preview-mysql-bootstrap] project roles/users schema already present — skip safety-net');
+    return;
+  }
+  if (roleCols && userCols && !roleCols.includes('name')) {
+    // Unknown but complete-looking schema — do not overwrite.
+    console.log('[preview-mysql-bootstrap] roles/users already exist — skip safety-net');
+    return;
+  }
+
+  // PayFlow-compatible safety net (role_id / role_name / user_id / password_hash).
   await connection.query(`
     CREATE TABLE IF NOT EXISTS roles (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      slug VARCHAR(100) NULL,
-      description VARCHAR(255) NULL,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_roles_name (name)
+      role_id INT AUTO_INCREMENT PRIMARY KEY,
+      role_name VARCHAR(100) NOT NULL,
+      description TEXT NULL,
+      UNIQUE KEY uq_roles_role_name (role_name)
     )
   `);
   await connection.query(`
     CREATE TABLE IF NOT EXISTS users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NULL,
-      fullName VARCHAR(255) NULL,
-      email VARCHAR(255) NOT NULL,
-      username VARCHAR(255) NULL,
-      password VARCHAR(255) NULL,
-      passwordHash VARCHAR(255) NULL,
-      role VARCHAR(64) NULL,
-      role_id INT NULL,
-      roleId INT NULL,
-      isActive TINYINT(1) DEFAULT 1,
-      status VARCHAR(64) NULL,
-      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_users_email (email)
+      user_id INT AUTO_INCREMENT PRIMARY KEY,
+      role_id INT NOT NULL DEFAULT 1,
+      username VARCHAR(100) NOT NULL,
+      email VARCHAR(150) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      status VARCHAR(64) NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_users_email (email),
+      UNIQUE KEY uq_users_username (username)
     )
   `);
-  const [roles] = await connection.query('SELECT id FROM roles LIMIT 1');
+
+  const [roles] = await connection.query('SELECT role_id FROM roles LIMIT 1');
   if (!roles || !roles.length) {
+    // Avoid case-insensitive duplicate names (SUPER_ADMIN vs super_admin).
     await connection.query(
-      `INSERT INTO roles (name, slug, description) VALUES
-        ('Admin', 'admin', 'Preview admin'),
-        ('SUPER_ADMIN', 'super_admin', 'Preview super admin'),
-        ('super_admin', 'super_admin', 'Preview super admin')`
+      `INSERT IGNORE INTO roles (role_id, role_name, description) VALUES
+        (1, 'Admin', 'System administrator'),
+        (2, 'HR Manager', 'Human resource manager'),
+        (3, 'Accountant', 'Payroll accountant'),
+        (4, 'Employee', 'Regular employee')`
     );
   }
-  console.log('[preview-mysql-bootstrap] ensured minimal roles/users tables');
+  console.log('[preview-mysql-bootstrap] ensured PayFlow-compatible roles/users tables');
 }
 
 async function main() {
@@ -324,9 +368,17 @@ async function main() {
   }
 
   const root = process.cwd();
-  console.log('[preview-mysql-bootstrap] start', conn.host, conn.database, 'cwd=', root);
+  const roots = collectSearchRoots(root);
+  console.log(
+    '[preview-mysql-bootstrap] start',
+    conn.host,
+    conn.database,
+    'cwd=',
+    root,
+    'searchRoots=',
+    roots.join(',')
+  );
 
-  // Prefer project migrate scripts first (creates real schema), then SQL files, then safety tables.
   const npmRan = runNpmMigrateScripts(root);
 
   const connection = await mysql.createConnection({
@@ -339,7 +391,16 @@ async function main() {
   });
 
   try {
-    const sqlRan = await runSqlFiles(connection, root);
+    try {
+      await dropIncompatibleSafetyTables(connection);
+    } catch (err) {
+      console.log(
+        '[preview-mysql-bootstrap] drop incompatible soft-fail',
+        err && err.message ? err.message : err
+      );
+    }
+
+    const sqlRan = await runSqlFiles(connection, roots);
     try {
       await ensureMinimalTables(connection);
     } catch (err) {
