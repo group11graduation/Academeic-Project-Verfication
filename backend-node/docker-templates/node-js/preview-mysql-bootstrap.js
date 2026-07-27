@@ -93,17 +93,21 @@ function collectSearchRoots(cwd) {
   const seen = new Set();
   const add = (p) => {
     const abs = path.resolve(p);
-    if (!abs || seen.has(abs) || !fs.existsSync(abs)) return;
+    // Never walk filesystem root — too slow / noisy.
+    if (!abs || abs === path.parse(abs).root || seen.has(abs) || !fs.existsSync(abs)) return;
     seen.add(abs);
     roots.push(abs);
   };
   add(cwd);
   add(path.join(cwd, '..'));
-  add(path.join(cwd, '..', '..'));
+  // Only go two levels up if that is still under /app or /workspace (not /).
+  const up2 = path.resolve(cwd, '..', '..');
+  if (up2 !== path.parse(up2).root && (/[\\/](app|workspace|project|data)([\\/]|$)/i.test(up2) || up2.length > 3)) {
+    add(up2);
+  }
   add('/app');
   add('/workspace');
   add('/project');
-  // Explicit database folders next to backend/
   add(path.join(cwd, '..', 'database'));
   add(path.join(cwd, '..', 'db'));
   add(path.join(cwd, '..', 'sql'));
@@ -157,10 +161,17 @@ function rankSqlFile(filePath) {
 }
 
 function sanitizeSqlDump(sql) {
-  return String(sql || '')
-    .replace(/^\s*USE\s+[`'"]?\w+[`'"]?\s*;/gim, '')
-    .replace(/DEFINER\s*=\s*`[^`]+`@`[^`]+`/gi, '')
-    .replace(/DEFINER\s*=\s*'[^']+'@'[^']+'/gi, '');
+  let s = String(sql || '');
+  // phpMyAdmin dumps: DEFINER, USE, and DELIMITER/$$ procedure blocks break mysql2.
+  s = s.replace(/DEFINER\s*=\s*`[^`]+`@`[^`]+`/gi, '');
+  s = s.replace(/DEFINER\s*=\s*'[^']+'@'[^']+'/gi, '');
+  s = s.replace(/^\s*USE\s+[`'"]?\w+[`'"]?\s*;/gim, '');
+  s = s.replace(/^DELIMITER\s+.+$/gim, '');
+  s = s.replace(/CREATE\s+(DEFINER\s*=\s*\S+\s+)?PROCEDURE[\s\S]*?END\s*\$\$/gi, '');
+  s = s.replace(/CREATE\s+(DEFINER\s*=\s*\S+\s+)?FUNCTION[\s\S]*?END\s*\$\$/gi, '');
+  s = s.replace(/CREATE\s+(DEFINER\s*=\s*\S+\s+)?TRIGGER[\s\S]*?END\s*\$\$/gi, '');
+  s = s.replace(/\$\$/g, ';');
+  return s;
 }
 
 async function tableColumns(connection, table) {
@@ -230,14 +241,53 @@ async function runSqlFiles(connection, roots) {
       ran += 1;
       console.log('[preview-mysql-bootstrap] applied SQL', file);
     } catch (err) {
-      console.log(
-        '[preview-mysql-bootstrap] SQL soft-fail',
-        path.basename(file),
-        err && err.message ? err.message : err
-      );
+      const msg = err && err.message ? err.message : String(err);
+      console.log('[preview-mysql-bootstrap] SQL soft-fail', path.basename(file), msg);
+      // phpMyAdmin dumps often fail as one batch; retry statement-by-statement.
+      // eslint-disable-next-line no-await-in-loop
+      const partial = await runSqlStatementsBestEffort(connection, sql, path.basename(file));
+      if (partial > 0) {
+        ran += 1;
+        console.log(
+          '[preview-mysql-bootstrap] applied SQL statements',
+          path.basename(file),
+          'ok=',
+          partial
+        );
+      }
     }
   }
   return ran;
+}
+
+async function runSqlStatementsBestEffort(connection, sql, label) {
+  const parts = String(sql || '')
+    .split(/;\s*(?:\r?\n|$)/)
+    .map((p) => p.trim())
+    .filter((p) => p && !/^--/.test(p) && p.length > 8);
+  let ok = 0;
+  for (const stmt of parts) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await connection.query(stmt);
+      ok += 1;
+    } catch (err) {
+      const msg = err && err.message ? String(err.message) : '';
+      // Ignore benign dump conflicts.
+      if (/already exists|Duplicate entry|Duplicate key/i.test(msg)) {
+        ok += 1;
+        continue;
+      }
+      if (/CREATE|INSERT|ALTER/i.test(stmt.slice(0, 40))) {
+        console.log(
+          '[preview-mysql-bootstrap] stmt soft-fail',
+          label,
+          msg.slice(0, 160)
+        );
+      }
+    }
+  }
+  return ok;
 }
 
 function runNpmMigrateScripts(root) {
