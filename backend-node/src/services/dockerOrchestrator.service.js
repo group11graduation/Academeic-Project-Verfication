@@ -419,6 +419,28 @@ async function dockerImageHasPath(imageTag, filePath) {
   }
 }
 
+/** True when `php -m` lists the extension (e.g. mysqli). */
+async function dockerImageHasPhpExtension(imageTag, extension) {
+  try {
+    const { stdout } = await spawnProcess(
+      'docker',
+      ['run', '--rm', '--entrypoint', 'php', imageTag, '-m'],
+      { timeoutMs: 60_000 }
+    );
+    const wanted = String(extension || '')
+      .trim()
+      .toLowerCase();
+    if (!wanted) return false;
+    return String(stdout || '')
+      .toLowerCase()
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .includes(wanted);
+  } catch {
+    return false;
+  }
+}
+
 async function ensurePreviewNodeBaseImage(flutterPair, { forceRebuild = false } = {}) {
   const templateDirName = previewNodeTemplateDir(flutterPair);
   const imageTag = previewNodeBaseImageTag(flutterPair);
@@ -851,14 +873,33 @@ export function previewStackDisplayName(stack, splitPair = null) {
 
 async function ensurePreviewPhpBaseImage({ forceRebuild = false } = {}) {
   const imageTag = PREVIEW_PHP_BASE_IMAGE;
-  if (!forceRebuild && (await dockerImageExists(imageTag))) {
-    return { imageTag, reused: true };
+  const phpTemplateDir = path.join(TEMPLATES_ROOT, 'php-apache');
+  const contentHash = await previewTemplateContentHash('php-apache', [
+    path.join(phpTemplateDir, 'preview-bootstrap.php'),
+    path.join(phpTemplateDir, 'preview-seed-admin.php'),
+  ]);
+  const hadExistingImage = await dockerImageExists(imageTag);
+  if (!forceRebuild && hadExistingImage) {
+    const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
+    const hasMysqli = await dockerImageHasPhpExtension(imageTag, 'mysqli');
+    // Rebuild when template drifts OR older images lack mysqli (common student PHP stack).
+    if (existingHash && existingHash === contentHash && hasMysqli) {
+      return { imageTag, reused: true };
+    }
   }
+
   const stageDir = await stagePreviewBaseBuildDir('php-apache');
-  return runPreviewBaseImageBuild({
+  const buildResult = await runPreviewBaseImageBuild({
     imageTag,
     stageDir,
     timeoutMs: BUILD_TIMEOUT_MS,
+    label: 'php-apache',
+    contentHash,
+  });
+  return finishBaseImageBuildOrFallback({
+    imageTag,
+    hadExistingImage,
+    buildResult,
     label: 'php-apache',
   });
 }
