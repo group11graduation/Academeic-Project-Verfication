@@ -2,15 +2,53 @@
 set -e
 
 DOCROOT="/var/www/html"
+APACHE_DOCROOT="$DOCROOT"
 
-if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ] && [ -d "$DOCROOT/$APP_SUBDIR" ]; then
-  echo "[preview] Promoting PHP files from $APP_SUBDIR into Apache docroot"
-  cp -a "$DOCROOT/$APP_SUBDIR/." "$DOCROOT/" 2>/dev/null || true
-fi
+#
+# Prefer Apache DocumentRoot over copying a subfolder into /var/www/html.
+# Copying public/ into the mount breaks require __DIR__ . '/../src/...' paths.
+#
+configure_php_docroot() {
+  target=""
+  if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ] && [ -d "$DOCROOT/$APP_SUBDIR" ]; then
+    # Only use DocumentRoot for nested apps — never flatten via cp.
+    if [ -f "$DOCROOT/$APP_SUBDIR/index.php" ] || [ -f "$DOCROOT/$APP_SUBDIR/index.html" ]; then
+      target="$DOCROOT/$APP_SUBDIR"
+    fi
+  fi
+  if [ -z "$target" ] && [ -f "$DOCROOT/public/index.php" ]; then
+    if [ -d "$DOCROOT/src" ] || [ -d "$DOCROOT/app" ] || [ -d "$DOCROOT/includes" ]; then
+      target="$DOCROOT/public"
+    fi
+  fi
+  if [ -z "$target" ]; then
+    return 0
+  fi
+  APACHE_DOCROOT="$target"
+  echo "[preview] Apache DocumentRoot → $APACHE_DOCROOT (APP_SUBDIR=${APP_SUBDIR:-.})"
+  cat > /etc/apache2/sites-available/000-default.conf <<EOF
+<VirtualHost *:80>
+  ServerAdmin webmaster@localhost
+  DocumentRoot ${APACHE_DOCROOT}
+  <Directory ${APACHE_DOCROOT}>
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+  </Directory>
+  ErrorLog \${APACHE_LOG_DIR}/error.log
+  CustomLog \${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+EOF
+}
+
+configure_php_docroot
 
 # Force PHP to load preview env overrides before any student script (works even for unknown config layouts).
 if [ -f /preview-bootstrap.php ]; then
   printf 'auto_prepend_file=/preview-bootstrap.php\n' > "$DOCROOT/.user.ini"
+  if [ "$APACHE_DOCROOT" != "$DOCROOT" ]; then
+    printf 'auto_prepend_file=/preview-bootstrap.php\n' > "$APACHE_DOCROOT/.user.ini"
+  fi
   export PREVIEW_SANDBOX=1
 fi
 
@@ -38,6 +76,22 @@ patch_pdo_localhost() {
   sed -i "s|mysql:host=127.0.0.1|mysql:host=${DB_HOST}|g" "$file" 2>/dev/null || true
   sed -i "s|mysqli_connect('localhost'|mysqli_connect('${DB_HOST}'|g" "$file" 2>/dev/null || true
   sed -i "s|mysqli_connect(\"localhost\"|mysqli_connect(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
+  # new mysqli("localhost", "user", "pass", "db") — XAMPP student projects
+  sed -i "s|new mysqli('localhost'|new mysqli('${DB_HOST}'|g" "$file" 2>/dev/null || true
+  sed -i "s|new mysqli(\"localhost\"|new mysqli(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
+  sed -i "s|new mysqli('127.0.0.1'|new mysqli('${DB_HOST}'|g" "$file" 2>/dev/null || true
+  sed -i "s|new mysqli(\"127.0.0.1\"|new mysqli(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
+  sed -i "s|new \\\\mysqli('localhost'|new \\\\mysqli('${DB_HOST}'|g" "$file" 2>/dev/null || true
+  sed -i "s|new \\\\mysqli(\"localhost\"|new \\\\mysqli(\"${DB_HOST}\"|g" "$file" 2>/dev/null || true
+}
+
+# Rewrite empty MySQL password only in new mysqli(..., '', ...) forms.
+patch_mysqli_empty_password() {
+  file="$1"
+  [ -f "$file" ] || return 0
+  [ -n "$DB_PASS" ] || return 0
+  sed -i "s|new mysqli('\\([^']*\\)', '\\([^']*\\)', ''|new mysqli('\\1', '\\2', '${DB_PASS}'|g" "$file" 2>/dev/null || true
+  sed -i "s|new mysqli(\"\\([^\"]*\\)\", \"\\([^\"]*\\)\", \"\"|new mysqli(\"\\1\", \"\\2\", \"${DB_PASS}\"|g" "$file" 2>/dev/null || true
 }
 
 # Returns 0 when the file looks like a setup/seed/bootstrap script (may seed app admins).
@@ -77,6 +131,7 @@ patch_one_php_file() {
       patch_config_var "$file" pass "${DB_PASS:-preview-root}"
     fi
     patch_pdo_localhost "$file"
+    patch_mysqli_empty_password "$file"
   fi
 }
 
@@ -98,7 +153,7 @@ patch_php_tree() {
       esac
     elif [ -d "$entry" ]; then
       case "$(basename "$entry")" in
-        config|includes|inc|app|application|database|scripts|sql)
+        config|includes|inc|app|application|database|scripts|sql|src|public)
           patch_php_tree "$entry" $((depth + 1))
           ;;
       esac
@@ -173,6 +228,61 @@ ensure_preview_database() {
     } catch (Throwable \$e) {
       fwrite(STDERR, '[preview] ensure database failed: ' . \$e->getMessage() . PHP_EOL);
       exit(1);
+    }
+  " || true
+}
+
+# Import student SQL dumps when the target DB still has zero tables.
+import_sql_dumps() {
+  [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || return 0
+  php -r "
+    try {
+      \$host = getenv('DB_HOST');
+      \$db = preg_replace('/[^a-zA-Z0-9_]/', '', getenv('DB_NAME') ?: '');
+      if (!\$db) exit(0);
+      \$user = getenv('DB_USER') ?: 'root';
+      \$pass = getenv('DB_PASS') ?: '';
+      \$pdo = new PDO('mysql:host=' . \$host . ';dbname=' . \$db, \$user, \$pass, [
+        PDO::ATTR_TIMEOUT => 5,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+      ]);
+      \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+      if (count(\$tables) > 0) {
+        echo '[preview] skip SQL import — ' . count(\$tables) . ' table(s) already present' . PHP_EOL;
+        exit(0);
+      }
+      \$roots = ['/var/www/html', '/var/www/html/sql', '/var/www/html/database', '/var/www/html/db'];
+      \$candidates = [];
+      foreach (['database.sql', 'db.sql', 'schema.sql', 'dump.sql', 'data.sql'] as \$name) {
+        foreach (\$roots as \$root) {
+          \$p = \$root . '/' . \$name;
+          if (is_file(\$p)) \$candidates[] = \$p;
+        }
+      }
+      foreach (glob('/var/www/html/sql/*.sql') ?: [] as \$p) \$candidates[] = \$p;
+      foreach (glob('/var/www/html/database/*.sql') ?: [] as \$p) \$candidates[] = \$p;
+      \$candidates = array_values(array_unique(\$candidates));
+      if (!\$candidates) {
+        echo '[preview] no SQL dump files found to import' . PHP_EOL;
+        exit(0);
+      }
+      foreach (\$candidates as \$file) {
+        \$sql = file_get_contents(\$file);
+        if (\$sql === false || trim(\$sql) === '') continue;
+        // Strip DELIMITER blocks / procedures that PDO cannot run as one batch.
+        \$sql = preg_replace('/DELIMITER\\s+\\S+/i', '', \$sql);
+        \$sql = preg_replace('/CREATE\\s+DEFINER=[^\\s]+\\s+/i', 'CREATE ', \$sql);
+        \$parts = preg_split('/;\\s*\\n/', \$sql);
+        \$ok = 0; \$fail = 0;
+        foreach (\$parts as \$stmt) {
+          \$stmt = trim(\$stmt);
+          if (\$stmt === '' || str_starts_with(\$stmt, '--') || str_starts_with(\$stmt, '/*')) continue;
+          try { \$pdo->exec(\$stmt); \$ok++; } catch (Throwable \$e) { \$fail++; }
+        }
+        echo '[preview] imported ' . basename(\$file) . \" (ok=\$ok fail=\$fail)\" . PHP_EOL;
+      }
+    } catch (Throwable \$e) {
+      fwrite(STDERR, '[preview] SQL import failed: ' . \$e->getMessage() . PHP_EOL);
     }
   " || true
 }
@@ -299,7 +409,10 @@ fi
 if [ -n "$DB_HOST" ]; then
   wait_for_mysql_server || true
   ensure_preview_database
+  import_sql_dumps
   run_bootstrap_scripts
+  # Import again if bootstrap created empty schema only / failed
+  import_sql_dumps
   check_bootstrap_tables
   wait_for_mysql || true
   if [ -f /preview-seed-admin.php ]; then
@@ -321,5 +434,5 @@ if [ -n "$DB_HOST" ]; then
 fi
 
 chown -R www-data:www-data "$DOCROOT" 2>/dev/null || true
-echo "[preview] Apache listening on :80"
+echo "[preview] Apache listening on :80 (DocumentRoot=${APACHE_DOCROOT})"
 exec apache2-foreground

@@ -25,6 +25,8 @@ const PHP_CONFIG_REL_PATHS = [
   'config/db.php',
   'config/db_config.php',
   'config/connection.php',
+  'src/db/config.php',
+  'src/config/database.php',
   'includes/connection.php',
   'inc/connection.php',
   'app/config.php',
@@ -35,7 +37,7 @@ const PHP_BOOTSTRAP_NAME_RE =
   /^(setup|install|migrate|migration|seed|reset|upgrade|init)[-_a-z0-9]*\.php$/i;
 
 const DB_FILE_CONTENT_RE =
-  /new\s+PDO|mysqli_connect|mysql:host=|define\s*\(\s*['"]DB_HOST['"]|\$(?:host|dbhost|db_host|dbname|database)\s*=/i;
+  /new\s+PDO|new\s+mysqli|mysqli_connect|mysql:host=|define\s*\(\s*['"]DB_HOST['"]|\$(?:host|dbhost|db_host|dbname|database)\s*=/i;
 
 const SKIP_DIR_NAMES = new Set([
   'node_modules',
@@ -240,7 +242,11 @@ function patchPhpDefines(content, { baseUrl, dbHost, dbName, dbUser, dbPass }) {
   return { content, changed };
 }
 
-function patchPdoDsnHosts(content, dbHost, dbName) {
+/**
+ * Rewrite PDO DSNs and mysqli_connect / new mysqli(...) hosts for the sidecar.
+ * Student ZIPs almost always hard-code localhost (Unix socket) which fails in Docker.
+ */
+function patchPdoDsnHosts(content, dbHost, dbName, { dbUser = null, dbPass = null } = {}) {
   let changed = false;
   if (dbHost) {
     const hostRe =
@@ -249,12 +255,29 @@ function patchPdoDsnHosts(content, dbHost, dbName) {
       content = content.replace(hostRe, `$1${dbHost}`);
       changed = true;
     }
-    const mysqliRe =
+    const mysqliConnectRe =
       /(mysqli_connect\s*\(\s*['"])(localhost|127\.0\.0\.1)(['"])/gi;
-    if (mysqliRe.test(content)) {
-      content = content.replace(mysqliRe, `$1${dbHost}$3`);
+    if (mysqliConnectRe.test(content)) {
+      content = content.replace(mysqliConnectRe, `$1${dbHost}$3`);
       changed = true;
     }
+
+    // new mysqli("localhost", "user", "pass", "dbname") — common XAMPP style
+    const mysqliNewRe =
+      /new\s+mysqli\s*\(\s*(['"])(localhost|127\.0\.0\.1)\1\s*,\s*(['"])([^'"]*)\3\s*,\s*(['"])([^'"]*)\5(\s*(?:,\s*(['"])([^'"]*)\8)?)/gi;
+    content = content.replace(
+      mysqliNewRe,
+      (_m, q1, _host, q2, user, q3, pass, rest, q4, name) => {
+        changed = true;
+        const nextUser = dbUser != null && dbUser !== '' ? dbUser : user;
+        const nextPass = dbPass != null ? dbPass : pass;
+        const nextName = dbName && name != null ? dbName : name;
+        if (q4 != null && name != null) {
+          return `new mysqli(${q1}${dbHost}${q1}, ${q2}${nextUser}${q2}, ${q3}${nextPass}${q3}, ${q4}${nextName}${q4}`;
+        }
+        return `new mysqli(${q1}${dbHost}${q1}, ${q2}${nextUser}${q2}, ${q3}${nextPass}${q3}${rest || ''}`;
+      },
+    );
   }
   if (dbName) {
     const dbRe = /(mysql:host=[^;'"]+;dbname=)([^;'"]+)/gi;
@@ -273,6 +296,14 @@ function inferSetupDatabaseName(content) {
 
 function inferVariableDatabaseName(content) {
   const match = content.match(/\$(?:dbname|database|db_name)\s*=\s*['"]([^'"]+)['"]/i);
+  return match ? match[1] : null;
+}
+
+/** Infer DB name from new mysqli("host","user","pass","dbname") */
+function inferMysqliDatabaseName(content) {
+  const match = content.match(
+    /new\s+mysqli\s*\(\s*['"][^'"]+['"]\s*,\s*['"][^'"]*['"]\s*,\s*['"][^'"]*['"]\s*,\s*['"](\w+)['"]/i,
+  );
   return match ? match[1] : null;
 }
 
@@ -503,6 +534,8 @@ export async function resolvePreviewDatabaseName(root) {
       const content = await fs.readFile(filePath, 'utf8');
       const fromConfig = inferVariableDatabaseName(content);
       if (fromConfig) return fromConfig;
+      const fromMysqli = inferMysqliDatabaseName(content);
+      if (fromMysqli) return fromMysqli;
       const defineMatch = content.match(/define\s*\(\s*['"]DB_NAME['"]\s*,\s*['"]([^'"]+)['"]\s*\)/i);
       if (defineMatch) return defineMatch[1];
       const dsnMatch = content.match(/mysql:host=[^;'"]+;dbname=([^;'"]+)/i);
@@ -546,7 +579,10 @@ async function patchPhpFile(filePath, options, { bootstrap = false, injectOverri
   content = varPatch.content;
   changed = changed || varPatch.changed;
 
-  const dsnPatch = patchPdoDsnHosts(content, options.dbHost, options.dbName);
+  const dsnPatch = patchPdoDsnHosts(content, options.dbHost, options.dbName, {
+    dbUser: options.dbUser,
+    dbPass: options.dbPass,
+  });
   content = dsnPatch.content;
   changed = changed || dsnPatch.changed;
 

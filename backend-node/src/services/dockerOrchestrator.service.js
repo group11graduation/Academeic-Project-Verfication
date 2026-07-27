@@ -800,6 +800,14 @@ export async function resolveAppSubdir(buildContext, stack) {
   }
 
   if (stack === 'php-apache') {
+    // Classic public/ + src/ (or app/) layout: keep project root; Apache DocumentRoot
+    // is set to public/ in entrypoint. Never copy public/ into html or ../src breaks.
+    const hasPublicIndex = await pathExists(path.join(buildContext, 'public', 'index.php'));
+    const hasSiblingCode =
+      (await pathExists(path.join(buildContext, 'src'))) ||
+      (await pathExists(path.join(buildContext, 'app'))) ||
+      (await pathExists(path.join(buildContext, 'includes')));
+    if (hasPublicIndex && hasSiblingCode) return '.';
     if (await pathExists(path.join(buildContext, 'index.php'))) return '.';
     const entries = await fs.readdir(buildContext, { withFileTypes: true });
     for (const entry of entries) {
