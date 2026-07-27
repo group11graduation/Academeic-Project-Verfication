@@ -884,6 +884,72 @@ export function buildPhpPreviewLoginHint({
   return parts.join(' ');
 }
 
+const XAMPP_ASSET_SKIP = new Set([
+  'var',
+  'usr',
+  'etc',
+  'tmp',
+  'home',
+  'root',
+  'app',
+  'api',
+  'auth',
+  'admin',
+  'user',
+  'users',
+  'public',
+  'src',
+  'vendor',
+  'node_modules',
+  'includes',
+  'assets',
+  'css',
+  'js',
+  'images',
+  'img',
+  'static',
+  'uploads',
+]);
+
+/**
+ * Student ZIPs often hard-code XAMPP folder URLs like /event-management-system/assets/style.css.
+ * Preview serves the project at DocumentRoot /, so rewrite those prefixes to /.
+ */
+export function rewriteXamppAssetPrefixes(content) {
+  let changed = false;
+  const next = content.replace(
+    /(["'])\/([A-Za-z0-9_-]+)\/(assets|css|js|images|img|static|uploads)\//gi,
+    (match, quote, folder, kind) => {
+      if (XAMPP_ASSET_SKIP.has(String(folder).toLowerCase())) return match;
+      changed = true;
+      return `${quote}/${kind}/`;
+    },
+  );
+  return { content: next, changed };
+}
+
+async function patchXamppAssetFiles(root) {
+  const files = [];
+  await walkPhpFiles(root, files, 0);
+  // Also pick up common header/footer HTML-ish PHP and a few static refs.
+  let patched = 0;
+  for (const filePath of files) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      let content = await fs.readFile(filePath, 'utf8');
+      if (!/\/[A-Za-z0-9_-]+\/(assets|css|js|images|img|static|uploads)\//i.test(content)) continue;
+      const result = rewriteXamppAssetPrefixes(content);
+      if (!result.changed) continue;
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(filePath, result.content, 'utf8');
+      patched += 1;
+    } catch {
+      /* ignore */
+    }
+  }
+  return patched;
+}
+
 /**
  * Patch PHP project for preview: DB sidecar host, BASE_URL, bootstrap scripts, and env overrides.
  */
@@ -920,6 +986,8 @@ export async function patchPhpForPreview(extractDir, appSubdir, options = {}) {
       injectOverrides: false,
     });
   }
+
+  files += await patchXamppAssetFiles(root);
 
   const loginPath = await discoverPhpLoginPath(extractDir, appSubdir);
   const adminCredentials = await discoverPhpAdminCredentials(root);

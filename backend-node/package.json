@@ -15,6 +15,7 @@
     "preview:smoke:jupyter": "node scripts/docker-preview-smoke.js jupyter",
     "test:preview-credentials": "node scripts/test-preview-credentials.mjs",
     "test:php-mysqli-patch": "node scripts/test-php-mysqli-patch.mjs",
+    "test:php-assets-sql": "node scripts/test-php-assets-sql.mjs",
     "diagnose:docker": "node scripts/docker-integration-diagnostic.js"
   },
   "engines": {

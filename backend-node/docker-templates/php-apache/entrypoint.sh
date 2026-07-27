@@ -269,22 +269,59 @@ import_sql_dumps() {
       foreach (\$candidates as \$file) {
         \$sql = file_get_contents(\$file);
         if (\$sql === false || trim(\$sql) === '') continue;
-        // Strip DELIMITER blocks / procedures that PDO cannot run as one batch.
         \$sql = preg_replace('/DELIMITER\\s+\\S+/i', '', \$sql);
         \$sql = preg_replace('/CREATE\\s+DEFINER=[^\\s]+\\s+/i', 'CREATE ', \$sql);
-        \$parts = preg_split('/;\\s*\\n/', \$sql);
+        // Already connected to \$db — drop CREATE DATABASE / USE so student dumps still apply.
+        \$sql = preg_replace('/^\\s*CREATE\\s+DATABASE\\s+[^;]+;/im', '', \$sql);
+        \$sql = preg_replace('/^\\s*USE\\s+[^;]+;/im', '', \$sql);
+        // Split on semicolons (not only semicolon+newline) so compact dumps work.
+        \$parts = preg_split('/;(?=\\s*(?:--|/\\*|\$|[A-Za-z]))/', \$sql);
         \$ok = 0; \$fail = 0;
         foreach (\$parts as \$stmt) {
+          // Strip full-line SQL comments; do NOT skip just because a comment precedes CREATE TABLE.
+          \$stmt = preg_replace('/^\\s*--[^\\n]*$/m', '', \$stmt);
+          \$stmt = preg_replace('/\\/\\*.*?\\*\\//s', '', \$stmt);
           \$stmt = trim(\$stmt);
-          if (\$stmt === '' || str_starts_with(\$stmt, '--') || str_starts_with(\$stmt, '/*')) continue;
-          try { \$pdo->exec(\$stmt); \$ok++; } catch (Throwable \$e) { \$fail++; }
+          if (\$stmt === '') continue;
+          try { \$pdo->exec(\$stmt); \$ok++; } catch (Throwable \$e) {
+            \$fail++;
+            fwrite(STDERR, '[preview] SQL stmt fail: ' . substr(\$e->getMessage(), 0, 160) . PHP_EOL);
+          }
         }
         echo '[preview] imported ' . basename(\$file) . \" (ok=\$ok fail=\$fail)\" . PHP_EOL;
       }
+      \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+      echo '[preview] database ' . \$db . ' now has ' . count(\$tables) . ' table(s)' . PHP_EOL;
     } catch (Throwable \$e) {
       fwrite(STDERR, '[preview] SQL import failed: ' . \$e->getMessage() . PHP_EOL);
     }
   " || true
+}
+
+# XAMPP-style absolute asset prefixes (/project-name/assets/...) break on preview root.
+# Rewrite to /assets/... and add Apache Alias as a safety net.
+patch_xampp_asset_prefixes() {
+  prefixes=$(
+    find "$DOCROOT" -maxdepth 4 -type f \( -name '*.php' -o -name '*.html' -o -name '*.css' -o -name '*.js' \) 2>/dev/null \
+      | head -200 \
+      | xargs grep -ohE '["'"'"']/[A-Za-z0-9_-]+/(assets|css|js|images|img|static|uploads)/' 2>/dev/null \
+      | sed -E "s|^['\"]/||; s|/(assets|css|js|images|img|static|uploads)/.*||" \
+      | sort -u || true
+  )
+  [ -n "$prefixes" ] || return 0
+  for prefix in $prefixes; do
+    case "$prefix" in
+      var|usr|etc|tmp|home|root|app|api|auth|admin|user|users|public|src|vendor|node_modules) continue ;;
+    esac
+    echo "[preview] rewriting XAMPP asset prefix /$prefix/ → /"
+    find "$DOCROOT" -maxdepth 5 -type f \( -name '*.php' -o -name '*.html' -o -name '*.css' -o -name '*.js' \) 2>/dev/null \
+      | while read -r f; do
+          sed -i "s|/$prefix/|/|g" "$f" 2>/dev/null || true
+        done
+    conf="/etc/apache2/conf-enabled/sv-preview-alias-${prefix}.conf"
+    printf 'Alias /%s %s\n<Directory %s>\n  AllowOverride All\n  Require all granted\n</Directory>\n' \
+      "$prefix" "$DOCROOT" "$DOCROOT" > "$conf"
+  done
 }
 
 run_bootstrap_scripts() {
@@ -398,6 +435,7 @@ wait_for_mysql() {
 }
 
 patch_php_config
+patch_xampp_asset_prefixes
 
 if [ -f "$DOCROOT/composer.json" ]; then
   if command -v composer >/dev/null 2>&1; then
