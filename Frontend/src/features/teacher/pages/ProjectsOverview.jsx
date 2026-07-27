@@ -221,6 +221,18 @@ const ProjectsOverview = () => {
         setTeamEditorGroups((groups) => groups.filter((row) => row.id !== groupId));
     };
 
+    const removeAllEditorTeams = async () => {
+        if (!teamEditorGroups.length) return;
+        const memberCount = teamEditorGroups.reduce((sum, group) => sum + (group.members?.length || 0), 0);
+        const ok = await appConfirm(
+            memberCount
+                ? `Delete all ${teamEditorGroups.length} class team(s) for ${createForm.classCode}? All ${memberCount} student(s) will become unassigned. Click Save teams to apply. Related group-mode assignment teams that match these class teams may also be removed.`
+                : `Delete all ${teamEditorGroups.length} empty team(s) for ${createForm.classCode}? Click Save teams to apply.`,
+        );
+        if (!ok) return;
+        setTeamEditorGroups([]);
+    };
+
     const saveTeamEditor = async () => {
         const nonEmptyGroups = teamEditorGroups.filter((group) => group.members.length > 0);
         const names = nonEmptyGroups.map((group) => group.name.trim().toLowerCase());
@@ -247,11 +259,17 @@ const ProjectsOverview = () => {
             setImportPreview(null);
             setImportSummary(null);
             setGenerateSummary(null);
+            const savedCount = res.data?.createdGroups?.length ?? proposedGroups.length;
             await appSuccess(
-                `Saved ${res.data?.createdGroups?.length ?? proposedGroups.length} team(s).` +
-                    (res.data?.assignmentGroupsDeleted
-                        ? ` Removed ${res.data.assignmentGroupsDeleted} deleted team(s); their students are unassigned.`
-                        : ' Existing assignment groups were updated in place when students were added.'),
+                savedCount === 0
+                    ? `All class teams for ${createForm.classCode} were removed. Students are unassigned for future assignments.` +
+                          (res.data?.assignmentGroupsDeleted
+                              ? ` Also cleared ${res.data.assignmentGroupsDeleted} related assignment team(s).`
+                              : '')
+                    : `Saved ${savedCount} team(s).` +
+                          (res.data?.assignmentGroupsDeleted
+                              ? ` Removed ${res.data.assignmentGroupsDeleted} deleted team(s); their students are unassigned.`
+                              : ' Existing assignment groups were updated in place when students were added.'),
             );
         } catch (error) {
             await appError(error.response?.data?.message || error.message || 'Could not save teams');
@@ -927,6 +945,11 @@ const ProjectsOverview = () => {
                             ) : (
                                 <>
                                     <div className="grid gap-3 md:grid-cols-2">
+                                        {teamEditorGroups.length === 0 ? (
+                                            <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs font-medium text-slate-400 md:col-span-2 dark:border-white/10">
+                                                No teams — add a team, or assign students below. Click Save teams to clear all class teams permanently.
+                                            </p>
+                                        ) : null}
                                         {teamEditorGroups.map((group) => (
                                             <section
                                                 key={group.id}
@@ -1005,14 +1028,25 @@ const ProjectsOverview = () => {
                                         ))}
                                     </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={addEditorTeam}
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#1D68E3]/40 px-3 py-2 text-xs font-black text-[#1D68E3] hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                        Add team
-                                    </button>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={addEditorTeam}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#1D68E3]/40 px-3 py-2 text-xs font-black text-[#1D68E3] hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Add team
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={removeAllEditorTeams}
+                                            disabled={!teamEditorGroups.length || teamEditorSaving}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-black text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            Delete all groups
+                                        </button>
+                                    </div>
 
                                     <section className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
                                         <h3 className="text-xs font-black text-amber-900 dark:text-amber-100">
