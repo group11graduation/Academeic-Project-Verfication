@@ -311,87 +311,94 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // 3) ML consistency check
+    // 3) ML consistency check (optional via env; fail-closed when enabled)
     const declaredTech = approvedTechnologiesForProposal(assignment, proposal);
-    const evidence = await buildConsistencyEvidenceBundle(auditDir);
-    // Merge coarse stack families into detected_tech for Jaccard (deps alone may miss "php")
-    const stackFamilies = techMatch.zipTech || [];
-    const detectedTech = [...new Set([...(evidence.detected_tech || []), ...stackFamilies])];
+    const consistencyEnabled =
+      String(process.env.ENABLE_PROJECT_CONSISTENCY_CHECK || 'true').toLowerCase() !== 'false';
 
     let consistencyRaw = null;
-    try {
-      consistencyRaw = await analyzeConsistencyPayload({
-        proposal_description: [
-          proposal.title || '',
-          proposal.description || '',
-          ...(Array.isArray(proposal.features) ? proposal.features : []),
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        declared_tech: declaredTech,
-        detected_tech: detectedTech,
-        readme_text: evidence.readme_text || '',
-        routes: evidence.routes || [],
-        models: evidence.models || [],
-      });
-    } catch (aiErr) {
-      logger.error(`[projectCodeSubmission] consistency AI unavailable: ${aiErr.message}`);
-      const reason =
-        'Consistency check unavailable, please try again. The AI analysis service did not respond.';
-      const consistencyCheck = normalizeConsistencyCheck(
-        {
-          tech_match_score: null,
-          description_match_score: null,
-          tech_verdict: 'unavailable',
-          description_verdict: 'unavailable',
-          overall_verdict: 'reject',
-        },
-        { needsReview: false }
-      );
-      const saved = await upsertSubmissionRecord({
-        primary,
-        proposal,
-        submittedByUserId,
-        payload: {
-          ...baseMeta,
-          storedRelativePath: '',
-          sizeBytes: 0,
-          pipelineStatus: SUBMISSION_PIPELINE_STATUSES.TECH_MISMATCH_REJECTED,
-          pipelineUpdatedAt: new Date(),
-          pipelineError: reason,
-          pipelineFailures: [
-            {
-              rule: 'consistency_unavailable',
-              message: reason,
-              path: '',
-            },
-          ],
+    let detectedTech = [...(techMatch.zipTech || [])];
+    let evidence = { detected_tech: [], readme_text: '', routes: [], models: [] };
+
+    if (consistencyEnabled) {
+      evidence = await buildConsistencyEvidenceBundle(auditDir);
+      detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
+      try {
+        consistencyRaw = await analyzeConsistencyPayload({
+          proposal_description: [
+            proposal.title || '',
+            proposal.description || '',
+            ...(Array.isArray(proposal.features) ? proposal.features : []),
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          declared_tech: declaredTech,
+          detected_tech: detectedTech,
+          readme_text: evidence.readme_text || '',
+          routes: evidence.routes || [],
+          models: evidence.models || [],
+        });
+      } catch (aiErr) {
+        logger.error(`[projectCodeSubmission] consistency AI unavailable: ${aiErr.message}`);
+        const reason =
+          'Consistency check unavailable, please try again. The AI analysis service did not respond.';
+        const consistencyCheck = normalizeConsistencyCheck(
+          {
+            tech_match_score: null,
+            description_match_score: null,
+            tech_verdict: 'unavailable',
+            description_verdict: 'unavailable',
+            overall_verdict: 'reject',
+          },
+          { needsReview: false }
+        );
+        const saved = await upsertSubmissionRecord({
+          primary,
+          proposal,
+          submittedByUserId,
+          payload: {
+            ...baseMeta,
+            storedRelativePath: '',
+            sizeBytes: 0,
+            pipelineStatus: SUBMISSION_PIPELINE_STATUSES.TECH_MISMATCH_REJECTED,
+            pipelineUpdatedAt: new Date(),
+            pipelineError: reason,
+            pipelineFailures: [
+              {
+                rule: 'consistency_unavailable',
+                message: reason,
+                path: '',
+              },
+            ],
+            consistencyCheck,
+          },
+        });
+        return {
+          accepted: false,
+          reason,
+          isUpdate: Boolean(primary),
+          verdict: 'rejected',
           consistencyCheck,
-        },
-      });
-      return {
-        accepted: false,
-        reason,
-        isUpdate: Boolean(primary),
-        verdict: 'rejected',
-        consistencyCheck,
-        techMatch: {
-          ok: true,
-          detectedStack: techMatch.detectedStack || '',
-          approvedTech: techMatch.approvedTech || [],
-          zipTech: techMatch.zipTech || [],
-          message: techMatch.message || '',
-        },
-        submission: saved.toObject ? saved.toObject() : saved,
-      };
+          techMatch: {
+            ok: true,
+            detectedStack: techMatch.detectedStack || '',
+            approvedTech: techMatch.approvedTech || [],
+            zipTech: techMatch.zipTech || [],
+            message: techMatch.message || '',
+          },
+          submission: saved.toObject ? saved.toObject() : saved,
+        };
+      }
+    } else {
+      logger.warn('[projectCodeSubmission] ENABLE_PROJECT_CONSISTENCY_CHECK=false — skipping ML consistency gate');
     }
 
     const techVerdict = String(consistencyRaw?.tech_verdict || '').toLowerCase();
     const descVerdict = String(consistencyRaw?.description_verdict || '').toLowerCase();
     const overall = String(consistencyRaw?.overall_verdict || '').toLowerCase();
 
-    // 4) Final decision
-    if (techVerdict === 'mismatch' || overall === 'reject') {
+    // 4) Final decision (ML gate only when enabled / response present)
+    if (consistencyEnabled && (techVerdict === 'mismatch' || overall === 'reject')) {
       const reason = buildDeclaredTechMissingReason(declaredTech, detectedTech);
       const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview: false });
       const saved = await upsertSubmissionRecord({

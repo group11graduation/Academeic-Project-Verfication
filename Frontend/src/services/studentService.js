@@ -85,7 +85,8 @@ const studentService = {
         if (screenshotFile) fd.append('projectScreenshot', screenshotFile);
         // Must be explicit: consistency check + extract can exceed the default 12s API timeout.
         const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd, {
-            timeout: UPLOAD_TIMEOUT_MS,
+            // 0 = no client abort; server/proxy own the deadline. Avoids false "timed out" on slow checks.
+            timeout: 0,
         });
         return response.data;
     },
@@ -94,7 +95,7 @@ const studentService = {
         const fd = new FormData();
         fd.append('projectScreenshot', screenshotFile);
         const response = await api.post(`${base}/assignments/${assignmentId}/project-screenshot`, fd, {
-            timeout: UPLOAD_TIMEOUT_MS,
+            timeout: 0,
         });
         return response.data;
     },

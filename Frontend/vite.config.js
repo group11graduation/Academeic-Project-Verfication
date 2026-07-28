@@ -30,11 +30,16 @@ export default defineConfig({
     },
   },
   preview: {
+    host: '0.0.0.0',
+    port: 4173,
+    // Do not block proxied API hosts (node-backend) when Host header is an IP/domain.
+    allowedHosts: true,
     historyApiFallback: true,
-    // Same-origin /api when PUBLIC_API_URL is empty (browser → :4173 → node-backend)
+    // Same-origin /api when API_URL is empty (browser → :4173 → node-backend)
     proxy: {
       '/api': longProxy,
       '/uploads': longProxy,
+      '/health': longProxy,
     },
   },
 })

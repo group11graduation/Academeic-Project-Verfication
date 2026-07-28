@@ -62,8 +62,20 @@ api.interceptors.request.use((config) => {
   }
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     delete config.headers['Content-Type'];
+    // Prefer explicit per-call timeout; otherwise use long upload timeout (never the 12s default).
     if (config.timeout == null || config.timeout === API_TIMEOUT_MS) {
       config.timeout = UPLOAD_TIMEOUT_MS;
+    }
+  }
+  // Re-resolve API origin at request time so runtime env-config.js is respected
+  // even if the module evaluated before it loaded (rare race on first paint).
+  if (typeof window !== 'undefined') {
+    const runtime = String(window.__APP_CONFIG__?.API_URL || '').trim().replace(/\/$/, '');
+    if (runtime) {
+      config.baseURL = `${runtime}/api`;
+    } else if (import.meta.env.PROD && window.location?.origin) {
+      // Same-origin → Vite/nginx proxy to node-backend (required when :5000 is firewalled)
+      config.baseURL = `${window.location.origin}/api`;
     }
   }
   return config;

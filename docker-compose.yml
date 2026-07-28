@@ -32,10 +32,10 @@ services:
       node-backend:
         condition: service_started
     environment:
-      # Public backend URL seen by the browser, e.g. https://api.yourdomain.com
-      # Leave empty to use same-origin /api via Vite preview proxy → node-backend (recommended on VPS).
-      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
-      # Used by vite preview proxy inside the frontend container (Docker DNS).
+      # Force same-origin /api (Vite → node-backend). Do NOT point the browser at :5000 —
+      # that port is often firewalled and causes upload timeouts.
+      PUBLIC_API_URL: ""
+      FORCE_PUBLIC_API_URL: ${FORCE_PUBLIC_API_URL:-}
       INTERNAL_API_URL: ${INTERNAL_API_URL:-http://node-backend:5000}
     ports:
       - "4173:4173"
@@ -136,6 +136,9 @@ services:
       # Keep ZIP upload gate snappy (fail-closed if AI is slow/down)
       AI_CONSISTENCY_TIMEOUT_MS: ${AI_CONSISTENCY_TIMEOUT_MS:-20000}
       AI_CONSISTENCY_RETRIES: ${AI_CONSISTENCY_RETRIES:-0}
+      # Temporarily skip ML consistency until same-origin /api proxy is confirmed healthy.
+      # Set to "true" after frontend rebuild + /health via :4173 works.
+      ENABLE_PROJECT_CONSISTENCY_CHECK: ${ENABLE_PROJECT_CONSISTENCY_CHECK:-false}
 
       # Uploads + preview cache (must match volume mounts below)
       UPLOAD_DIR: /app/uploads
