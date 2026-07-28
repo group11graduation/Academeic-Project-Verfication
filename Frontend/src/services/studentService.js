@@ -83,14 +83,19 @@ const studentService = {
         fd.append('codeArchive', file);
         if (projectStackHint) fd.append('projectStackHint', projectStackHint);
         if (screenshotFile) fd.append('projectScreenshot', screenshotFile);
-        const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd);
+        // Must be explicit: consistency check + extract can exceed the default 12s API timeout.
+        const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd, {
+            timeout: UPLOAD_TIMEOUT_MS,
+        });
         return response.data;
     },
 
     submitProjectScreenshot: async (assignmentId, screenshotFile) => {
         const fd = new FormData();
         fd.append('projectScreenshot', screenshotFile);
-        const response = await api.post(`${base}/assignments/${assignmentId}/project-screenshot`, fd);
+        const response = await api.post(`${base}/assignments/${assignmentId}/project-screenshot`, fd, {
+            timeout: UPLOAD_TIMEOUT_MS,
+        });
         return response.data;
     },
 

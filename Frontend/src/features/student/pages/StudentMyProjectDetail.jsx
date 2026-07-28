@@ -543,8 +543,8 @@ const StudentMyProjectDetail = () => {
                                 <div>
                                     <h3 className="text-sm font-bold text-[#0F172A] tracking-tight">Project code (.zip)</h3>
                                     <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">
-                                        Select your ZIP, then click Upload. You can replace the file until the project deadline (same
-                                        submission id, version increments). Max 250 MB — exclude node_modules, target, dist, and .git.
+                                        Select your ZIP, then click Upload. You can replace it until the deadline
+                                        (unless it was already accepted). Max 250 MB.
                                     </p>
                                     <p className="mt-2 text-xs font-bold text-slate-600">
                                         Submitting as: <span className="text-emerald-800">{user?.name || 'You'}</span>

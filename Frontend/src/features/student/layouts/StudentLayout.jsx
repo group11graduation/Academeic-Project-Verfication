@@ -60,7 +60,7 @@ const StudentLayoutInner = () => {
                     {/* Mobile top bar */}
                     <div className="lg:hidden flex items-center justify-between gap-3 border-b border-slate-200/80 bg-[#f8fafc] px-4 py-3 dark:border-white/10 dark:bg-[#0b1220]">
                         <Link to="/student">
-                            <ProjectVerifyLogo size="lg" hideTextOnMobile />
+                            <ProjectVerifyLogo size="lg" hideTextOnMobile tagline="" />
                         </Link>
                         <div className="flex items-center gap-2">
                             <ThemeToggle compact />

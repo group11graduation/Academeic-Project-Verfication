@@ -35,7 +35,7 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
     }
 
     if (error.code === 'ECONNABORTED') {
-        return 'Request timed out. The server took too long to respond.';
+        return 'Upload timed out while checking your project. Please wait a moment and try again — the first check after a server restart can take a couple of minutes.';
     }
 
     if (error.message === 'Network Error' || !error.response) {

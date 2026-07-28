@@ -15,11 +15,18 @@ function aiBaseUrl() {
 }
 
 function aiTimeoutMs(path) {
-  // Proposal / requirement / consistency analysis can be slow on first run (model download / warm-up).
+  // Consistency must finish before typical reverse-proxy cutoffs when possible;
+  // still long enough for first MiniLM warm-up.
+  if (path === '/analyze/consistency') {
+    return Number(
+      process.env.AI_CONSISTENCY_TIMEOUT_MS ||
+        process.env.AI_PROPOSAL_TIMEOUT_MS ||
+        120000
+    );
+  }
+  // Proposal / requirement analysis can be slow on first run (model download / warm-up).
   const perPath =
-    path === '/analyze/proposal' ||
-    path === '/analyze/requirements' ||
-    path === '/analyze/consistency'
+    path === '/analyze/proposal' || path === '/analyze/requirements'
       ? process.env.AI_PROPOSAL_TIMEOUT_MS
       : process.env.AI_SERVICE_TIMEOUT_MS;
   return Number(perPath || process.env.AI_SERVICE_TIMEOUT_MS || 600000);
@@ -28,7 +35,10 @@ function aiTimeoutMs(path) {
 async function postJson(path, body) {
   const url = `${aiBaseUrl()}${path}`;
   const timeout = aiTimeoutMs(path);
-  const retries = Number(process.env.AI_SERVICE_RETRIES || 1);
+  const retries =
+    path === '/analyze/consistency'
+      ? Number(process.env.AI_CONSISTENCY_RETRIES || 0)
+      : Number(process.env.AI_SERVICE_RETRIES || 1);
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const controller = new AbortController();
