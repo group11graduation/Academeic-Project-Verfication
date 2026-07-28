@@ -21,6 +21,7 @@ RUN chmod +x /docker-entrypoint.sh
 ENV HOST=0.0.0.0
 ENV PORT=4173
 ENV PUBLIC_API_URL=
+ENV INTERNAL_API_URL=http://node-backend:5000
 EXPOSE 4173
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

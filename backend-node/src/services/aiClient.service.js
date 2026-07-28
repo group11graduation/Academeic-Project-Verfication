@@ -15,14 +15,10 @@ function aiBaseUrl() {
 }
 
 function aiTimeoutMs(path) {
-  // Consistency must finish before typical reverse-proxy cutoffs when possible;
-  // still long enough for first MiniLM warm-up.
+  // Keep consistency short so the ZIP upload HTTP request always returns
+  // before browser / reverse-proxy cutoffs (fail-closed if AI is slow).
   if (path === '/analyze/consistency') {
-    return Number(
-      process.env.AI_CONSISTENCY_TIMEOUT_MS ||
-        process.env.AI_PROPOSAL_TIMEOUT_MS ||
-        120000
-    );
+    return Number(process.env.AI_CONSISTENCY_TIMEOUT_MS || 20000);
   }
   // Proposal / requirement analysis can be slow on first run (model download / warm-up).
   const perPath =
@@ -30,6 +26,20 @@ function aiTimeoutMs(path) {
       ? process.env.AI_PROPOSAL_TIMEOUT_MS
       : process.env.AI_SERVICE_TIMEOUT_MS;
   return Number(perPath || process.env.AI_SERVICE_TIMEOUT_MS || 600000);
+}
+
+async function pingAiHealth(timeoutMs = 2500) {
+  const url = `${aiBaseUrl()}/health`;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { method: 'GET', signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 async function postJson(path, body) {
@@ -110,5 +120,9 @@ export async function analyzeScreenshotPayload(payload) {
  * Returns tech/description scores + verdicts from Python POST /analyze/consistency.
  */
 export async function analyzeConsistencyPayload(payload) {
+  const healthy = await pingAiHealth(2500);
+  if (!healthy) {
+    throw new Error('AI analysis service unavailable');
+  }
   return postJson('/analyze/consistency', payload);
 }

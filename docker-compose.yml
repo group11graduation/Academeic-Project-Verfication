@@ -33,8 +33,10 @@ services:
         condition: service_started
     environment:
       # Public backend URL seen by the browser, e.g. https://api.yourdomain.com
-      # Leave empty only if your reverse proxy serves /api on the same host as the frontend.
+      # Leave empty to use same-origin /api via Vite preview proxy → node-backend (recommended on VPS).
       PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      # Used by vite preview proxy inside the frontend container (Docker DNS).
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://node-backend:5000}
     ports:
       - "4173:4173"
     healthcheck:
@@ -131,6 +133,9 @@ services:
       # AI service — use Docker DNS hostname, NOT localhost
       AI_SERVICE_URL: http://fastapi-ai:8000
       AI_SERVICE_TIMEOUT_MS: ${AI_SERVICE_TIMEOUT_MS:-120000}
+      # Keep ZIP upload gate snappy (fail-closed if AI is slow/down)
+      AI_CONSISTENCY_TIMEOUT_MS: ${AI_CONSISTENCY_TIMEOUT_MS:-20000}
+      AI_CONSISTENCY_RETRIES: ${AI_CONSISTENCY_RETRIES:-0}
 
       # Uploads + preview cache (must match volume mounts below)
       UPLOAD_DIR: /app/uploads

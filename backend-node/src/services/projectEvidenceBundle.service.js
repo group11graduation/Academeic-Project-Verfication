@@ -52,7 +52,7 @@ const CODE_EXTS = new Set([
   '.rb',
 ]);
 
-async function walkFiles(root, { maxFiles = 400 } = {}) {
+async function walkFiles(root, { maxFiles = 120 } = {}) {
   const out = [];
   async function walk(dir) {
     if (out.length >= maxFiles) return;
@@ -145,7 +145,7 @@ function parsePomXmlArtifacts(raw) {
  */
 export async function extractDependencies(extractDir) {
   if (!extractDir || !fsSync.existsSync(extractDir)) return [];
-  const files = await walkFiles(extractDir, { maxFiles: 500 });
+  const files = await walkFiles(extractDir, { maxFiles: 200 });
   const deps = [];
 
   for (const abs of files) {
@@ -171,12 +171,12 @@ export async function extractDependencies(extractDir) {
 }
 
 async function readReadmeText(extractDir) {
-  const files = await walkFiles(extractDir, { maxFiles: 200 });
+  const files = await walkFiles(extractDir, { maxFiles: 80 });
   const readme = files.find((f) => /^readme(\.(md|txt|rst))?$/i.test(path.basename(f)));
   if (!readme) return '';
   try {
     const raw = await fs.readFile(readme, 'utf8');
-    return raw.slice(0, 12000);
+    return raw.slice(0, 8000);
   } catch {
     return '';
   }
@@ -191,31 +191,31 @@ export async function buildConsistencyEvidenceBundle(extractDir) {
   const routes = [];
   const models = [];
 
-  const files = await walkFiles(extractDir, { maxFiles: 350 });
+  const files = await walkFiles(extractDir, { maxFiles: 100 });
   for (const abs of files) {
     const ext = path.extname(abs).toLowerCase();
     if (!CODE_EXTS.has(ext)) continue;
     let raw = '';
     try {
       const st = await fs.stat(abs);
-      if (st.size > 200_000) continue;
+      if (st.size > 80_000) continue;
       raw = await fs.readFile(abs, 'utf8');
     } catch {
       continue;
     }
-    const sample = raw.slice(0, 80_000);
+    const sample = raw.slice(0, 40_000);
     for (const re of ROUTE_PATTERNS) {
       re.lastIndex = 0;
       let m;
       while ((m = re.exec(sample)) !== null) {
-        pushUnique(routes, m[2] || m[0], 60);
+        pushUnique(routes, m[2] || m[0], 40);
       }
     }
     for (const re of MODEL_PATTERNS) {
       re.lastIndex = 0;
       let m;
       while ((m = re.exec(sample)) !== null) {
-        pushUnique(models, m[1] || path.basename(abs, ext), 60);
+        pushUnique(models, m[1] || path.basename(abs, ext), 40);
       }
     }
   }
