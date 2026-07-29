@@ -25,6 +25,7 @@ import {
   buildConsistencyEvidenceBundle,
   buildEvidenceCompositeText,
 } from './projectEvidenceBundle.service.js';
+import { scoreProposalZipFunctionality } from './projectFunctionalityMatch.service.js';
 import { analyzeConsistencyPayload } from './aiClient.service.js';
 import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { getUploadDir } from '../config/env.js';
@@ -542,10 +543,67 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
+    // 4b) Fast local functionality gate: proposal title/features vs ZIP README/package/routes
+    evidence = await buildConsistencyEvidenceBundle(auditDir);
+    detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
+    const functionality = scoreProposalZipFunctionality({
+      proposal,
+      evidence,
+      originalFilename: file.originalname || baseMeta.originalFilename || '',
+    });
+    if (!functionality.ok) {
+      const reason = functionality.message;
+      const consistencyCheck = normalizeConsistencyCheck(
+        {
+          tech_match_score: null,
+          description_match_score: functionality.score,
+          tech_verdict: 'skipped',
+          description_verdict: 'mismatch',
+          overall_verdict: 'reject',
+        },
+        { needsReview: false }
+      );
+      const saved = await upsertSubmissionRecord({
+        primary,
+        proposal,
+        submittedByUserId,
+        payload: {
+          ...baseMeta,
+          contentHash,
+          storedRelativePath: '',
+          sizeBytes: 0,
+          pipelineStatus: SUBMISSION_PIPELINE_STATUSES.TECH_MISMATCH_REJECTED,
+          pipelineUpdatedAt: new Date(),
+          pipelineError: reason,
+          pipelineFailures: [
+            {
+              rule: 'functionality_mismatch',
+              message: reason,
+              path: `score=${functionality.score.toFixed(3)};title=${functionality.titleCoverage.toFixed(2)}`,
+            },
+          ],
+          consistencyCheck,
+        },
+      });
+      return {
+        accepted: false,
+        reason,
+        isUpdate: Boolean(primary),
+        verdict: 'rejected',
+        consistencyCheck,
+        techMatch: {
+          ok: true,
+          detectedStack: techMatch.detectedStack || '',
+          approvedTech: techMatch.approvedTech || declaredTech,
+          zipTech: detectedTech,
+          message: reason,
+        },
+        submission: saved.toObject ? saved.toObject() : saved,
+      };
+    }
+
     // Optional ML (only if explicitly enabled). Hard-capped; fail-open on timeout.
     if (consistencyEnabled) {
-      evidence = await buildConsistencyEvidenceBundle(auditDir);
-      detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
       try {
         consistencyRaw = await analyzeConsistencyWithDeadline({
           proposal_description: [

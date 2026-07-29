@@ -83,7 +83,13 @@ export function humanizeModelOrServerError(raw, fallback = '') {
   if (/looks like a previous student's work|looks like a previous student/i.test(text)) {
     return text;
   }
+  if (/does not match your approved proposal functionality/i.test(text)) {
+    return text;
+  }
   if (/does not match your approved proposal description/i.test(text)) {
+    return text;
+  }
+  if (/almost no project description/i.test(text)) {
     return text;
   }
   if (/already has an accepted project submission/i.test(text)) {
