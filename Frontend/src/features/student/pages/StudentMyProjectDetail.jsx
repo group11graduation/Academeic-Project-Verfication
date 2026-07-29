@@ -282,14 +282,18 @@ const StudentMyProjectDetail = () => {
                     const reviewMsg = [
                         full,
                         'Your ZIP was saved, but it is flagged for teacher review because the description check was weak.',
+                        updated ? 'Your teacher was notified about this update.' : '',
                     ]
                         .filter(Boolean)
                         .join('\n\n');
                     setCodeZipMessage(reviewMsg);
-                    await appWarning(reviewMsg, { title: 'Accepted with review flag' });
+                    await appWarning(reviewMsg, { title: updated ? 'Project updated' : 'Accepted with review flag' });
                 } else {
-                    setCodeZipMessage(full);
-                    await appSuccess(full, { title: 'Project uploaded' });
+                    const successMsg = updated
+                        ? [full, 'Your teacher was notified about this update.'].join('\n\n')
+                        : full;
+                    setCodeZipMessage(successMsg);
+                    await appSuccess(successMsg, { title: updated ? 'Project updated' : 'Project uploaded' });
                 }
                 setSelectedZipFile(null);
                 setSelectedScreenshotFile(null);
@@ -543,8 +547,8 @@ const StudentMyProjectDetail = () => {
                                 <div>
                                     <h3 className="text-sm font-bold text-[#0F172A] tracking-tight">Project code (.zip)</h3>
                                     <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">
-                                        Select your ZIP, then click Upload. You can replace it until the deadline
-                                        (unless it was already accepted). Max 250 MB.
+                                        Select your ZIP, then click Upload. You can replace it anytime before the
+                                        deadline — your teacher is notified when you update. Max 250 MB.
                                     </p>
                                     <p className="mt-2 text-xs font-bold text-slate-600">
                                         Submitting as: <span className="text-emerald-800">{user?.name || 'You'}</span>

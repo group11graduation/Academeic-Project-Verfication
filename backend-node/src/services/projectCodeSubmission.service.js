@@ -205,14 +205,8 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     const existingRows = await ProjectSubmission.find({ proposal: proposal._id }).sort({ createdAt: -1 });
     const primary = existingRows[0] || null;
 
-    // Step 0d — block overwrite of an already-accepted submission
-    if (primary?.pipelineStatus === SUBMISSION_PIPELINE_STATUSES.ACCEPTED) {
-      const err = new Error(
-        'This proposal already has an accepted project submission. Contact your teacher if you need to resubmit.'
-      );
-      err.status = 409;
-      throw err;
-    }
+    // Allow replace/update until the project deadline (including previously accepted ZIPs).
+    // Deadline is enforced by assertProjectDeadlineOpen above.
 
     for (const dup of existingRows.slice(1)) {
       if (dup.storedRelativePath) {
@@ -516,16 +510,23 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     } catch {
       /* ignore */
     }
+    const isUpdate = Boolean(primary);
+    const nextVersion = saved.version || (isUpdate ? 2 : 1);
+
     notifySafe(() =>
       notifyAssignmentTeachers(assignment, {
         type: 'project_uploaded',
-        title: primary ? 'Project ZIP updated' : 'Project ZIP uploaded',
-        body: `${studentName} uploaded a project for "${assignment.title || 'assignment'}".`,
+        title: isUpdate ? 'Student updated project ZIP' : 'Project ZIP uploaded',
+        body: isUpdate
+          ? `${studentName} updated their project ZIP for "${assignment.title || 'assignment'}" (v${nextVersion}). Review the latest upload.`
+          : `${studentName} uploaded a project for "${assignment.title || 'assignment'}".`,
         link: `/teacher/assignments/${assignment._id}/proposals/${proposal._id}`,
         meta: {
           assignmentId: String(assignment._id),
           proposalId: String(proposal._id),
           submissionId: String(submissionId),
+          version: nextVersion,
+          isUpdate,
         },
       })
     );
@@ -533,7 +534,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     return {
       accepted: true,
       reason: '',
-      isUpdate: Boolean(primary),
+      isUpdate,
       verdict: needsReview ? 'needs_review' : 'accepted',
       consistencyCheck,
       techMatch: {
@@ -545,7 +546,9 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
           techMatch.message ||
           (needsReview
             ? 'Project accepted but flagged for teacher review (description vs code consistency).'
-            : 'Project ZIP technology matches the approved proposal.'),
+            : isUpdate
+              ? 'Project ZIP updated. Your teacher was notified.'
+              : 'Project ZIP technology matches the approved proposal.'),
       },
       submission,
     };
