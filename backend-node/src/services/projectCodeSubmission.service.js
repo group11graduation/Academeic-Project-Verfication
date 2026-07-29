@@ -23,8 +23,6 @@ import {
   approvedTechnologiesForProposal,
 } from './projectTechMatch.service.js';
 import {
-  buildConsistencyEvidenceBundle,
-  buildEvidenceCompositeText,
   buildLightFunctionalityEvidence,
 } from './projectEvidenceBundle.service.js';
 import { scoreProposalZipFunctionality, isFunctionalityMatchEnabled } from './projectFunctionalityMatch.service.js';
@@ -39,8 +37,56 @@ import {
 import { User } from '../models/User.js';
 import { logger } from '../config/logger.js';
 
-/** Local token overlap vs legacy archive (filename + light evidence; no AI). */
-const LEGACY_ZIP_REJECT_THRESHOLD = Number(process.env.LEGACY_ZIP_REJECT_THRESHOLD || 0.45);
+/**
+ * Legacy = strong TITLE identity only (filename / package name).
+ * Keep high so unrelated ZIPs fall through to the "not related to proposal" gate.
+ */
+const LEGACY_ZIP_REJECT_THRESHOLD = Number(process.env.LEGACY_ZIP_REJECT_THRESHOLD || 0.78);
+/** Generic words that must not alone prove "already exists in system". */
+const LEGACY_TITLE_STOPWORDS = new Set([
+  'system',
+  'systems',
+  'project',
+  'projects',
+  'app',
+  'apps',
+  'application',
+  'applications',
+  'web',
+  'website',
+  'api',
+  'apis',
+  'platform',
+  'platforms',
+  'management',
+  'manage',
+  'manager',
+  'service',
+  'services',
+  'comprehensive',
+  'based',
+  'using',
+  'online',
+  'portal',
+  'tool',
+  'tools',
+  'main',
+  'final',
+  'code',
+  'soft',
+  'software',
+  'solution',
+  'solutions',
+  'module',
+  'modules',
+  'data',
+  'info',
+  'information',
+  'student',
+  'students',
+  'school',
+  'university',
+]);
 /** Hard cap for optional ML consistency (only when ENABLE_PROJECT_CONSISTENCY_CHECK=true). */
 const CONSISTENCY_HARD_DEADLINE_MS = Number(process.env.AI_CONSISTENCY_HARD_DEADLINE_MS || 10000);
 /** Default OFF so ZIP upload never waits on AI / cannot hang the request. */
@@ -181,32 +227,11 @@ async function findExactDuplicateAcceptedZip({ contentHash, proposalId }) {
     .lean();
 }
 
-function tokenizeForLegacy(text) {
-  return new Set(
-    String(text || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9+#.\s-]+/g, ' ')
-      .split(/\s+/)
-      .filter((t) => t.length > 2)
-  );
-}
-
-function jaccardSets(a, b) {
-  if (!a.size || !b.size) return 0;
-  let inter = 0;
-  for (const t of a) {
-    if (b.has(t)) inter += 1;
-  }
-  return inter / (a.size + b.size - inter);
-}
-
-/** Exact or 1-edit typo match (e.g. management vs managment). */
 function editDistanceAtMost1(a, b) {
   if (a === b) return true;
   const la = a.length;
   const lb = b.length;
   if (Math.abs(la - lb) > 1) return false;
-  // Ensure `a` is the shorter-or-equal string
   if (la > lb) return editDistanceAtMost1(b, a);
   let i = 0;
   let j = 0;
@@ -223,7 +248,7 @@ function editDistanceAtMost1(a, b) {
       i += 1;
       j += 1;
     } else {
-      j += 1; // insert into shorter / delete from longer
+      j += 1;
     }
   }
   edits += lb - j + (la - i);
@@ -243,31 +268,76 @@ function wordMatchesZip(word, zipLower, zipSlug) {
   return false;
 }
 
-function scoreAgainstZipIdentity({ title, bodyText, zipTokens, zipLower, zipSlug }) {
+function distinctiveTitleWords(title) {
+  return String(title || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 3 && !LEGACY_TITLE_STOPWORDS.has(w));
+}
+
+/** Bigrams that include at least one non-generic word (e.g. building+management). */
+function significantTitlePhrases(title) {
+  const words = String(title || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 2);
+  const phrases = [];
+  for (let i = 0; i < words.length - 1; i += 1) {
+    const a = words[i];
+    const b = words[i + 1];
+    if (LEGACY_TITLE_STOPWORDS.has(a) && LEGACY_TITLE_STOPWORDS.has(b)) continue;
+    if (a.length < 4 || b.length < 4) continue;
+    phrases.push(`${a}${b}`);
+  }
+  return phrases;
+}
+
+/**
+ * Score only ZIP identity surfaces (filename + package name) against a known title.
+ * Do NOT use README/proposal body — that confuses "already exists" with "related topic".
+ */
+function scoreAgainstZipIdentity({ title, zipLower, zipSlug }) {
   const titleTrim = String(title || '').trim();
   if (!titleTrim) return 0;
-  const legacyText = [titleTrim, bodyText || ''].filter(Boolean).join('\n');
-  let score = jaccardSets(zipTokens, tokenizeForLegacy(legacyText));
+
   const titleLower = titleTrim.toLowerCase();
   const titleSlug = titleLower.replace(/[^a-z0-9]+/g, '');
-  if (titleLower.length >= 5 && zipLower.includes(titleLower)) score = Math.max(score, 0.88);
-  if (titleSlug.length >= 6 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.92);
-  // Partial title words (typo-tolerant): "building management" vs "Building-Managment-System-main"
-  const titleWords = titleLower.split(/[^a-z0-9]+/).filter((w) => w.length > 3);
-  if (titleWords.length >= 2) {
-    const hit = titleWords.filter((w) => wordMatchesZip(w, zipLower, zipSlug)).length;
-    if (hit / titleWords.length >= 0.7) score = Math.max(score, 0.85);
-  } else if (titleWords.length === 1 && wordMatchesZip(titleWords[0], zipLower, zipSlug)) {
-    score = Math.max(score, 0.72);
+  let score = 0;
+
+  // Full title / slug containment (strongest signal)
+  if (titleLower.length >= 8 && zipLower.includes(titleLower)) score = Math.max(score, 0.95);
+  if (titleSlug.length >= 10 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.95);
+
+  // Significant phrases (building+management) — typo tolerant
+  const phrases = significantTitlePhrases(titleTrim);
+  const phraseHits = phrases.filter((p) => wordMatchesZip(p, zipLower, zipSlug) || zipSlug.includes(p)).length;
+  if (phraseHits >= 1 && phrases.length >= 1) {
+    score = Math.max(score, phraseHits >= 2 ? 0.92 : 0.86);
   }
+
+  // Distinctive title words only (ignores system/management/api alone)
+  const distinctive = distinctiveTitleWords(titleTrim);
+  if (distinctive.length >= 2) {
+    const hit = distinctive.filter((w) => wordMatchesZip(w, zipLower, zipSlug)).length;
+    const ratio = hit / distinctive.length;
+    if (ratio >= 0.8 && hit >= 2) score = Math.max(score, 0.9);
+    else if (ratio >= 0.67 && hit >= 2) score = Math.max(score, 0.8);
+  } else if (distinctive.length === 1 && wordMatchesZip(distinctive[0], zipLower, zipSlug)) {
+    if (distinctive[0].length >= 5) score = Math.max(score, 0.82);
+  }
+
+  if (distinctive.length >= 2) {
+    const distSlug = distinctive.join('');
+    if (distSlug.length >= 8 && zipSlug.includes(distSlug)) score = Math.max(score, 0.92);
+  }
+
   return score;
 }
 
 /**
  * Fast legacy / prior-work match (no AI) — runs BEFORE description/keyword gate.
- * Sources:
- *  1) LegacyProject archive in the system
- *  2) Other teacher-approved proposals (same subject) already in the system
+ * Only strong title identity → "already exists". Unrelated ZIPs must fall through
+ * to the functionality gate → "not related to your proposal".
  */
 async function findLegacyProjectMatch({
   assignment,
@@ -280,13 +350,11 @@ async function findLegacyProjectMatch({
     .replace(/\.zip$/i, '')
     .replace(/[-_]+/g, ' ');
   const packageId = String(evidence?.package_identity || '').trim();
-  const composite = [nameHint, packageId, buildEvidenceCompositeText(evidence || {})]
-    .filter(Boolean)
-    .join('\n');
-  if (!composite.trim() || composite.trim().length < 6) return null;
+  // Identity only — never full README (avoids mixing prior uploads / topic overlap)
+  const identityText = [nameHint, packageId].filter(Boolean).join('\n');
+  if (!identityText.trim() || identityText.trim().length < 4) return null;
 
-  const zipTokens = tokenizeForLegacy(composite);
-  const zipLower = composite.toLowerCase();
+  const zipLower = identityText.toLowerCase();
   const zipSlug = zipLower.replace(/[^a-z0-9]+/g, '');
 
   /** @type {{ score: number, title: string, ownerLabel: string, matchedLegacyId: string|null, source: string }[]} */
@@ -298,25 +366,21 @@ async function findLegacyProjectMatch({
     legacyDocs = await LegacyProject.find({ subject: subjectId })
       .sort({ createdAt: -1 })
       .limit(60)
-      .select('_id title proposalDescription features ownerLabel')
+      .select('_id title ownerLabel')
       .lean();
   }
-  // Fallback: scan recent legacy archive if subject has none (still system legacy)
   if (!legacyDocs.length) {
     legacyDocs = await LegacyProject.find({})
       .sort({ createdAt: -1 })
       .limit(80)
-      .select('_id title proposalDescription features ownerLabel')
+      .select('_id title ownerLabel')
       .lean();
   }
 
   for (const l of legacyDocs) {
     const title = String(l.title || '').trim();
     if (!title) continue;
-    const bodyText = [l.proposalDescription || '', ...(Array.isArray(l.features) ? l.features : [])]
-      .filter(Boolean)
-      .join('\n');
-    const score = scoreAgainstZipIdentity({ title, bodyText, zipTokens, zipLower, zipSlug });
+    const score = scoreAgainstZipIdentity({ title, zipLower, zipSlug });
     candidates.push({
       score,
       title: title || 'a previous project',
@@ -326,7 +390,7 @@ async function findLegacyProjectMatch({
     });
   }
 
-  // --- 2) Other approved proposals already in the system (same subject) ---
+  // --- 2) Other approved proposals (same subject) — title identity only ---
   if (subjectId) {
     const assignmentIds = await Assignment.find({ subject: subjectId }).select('_id').limit(200).lean();
     const ids = assignmentIds.map((a) => a._id);
@@ -338,17 +402,14 @@ async function findLegacyProjectMatch({
       })
         .sort({ updatedAt: -1 })
         .limit(60)
-        .select('_id title description features submittedBy')
+        .select('_id title submittedBy')
         .populate('submittedBy', 'name')
         .lean();
 
       for (const p of peerProposals) {
         const title = String(p.title || '').trim();
         if (!title) continue;
-        const bodyText = [p.description || '', ...(Array.isArray(p.features) ? p.features : [])]
-          .filter(Boolean)
-          .join('\n');
-        const score = scoreAgainstZipIdentity({ title, bodyText, zipTokens, zipLower, zipSlug });
+        const score = scoreAgainstZipIdentity({ title, zipLower, zipSlug });
         candidates.push({
           score,
           title,
@@ -661,13 +722,9 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
     if (legacyHit) {
       const ownerBit = legacyHit.ownerLabel ? ` (${legacyHit.ownerLabel})` : '';
-      const sourceBit =
-        legacyHit.source === 'approved_proposal'
-          ? 'an approved project already in the system'
-          : 'a legacy project archived in the system';
       const reason =
-        `This ZIP matches ${sourceBit}: "${legacyHit.title}"${ownerBit}. ` +
-        'Upload your own implementation of your approved proposal — legacy/other-student projects are rejected before description checks.';
+        `REJECTED — already exists in the system: this ZIP matches "${legacyHit.title}"${ownerBit}. ` +
+        'Do not upload a legacy or another student’s project. Upload your own work for your approved proposal.';
       const consistencyCheck = normalizeConsistencyCheck(null, { needsReview: false });
       const saved = await upsertSubmissionRecord({
         primary,

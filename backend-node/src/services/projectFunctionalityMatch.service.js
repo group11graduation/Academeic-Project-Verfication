@@ -296,10 +296,10 @@ export function scoreProposalZipFunctionality({
   const pct = Math.round(score * 100);
   const missingHint = missingTitleTokens.slice(0, 6).join(', ');
   const message =
-    `This ZIP does not match your approved proposal (keyword/feature overlap ${pct}%). ` +
-    `Upload the project that implements what you proposed — same technology alone is not enough` +
+    `REJECTED — not related to your proposal (keyword/feature overlap ${pct}%). ` +
+    `This ZIP does not implement what you proposed` +
     (missingHint ? ` (missing from ZIP: ${missingHint})` : '') +
-    '.';
+    '. Upload the project that matches your approved proposal title and features — same technology alone is not enough.';
 
   return {
     ok: false,
