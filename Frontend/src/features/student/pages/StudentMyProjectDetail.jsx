@@ -26,7 +26,6 @@ import studentService from '../../../services/studentService';
 import { getApiOrigin } from '../../../lib/api';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY } from '../../../shared/ui/zendentaLayout';
 import { getApiErrorMessage } from '../../../shared/utils/apiErrors';
-import { PROJECT_STACK_OPTIONS, PROJECT_STACK_HINT_HELP } from '../../../shared/constants/projectStackHints';
 import {
     formatConsistencyCheckHuman,
     humanizeModelOrServerError,
@@ -91,8 +90,6 @@ const StudentMyProjectDetail = () => {
     const [selectedZipFile, setSelectedZipFile] = useState(null);
     const [selectedScreenshotFile, setSelectedScreenshotFile] = useState(null);
     const [screenshotBusy, setScreenshotBusy] = useState(false);
-    /** '' | static-html | static-html-js | node-js | java-spring-react | php-apache */
-    const [projectStackHint, setProjectStackHint] = useState('');
 
     const project = useMemo(() => {
         if (!row?.assignment) return null;
@@ -206,13 +203,6 @@ const StudentMyProjectDetail = () => {
         return () => { cancelled = true; };
     }, [assignmentId]);
 
-    useEffect(() => {
-        const saved = row?.latestProjectSubmission?.projectStackHint;
-        if (saved != null && saved !== undefined) {
-            setProjectStackHint(saved);
-        }
-    }, [row?.latestProjectSubmission?._id, row?.latestProjectSubmission?.projectStackHint]);
-
     const handleFileUpload = async (file) => {
         if (!file) return;
         setIsUploading(true);
@@ -254,7 +244,7 @@ const StudentMyProjectDetail = () => {
             const res = await studentService.submitProjectCode(
                 assignmentId,
                 selectedZipFile,
-                projectStackHint,
+                '',
                 selectedScreenshotFile
             );
             const data = res?.data && typeof res.data === 'object' ? res.data : res;
@@ -591,26 +581,6 @@ const StudentMyProjectDetail = () => {
                             ) : (
                                 <>
                                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 mt-4">
-                                        Project type
-                                    </p>
-                                    <select
-                                        value={projectStackHint}
-                                        onChange={(e) => setProjectStackHint(e.target.value)}
-                                        disabled={codeZipBusy}
-                                        className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800"
-                                    >
-                                        {PROJECT_STACK_OPTIONS.map((opt) => (
-                                            <option key={opt.value || 'auto'} value={opt.value}>
-                                                {opt.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {PROJECT_STACK_HINT_HELP[projectStackHint] ? (
-                                        <p className="mb-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-900">
-                                            {PROJECT_STACK_HINT_HELP[projectStackHint]}
-                                        </p>
-                                    ) : null}
-                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
                                         Step 1 — Choose ZIP
                                     </p>
                                     <input
