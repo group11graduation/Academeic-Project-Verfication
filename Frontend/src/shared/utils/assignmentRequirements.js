@@ -14,21 +14,15 @@ export function validateAssignmentRequirementsForm({
 } = {}) {
   const hasFile = Boolean(requirementsFile) || Boolean(hasExistingFile);
   const text = String(requirementText || '').trim();
-  const techs = String(allowedTechnologiesText || '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
 
   if (assignmentType === 'normal') {
     if (!text && !hasFile) {
       return 'Add instructions for students (requirement text) or upload a requirements file.';
     }
   } else if (hasFile) {
-    // Final assignment with file — no typed tech list required.
+    // Final assignment with file — typed fields optional.
   } else if (!text) {
     return 'Requirement text is required unless you upload a requirements file.';
-  } else if (techs.length === 0) {
-    return 'At least one allowed technology is required unless you upload a requirements file.';
   }
 
   const consistency = validateAssignmentTechnologyConsistency({

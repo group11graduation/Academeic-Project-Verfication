@@ -1,20 +1,14 @@
 import { validateAssignmentTechnologyConsistency } from './requirementCheck.service.js';
 
-function parseList(value) {
-  if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
-  if (typeof value === 'string') return value.split(',').map((x) => x.trim()).filter(Boolean);
-  return [];
-}
-
 /**
- * Final assignments need either a requirements file OR (requirement text + allowed technologies).
+ * Final assignments need either a requirements file OR requirement text.
  * Normal assignments need requirement text OR a requirements file.
  */
 export function validateAssignmentRequirementsConfig({
   assignmentType = 'normal',
   requirementText = '',
-  allowedTechnologies,
-  allowedTechnologiesText,
+  allowedTechnologies: _allowedTechnologies,
+  allowedTechnologiesText: _allowedTechnologiesText,
   assignmentFile = '',
   isCollaborative = false,
 } = {}) {
@@ -24,7 +18,6 @@ export function validateAssignmentRequirementsConfig({
 
   const type = String(assignmentType || 'normal').trim().toLowerCase();
   const text = String(requirementText || '').trim();
-  const techs = parseList(allowedTechnologies ?? allowedTechnologiesText);
   const hasFile = Boolean(String(assignmentFile || '').trim());
 
   if (type === 'normal') {
@@ -46,15 +39,7 @@ export function validateAssignmentRequirementsConfig({
     return {
       ok: false,
       message:
-        'Final assignments require a requirements file, or requirement text plus at least one allowed technology.',
-    };
-  }
-
-  if (techs.length === 0) {
-    return {
-      ok: false,
-      message:
-        'Final assignments require at least one allowed technology when using typed requirements (or upload a requirements file instead).',
+        'Final assignments require a requirements file, or requirement text describing what students must build.',
     };
   }
 
@@ -91,7 +76,7 @@ export function assignmentAcceptsStudentSubmissions(assignment) {
 }
 
 export const STUDENT_SUBMISSION_BLOCKED_MESSAGE =
-  'This assignment is not open for submissions yet. Your teacher must add requirement text and allowed technologies, or upload a requirements file.';
+  'This assignment is not open for submissions yet. Your teacher must add requirement text or upload a requirements file.';
 
 export function assertAssignmentAcceptsStudentSubmissions(assignment) {
   if (!assignmentAcceptsStudentSubmissions(assignment)) {

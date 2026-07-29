@@ -31,8 +31,6 @@ const AssignmentCreate = () => {
     const [projectDeadline, setProjectDeadline] = useState('');
     const [normalSubmissionDeadline, setNormalSubmissionDeadline] = useState('');
     const [requirementText, setRequirementText] = useState('');
-    const [requiredKeywordsText, setRequiredKeywordsText] = useState('');
-    const [allowedTechnologiesText, setAllowedTechnologiesText] = useState('');
     const [requirementsFile, setRequirementsFile] = useState(null);
     const [formError, setFormError] = useState('');
     const requirementsFileInputRef = useRef(null);
@@ -60,8 +58,6 @@ const AssignmentCreate = () => {
             setClassAssignmentMode('single');
             setProposalDeadline('');
             setProjectDeadline('');
-            setRequiredKeywordsText('');
-            setAllowedTechnologiesText('');
             // Only clear the chosen file when actually switching type,
             // otherwise picking a file would immediately reset it.
             if (!isEdit && typeChanged) {
@@ -71,8 +67,6 @@ const AssignmentCreate = () => {
             }
         } else if (assignmentType === 'final' && requirementsFile) {
             setRequirementText('');
-            setRequiredKeywordsText('');
-            setAllowedTechnologiesText('');
         }
     }, [assignmentType, isEdit, formPopulated, requirementsFile]);
 
@@ -113,20 +107,6 @@ const AssignmentCreate = () => {
                     setClassAssignmentMode(a.classAssignmentMode || ((a.classes || []).length > 1 ? 'multiple' : 'single'));
                     setSubmissionMode(a.submissionMode || 'single');
                     setRequirementText(type === 'final' && hasFile ? '' : (a.requirementText || ''));
-                    setRequiredKeywordsText(
-                        type === 'final' && hasFile
-                            ? ''
-                            : Array.isArray(a.requiredKeywords)
-                              ? a.requiredKeywords.join(', ')
-                              : ''
-                    );
-                    setAllowedTechnologiesText(
-                        type === 'final' && hasFile
-                            ? ''
-                            : Array.isArray(a.allowedTechnologies)
-                              ? a.allowedTechnologies.join(', ')
-                              : ''
-                    );
                     setProposalDeadline(a.proposalDeadline ? new Date(a.proposalDeadline).toISOString().slice(0, 16) : '');
                     setProjectDeadline(a.projectDeadline ? new Date(a.projectDeadline).toISOString().slice(0, 16) : '');
                     setNormalSubmissionDeadline(
@@ -266,7 +246,6 @@ const AssignmentCreate = () => {
         const requirementsError = validateAssignmentRequirementsForm({
             assignmentType,
             requirementText,
-            allowedTechnologiesText,
             requirementsFile,
             hasExistingFile: hasExistingRequirementsFile,
             subject: selectedSubject,
@@ -287,13 +266,11 @@ const AssignmentCreate = () => {
         });
         if (deadlineError) return setFormError(deadlineError);
 
-        const typedRequirementsPayload =
+                const typedRequirementsPayload =
             isFinal && (requirementsFile || hasExistingRequirementsFile)
                 ? {}
                 : {
                       requirementText: requirementText.trim(),
-                      requiredKeywordsText: isFinal ? requiredKeywordsText.trim() : '',
-                      allowedTechnologiesText: isFinal ? allowedTechnologiesText.trim() : '',
                   };
 
         try {
@@ -350,12 +327,6 @@ const AssignmentCreate = () => {
             if (assignmentType === 'final' && proposalDeadline) fd.append('proposalDeadline', proposalDeadline);
             if (assignmentType === 'final' && projectDeadline) fd.append('projectDeadline', projectDeadline);
             if (requirementText.trim()) fd.append('requirementText', requirementText.trim());
-            if (assignmentType === 'final' && !requirementsFile && requiredKeywordsText.trim()) {
-                fd.append('requiredKeywordsText', requiredKeywordsText.trim());
-            }
-            if (assignmentType === 'final' && !requirementsFile && allowedTechnologiesText.trim()) {
-                fd.append('allowedTechnologiesText', allowedTechnologiesText.trim());
-            }
             if (requirementsFile) fd.append('requirementsFile', requirementsFile);
 
             const res = await teacherService.createAssignment(fd);
@@ -724,39 +695,8 @@ const AssignmentCreate = () => {
                                                 className={Z_INPUT}
                                             />
                                             <p className="mt-1 text-[11px] text-slate-500">
-                                                Required together with allowed technologies, unless you upload a requirements file.
+                                                Required unless you upload a requirements file.
                                             </p>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            <div>
-                                                <label className={Z_LABEL}>
-                                                    Required keywords (optional)
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={requiredKeywordsText}
-                                                    onChange={(e) => setRequiredKeywordsText(e.target.value)}
-                                                    placeholder="authentication, api, dashboard"
-                                                    className={Z_INPUT}
-                                                />
-                                            </div>
-                                        <div>
-                                            <label className={Z_LABEL}>
-                                                Allowed technologies *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={allowedTechnologiesText}
-                                                onChange={(e) => setAllowedTechnologiesText(e.target.value)}
-                                                required={isFinal && !requirementsFile}
-                                                placeholder="react, node, mongodb"
-                                                className={Z_INPUT}
-                                            />
-                                            <p className="mt-1 text-[11px] text-slate-500">
-                                                Required for final assignments unless you upload a requirements file.
-                                            </p>
-                                        </div>
                                         </div>
                                     </>
                                 )}

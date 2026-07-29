@@ -43,9 +43,7 @@ const buildTechPayload = (block) => ({
 });
 
 const isSectionComplete = (block) =>
-    Boolean(block.requirementFile) ||
-    Boolean(block.requirementText.trim()) ||
-    Boolean(block.allowedTechnologiesText.trim());
+    Boolean(block.requirementFile) || Boolean(block.requirementText.trim());
 
 const teacherLabel = (teacher) => teacher?.name || teacher?.email || 'Teacher';
 
@@ -542,30 +540,6 @@ const CollaborativeAssignmentCreate = () => {
                     disabled={!editable}
                     className={`${Z_INPUT} ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
                 />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                    <label className={Z_LABEL}>Required keywords (optional)</label>
-                    <input
-                        type="text"
-                        value={value.requiredKeywordsText}
-                        onChange={(e) => onChange({ ...value, requiredKeywordsText: e.target.value })}
-                        disabled={!editable}
-                        placeholder="dashboard, auth, routing"
-                        className={`${Z_INPUT} ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    />
-                </div>
-                <div>
-                    <label className={Z_LABEL}>Allowed technologies (optional)</label>
-                    <input
-                        type="text"
-                        value={value.allowedTechnologiesText}
-                        onChange={(e) => onChange({ ...value, allowedTechnologiesText: e.target.value })}
-                        disabled={!editable}
-                        placeholder="react, vite, typescript"
-                        className={`${Z_INPUT} ${!editable ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    />
-                </div>
             </div>
         </div>
     );
