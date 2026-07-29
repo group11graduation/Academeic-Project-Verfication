@@ -1,6 +1,9 @@
 /**
- * Fast local proposal↔ZIP functionality gate (no AI).
- * Uses title/feature keywords vs README, package name, routes, models, filename.
+ * Option 1 — Keyword / feature overlap (local, no AI).
+ *
+ * Proposal: title + features (+ light description boost)
+ * ZIP:     README, package.json name/description, routes, models, filename
+ * Reject when overlap score is below FUNCTIONALITY_MATCH_THRESHOLD.
  */
 
 const STOP_WORDS = new Set([
@@ -106,10 +109,14 @@ const STOP_WORDS = new Set([
   'angular',
 ]);
 
-/** Minimum combined score to accept (0–1). Override with FUNCTIONALITY_MATCH_THRESHOLD. */
+/** Reject below this score (0–1). Default 0.30 ≈ 30% keyword/feature overlap. */
 export const FUNCTIONALITY_MATCH_THRESHOLD = Number(
-  process.env.FUNCTIONALITY_MATCH_THRESHOLD || 0.28
+  process.env.FUNCTIONALITY_MATCH_THRESHOLD || 0.3
 );
+
+export function isFunctionalityMatchEnabled() {
+  return String(process.env.ENABLE_PROJECT_FUNCTIONALITY_CHECK || 'true').toLowerCase() !== 'false';
+}
 
 function tokenize(text) {
   return String(text || '')
@@ -120,11 +127,11 @@ function tokenize(text) {
     .filter(Boolean);
 }
 
-export function significantTokens(text) {
+export function significantTokens(text, { minLen = 3 } = {}) {
   const out = [];
   const seen = new Set();
   for (const t of tokenize(text)) {
-    if (t.length < 4) continue;
+    if (t.length < minLen) continue;
     if (STOP_WORDS.has(t)) continue;
     if (/^\d+$/.test(t)) continue;
     if (seen.has(t)) continue;
@@ -140,10 +147,15 @@ function slugify(text) {
     .replace(/[^a-z0-9]+/g, '');
 }
 
-function tokenHitsZip(tokens, zipTokenSet, zipLower) {
-  return tokens.filter((t) => zipTokenSet.has(t) || zipLower.includes(t));
+function tokenInZip(token, zipTokenSet, zipLower) {
+  return zipTokenSet.has(token) || zipLower.includes(token);
 }
 
+function tokenHitsZip(tokens, zipTokenSet, zipLower) {
+  return tokens.filter((t) => tokenInZip(t, zipTokenSet, zipLower));
+}
+
+/** ZIP side of option 1: README + package.json identity + routes + models + filename. */
 function buildZipCorpus({ evidence = {}, originalFilename = '' } = {}) {
   const nameHint = String(originalFilename || '')
     .replace(/\.zip$/i, '')
@@ -160,13 +172,15 @@ function buildZipCorpus({ evidence = {}, originalFilename = '' } = {}) {
 }
 
 /**
+ * Option 1 scorer — keyword / feature overlap.
+ *
  * @returns {{
  *   ok: boolean,
  *   skipped: boolean,
  *   score: number,
  *   titleCoverage: number,
- *   keywordCoverage: number,
  *   featureCoverage: number,
+ *   keywordCoverage: number,
  *   titleHits: string[],
  *   missingTitleTokens: string[],
  *   message: string,
@@ -184,82 +198,84 @@ export function scoreProposalZipFunctionality({
     ? proposal.features.map((f) => String(f || '').trim()).filter(Boolean)
     : [];
 
-  const proposalText = [title, description, ...features].filter(Boolean).join('\n');
+  // Option 1 primary signals: title + features (description is a light boost only).
+  const titleTokens = significantTokens(title);
+  const featureTokens = significantTokens(features.join('\n'));
+  const descTokens = significantTokens(description);
+  const proposalTokens = [...new Set([...titleTokens, ...featureTokens, ...descTokens])];
+
   const zipText = buildZipCorpus({ evidence, originalFilename });
   const zipLower = zipText.toLowerCase();
   const zipSlug = slugify(zipText);
   const zipTokenSet = new Set(significantTokens(zipText));
 
-  const proposalTokens = significantTokens(proposalText);
-  const titleTokens = significantTokens(title);
-
-  // Nothing distinctive to compare — don't block upload.
-  if (proposalTokens.length < 2 && titleTokens.length < 2) {
+  if (titleTokens.length < 1 && featureTokens.length < 1) {
     return {
       ok: true,
       skipped: true,
       score: 1,
       titleCoverage: 1,
-      keywordCoverage: 1,
       featureCoverage: 1,
+      keywordCoverage: 1,
       titleHits: [],
       missingTitleTokens: [],
       message: '',
     };
   }
 
-  // Empty ZIP evidence (no readme/package/routes) with a rich proposal → reject.
   if (zipTokenSet.size < 2 && zipSlug.length < 8) {
     return {
       ok: false,
       skipped: false,
       score: 0,
       titleCoverage: 0,
-      keywordCoverage: 0,
       featureCoverage: 0,
+      keywordCoverage: 0,
       titleHits: [],
       missingTitleTokens: titleTokens,
       message:
-        'Your ZIP has almost no project description (README / package name). Add a README that describes the same product as your approved proposal, then upload again.',
+        'Your ZIP has almost no project description (README / package name). Add a README that matches your approved proposal, then upload again.',
     };
   }
 
   const titleHits = tokenHitsZip(titleTokens, zipTokenSet, zipLower);
   const titleCoverage = titleTokens.length ? titleHits.length / titleTokens.length : 1;
 
-  const keywordHits = tokenHitsZip(proposalTokens, zipTokenSet, zipLower);
-  const keywordCoverage = proposalTokens.length ? keywordHits.length / proposalTokens.length : 1;
-
   let featureCoverage = 1;
   if (features.length) {
-    let matched = 0;
+    let matchedFeatures = 0;
     for (const f of features) {
       const ft = significantTokens(f);
       if (!ft.length) {
-        matched += 1;
+        matchedFeatures += 1;
         continue;
       }
-      if (tokenHitsZip(ft, zipTokenSet, zipLower).length > 0) matched += 1;
+      if (tokenHitsZip(ft, zipTokenSet, zipLower).length > 0) matchedFeatures += 1;
     }
-    featureCoverage = matched / features.length;
+    featureCoverage = matchedFeatures / features.length;
   }
 
-  // Title slug must appear when title is distinctive (catches renamed wrong projects).
+  const keywordHits = tokenHitsZip(proposalTokens, zipTokenSet, zipLower);
+  const keywordCoverage = proposalTokens.length ? keywordHits.length / proposalTokens.length : 1;
+
+  // Exact title slug in ZIP (e.g. skynovalibrary) is a strong positive signal.
   const titleSlug = slugify(title);
-  let titleSlugBonus = 0;
-  if (titleSlug.length >= 8 && zipSlug.includes(titleSlug)) {
-    titleSlugBonus = 0.2;
-  }
+  const titleSlugHit = titleSlug.length >= 8 && zipSlug.includes(titleSlug);
 
-  let score =
-    0.45 * titleCoverage + 0.35 * keywordCoverage + 0.2 * featureCoverage + titleSlugBonus;
+  // Option 1 weights: title + features dominate.
+  let score;
+  if (features.length) {
+    score = 0.55 * titleCoverage + 0.45 * featureCoverage;
+  } else {
+    score = 0.7 * titleCoverage + 0.3 * keywordCoverage;
+  }
+  if (titleSlugHit) score = Math.min(1, score + 0.15);
   score = Math.max(0, Math.min(1, score));
 
   const missingTitleTokens = titleTokens.filter((t) => !titleHits.includes(t));
 
-  // Hard fail: proposal title tokens completely absent and overall keywords weak.
-  const hardTitleMiss =
-    titleTokens.length >= 2 && titleCoverage === 0 && keywordCoverage < 0.22;
+  // Hard reject: proposal title words completely missing from ZIP (Sky Nova vs Building…).
+  const hardTitleMiss = titleTokens.length >= 2 && titleCoverage === 0;
 
   const ok = !hardTitleMiss && score >= threshold;
 
@@ -269,8 +285,8 @@ export function scoreProposalZipFunctionality({
       skipped: false,
       score,
       titleCoverage,
-      keywordCoverage,
       featureCoverage,
+      keywordCoverage,
       titleHits,
       missingTitleTokens,
       message: '',
@@ -280,9 +296,9 @@ export function scoreProposalZipFunctionality({
   const pct = Math.round(score * 100);
   const missingHint = missingTitleTokens.slice(0, 6).join(', ');
   const message =
-    `This ZIP does not match your approved proposal functionality (${pct}% keyword match). ` +
-    `Same technology is not enough — upload the project that implements what you proposed` +
-    (missingHint ? ` (missing signals: ${missingHint})` : '') +
+    `This ZIP does not match your approved proposal (keyword/feature overlap ${pct}%). ` +
+    `Upload the project that implements what you proposed — same technology alone is not enough` +
+    (missingHint ? ` (missing from ZIP: ${missingHint})` : '') +
     '.';
 
   return {
@@ -290,8 +306,8 @@ export function scoreProposalZipFunctionality({
     skipped: false,
     score,
     titleCoverage,
-    keywordCoverage,
     featureCoverage,
+    keywordCoverage,
     titleHits,
     missingTitleTokens,
     message,

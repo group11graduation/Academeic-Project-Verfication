@@ -133,8 +133,11 @@ services:
       # AI service — use Docker DNS hostname, NOT localhost
       AI_SERVICE_URL: http://fastapi-ai:8000
       AI_SERVICE_TIMEOUT_MS: ${AI_SERVICE_TIMEOUT_MS:-120000}
-      # Fast ZIP upload: skip blocking AI (tech + hash + local legacy still run).
+      # Fast ZIP upload: skip blocking AI (tech + hash + keyword/feature overlap still run).
       ENABLE_PROJECT_CONSISTENCY_CHECK: ${ENABLE_PROJECT_CONSISTENCY_CHECK:-false}
+      # Option 1: local keyword/feature overlap vs proposal (no AI, ~instant).
+      ENABLE_PROJECT_FUNCTIONALITY_CHECK: ${ENABLE_PROJECT_FUNCTIONALITY_CHECK:-true}
+      FUNCTIONALITY_MATCH_THRESHOLD: ${FUNCTIONALITY_MATCH_THRESHOLD:-0.3}
       AI_CONSISTENCY_TIMEOUT_MS: ${AI_CONSISTENCY_TIMEOUT_MS:-8000}
       AI_CONSISTENCY_HARD_DEADLINE_MS: ${AI_CONSISTENCY_HARD_DEADLINE_MS:-10000}
       AI_CONSISTENCY_RETRIES: ${AI_CONSISTENCY_RETRIES:-0}

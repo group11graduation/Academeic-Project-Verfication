@@ -83,6 +83,9 @@ export function humanizeModelOrServerError(raw, fallback = '') {
   if (/looks like a previous student's work|looks like a previous student/i.test(text)) {
     return text;
   }
+  if (/does not match your approved proposal \(keyword\/feature overlap/i.test(text)) {
+    return text;
+  }
   if (/does not match your approved proposal functionality/i.test(text)) {
     return text;
   }
