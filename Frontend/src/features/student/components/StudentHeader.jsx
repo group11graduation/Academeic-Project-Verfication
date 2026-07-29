@@ -5,7 +5,6 @@ import {
     BookOpen,
     GalleryHorizontal,
     LogOut,
-    Search,
     UserRound,
     Menu,
     X,
@@ -16,7 +15,6 @@ import {
     Users,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import { useShellSearch } from '../../../context/shellSearchContext';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
@@ -63,8 +61,6 @@ const StudentHeader = ({ forcePublic = false }) => {
     const location = useLocation();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
-    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
-        useShellSearch();
 
     const showPublicShell = forcePublic || location.pathname === '/';
     const navItems = useMemo(() => buildNavItems(showPublicShell ? null : user), [showPublicShell, user]);
@@ -121,17 +117,6 @@ const StudentHeader = ({ forcePublic = false }) => {
 
                     {user && !showPublicShell ? (
                         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                            <div className="hidden md:flex items-center rounded-full border border-slate-200 bg-slate-50/80 pl-3 pr-2 py-1.5 w-[160px] lg:w-[180px] dark:border-white/10 dark:bg-[#111827]">
-                                <Search className="h-4 w-4 text-slate-400 shrink-0 dark:text-slate-500" />
-                                <input
-                                    type="search"
-                                    value={shellSearchQuery}
-                                    onChange={(e) => setShellSearchQuery(e.target.value)}
-                                    placeholder={shellSearchPlaceholder}
-                                    aria-label={shellSearchPlaceholder}
-                                    className="ml-2 w-full border-0 bg-transparent text-xs font-medium text-slate-700 placeholder:text-slate-400 outline-none !text-slate-700 dark:placeholder:text-slate-500 dark:!text-slate-200"
-                                />
-                            </div>
                             <ThemeToggle compact className="hidden sm:inline-flex" />
 
                             <NotificationBell variant="student" />
@@ -248,19 +233,6 @@ const StudentHeader = ({ forcePublic = false }) => {
             {mobileOpen && (
                 <div className="lg:hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#0b1220] safe-area-px">
                     <nav className="max-w-[1400px] mx-auto px-4 py-4 space-y-1">
-                        {user && !showPublicShell ? (
-                            <div className="relative mb-3">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                <input
-                                    type="search"
-                                    value={shellSearchQuery}
-                                    onChange={(e) => setShellSearchQuery(e.target.value)}
-                                    placeholder={shellSearchPlaceholder}
-                                    aria-label={shellSearchPlaceholder}
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 outline-none focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
-                                />
-                            </div>
-                        ) : null}
                         <ThemeToggle className="mb-2 w-full justify-center" />
                         {navItems.map((item) => {
                             const Icon = mobileIcon(item.path) || LayoutDashboard;

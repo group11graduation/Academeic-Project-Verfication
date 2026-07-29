@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
 import {
     ClipboardList, Plus, Trash2, ChevronRight,
@@ -128,6 +128,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
 const Assignments = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams] = useSearchParams();
     const [assignments, setAssignments] = useState([]);
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -147,7 +148,10 @@ const Assignments = () => {
             if (cRes.success) {
                 const rows = cRes.data || [];
                 setClasses(rows);
-                if (rows.length) setActiveClassId(String(rows[0]._id || ''));
+                const fromUrl = String(searchParams.get('classId') || '').trim();
+                const urlMatch = fromUrl && rows.some((c) => String(c._id) === fromUrl);
+                if (urlMatch) setActiveClassId(fromUrl);
+                else if (rows.length) setActiveClassId(String(rows[0]._id || ''));
             }
             if (collabCountRes?.success) {
                 setCollabPendingCount(Number(collabCountRes.data?.count || 0));
@@ -162,6 +166,15 @@ const Assignments = () => {
     useEffect(() => {
         fetchData();
     }, [location.pathname]);
+
+    // Keep class tab in sync when navigating back via breadcrumb (?classId=…)
+    useEffect(() => {
+        const fromUrl = String(searchParams.get('classId') || '').trim();
+        if (!fromUrl || !classes.length) return;
+        if (classes.some((c) => String(c._id) === fromUrl)) {
+            setActiveClassId(fromUrl);
+        }
+    }, [searchParams, classes]);
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
@@ -211,6 +224,15 @@ const Assignments = () => {
     }, [assignmentsFilteredBySemester, classes]);
 
     const activeClass = classes.find((c) => String(c._id) === String(activeClassId));
+
+    const selectClassTab = (cid) => {
+        const id = String(cid || '');
+        setActiveClassId(id);
+        const next = new URLSearchParams(searchParams);
+        if (id) next.set('classId', id);
+        else next.delete('classId');
+        navigate({ pathname: '/teacher/assignments', search: next.toString() ? `?${next}` : '' }, { replace: true });
+    };
     const rawActiveClassAssignments = activeClassId
         ? groupedAssignmentsByClass.get(String(activeClassId)) || []
         : [];
@@ -307,7 +329,7 @@ const Assignments = () => {
                                     <button
                                         key={cid}
                                         type="button"
-                                        onClick={() => setActiveClassId(cid)}
+                                        onClick={() => selectClassTab(cid)}
                                         className={`rounded-lg border px-2.5 py-1.5 text-left transition-all ${
                                             active
                                                 ? 'border-[#1D68E3] bg-blue-50 text-[#1D68E3] dark:bg-blue-500/10'

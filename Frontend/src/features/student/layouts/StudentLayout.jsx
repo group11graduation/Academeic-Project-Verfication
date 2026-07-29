@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Outlet, useLocation, Link, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Users, ChevronDown, Search } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Users, ChevronDown } from 'lucide-react';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import StudentSidebar from '../components/StudentSidebar';
 import { useAuth } from '../../../context/authContext';
-import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
+import { ShellSearchProvider } from '../../../context/shellSearchContext';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 
 const pageTitles = [
@@ -43,8 +43,6 @@ const StudentLayoutInner = () => {
     const { logout } = useAuth();
     const navigate = useNavigate();
     const [mobileOpen, setMobileOpen] = useState(false);
-    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
-        useShellSearch();
     const title = resolveTitle(pathname);
     const today = new Date().toLocaleDateString('en-US', {
         month: 'short',
@@ -79,17 +77,6 @@ const StudentLayoutInner = () => {
                             className="lg:hidden border-b border-white/10 p-3 space-y-1 safe-area-px"
                             style={{ background: 'linear-gradient(180deg, #2a3fa4 0%, #223688 100%)' }}
                         >
-                            <div className="relative mb-2 px-1">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
-                                <input
-                                    type="search"
-                                    value={shellSearchQuery}
-                                    onChange={(e) => setShellSearchQuery(e.target.value)}
-                                    placeholder={shellSearchPlaceholder}
-                                    aria-label={shellSearchPlaceholder}
-                                    className="w-full rounded-xl border border-white/20 bg-white/10 py-2.5 pl-10 pr-3 text-sm font-medium text-white placeholder:text-white/45 outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20"
-                                />
-                            </div>
                             {mobileNav.map(({ label, to, icon: Icon, end }) => (
                                 <NavLink
                                     key={to}
@@ -122,17 +109,6 @@ const StudentLayoutInner = () => {
                     <header className="flex flex-col gap-2 px-4 pb-1 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
                         <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">{title}</h1>
                         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                            <div className="relative hidden sm:block w-[180px] lg:w-[220px]">
-                                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                                <input
-                                    type="search"
-                                    value={shellSearchQuery}
-                                    onChange={(e) => setShellSearchQuery(e.target.value)}
-                                    placeholder={shellSearchPlaceholder}
-                                    aria-label={shellSearchPlaceholder}
-                                    className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-2.5 text-[11px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:placeholder:text-slate-500"
-                                />
-                            </div>
                             <ThemeToggle compact className="hidden sm:inline-flex" />
                             <button
                                 type="button"

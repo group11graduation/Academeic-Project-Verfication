@@ -16,12 +16,13 @@ import teacherService from '../../../services/teacherService';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK, Z_EMPTY_PAD } from '../../../shared/ui/zendentaLayout';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import { resolveAssignmentClassCrumb } from '../../../shared/utils/assignmentClassBreadcrumb';
 
 const NormalAssignmentStudents = () => {
     const { id: assignmentId } = useParams();
     const navigate = useNavigate();
     const [bundle, setBundle] = useState(null);
-    const [assignmentTitle, setAssignmentTitle] = useState('');
+    const [assignment, setAssignment] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const { query, setQuery } = usePageSearch('Search students…');
@@ -39,7 +40,7 @@ const NormalAssignmentStudents = () => {
                 if (cancelled) return;
                 if (res.success) setBundle(res.data);
                 else setError(res.message || 'Could not load students.');
-                if (aRes?.success && aRes.data?.title) setAssignmentTitle(aRes.data.title);
+                if (aRes?.success) setAssignment(aRes.data || null);
             } catch (e) {
                 if (!cancelled) setError(e.response?.data?.message || 'Could not load students.');
             } finally {
@@ -91,7 +92,8 @@ const NormalAssignmentStudents = () => {
         );
     }
 
-    const title = assignmentTitle || 'Assignment';
+    const title = assignment?.title || 'Assignment';
+    const classCrumb = resolveAssignmentClassCrumb(assignment);
 
     return (
         <div className={Z_PAGE}>
@@ -100,13 +102,25 @@ const NormalAssignmentStudents = () => {
                     <Link to="/teacher/assignments" className={Z_LINK}>
                         Assignments
                     </Link>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="max-w-[min(100%,28rem)] truncate text-slate-800" title={title}>
-                    {title}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="text-slate-800">Students</span>
-            </nav>
+                    {classCrumb ? (
+                        <>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <Link
+                                to={classCrumb.to}
+                                className={`${Z_LINK} max-w-[min(100%,14rem)] truncate`}
+                                title={classCrumb.label}
+                            >
+                                {classCrumb.label}
+                            </Link>
+                        </>
+                    ) : null}
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span className="max-w-[min(100%,28rem)] truncate text-slate-800" title={title}>
+                        {title}
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span className="text-slate-800">Students</span>
+                </nav>
 
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>

@@ -123,11 +123,19 @@ const AdminTeacherProfile = () => {
         );
     }
 
-    // Adapt real data to view
+    // Real activity from this teacher's assignments / proposals / project ZIPs
     const stats = {
-        reviewed: 0, // Placeholder for future feature
-        pending: 0,
-        avgSimilarity: 0
+        reviewed: Number(teacher.stats?.reviewed || 0),
+        pending: Number(teacher.stats?.pending || 0),
+        avgSimilarity: Number(teacher.stats?.avgSimilarity || 0),
+    };
+    const recentSubmissions = Array.isArray(teacher.recentSubmissions) ? teacher.recentSubmissions : [];
+
+    const formatBytes = (n) => {
+        const size = Number(n) || 0;
+        if (size >= 1_048_576) return `${(size / 1_048_576).toFixed(1)} MB`;
+        if (size >= 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+        return size ? `${size} B` : '—';
     };
 
     return (
@@ -405,10 +413,68 @@ const AdminTeacherProfile = () => {
                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 transition-all">
                         <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0F172A] dark:text-white mb-3 transition-colors">Recent Project Submissions</h3>
 
-                        <div className="py-10 text-center bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 transition-colors">
-                            <Clock className="h-8 w-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
-                            <p className="text-[12px] text-slate-400 dark:text-slate-500 font-medium transition-colors">No recent submissions found.</p>
-                        </div>
+                        {recentSubmissions.length === 0 ? (
+                            <div className="py-10 text-center bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 transition-colors">
+                                <Clock className="h-8 w-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+                                <p className="text-[12px] text-slate-400 dark:text-slate-500 font-medium transition-colors">No recent submissions found.</p>
+                            </div>
+                        ) : (
+                            <ul className="divide-y divide-slate-100 dark:divide-slate-700/80 rounded-lg border border-slate-100 dark:border-slate-700 overflow-hidden">
+                                {recentSubmissions.map((row) => {
+                                    const when = row.uploadedAt
+                                        ? new Date(row.uploadedAt).toLocaleString(undefined, {
+                                              dateStyle: 'medium',
+                                              timeStyle: 'short',
+                                          })
+                                        : '—';
+                                    const openTo =
+                                        row.assignmentId && row.proposalId
+                                            ? `/teacher/assignments/${row.assignmentId}/proposals/${row.proposalId}`
+                                            : row.assignmentId
+                                              ? `/teacher/assignments/${row.assignmentId}/proposals`
+                                              : null;
+                                    return (
+                                        <li key={row._id}>
+                                            {openTo ? (
+                                                <Link
+                                                    to={openTo}
+                                                    className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 truncate">
+                                                            {row.studentName}
+                                                        </p>
+                                                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                                                            {row.assignmentTitle}
+                                                            {row.proposalTitle ? ` · ${row.proposalTitle}` : ''}
+                                                        </p>
+                                                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate">
+                                                            {row.filename} · v{row.version || 1} · {formatBytes(row.sizeBytes)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0 text-[11px] font-bold text-slate-500">
+                                                        <span>{when}</span>
+                                                        <ArrowRight className="h-3.5 w-3.5 text-[#1D68E3]" />
+                                                    </div>
+                                                </Link>
+                                            ) : (
+                                                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between px-3 py-3">
+                                                    <div className="min-w-0">
+                                                        <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 truncate">
+                                                            {row.studentName}
+                                                        </p>
+                                                        <p className="text-[11px] font-medium text-slate-500 truncate">
+                                                            {row.assignmentTitle}
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-[11px] font-bold text-slate-500">{when}</span>
+                                                </div>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
                     </div>
 
                 </div>

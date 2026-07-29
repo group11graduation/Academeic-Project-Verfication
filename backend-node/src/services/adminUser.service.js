@@ -11,6 +11,9 @@ import {
 } from './adminAcademic.service.js';
 import { notifySafe, notifyAllAdmins } from './notification.service.js';
 import { logger } from '../config/logger.js';
+import { Proposal } from '../models/Proposal.js';
+import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import { distinctAssignmentIdsForTeacher } from './teacherAssignmentAccess.service.js';
 
 function randomPasscode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -275,12 +278,108 @@ export async function getTeacherById(id) {
   }
   if (!profile) return null;
   const base = formatTeacher(profile);
-  const classes = await loadTeacherAssignedClasses(profile.user._id, profile.assignedClassCodes || []);
+  const teacherUserId = profile.user._id;
+  const [classes, activity] = await Promise.all([
+    loadTeacherAssignedClasses(teacherUserId, profile.assignedClassCodes || []),
+    loadTeacherActivitySummary(teacherUserId),
+  ]);
   return {
     ...base,
     classes,
     assignedClasses: classes.map((c) => c.code),
     assignedClassCodes: classes.map((c) => c.code),
+    stats: activity.stats,
+    recentSubmissions: activity.recentSubmissions,
+  };
+}
+
+/**
+ * Activity cards + recent project ZIPs for the admin teacher profile page.
+ */
+async function loadTeacherActivitySummary(teacherUserId) {
+  const empty = {
+    stats: { reviewed: 0, pending: 0, avgSimilarity: 0 },
+    recentSubmissions: [],
+  };
+  if (!teacherUserId) return empty;
+
+  let assignmentIds = [];
+  try {
+    assignmentIds = await distinctAssignmentIdsForTeacher(teacherUserId, { isActive: true });
+  } catch (e) {
+    logger.warn(`[adminUser] teacher activity assignment lookup failed: ${e.message}`);
+    return empty;
+  }
+  if (!assignmentIds.length) return empty;
+
+  const [pending, reviewed, scoredProposals, recentSubs] = await Promise.all([
+    Proposal.countDocuments({
+      assignment: { $in: assignmentIds },
+      status: 'pending_teacher_approval',
+    }),
+    Proposal.countDocuments({
+      assignment: { $in: assignmentIds },
+      status: { $in: ['teacher_approved', 'teacher_rejected', 'revision_required'] },
+    }),
+    Proposal.find({
+      assignment: { $in: assignmentIds },
+      $or: [
+        { aiSameSemesterMaxScore: { $ne: null, $exists: true } },
+        { aiPreviousSemesterMaxScore: { $ne: null, $exists: true } },
+      ],
+    })
+      .select('aiSameSemesterMaxScore aiPreviousSemesterMaxScore')
+      .lean(),
+    ProjectSubmission.find({
+      assignment: { $in: assignmentIds },
+      storedRelativePath: { $nin: ['', null] },
+      pipelineStatus: 'accepted',
+    })
+      .sort({ updatedAt: -1 })
+      .limit(8)
+      .populate('submittedBy', 'name email')
+      .populate('assignment', 'title')
+      .populate('proposal', 'title')
+      .lean(),
+  ]);
+
+  let avgSimilarity = 0;
+  if (scoredProposals.length) {
+    const vals = scoredProposals.map((p) => {
+      const a = Number(p.aiSameSemesterMaxScore);
+      const b = Number(p.aiPreviousSemesterMaxScore);
+      const parts = [a, b].filter((n) => Number.isFinite(n));
+      if (!parts.length) return null;
+      const max = Math.max(...parts);
+      // Scores may be 0–1 or already 0–100
+      return max <= 1 ? max * 100 : max;
+    }).filter((n) => n != null);
+    if (vals.length) {
+      avgSimilarity = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+    }
+  }
+
+  const recentSubmissions = recentSubs.map((s) => ({
+    _id: String(s._id),
+    studentName: s.submittedBy?.name || 'Student',
+    studentEmail: s.submittedBy?.email || '',
+    assignmentTitle: s.assignment?.title || 'Assignment',
+    assignmentId: s.assignment?._id ? String(s.assignment._id) : '',
+    proposalTitle: s.proposal?.title || '',
+    proposalId: s.proposal?._id ? String(s.proposal._id) : String(s.proposal || ''),
+    filename: s.originalFilename || 'project.zip',
+    version: s.version || 1,
+    uploadedAt: s.updatedAt || s.createdAt || null,
+    sizeBytes: s.sizeBytes || 0,
+  }));
+
+  return {
+    stats: {
+      reviewed,
+      pending,
+      avgSimilarity,
+    },
+    recentSubmissions,
   };
 }
 

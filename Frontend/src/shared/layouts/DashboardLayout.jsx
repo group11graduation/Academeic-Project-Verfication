@@ -7,14 +7,13 @@ import {
     ClipboardList,
     Shield,
     LogOut,
-    Search,
     ChevronDown,
     Bell,
     Menu,
     UserRound,
 } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
-import { ShellSearchProvider, useShellSearch } from '../../context/shellSearchContext';
+import { ShellSearchProvider } from '../../context/shellSearchContext';
 import ThemeToggle from '../components/ThemeToggle';
 import ShellMobileDrawer from '../components/ShellMobileDrawer';
 import ProjectVerifyLogo from '../components/ProjectVerifyLogo';
@@ -36,8 +35,6 @@ const DashboardLayoutInner = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
-    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
-        useShellSearch();
 
     const classesItems = [{ name: 'My Classes', path: '/teacher/classes', icon: Users }];
     const workflowItems = [
@@ -297,20 +294,6 @@ const DashboardLayoutInner = ({ children }) => {
                         <div className="min-w-0 flex-1">
                             <div className="text-[12px] font-extrabold leading-tight text-[#1d2f82] dark:text-blue-300">Welcome back</div>
                             <div className="text-[10px] font-semibold text-[#51628f] dark:text-slate-400">Teacher Dashboard</div>
-                        </div>
-
-                        <div className="order-3 hidden w-full min-w-0 md:order-none md:mx-2 md:block md:max-w-xl md:flex-1">
-                            <div className="relative">
-                                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                                <input
-                                    type="search"
-                                    value={shellSearchQuery}
-                                    onChange={(e) => setShellSearchQuery(e.target.value)}
-                                    placeholder={shellSearchPlaceholder}
-                                    aria-label={shellSearchPlaceholder}
-                                    className="w-full rounded-lg border border-[#cfdbfb] bg-white/90 py-1.5 pl-8 pr-2.5 text-[11px] font-medium text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-[#2a3fa4] focus:bg-white focus:ring-2 focus:ring-[#2a3fa4]/15 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:placeholder:text-slate-500"
-                                />
-                            </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 sm:gap-2">

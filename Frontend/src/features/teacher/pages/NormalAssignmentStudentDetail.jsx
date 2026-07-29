@@ -6,6 +6,7 @@ import { getApiOrigin } from '../../../lib/api';
 import { normsFromAnyDocument } from '../../../lib/ipynbDocument';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
+import { resolveAssignmentClassCrumb } from '../../../shared/utils/assignmentClassBreadcrumb';
 
 function DetailRow({ label, value }) {
     return (
@@ -136,6 +137,7 @@ const NormalAssignmentStudentDetail = () => {
     const submitted = Boolean(submission);
     const downloadUrl = submission?.downloadPath ? `${apiOrigin}${submission.downloadPath}` : null;
     const assignmentTitle = assignment?.title || 'Assignment';
+    const classCrumb = resolveAssignmentClassCrumb(assignment);
     const subj = assignment?.subject;
     const subjectLine =
         subj && typeof subj === 'object' && (subj.name || subj.code)
@@ -163,6 +165,18 @@ const NormalAssignmentStudentDetail = () => {
                 <Link to="/teacher/assignments" className={Z_LINK}>
                     Assignments
                 </Link>
+                {classCrumb ? (
+                    <>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <Link
+                            to={classCrumb.to}
+                            className={`${Z_LINK} max-w-[min(100%,14rem)] truncate`}
+                            title={classCrumb.label}
+                        >
+                            {classCrumb.label}
+                        </Link>
+                    </>
+                ) : null}
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                 <Link
                     to={`/teacher/assignments/${assignmentId}/normal-students`}

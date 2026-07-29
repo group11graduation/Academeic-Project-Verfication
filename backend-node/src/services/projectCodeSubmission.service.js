@@ -4,6 +4,7 @@ import os from 'os';
 import crypto from 'crypto';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import { LegacyProject } from '../models/LegacyProject.js';
+import { Proposal } from '../models/Proposal.js';
 import { Assignment } from '../models/Assignment.js';
 import * as proposalWorkflow from './proposalWorkflow.service.js';
 import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
@@ -39,7 +40,7 @@ import { User } from '../models/User.js';
 import { logger } from '../config/logger.js';
 
 /** Local token overlap vs legacy archive (filename + light evidence; no AI). */
-const LEGACY_ZIP_REJECT_THRESHOLD = Number(process.env.LEGACY_ZIP_REJECT_THRESHOLD || 0.55);
+const LEGACY_ZIP_REJECT_THRESHOLD = Number(process.env.LEGACY_ZIP_REJECT_THRESHOLD || 0.45);
 /** Hard cap for optional ML consistency (only when ENABLE_PROJECT_CONSISTENCY_CHECK=true). */
 const CONSISTENCY_HARD_DEADLINE_MS = Number(process.env.AI_CONSISTENCY_HARD_DEADLINE_MS || 10000);
 /** Default OFF so ZIP upload never waits on AI / cannot hang the request. */
@@ -200,54 +201,121 @@ function jaccardSets(a, b) {
 }
 
 /**
- * Fast legacy match (no AI): ZIP filename / package identity vs archived project titles.
+ * Fast legacy / prior-work match (no AI) — runs BEFORE description/keyword gate.
+ * Sources:
+ *  1) LegacyProject archive in the system
+ *  2) Other teacher-approved proposals (same subject) already in the system
  */
-async function findLegacyProjectMatch({ assignment, evidence, originalFilename = '' }) {
-  const subjectId = assignment?.subject?._id || assignment?.subject;
-  if (!subjectId) return null;
-
-  const legacyDocs = await LegacyProject.find({ subject: subjectId })
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .select('_id title proposalDescription features ownerLabel')
-    .lean();
-  if (!legacyDocs.length) return null;
-
+async function findLegacyProjectMatch({
+  assignment,
+  evidence,
+  originalFilename = '',
+  currentProposalId = null,
+} = {}) {
+  const subjectId = assignment?.subject?._id || assignment?.subject || null;
   const nameHint = String(originalFilename || '')
     .replace(/\.zip$/i, '')
     .replace(/[-_]+/g, ' ');
   const composite = [nameHint, buildEvidenceCompositeText(evidence || {})].filter(Boolean).join('\n');
-  if (!composite.trim() || composite.trim().length < 8) return null;
+  if (!composite.trim() || composite.trim().length < 6) return null;
 
   const zipTokens = tokenizeForLegacy(composite);
   const zipLower = composite.toLowerCase();
-  let best = null;
+  const zipSlug = zipLower.replace(/[^a-z0-9]+/g, '');
+
+  /** @type {{ score: number, title: string, ownerLabel: string, matchedLegacyId: string|null, source: string }[]} */
+  const candidates = [];
+
+  // --- 1) Archived legacy projects ---
+  let legacyDocs = [];
+  if (subjectId) {
+    legacyDocs = await LegacyProject.find({ subject: subjectId })
+      .sort({ createdAt: -1 })
+      .limit(60)
+      .select('_id title proposalDescription features ownerLabel')
+      .lean();
+  }
+  // Fallback: scan recent legacy archive if subject has none (still system legacy)
+  if (!legacyDocs.length) {
+    legacyDocs = await LegacyProject.find({})
+      .sort({ createdAt: -1 })
+      .limit(80)
+      .select('_id title proposalDescription features ownerLabel')
+      .lean();
+  }
 
   for (const l of legacyDocs) {
     const title = String(l.title || '').trim();
+    if (!title) continue;
     const legacyText = [title, l.proposalDescription || '', ...(Array.isArray(l.features) ? l.features : [])]
       .filter(Boolean)
       .join('\n');
     let score = jaccardSets(zipTokens, tokenizeForLegacy(legacyText));
     const titleLower = title.toLowerCase();
-    if (titleLower.length >= 6 && zipLower.includes(titleLower)) {
-      score = Math.max(score, 0.85);
-    }
     const titleSlug = titleLower.replace(/[^a-z0-9]+/g, '');
-    const zipSlug = zipLower.replace(/[^a-z0-9]+/g, '');
-    if (titleSlug.length >= 8 && zipSlug.includes(titleSlug)) {
-      score = Math.max(score, 0.9);
+    if (titleLower.length >= 5 && zipLower.includes(titleLower)) score = Math.max(score, 0.88);
+    if (titleSlug.length >= 6 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.92);
+    // Partial: "building management" vs "Building-Managment-System-main"
+    const titleWords = titleLower.split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+    if (titleWords.length >= 2) {
+      const hit = titleWords.filter((w) => zipSlug.includes(w) || zipLower.includes(w)).length;
+      if (hit / titleWords.length >= 0.7) score = Math.max(score, 0.8);
     }
-    if (!best || score > best.score) {
-      best = {
-        score,
-        title: title || 'a previous project',
-        ownerLabel: l.ownerLabel || '',
-        matchedLegacyId: String(l._id),
-      };
+    candidates.push({
+      score,
+      title: title || 'a previous project',
+      ownerLabel: l.ownerLabel || '',
+      matchedLegacyId: String(l._id),
+      source: 'legacy_archive',
+    });
+  }
+
+  // --- 2) Other approved proposals already in the system (same subject) ---
+  if (subjectId) {
+    const assignmentIds = await Assignment.find({ subject: subjectId }).select('_id').limit(200).lean();
+    const ids = assignmentIds.map((a) => a._id);
+    if (ids.length) {
+      const peerProposals = await Proposal.find({
+        assignment: { $in: ids },
+        status: 'teacher_approved',
+        ...(currentProposalId ? { _id: { $ne: currentProposalId } } : {}),
+      })
+        .sort({ updatedAt: -1 })
+        .limit(60)
+        .select('_id title description features submittedBy')
+        .populate('submittedBy', 'name')
+        .lean();
+
+      for (const p of peerProposals) {
+        const title = String(p.title || '').trim();
+        if (!title) continue;
+        const peerText = [title, p.description || '', ...(Array.isArray(p.features) ? p.features : [])]
+          .filter(Boolean)
+          .join('\n');
+        let score = jaccardSets(zipTokens, tokenizeForLegacy(peerText));
+        const titleLower = title.toLowerCase();
+        const titleSlug = titleLower.replace(/[^a-z0-9]+/g, '');
+        if (titleLower.length >= 5 && zipLower.includes(titleLower)) score = Math.max(score, 0.88);
+        if (titleSlug.length >= 6 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.92);
+        const titleWords = titleLower.split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+        if (titleWords.length >= 2) {
+          const hit = titleWords.filter((w) => zipSlug.includes(w) || zipLower.includes(w)).length;
+          if (hit / titleWords.length >= 0.7) score = Math.max(score, 0.8);
+        }
+        candidates.push({
+          score,
+          title,
+          ownerLabel: p.submittedBy?.name || 'another student',
+          matchedLegacyId: `proposal:${p._id}`,
+          source: 'approved_proposal',
+        });
+      }
     }
   }
 
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0];
   if (!best || best.score < LEGACY_ZIP_REJECT_THRESHOLD) return null;
   return best;
 }
@@ -458,7 +526,8 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // 3) Fast local gates only (hash + legacy filename). AI is OFF by default — never blocks upload.
+    // 3) Fast local gates: hash → light evidence → legacy (before description) → keyword.
+    // AI is OFF by default — never blocks upload.
     const declaredTech = approvedTechnologiesForProposal(assignment, proposal);
     const consistencyEnabled = isConsistencyCheckEnabled();
     let detectedTech = [...(techMatch.zipTech || [])];
@@ -514,16 +583,30 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // Filename-only legacy check (no full ZIP walk) — instant, time-capped DB
+    // Light ZIP identity (README / package.json) — used by legacy gate first, then description gate
+    try {
+      evidence = await withDeadline(
+        buildLightFunctionalityEvidence(auditDir),
+        Number(process.env.FUNCTIONALITY_EVIDENCE_DEADLINE_MS || 3000),
+        'functionality evidence'
+      );
+    } catch (evErr) {
+      logger.warn(`[projectCodeSubmission] light evidence skipped: ${evErr.message}`);
+      evidence = { detected_tech: [], readme_text: '', routes: [], models: [], package_identity: '' };
+    }
+    detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
+
+    // LEGACY FIRST (before description/keyword check): reject known system / prior-student projects
     let legacyHit = null;
     try {
       legacyHit = await withDeadline(
         findLegacyProjectMatch({
           assignment,
-          evidence: {},
+          evidence,
           originalFilename: file.originalname || baseMeta.originalFilename || '',
+          currentProposalId: proposal._id,
         }),
-        Number(process.env.LEGACY_MATCH_DEADLINE_MS || 2500),
+        Number(process.env.LEGACY_MATCH_DEADLINE_MS || 4000),
         'legacy match'
       );
     } catch (legErr) {
@@ -531,9 +614,13 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
     if (legacyHit) {
       const ownerBit = legacyHit.ownerLabel ? ` (${legacyHit.ownerLabel})` : '';
+      const sourceBit =
+        legacyHit.source === 'approved_proposal'
+          ? 'an approved project already in the system'
+          : 'a legacy project archived in the system';
       const reason =
-        `This project looks like a previous student's work: "${legacyHit.title}"${ownerBit}. ` +
-        'Upload your own implementation of your approved proposal.';
+        `This ZIP matches ${sourceBit}: "${legacyHit.title}"${ownerBit}. ` +
+        'Upload your own implementation of your approved proposal — legacy/other-student projects are rejected before description checks.';
       const consistencyCheck = normalizeConsistencyCheck(null, { needsReview: false });
       const saved = await upsertSubmissionRecord({
         primary,
@@ -574,32 +661,13 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // Option 1 — Keyword / feature overlap (filename first, then light README/package only)
+    // Option 1 — Keyword / feature overlap (only after legacy check passes)
     if (isFunctionalityMatchEnabled()) {
-      // Instant pass using ZIP filename alone (catches Building-Management vs Sky-Nova, etc.)
-      let functionality = scoreProposalZipFunctionality({
+      const functionality = scoreProposalZipFunctionality({
         proposal,
-        evidence: {},
+        evidence,
         originalFilename: file.originalname || baseMeta.originalFilename || '',
       });
-      if (functionality.ok || functionality.skipped) {
-        try {
-          evidence = await withDeadline(
-            buildLightFunctionalityEvidence(auditDir),
-            Number(process.env.FUNCTIONALITY_EVIDENCE_DEADLINE_MS || 3000),
-            'functionality evidence'
-          );
-        } catch (evErr) {
-          logger.warn(`[projectCodeSubmission] light evidence skipped: ${evErr.message}`);
-          evidence = { detected_tech: [], readme_text: '', routes: [], models: [], package_identity: '' };
-        }
-        detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
-        functionality = scoreProposalZipFunctionality({
-          proposal,
-          evidence,
-          originalFilename: file.originalname || baseMeta.originalFilename || '',
-        });
-      }
       if (!functionality.ok) {
         const reason = functionality.message;
         const consistencyCheck = normalizeConsistencyCheck(
@@ -650,8 +718,6 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
           submission: saved.toObject ? saved.toObject() : saved,
         };
       }
-    } else {
-      evidence = { detected_tech: [], readme_text: '', routes: [], models: [] };
     }
 
     // Optional ML (only if explicitly enabled). Hard-capped; fail-open on timeout.

@@ -6,6 +6,7 @@ import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK, Z_EMPTY_PAD } from '../../../shared/ui
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import { getProposalAiSimilarityContext } from '../../../shared/utils/proposalSimilarityUi';
+import { resolveAssignmentClassCrumb } from '../../../shared/utils/assignmentClassBreadcrumb';
 
 const statusLabel = (s, proposal) => {
     const status = proposal?.displayStatus || s;
@@ -131,6 +132,7 @@ const TeacherAssignmentProposals = () => {
     }
 
     const title = assignment?.title || 'Assignment';
+    const classCrumb = resolveAssignmentClassCrumb(assignment);
 
     return (
         <div className={Z_PAGE}>
@@ -139,6 +141,18 @@ const TeacherAssignmentProposals = () => {
                     <Link to="/teacher/assignments" className={Z_LINK}>
                         Assignments
                     </Link>
+                    {classCrumb ? (
+                        <>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <Link
+                                to={classCrumb.to}
+                                className={`${Z_LINK} max-w-[min(100%,14rem)] truncate`}
+                                title={classCrumb.label}
+                            >
+                                {classCrumb.label}
+                            </Link>
+                        </>
+                    ) : null}
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                     <Link to={`/teacher/assignments/${assignmentId}`} className={`${Z_LINK} max-w-[min(100%,28rem)] truncate`} title={title}>
                         {title}

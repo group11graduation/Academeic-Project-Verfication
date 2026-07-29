@@ -1,15 +1,11 @@
 import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LogOut, Search, X } from 'lucide-react';
-import { useShellSearch } from '../../context/shellSearchContext';
+import { LogOut, X } from 'lucide-react';
 
 /**
  * Full-height slide-out navigation for admin/teacher shells on phones & tablets.
  */
 export default function ShellMobileDrawer({ open, onClose, navSections = [], onLogout, panelTitle = 'Menu' }) {
-    const { query: shellSearchQuery, setQuery: setShellSearchQuery, placeholder: shellSearchPlaceholder } =
-        useShellSearch();
-
     useEffect(() => {
         if (!open) return undefined;
         const prev = document.body.style.overflow;
@@ -45,20 +41,6 @@ export default function ShellMobileDrawer({ open, onClose, navSections = [], onL
                     </button>
                 </div>
 
-                <div className="border-b border-white/10 px-4 py-3">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
-                        <input
-                            type="search"
-                            value={shellSearchQuery}
-                            onChange={(e) => setShellSearchQuery(e.target.value)}
-                            placeholder={shellSearchPlaceholder}
-                            aria-label={shellSearchPlaceholder}
-                            className="w-full rounded-xl border border-white/20 bg-white/10 py-2.5 pl-10 pr-3 text-sm font-medium text-white placeholder:text-white/45 outline-none focus:border-white/40 focus:ring-2 focus:ring-white/20"
-                        />
-                    </div>
-                </div>
-
                 <nav className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Mobile navigation">
                     {navSections.map((section) => (
                         <div key={section.key}>
@@ -80,7 +62,7 @@ export default function ShellMobileDrawer({ open, onClose, navSections = [], onL
                                                 }`
                                             }
                                         >
-                                            {Icon ? <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} /> : null}
+                                            {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-80" /> : null}
                                             <span className="truncate">{item.name}</span>
                                         </NavLink>
                                     );
@@ -90,18 +72,18 @@ export default function ShellMobileDrawer({ open, onClose, navSections = [], onL
                     ))}
                 </nav>
 
-                {onLogout ? (
+                {typeof onLogout === 'function' ? (
                     <div className="border-t border-white/15 p-3">
                         <button
                             type="button"
                             onClick={() => {
-                                onClose?.();
+                                onClose();
                                 onLogout();
                             }}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold text-rose-200 ring-1 ring-white/15 hover:bg-white/15"
+                            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/20"
                         >
                             <LogOut className="h-4 w-4" />
-                            Sign out
+                            Log out
                         </button>
                     </div>
                 ) : null}
