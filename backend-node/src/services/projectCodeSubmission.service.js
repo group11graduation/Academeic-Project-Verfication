@@ -200,6 +200,69 @@ function jaccardSets(a, b) {
   return inter / (a.size + b.size - inter);
 }
 
+/** Exact or 1-edit typo match (e.g. management vs managment). */
+function editDistanceAtMost1(a, b) {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  // Ensure `a` is the shorter-or-equal string
+  if (la > lb) return editDistanceAtMost1(b, a);
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < la && j < lb) {
+    if (a[i] === b[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (la === lb) {
+      i += 1;
+      j += 1;
+    } else {
+      j += 1; // insert into shorter / delete from longer
+    }
+  }
+  edits += lb - j + (la - i);
+  return edits <= 1;
+}
+
+function wordMatchesZip(word, zipLower, zipSlug) {
+  if (!word || word.length < 4) return false;
+  if (zipSlug.includes(word) || zipLower.includes(word)) return true;
+  if (word.length < 6) return false;
+  for (const len of [word.length - 1, word.length, word.length + 1]) {
+    if (len < 5) continue;
+    for (let i = 0; i + len <= zipSlug.length; i += 1) {
+      if (editDistanceAtMost1(word, zipSlug.slice(i, i + len))) return true;
+    }
+  }
+  return false;
+}
+
+function scoreAgainstZipIdentity({ title, bodyText, zipTokens, zipLower, zipSlug }) {
+  const titleTrim = String(title || '').trim();
+  if (!titleTrim) return 0;
+  const legacyText = [titleTrim, bodyText || ''].filter(Boolean).join('\n');
+  let score = jaccardSets(zipTokens, tokenizeForLegacy(legacyText));
+  const titleLower = titleTrim.toLowerCase();
+  const titleSlug = titleLower.replace(/[^a-z0-9]+/g, '');
+  if (titleLower.length >= 5 && zipLower.includes(titleLower)) score = Math.max(score, 0.88);
+  if (titleSlug.length >= 6 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.92);
+  // Partial title words (typo-tolerant): "building management" vs "Building-Managment-System-main"
+  const titleWords = titleLower.split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+  if (titleWords.length >= 2) {
+    const hit = titleWords.filter((w) => wordMatchesZip(w, zipLower, zipSlug)).length;
+    if (hit / titleWords.length >= 0.7) score = Math.max(score, 0.85);
+  } else if (titleWords.length === 1 && wordMatchesZip(titleWords[0], zipLower, zipSlug)) {
+    score = Math.max(score, 0.72);
+  }
+  return score;
+}
+
 /**
  * Fast legacy / prior-work match (no AI) — runs BEFORE description/keyword gate.
  * Sources:
@@ -216,7 +279,10 @@ async function findLegacyProjectMatch({
   const nameHint = String(originalFilename || '')
     .replace(/\.zip$/i, '')
     .replace(/[-_]+/g, ' ');
-  const composite = [nameHint, buildEvidenceCompositeText(evidence || {})].filter(Boolean).join('\n');
+  const packageId = String(evidence?.package_identity || '').trim();
+  const composite = [nameHint, packageId, buildEvidenceCompositeText(evidence || {})]
+    .filter(Boolean)
+    .join('\n');
   if (!composite.trim() || composite.trim().length < 6) return null;
 
   const zipTokens = tokenizeForLegacy(composite);
@@ -247,20 +313,10 @@ async function findLegacyProjectMatch({
   for (const l of legacyDocs) {
     const title = String(l.title || '').trim();
     if (!title) continue;
-    const legacyText = [title, l.proposalDescription || '', ...(Array.isArray(l.features) ? l.features : [])]
+    const bodyText = [l.proposalDescription || '', ...(Array.isArray(l.features) ? l.features : [])]
       .filter(Boolean)
       .join('\n');
-    let score = jaccardSets(zipTokens, tokenizeForLegacy(legacyText));
-    const titleLower = title.toLowerCase();
-    const titleSlug = titleLower.replace(/[^a-z0-9]+/g, '');
-    if (titleLower.length >= 5 && zipLower.includes(titleLower)) score = Math.max(score, 0.88);
-    if (titleSlug.length >= 6 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.92);
-    // Partial: "building management" vs "Building-Managment-System-main"
-    const titleWords = titleLower.split(/[^a-z0-9]+/).filter((w) => w.length > 3);
-    if (titleWords.length >= 2) {
-      const hit = titleWords.filter((w) => zipSlug.includes(w) || zipLower.includes(w)).length;
-      if (hit / titleWords.length >= 0.7) score = Math.max(score, 0.8);
-    }
+    const score = scoreAgainstZipIdentity({ title, bodyText, zipTokens, zipLower, zipSlug });
     candidates.push({
       score,
       title: title || 'a previous project',
@@ -289,19 +345,10 @@ async function findLegacyProjectMatch({
       for (const p of peerProposals) {
         const title = String(p.title || '').trim();
         if (!title) continue;
-        const peerText = [title, p.description || '', ...(Array.isArray(p.features) ? p.features : [])]
+        const bodyText = [p.description || '', ...(Array.isArray(p.features) ? p.features : [])]
           .filter(Boolean)
           .join('\n');
-        let score = jaccardSets(zipTokens, tokenizeForLegacy(peerText));
-        const titleLower = title.toLowerCase();
-        const titleSlug = titleLower.replace(/[^a-z0-9]+/g, '');
-        if (titleLower.length >= 5 && zipLower.includes(titleLower)) score = Math.max(score, 0.88);
-        if (titleSlug.length >= 6 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.92);
-        const titleWords = titleLower.split(/[^a-z0-9]+/).filter((w) => w.length > 3);
-        if (titleWords.length >= 2) {
-          const hit = titleWords.filter((w) => zipSlug.includes(w) || zipLower.includes(w)).length;
-          if (hit / titleWords.length >= 0.7) score = Math.max(score, 0.8);
-        }
+        const score = scoreAgainstZipIdentity({ title, bodyText, zipTokens, zipLower, zipSlug });
         candidates.push({
           score,
           title,
