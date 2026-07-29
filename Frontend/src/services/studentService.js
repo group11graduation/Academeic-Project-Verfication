@@ -83,10 +83,8 @@ const studentService = {
         fd.append('codeArchive', file);
         if (projectStackHint) fd.append('projectStackHint', projectStackHint);
         if (screenshotFile) fd.append('projectScreenshot', screenshotFile);
-        // Explicit long client deadline so the UI never spins forever if a proxy dies.
-        // Server gates are capped (~15s AI); large ZIP transfer still needs headroom.
         const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd, {
-            timeout: 180_000,
+            timeout: 120_000,
         });
         return response.data;
     },

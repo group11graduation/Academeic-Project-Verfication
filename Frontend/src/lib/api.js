@@ -8,9 +8,21 @@ import {
 
 function resolveApiBase() {
   if (typeof window !== 'undefined') {
-    const runtime = window.__APP_CONFIG__?.API_URL;
-    if (typeof runtime === 'string' && runtime.trim()) {
-      return runtime.trim().replace(/\/$/, '');
+    const pageOrigin = window.location?.origin || '';
+    const onPreviewPort = /:4173$/i.test(pageOrigin);
+    const runtime = String(window.__APP_CONFIG__?.API_URL || '').trim().replace(/\/$/, '');
+    const runtimeLooksLikeDirectNode =
+      /:5000$/i.test(runtime) || /localhost:5000$/i.test(runtime) || /127\.0\.0\.1:5000$/i.test(runtime);
+
+    // Preview UI must talk to same-origin /api (Vite proxy). Never use hung/firewalled :5000 from the browser.
+    if (onPreviewPort) {
+      return pageOrigin;
+    }
+    if (runtime && !runtimeLooksLikeDirectNode) {
+      return runtime;
+    }
+    if (import.meta.env.PROD && pageOrigin) {
+      return pageOrigin;
     }
   }
 
@@ -70,12 +82,18 @@ api.interceptors.request.use((config) => {
   // Re-resolve API origin at request time so runtime env-config.js is respected
   // even if the module evaluated before it loaded (rare race on first paint).
   if (typeof window !== 'undefined') {
+    const pageOrigin = window.location?.origin || '';
     const runtime = String(window.__APP_CONFIG__?.API_URL || '').trim().replace(/\/$/, '');
-    if (runtime) {
+    // Live preview (:4173) must use same-origin /api proxy. Direct :5000 often hangs/firewalls → upload "timeout".
+    const runtimeLooksLikeDirectNode =
+      /:5000$/i.test(runtime) || /localhost:5000$/i.test(runtime) || /127\.0\.0\.1:5000$/i.test(runtime);
+    const onPreviewPort = /:4173$/i.test(pageOrigin);
+    if (onPreviewPort || (import.meta.env.PROD && (!runtime || runtimeLooksLikeDirectNode))) {
+      config.baseURL = `${pageOrigin}/api`;
+    } else if (runtime) {
       config.baseURL = `${runtime}/api`;
-    } else if (import.meta.env.PROD && window.location?.origin) {
-      // Same-origin → Vite/nginx proxy to node-backend (required when :5000 is firewalled)
-      config.baseURL = `${window.location.origin}/api`;
+    } else if (import.meta.env.PROD && pageOrigin) {
+      config.baseURL = `${pageOrigin}/api`;
     }
   }
   return config;
