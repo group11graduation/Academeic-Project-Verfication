@@ -298,7 +298,7 @@ export async function updateClass(code, body) {
 }
 
 /**
- * Delete a class. Students are NOT deleted — they become unassigned (empty classCode).
+ * Delete a class. Students are NOT deleted - they become unassigned (empty classCode).
  * Class groups / enrollments for this class are cleaned up. Assignments lose this class
  * (multi-class keep the rest; single-class assignments are deactivated).
  */
@@ -314,7 +314,7 @@ export async function deleteClass(code) {
   const studentQuery = { classCode: new RegExp(`^${escapeRegex(classCode)}$`, 'i') };
   const studentProfiles = await StudentProfile.find(studentQuery).select('_id user studentId').lean();
 
-  // Keep student accounts — only clear class assignment.
+  // Keep student accounts - only clear class assignment.
   await StudentProfile.updateMany(studentQuery, { $set: { classCode: '' } });
 
   for (const profile of studentProfiles) {
@@ -996,7 +996,7 @@ export async function ensureClassesFromImport(entries = []) {
       });
       createdCodes.push(entry.code);
     } catch (e) {
-      // Concurrent import may create the same code — treat as already present.
+      // Concurrent import may create the same code - treat as already present.
       if (e?.code === 11000) continue;
       throw e;
     }

@@ -4,7 +4,7 @@ const PREVIOUS_SEMESTER_WARN = 0.5;
 
 export function formatSimilarityPercent(score) {
   const n = Number(score);
-  if (!Number.isFinite(n)) return '—';
+  if (!Number.isFinite(n)) return '-';
   return `${Math.round(n * 100)}%`;
 }
 
@@ -29,7 +29,7 @@ export function getProposalAiSimilarityContext(proposal) {
       level: 'reject',
       samePct,
       legacyPct,
-      headline: 'Rejected — same-semester overlap',
+      headline: 'Rejected - same-semester overlap',
       detail: `Same-semester similarity ${samePct} met or exceeded the auto-reject threshold (${Math.round(SAME_SEMESTER_REJECT * 100)}%). The student must revise and resubmit.`,
       studentBlocked: true,
     };
@@ -40,7 +40,7 @@ export function getProposalAiSimilarityContext(proposal) {
       level: 'warn',
       samePct,
       legacyPct,
-      headline: 'Recommendation — previous-semester / legacy overlap',
+      headline: 'Recommendation - previous-semester / legacy overlap',
       detail: `This idea resembles a project from a previous semester (overlap ${legacyPct}). The student was not blocked; review originality and the suggested new features.`,
       studentBlocked: false,
     };
@@ -55,7 +55,7 @@ export function getProposalAiSimilarityContext(proposal) {
     legacyPct,
     headline: highSameButCleared
       ? 'Pending your review'
-      : 'Cleared — unique enough for review',
+      : 'Cleared - unique enough for review',
     detail:
       sameNum != null
         ? `Same-semester overlap ${samePct} is below the ${Math.round(SAME_SEMESTER_REJECT * 100)}% auto-reject line. Previous-semester overlaps only produce recommendations (from ${Math.round(PREVIOUS_SEMESTER_WARN * 100)}%), not rejection.`
@@ -63,7 +63,7 @@ export function getProposalAiSimilarityContext(proposal) {
     studentBlocked: false,
     legacyNote:
       legacyNum != null && legacyNum >= PREVIOUS_SEMESTER_WARN
-        ? `Previous-semester / legacy overlap ${legacyPct} is elevated (recommendation only — not blocked).`
+        ? `Previous-semester / legacy overlap ${legacyPct} is elevated (recommendation only - not blocked).`
         : null,
   };
 }

@@ -130,12 +130,12 @@ const LandingPage = () => {
                                 {PROJECT_NAME} · System overview
                             </p>
                             <h1 className="mb-5 text-3xl font-black leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-4xl lg:text-[2.75rem]">
-                                Academic project verification — from proposal to graded submission
+                                Academic project verification - from proposal to graded submission
                             </h1>
                             <p className="mb-8 max-w-2xl text-base font-medium leading-relaxed text-slate-600 dark:text-slate-300 md:text-lg">
                                 {PROJECT_NAME} is your institution&apos;s workflow for capstone and coursework projects: assignments,
                                 AI-assisted integrity checks, teacher review, collaborative dual-teacher tasks, and Docker previews
-                                — all in one place.
+                                - all in one place.
                             </p>
                             {!user && (
                                 <div className="flex flex-wrap gap-3">

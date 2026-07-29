@@ -117,7 +117,7 @@ function notifyStudentOfAiResult(proposal, assignment, status) {
     body = `Your proposal "${proposal.title || 'Untitled'}" resembles a previous-semester project. Review AI suggestions before teacher approval.`;
   } else if (status === 'requirements_rejected') {
     title = 'Requirements not met';
-    body = `Your proposal "${proposal.title || 'Untitled'}" does not meaningfully meet the assignment requirements. Casual English or listing technology names alone is not enough — rewrite in clear sentences that address the teacher requirements.`;
+    body = `Your proposal "${proposal.title || 'Untitled'}" does not meaningfully meet the assignment requirements. Casual English or listing technology names alone is not enough - rewrite in clear sentences that address the teacher requirements.`;
   } else if (status === 'requirements_review') {
     title = 'Proposal sent for teacher requirement review';
     body = `Your proposal "${proposal.title || 'Untitled'}" is borderline on requirements and needs a teacher decision.`;
@@ -426,7 +426,7 @@ function buildMissingFeatureRecommendation({
 
   if (!suggestedFeatures.length) {
     return {
-      text: 'Your proposal already covers the main features from the similar previous project. You can still add one or two unique capabilities (workflow, roles, or AI) to stand out — optional, not required.',
+      text: 'Your proposal already covers the main features from the similar previous project. You can still add one or two unique capabilities (workflow, roles, or AI) to stand out - optional, not required.',
       suggestedFeatures: [],
     };
   }
@@ -631,7 +631,7 @@ async function assertLeaderOrSingle(userId, assignment, groupId) {
       try {
         await syncAssignmentGroupsFromClassTemplatesByAssignmentId(assignment._id, { onlyIfEmpty: true });
       } catch {
-        /* continue — resolve may still fail with a clear error */
+        /* continue - resolve may still fail with a clear error */
       }
     }
     group = await findStudentGroupOnAssignment(userId, assignment._id);
@@ -825,7 +825,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       const proposalText = buildProposalRequirementText(proposal);
 
       if (assignment?.isCollaborative || requirementCheck.collaborative) {
-        // Compare against BOTH teacher requirement files — must pass frontend AND backend.
+        // Compare against BOTH teacher requirement files - must pass frontend AND backend.
         const feText = String(corpus.frontend_requirement_text || '').trim();
         const beText = String(corpus.backend_requirement_text || '').trim();
         const combinedFallback = String(corpus.requirement_text || '').trim();
@@ -869,7 +869,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
             requirementCheck.summary = `Backend requirements matched. ${requirementCheck.summary}`;
           }
         } else {
-          // No readable file text — do not auto-accept; teacher review.
+          // No readable file text - do not auto-accept; teacher review.
           requirementCheck = {
             ...requirementCheck,
             passed: true,
@@ -1428,7 +1428,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
 
   if (action === 'approve') {
     const assignment = await Assignment.findById(proposal.assignment._id);
-    // Structural gate only — teacher already reviewed borderline semantic cases.
+    // Structural gate only - teacher already reviewed borderline semantic cases.
     const requirementCheck = await evaluateProposalAgainstAssignmentRequirements(assignment, proposal);
     proposal.requirementCheckPassed = requirementCheck.passed;
     proposal.requirementCheckSummary = requirementCheck.summary;

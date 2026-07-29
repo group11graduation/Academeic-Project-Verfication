@@ -9,7 +9,7 @@ import * as previewWorkspaceCache from './previewWorkspaceCache.service.js';
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
 import { logger } from '../config/logger.js';
 
-/** Default sandbox caps — override via env (bytes / nano CPUs). */
+/** Default sandbox caps - override via env (bytes / nano CPUs). */
 export const PREVIEW_SANDBOX_MEMORY = process.env.PREVIEW_SANDBOX_MEMORY || '256m';
 export const PREVIEW_SANDBOX_CPUS = process.env.PREVIEW_SANDBOX_CPUS || '0.5';
 export const PREVIEW_CONTAINER_INIT_TIMEOUT_MS = Number(
@@ -50,7 +50,7 @@ const FORBIDDEN_SIGNATURES = [
 ];
 
 /**
- * Structured pipeline error — never crashes the process; caught by middleware or callers.
+ * Structured pipeline error - never crashes the process; caught by middleware or callers.
  */
 export class SubmissionPipelineError extends Error {
   constructor(message, options = {}) {
@@ -194,7 +194,7 @@ export async function runTechAuditOnManifest({
       failures.push({
         rule: 'missing_index_html',
         message:
-          'Missing index.html — static sites need a main HTML page at the project root or in a subfolder. Without it the preview has nothing to display.',
+          'Missing index.html - static sites need a main HTML page at the project root or in a subfolder. Without it the preview has nothing to display.',
         path: 'index.html',
       });
     }
@@ -319,7 +319,7 @@ async function rejectPreviewValidation({
 }
 
 /**
- * ZIP EXTRACTION BARRIER — wraps adm-zip extraction; maps corruption to failed_extraction.
+ * ZIP EXTRACTION BARRIER - wraps adm-zip extraction; maps corruption to failed_extraction.
  */
 export async function executeZipExtractionBarrier({
   zipAbs,
@@ -390,7 +390,7 @@ export async function executeZipExtractionBarrier({
 }
 
 /**
- * TECH AUDIT BLOCKER — runs immediately after extraction; deletes extract + flags DB on violation.
+ * TECH AUDIT BLOCKER - runs immediately after extraction; deletes extract + flags DB on violation.
  */
 export async function executeTechAuditBarrier({
   extractDir,
@@ -423,7 +423,7 @@ export async function executeTechAuditBarrier({
 }
 
 /**
- * PROJECT STRUCTURE BLOCKER — after security audit, verify stack-specific required files exist.
+ * PROJECT STRUCTURE BLOCKER - after security audit, verify stack-specific required files exist.
  */
 export async function executePreviewStructureBarrier({
   extractDir,
@@ -501,7 +501,7 @@ export async function recordPreviewRuntimeError({
 }
 
 /**
- * RUNTIME SANDBOX — wraps deploy; docker run already enforces memory/CPU + init timeout.
+ * RUNTIME SANDBOX - wraps deploy; docker run already enforces memory/CPU + init timeout.
  * On failure: force-kill container, scrape logs, persist runtime_error on PreviewSession.
  */
 export async function launchSandboxContainer({

@@ -20,7 +20,7 @@ export function validateAssignmentRequirementsForm({
       return 'Add instructions for students (requirement text) or upload a requirements file.';
     }
   } else if (hasFile) {
-    // Final assignment with file — typed fields optional.
+    // Final assignment with file - typed fields optional.
   } else if (!text) {
     return 'Requirement text is required unless you upload a requirements file.';
   }

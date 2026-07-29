@@ -36,7 +36,7 @@ const StudentAbout = () => {
                         How {PROJECT_NAME} works for your institution
                     </h1>
                     <p className="mb-10 max-w-2xl text-lg font-medium text-slate-600 dark:text-slate-300">
-                        Detailed reference for students, teachers, and admins — integrity checks, workflows, and preview sandboxes.
+                        Detailed reference for students, teachers, and admins - integrity checks, workflows, and preview sandboxes.
                     </p>
                 </div>
             </section>

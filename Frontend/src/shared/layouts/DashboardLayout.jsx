@@ -158,7 +158,7 @@ const DashboardLayoutInner = ({ children }) => {
                                 onClick={() => navigate('/teacher')}
                                 className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-white/50 shadow-sm"
                                 title="Teacher home"
-                                aria-label="Project Verify — Teacher home"
+                                aria-label="Project Verify - Teacher home"
                             >
                                 <img
                                     src="/logo.png"

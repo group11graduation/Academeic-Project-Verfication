@@ -9,7 +9,7 @@ const TERMINAL_PROPOSAL_STATUSES = new Set([
 
 /**
  * Derive collaborative review + display status for teacher/student UI.
- * Stored status may be teacher_approved from legacy single-teacher approve — treat as pending until both slots approve.
+ * Stored status may be teacher_approved from legacy single-teacher approve - treat as pending until both slots approve.
  */
 export function getCollaborativeReviewState(proposal, assignment) {
   const isCollaborative = Boolean(assignment?.isCollaborative && assignment?.coTeacherId);

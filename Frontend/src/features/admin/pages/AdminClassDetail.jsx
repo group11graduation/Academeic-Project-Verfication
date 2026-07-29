@@ -258,7 +258,7 @@ const AdminClassDetail = () => {
     const handleDeleteClass = async () => {
         if (!classInfo?.code) return;
         const ok = await appConfirm(
-            `Delete class "${classInfo.code}"?\n\nStudents will NOT be deleted — they become unassigned and can be moved to another class later.`,
+            `Delete class "${classInfo.code}"?\n\nStudents will NOT be deleted - they become unassigned and can be moved to another class later.`,
             { danger: true, confirmLabel: 'Delete class' }
         );
         if (!ok) return;
@@ -716,7 +716,7 @@ const AdminClassDetail = () => {
                             <span className="text-slate-700 dark:text-slate-300">
                                 {s.name} ({s.code})
                                 {getSubjectDepartments(s).length > 0 ? (
-                                    <span className="text-slate-400"> — {getSubjectDepartments(s).join(', ')}</span>
+                                    <span className="text-slate-400"> - {getSubjectDepartments(s).join(', ')}</span>
                                 ) : null}
                             </span>
                         </label>
@@ -760,7 +760,7 @@ const AdminClassDetail = () => {
                                         return (
                                             <option key={uid} value={uid}>
                                                 {t.name} ({t.teacherId || t.employeeId || 'No ID'})
-                                                {inClass ? ' — in class' : ''}
+                                                {inClass ? ' - in class' : ''}
                                             </option>
                                         );
                                     })}
@@ -925,7 +925,7 @@ const AdminClassDetail = () => {
                                                                     {s.name || 'Unknown'}
                                                                 </div>
                                                                 <div className="truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                                                                    {s.studentId || 'no ID'} · {s.email || '—'}
+                                                                    {s.studentId || 'no ID'} · {s.email || '-'}
                                                                 </div>
                                                             </div>
                                                             <div className="w-28 shrink-0 text-right sm:w-32">
@@ -1021,7 +1021,7 @@ const AdminClassDetail = () => {
                                     {activeTab === 'students' && (
                                         <td className="app-table-td">
                                             <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">
-                                                {currentClassCode || id || '—'}
+                                                {currentClassCode || id || '-'}
                                             </span>
                                         </td>
                                     )}

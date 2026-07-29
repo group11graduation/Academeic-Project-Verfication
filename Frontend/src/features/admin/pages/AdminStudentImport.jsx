@@ -194,7 +194,7 @@ John Smith,john@school.edu,S-1002`}
                                                 {c.email}
                                             </span>
                                             <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-900">
-                                                {c.loginPasscode ?? '—'}
+                                                {c.loginPasscode ?? '-'}
                                             </code>
                                             <button
                                                 type="button"

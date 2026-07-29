@@ -7,7 +7,7 @@ const backendRoot = path.resolve(__dirname, '../..');
 /** Monorepo root (Verfication-Project-Using-Machine-Learning/) */
 const monorepoRoot = path.resolve(backendRoot, '..');
 
-/** Local MongoDB — `MONGO_URI` preferred; `MONGODB_URI` kept for backward compatibility. */
+/** Local MongoDB - `MONGO_URI` preferred; `MONGODB_URI` kept for backward compatibility. */
 export const DEFAULT_MONGO_URI = 'mongodb://127.0.0.1:27017/academic_verification';
 
 /** Node API listen port when `PORT` is unset. */

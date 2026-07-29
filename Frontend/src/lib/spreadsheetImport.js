@@ -150,7 +150,7 @@ export function ensureStudentImportHeader(text) {
     return `name,email,studentId\n${trimmed}`;
 }
 
-/** Student bulk import — auto-detects missing header row. */
+/** Student bulk import - auto-detects missing header row. */
 export function parseStudentCsvToRecords(text) {
     return parseCsvToRecords(ensureStudentImportHeader(text));
 }
@@ -297,7 +297,7 @@ export function normalizeTeacherImportRow(raw) {
         password: val('password'),
         passcode: val('passcode', 'pin'),
         faculty,
-        // Do not fall back to faculty here — keep them separate for structure sync.
+        // Do not fall back to faculty here - keep them separate for structure sync.
         department: department || '',
         phone: val('phone', 'phonenumber', 'mobile', 'tel', 'telephone', 'phoneno'),
         skills: val('skills', 'skills&expertise', 'skillsexpertise', 'expertise', 'subjects'),

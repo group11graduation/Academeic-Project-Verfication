@@ -124,9 +124,9 @@ const StudentMyProjectDetail = () => {
                 (Array.isArray(a.assignedClasses) && a.assignedClasses.length > 0 && a.assignedClasses.join(', ')) ||
                 a.class?.code || a.class?.name,
             type: a.submissionMode,
-            status: p?.status || '—',
+            status: p?.status || '-',
             description: p?.description || a.description,
-            assignmentNumber: a._id ? String(a._id).slice(-6).toUpperCase() : '—',
+            assignmentNumber: a._id ? String(a._id).slice(-6).toUpperCase() : '-',
             members,
             featureTags: Array.isArray(p?.features) ? p.features : [],
             similarity:
@@ -450,7 +450,7 @@ const StudentMyProjectDetail = () => {
                                     ? formatWorkflowDate(row?.latestProjectSubmission?.teacherPreviewedAt)
                                     : projectSubmitted
                                       ? 'Waiting'
-                                      : '—'}
+                                      : '-'}
                             </div>
                         </div>
 
@@ -466,7 +466,7 @@ const StudentMyProjectDetail = () => {
                                     ? formatWorkflowDate(teacherFeedbackEntries[0]?.reviewedAt)
                                     : teacherPreviewed
                                       ? 'Pending'
-                                      : '—'}
+                                      : '-'}
                             </div>
                         </div>
                     </div>
@@ -538,7 +538,7 @@ const StudentMyProjectDetail = () => {
                                     <h3 className="text-sm font-bold text-[#0F172A] tracking-tight">Project code (.zip)</h3>
                                     <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">
                                         Select your ZIP, then click Upload. You can replace it anytime before the
-                                        deadline — your teacher is notified when you update. Max 250 MB.
+                                        deadline - your teacher is notified when you update. Max 250 MB.
                                     </p>
                                     <p className="mt-2 text-xs font-bold text-slate-600">
                                         Submitting as: <span className="text-emerald-800">{user?.name || 'You'}</span>
@@ -547,7 +547,7 @@ const StudentMyProjectDetail = () => {
                                         <p className="text-xs font-bold text-slate-500 mt-1">
                                             Deadline: {new Date(row.assignment.projectDeadline).toLocaleString()}
                                             {row.projectDeadlinePassed ? (
-                                                <span className="text-rose-600"> — closed</span>
+                                                <span className="text-rose-600"> - closed</span>
                                             ) : null}
                                         </p>
                                     )}
@@ -571,7 +571,7 @@ const StudentMyProjectDetail = () => {
                                         {new Date(row.latestProjectSubmission.createdAt).toLocaleString()}
                                     </p>
                                     <p className="mt-2 text-xs font-medium text-emerald-700">
-                                        The deadline has passed — your submission is locked. Your teacher can still preview and leave feedback.
+                                        The deadline has passed - your submission is locked. Your teacher can still preview and leave feedback.
                                     </p>
                                 </div>
                             ) : row?.projectDeadlinePassed ? (
@@ -581,7 +581,7 @@ const StudentMyProjectDetail = () => {
                             ) : (
                                 <>
                                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 mt-4">
-                                        Step 1 — Choose ZIP
+                                        Step 1 - Choose ZIP
                                     </p>
                                     <input
                                         type="file"
@@ -597,7 +597,7 @@ const StudentMyProjectDetail = () => {
                                         </p>
                                     ) : null}
                                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
-                                        Step 2 — Upload
+                                        Step 2 - Upload
                                     </p>
                                     <button
                                         type="button"
@@ -618,7 +618,7 @@ const StudentMyProjectDetail = () => {
                                         )}
                                     </button>
                                     <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 mt-6">
-                                        Step 3 — Project screenshot (for Verified Projects gallery)
+                                        Step 3 - Project screenshot (for Verified Projects gallery)
                                     </p>
                                     <p className="mb-3 text-xs font-medium text-slate-500">
                                         Upload a PNG or JPG showing how your app looks (homepage or main screen).
@@ -723,7 +723,7 @@ const StudentMyProjectDetail = () => {
                                             Drag and drop source code or documentation
                                         </div>
                                         <div className="text-[13px] font-medium text-slate-400">
-                                            Accepted formats: .ZIP, .PDF, .MD (Max 250MB for project ZIP — exclude node_modules / target / .git)
+                                            Accepted formats: .ZIP, .PDF, .MD (Max 250MB for project ZIP - exclude node_modules / target / .git)
                                         </div>
                                         <div className="text-[11px] font-bold text-slate-500 mt-3 max-w-md mx-auto">
                                             Optional local-only placeholder. Use “Project code (.zip)” above for the real submission used in teacher preview.

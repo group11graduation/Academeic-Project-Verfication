@@ -31,7 +31,7 @@ const TECH_ALIASES = [
 ];
 
 const TECH_COMPATIBILITY = {
-  // Language/framework families only — shared DBs (mysql/postgres/mongo) must NOT
+  // Language/framework families only - shared DBs (mysql/postgres/mongo) must NOT
   // imply a language, or "Spring Boot + MySQL" would wrongly allow PHP proposals.
   php: ['php', 'laravel'],
   mysql: ['mysql'],
@@ -177,7 +177,7 @@ export function inferRequiredTechFromSubject(subject) {
   return [...new Set(required)];
 }
 
-/** @deprecated Use inferRequiredTechFromSubject — kept for callers that still import it. */
+/** @deprecated Use inferRequiredTechFromSubject - kept for callers that still import it. */
 export function inferRequiredTechFromAssignmentContext(assignment) {
   return inferRequiredTechFromSubject(assignment?.subject);
 }
@@ -202,7 +202,7 @@ export function resolveRequiredTechnologiesForProposal(assignment, block) {
     return fromTeacherText;
   }
 
-  // Requirements file was uploaded but could not be read — do NOT invent a stack from the
+  // Requirements file was uploaded but could not be read - do NOT invent a stack from the
   // course subject (that falsely rejects Spring Boot proposals on a PHP-named subject, etc.).
   const fileRef = String(
     block?.assignmentFile ||
@@ -560,7 +560,7 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
     (!fe.requirementFile || !fileMeta.frontendFileEmpty) &&
     (!be.requirementFile || !fileMeta.backendFileEmpty);
 
-  // Only real extracted/typed requirement text counts — not "file: path.docx" stubs.
+  // Only real extracted/typed requirement text counts - not "file: path.docx" stubs.
   const canCheckAgainstRequirements =
     hasRealContent || feStack.length > 0 || beStack.length > 0;
 
@@ -619,7 +619,7 @@ function evaluateCollaborativeRequirements(assignment, proposalLike, corpusOverr
 
 /**
  * Structural hard gates only (wrong stack / empty).
- * Meaning match is handled by MiniLM via analyzeRequirementsPayload — NOT substring keywords.
+ * Meaning match is handled by MiniLM via analyzeRequirementsPayload - NOT substring keywords.
  * For collaborative assignments this is async (reads FE/BE requirement files).
  */
 export async function evaluateProposalAgainstAssignmentRequirements(assignment, proposalLike) {
@@ -725,7 +725,7 @@ export function evaluateRequirementBlock(
   );
 
   // Hard fail: student proposes a different language/framework than teacher requirements
-  // (e.g. PHP when the uploaded file requires Spring Boot — even if both mention MySQL).
+  // (e.g. PHP when the uploaded file requires Spring Boot - even if both mention MySQL).
   const disallowedMentionedTech = hasRequiredStack
     ? mentionedPrimary.filter((t) => !allowedExpanded.includes(t))
     : [];
@@ -770,7 +770,7 @@ export function evaluateRequirementBlock(
   const reasons = [];
   if (tooShort) {
     reasons.push(
-      'Proposal is too short. Write a real project description in full sentences — casual chat or bare technology names are not accepted.'
+      'Proposal is too short. Write a real project description in full sentences - casual chat or bare technology names are not accepted.'
     );
   }
   if (!noDisallowedTechPassed) {
@@ -837,7 +837,7 @@ export function evaluateRequirementBlock(
       ? assignmentFileUnreadable
         ? `${label ? `${label}: ` : ''}Structural gate passed using available technologies/text (requirements file was unreadable). Semantic check runs next.`.trim()
         : `${label ? `${label}: ` : ''}Structural requirement gate passed; semantic meaning check runs next.`.trim()
-      : `${label ? `${label} — ` : ''}Requirement gate failed. ${reasons.join(' | ')}`.trim(),
+      : `${label ? `${label} - ` : ''}Requirement gate failed. ${reasons.join(' | ')}`.trim(),
     semanticCorpus: buildTeacherRequirementCorpus(assignmentContext),
     strictTechRequirements: hasRequiredStack,
   };
@@ -848,7 +848,7 @@ export function evaluateRequirementBlock(
  * verdict: reject | review | pass
  *
  * Solo: if the required stack is clearly covered, allow a soft pass when MiniLM is noisy.
- * Collaborative: never soft-pass on tech names alone — both requirement files must meaningfully match.
+ * Collaborative: never soft-pass on tech names alone - both requirement files must meaningfully match.
  */
 export function applySemanticRequirementResult(structuralCheck, semanticResult) {
   const verdict = String(semanticResult?.verdict || 'reject').toLowerCase();
@@ -868,7 +868,7 @@ export function applySemanticRequirementResult(structuralCheck, semanticResult) 
     groups.length > 0 &&
     groups.every((g) => g.some((t) => matched.has(t) || expandTechFamily([t]).some((x) => matched.has(x))));
 
-  // Collaborative: never soft-pass on tech names alone — FE+BE requirement files must match.
+  // Collaborative: never soft-pass on tech names alone - FE+BE requirement files must match.
   const allowStackRescue = !isCollaborative && stackCovered && similarity >= 0.28;
 
   if (verdict === 'pass' || (allowStackRescue && structuralCheck.passed !== false)) {

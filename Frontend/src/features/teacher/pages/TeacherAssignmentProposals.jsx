@@ -27,7 +27,7 @@ const statusLabel = (s, proposal) => {
         teacher_approved: 'Approved',
         teacher_rejected: 'Rejected',
         requirements_rejected: 'Requirements rejected',
-        requirements_review: 'Requirements — needs your review',
+        requirements_review: 'Requirements - needs your review',
     };
     return map[status] || status;
 };
@@ -166,7 +166,7 @@ const TeacherAssignmentProposals = () => {
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">Proposal roster</h1>
                         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
                             Open a student to review AI similarity, read proposal content like an extracted document, add your score, and
-                            approve or request changes — same flow as the normal assignment student list.
+                            approve or request changes - same flow as the normal assignment student list.
                         </p>
                     </div>
                     <div className="relative w-full sm:max-w-xs">

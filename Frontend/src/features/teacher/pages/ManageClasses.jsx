@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import ClassCard from '../components/ClassCard';
 import { useShellSearchFilter } from '../../../context/shellSearchContext';
@@ -43,17 +43,9 @@ const ManageClasses = () => {
     return (
         <div className="font-sans text-[13px] transition-colors">
             {/* Header */}
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 gap-3">
-                <div>
-                    <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">My Classes</h1>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Assigned classes for the current semester.</p>
-                </div>
-                <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm transition-colors">
-                    <span className="text-slate-700 dark:text-slate-300 text-[12px] font-bold">Spring 2024</span>
-                    <div className="bg-[#EBF3FF] dark:bg-blue-900/30 p-1 rounded-full transition-colors">
-                        <CalendarIcon className="h-3.5 w-3.5 text-[#1D68E3] dark:text-blue-400" />
-                    </div>
-                </div>
+            <header className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
+                <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">My Classes</h1>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Assigned classes for the current semester.</p>
             </header>
 
             {/* Active Classes Grid */}

@@ -17,7 +17,7 @@ const STYLES = {
 };
 
 /**
- * Small inline page alert — not a modal.
+ * Small inline page alert - not a modal.
  */
 export default function InlineAlert({ variant = 'info', title = '', message = '', onDismiss }) {
     const style = STYLES[variant] || STYLES.info;

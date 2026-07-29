@@ -10,7 +10,7 @@ import { useShellSearchFilter } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 
 const formatDate = (d) =>
-    d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+    d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
 
 const isPast = (d) => d && new Date(d) < new Date();
 
@@ -90,7 +90,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
 
             <div className="mb-2 flex flex-wrap gap-1">
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-[#1D68E3] dark:bg-blue-500/10">
-                    {a.subject?.code || '—'}
+                    {a.subject?.code || '-'}
                 </span>
                 {a.isCollaborative && a.collaborationReviewRole && (
                     <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
@@ -349,7 +349,7 @@ const Assignments = () => {
                     {activeClass && (
                         <p className="mb-3 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
                             <span className="font-black text-slate-800 dark:text-slate-200">{activeClass.code}</span>
-                            {' — '}
+                            {' - '}
                             {activeClass.title}
                         </p>
                     )}
@@ -434,7 +434,7 @@ const Assignments = () => {
 
             {classes.length > 0 && assignments.length === 0 && (
                 <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900">
-                    No assignments yet — click <span className="font-black text-[#1D68E3]">New</span> to start.
+                    No assignments yet - click <span className="font-black text-[#1D68E3]">New</span> to start.
                 </div>
             )}
         </div>

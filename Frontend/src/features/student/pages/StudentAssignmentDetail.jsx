@@ -34,7 +34,7 @@ function DetailRow({ label, value }) {
     return (
         <div className="grid grid-cols-1 gap-1 border-b border-slate-50 py-3 last:border-0 sm:grid-cols-[minmax(0,140px)_1fr] sm:gap-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-            <span className="text-sm font-semibold text-slate-900 break-words">{value ?? '—'}</span>
+            <span className="text-sm font-semibold text-slate-900 break-words">{value ?? '-'}</span>
         </div>
     );
 }
@@ -43,7 +43,7 @@ function proposalStatusLabel(row) {
     const status = row?.proposal?.status || 'not_submitted';
     if (status === 'teacher_approved') return 'Approved';
     if (status === 'pending_teacher_approval' || status === 'submitted' || status === 'pending') return 'Pending teacher';
-    if (status === 'ai_rejected_same_semester') return 'Rejected (AI — same semester)';
+    if (status === 'ai_rejected_same_semester') return 'Rejected (AI - same semester)';
     if (status === 'requirements_rejected') return 'Rejected (requirements)';
     if (status === 'ai_flagged_previous_semester') return 'Flagged (previous semester)';
     if (status === 'teacher_rejected') return 'Rejected (teacher)';
@@ -106,11 +106,11 @@ const StudentAssignmentDetail = () => {
     const teacherName =
         assignmentTeachers.length > 1
             ? assignmentTeachers.map((t) => `${t.name}${t.roleLabel ? ` (${t.roleLabel})` : ''}`).join(' · ')
-            : assignmentTeachers[0]?.name || assignment?.teacher?.name || '—';
+            : assignmentTeachers[0]?.name || assignment?.teacher?.name || '-';
     const isCollaborativeAssignment = assignmentTeachers.length > 1 || Boolean(assignment?.isCollaborative || assignment?.coTeacherId);
     const subjectLabel = assignment?.subject?.name
         ? `${assignment.subject.name}${assignment.subject?.code ? ` (${assignment.subject.code})` : ''}`
-        : '—';
+        : '-';
     const proposalDeadline = assignment?.proposalDeadline ? new Date(assignment.proposalDeadline).toLocaleString() : null;
     const projectDeadline = assignment?.projectDeadline ? new Date(assignment.projectDeadline).toLocaleString() : null;
     const effectiveDeadline = projectDeadline || proposalDeadline;
@@ -259,7 +259,7 @@ const StudentAssignmentDetail = () => {
                                             ? new Date(
                                                   assignment.projectDeadline || assignment.proposalDeadline
                                               ).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                                            : '—'}
+                                            : '-'}
                                     </p>
                                     <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Next deadline</p>
                                 </div>
@@ -317,8 +317,8 @@ const StudentAssignmentDetail = () => {
                                           : 'Final (proposal + project)'
                                 }
                             />
-                            <DetailRow label="Proposal deadline" value={proposalDeadline || '—'} />
-                            <DetailRow label="Project deadline" value={projectDeadline || '—'} />
+                            <DetailRow label="Proposal deadline" value={proposalDeadline || '-'} />
+                            <DetailRow label="Project deadline" value={projectDeadline || '-'} />
                             {!isNormalAssignment ? <DetailRow label="Proposal status" value={proposalStatusLabel(row)} /> : null}
                         </div>
                     </div>
@@ -501,7 +501,7 @@ const StudentAssignmentDetail = () => {
                                                     >
                                                         <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 1 (done)</div>
                                                         <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
-                                                        <p className="mt-1 text-[12px] text-slate-600">Submitted — view your proposal details.</p>
+                                                        <p className="mt-1 text-[12px] text-slate-600">Submitted - view your proposal details.</p>
                                                     </Link>
                                                 ) : (
                                                     <Link
@@ -522,7 +522,7 @@ const StudentAssignmentDetail = () => {
                                                             <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 2 (done)</div>
                                                             <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
                                                             <p className="mt-1 text-[12px] text-slate-600">
-                                                                Submitted — view project and teacher feedback.
+                                                                Submitted - view project and teacher feedback.
                                                             </p>
                                                         </Link>
                                                     ) : showProjectDeadlineBanner ? (

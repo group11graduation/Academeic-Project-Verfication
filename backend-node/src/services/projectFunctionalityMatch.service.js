@@ -1,5 +1,5 @@
 /**
- * Option 1 — Keyword / feature overlap (local, no AI).
+ * Option 1 - Keyword / feature overlap (local, no AI).
  *
  * Proposal: title + features (+ light description boost)
  * ZIP:     README, package.json name/description, routes, models, filename
@@ -172,7 +172,7 @@ function buildZipCorpus({ evidence = {}, originalFilename = '' } = {}) {
 }
 
 /**
- * Option 1 scorer — keyword / feature overlap.
+ * Option 1 scorer - keyword / feature overlap.
  *
  * @returns {{
  *   ok: boolean,
@@ -296,10 +296,10 @@ export function scoreProposalZipFunctionality({
   const pct = Math.round(score * 100);
   const missingHint = missingTitleTokens.slice(0, 6).join(', ');
   const message =
-    `REJECTED — not related to your proposal (keyword/feature overlap ${pct}%). ` +
+    `REJECTED - not related to your proposal (keyword/feature overlap ${pct}%). ` +
     `This ZIP does not implement what you proposed` +
     (missingHint ? ` (missing from ZIP: ${missingHint})` : '') +
-    '. Upload the project that matches your approved proposal title and features — same technology alone is not enough.';
+    '. Upload the project that matches your approved proposal title and features - same technology alone is not enough.';
 
   return {
     ok: false,

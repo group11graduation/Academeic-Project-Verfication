@@ -5,7 +5,7 @@ let cachedProbeHost = null;
 /**
  * Hostname used to reach preview containers from the Node API process.
  * When node-backend runs in Docker, student preview containers publish ports on
- * the host daemon — not on the API container's loopback.
+ * the host daemon - not on the API container's loopback.
  */
 export function getPreviewProbeHost() {
   if (cachedProbeHost) return cachedProbeHost;

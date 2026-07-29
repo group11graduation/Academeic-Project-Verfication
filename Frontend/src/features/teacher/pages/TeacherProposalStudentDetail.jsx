@@ -80,7 +80,7 @@ const statusLabel = (s, proposal) => {
         teacher_approved: 'Approved',
         teacher_rejected: 'Rejected',
         requirements_rejected: 'Requirements rejected',
-        requirements_review: 'Requirements — needs your review',
+        requirements_review: 'Requirements - needs your review',
     };
     return map[status] || status;
 };
@@ -140,7 +140,7 @@ function DetailRow({ label, value }) {
     return (
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-3 gap-y-1 border-b border-slate-50 py-3 last:border-0 sm:grid-cols-[140px_1fr]">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-            <span className="text-sm font-semibold break-words text-slate-900">{value ?? '—'}</span>
+            <span className="text-sm font-semibold break-words text-slate-900">{value ?? '-'}</span>
         </div>
     );
 }
@@ -156,7 +156,7 @@ function getProposalRequirementIssue(proposal) {
         proposal?.displayStatus === 'requirements_review' ||
         proposal?.requirementNeedsTeacherReview === true;
     const liveFailed = liveReview?.passed === false;
-    // Show red "not met" only for real rejects — not for teacher-review routing.
+    // Show red "not met" only for real rejects - not for teacher-review routing.
     const failed = statusRejected || (!needsReview && (storedFailed || liveFailed));
     const summary =
         proposal?.requirementCheckSummary ||
@@ -179,7 +179,7 @@ function getProposalRequirementIssue(proposal) {
 function buildProposalPlainText(p) {
     if (!p) return '';
     const parts = [];
-    parts.push(`PROJECT TITLE\n${p.title || '—'}`);
+    parts.push(`PROJECT TITLE\n${p.title || '-'}`);
     parts.push(`\n\nOVERVIEW\n${(p.description || '').trim() || 'No overview provided.'}`);
     if (Array.isArray(p.features) && p.features.length) {
         parts.push('\n\nPROPOSED FUNCTIONALITY');
@@ -532,7 +532,7 @@ const TeacherProposalStudentDetail = () => {
             if (timedOut) {
                 await appWarning(
                     'Preview is still starting in the background (this can take several minutes). ' +
-                        'Keep this page open — status will update automatically.'
+                        'Keep this page open - status will update automatically.'
                 );
                 try {
                     const active = await teacherService.getActiveProposalPreview(proposal._id);
@@ -600,8 +600,8 @@ const TeacherProposalStudentDetail = () => {
     const subj = assignment?.subject;
     const subjectLine =
         subj && typeof subj === 'object' && (subj.name || subj.code)
-            ? `${subj.name || ''}${subj.code ? ` (${subj.code})` : ''}`.trim() || '—'
-            : '—';
+            ? `${subj.name || ''}${subj.code ? ` (${subj.code})` : ''}`.trim() || '-'
+            : '-';
     const classCodeForStudents = assignment?.class?.code || assignment?.class?.name || '';
     const student = proposal?.submittedBy;
     const isGroupSubmission = assignment?.submissionMode === 'group' && proposal?.group;
@@ -614,7 +614,7 @@ const TeacherProposalStudentDetail = () => {
         : (student?.name || student?.email || '?').charAt(0).toUpperCase();
     const submittedAt = proposal?.submittedAt
         ? new Date(proposal.submittedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-        : '—';
+        : '-';
 
     if (loading) {
         return (
@@ -692,10 +692,10 @@ const TeacherProposalStudentDetail = () => {
             ? zip.sizeBytes >= 1_048_576
                 ? `${(zip.sizeBytes / 1_048_576).toFixed(1)} MB`
                 : `${Math.max(1, Math.round(zip.sizeBytes / 1024))} KB`
-            : '—';
+            : '-';
     const zipUploadedAt = zip?.createdAt
         ? new Date(zip.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-        : '—';
+        : '-';
 
     return (
         <div className={Z_PAGE}>
@@ -772,9 +772,9 @@ const TeacherProposalStudentDetail = () => {
                                     }`}
                                 >
                                     {proposal?.status === 'requirements_review'
-                                        ? 'Borderline requirement match — your decision needed'
+                                        ? 'Borderline requirement match - your decision needed'
                                         : proposal?.status === 'requirements_rejected'
-                                          ? 'Proposal rejected — assignment requirements not met'
+                                          ? 'Proposal rejected - assignment requirements not met'
                                           : 'Assignment requirements not met'}
                                 </p>
                                 <p className="mt-2 leading-relaxed">{requirementIssue.summary}</p>
@@ -836,7 +836,7 @@ const TeacherProposalStudentDetail = () => {
                                     )}
                                 </ul>
                             ) : (
-                                <p className="mt-1 min-h-[1.25rem] max-w-full break-all text-sm text-slate-500">{student?.email || '—'}</p>
+                                <p className="mt-1 min-h-[1.25rem] max-w-full break-all text-sm text-slate-500">{student?.email || '-'}</p>
                             )}
                             <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[#1e56e3]">
                                 {statusLabel(proposal.status, proposal)}
@@ -875,7 +875,7 @@ const TeacherProposalStudentDetail = () => {
                                     <div className="col-span-2 rounded-lg bg-rose-50 py-3 px-2 text-center">
                                         <p className="text-sm font-bold text-rose-800">Current issue</p>
                                         <p className="mt-1 text-[10px] font-semibold text-rose-700">
-                                            Requirements — not AI similarity
+                                            Requirements - not AI similarity
                                         </p>
                                     </div>
                                 ) : submissionHistoryCtx.resolvedAfterFailure ? (
@@ -953,7 +953,7 @@ const TeacherProposalStudentDetail = () => {
                                                     ))}
                                                 </ul>
                                             ) : (
-                                                '—'
+                                                '-'
                                             )
                                         }
                                     />
@@ -961,12 +961,12 @@ const TeacherProposalStudentDetail = () => {
                             ) : (
                                 <>
                                     <DetailRow label="Author" value={studentIdentityLabel(proposal)} />
-                                    <DetailRow label="Student ID" value={student?.studentId || '—'} />
+                                    <DetailRow label="Student ID" value={student?.studentId || '-'} />
                                 </>
                             )}
                             <DetailRow label="Assignment" value={assignmentTitle} />
                             <DetailRow label="Subject" value={subjectLine} />
-                            <DetailRow label="Class" value={classCodeForStudents || classLabelFromAssignment(assignment) || '—'} />
+                            <DetailRow label="Class" value={classCodeForStudents || classLabelFromAssignment(assignment) || '-'} />
                             <DetailRow label="Status" value={statusLabel(proposal.status, proposal)} />
                             <DetailRow label="Submitted" value={submittedAt} />
                             {zipUrl ? (
@@ -1194,13 +1194,13 @@ const TeacherProposalStudentDetail = () => {
                                         <option value="not_set">Not specified</option>
                                         <option value="aligns">I agree with the AI risk picture</option>
                                         <option value="stricter">I am stricter than the AI hint</option>
-                                        <option value="lenient">The AI is too harsh — I accept this work</option>
+                                        <option value="lenient">The AI is too harsh - I accept this work</option>
                                     </select>
                                 </div>
                                 ) : (
                                 <div className="flex items-end">
                                     <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600">
-                                        Preview: {evalScore.trim() ? `${evalScore}/${evalScoreMax || '100'}` : '—'}
+                                        Preview: {evalScore.trim() ? `${evalScore}/${evalScoreMax || '100'}` : '-'}
                                     </p>
                                 </div>
                                 )}
@@ -1391,7 +1391,7 @@ const TeacherProposalStudentDetail = () => {
                                         loginSource === 'bootstrap_log' ||
                                         loginSource === 'bootstrap_log_assumed_username' ||
                                         loginSource === 'project_spring_seed';
-                                    // Project sources: only show the coherent session set — never
+                                    // Project sources: only show the coherent session set - never
                                     // merge React state / platform placeholders with project values.
                                     const sessEmail = String(sess?.previewLoginEmail || '').trim();
                                     const sessUsername = String(sess?.previewLoginUsername || '').trim();
@@ -1520,7 +1520,7 @@ const TeacherProposalStudentDetail = () => {
                                             <p className="text-sm font-black text-emerald-900">
                                                 {fromProject
                                                     ? 'Real login (from this student project)'
-                                                    : 'Preview ready — sign in to the student app'}
+                                                    : 'Preview ready - sign in to the student app'}
                                             </p>
                                             <p className="mt-1 mb-4 text-xs font-semibold text-slate-600">
                                                 Use the <strong>{preferredLabel}</strong> field on the student login form
@@ -1531,7 +1531,7 @@ const TeacherProposalStudentDetail = () => {
                                                       : '.'}
                                                 {' '}Email is shown below when available for copy.
                                                 {fromProject
-                                                    ? ' These values were read from the project setup/seed scripts — not platform defaults.'
+                                                    ? ' These values were read from the project setup/seed scripts - not platform defaults.'
                                                     : ' Platform defaults are shown when the ZIP does not declare credentials.'}
                                             </p>
                                             <div className="space-y-3">
@@ -1644,7 +1644,7 @@ const TeacherProposalStudentDetail = () => {
                                                     <code className="bg-white px-1 rounded text-[11px]">{sess.previewApiUrl}</code>
                                                     {sess.apiPortReachable === false && (
                                                         <span className="ml-1 text-rose-700 font-bold">
-                                                            — API still starting; wait a moment before signing in.
+                                                            - API still starting; wait a moment before signing in.
                                                         </span>
                                                     )}
                                                 </p>
@@ -1759,7 +1759,7 @@ const TeacherProposalStudentDetail = () => {
                                                                     : sess.previewWorkspaceCached
                                                                       ? 'Restarting from cached build (usually 30s–2 min)…'
                                                                       : sess.previewTemplateCached
-                                                                        ? 'Using cached Docker template — installing deps (1–5 min)…'
+                                                                        ? 'Using cached Docker template - installing deps (1–5 min)…'
                                                                         : sess.previewStack === 'java-spring-react'
                                                                           ? 'First start: Maven + npm build (5–15 min)…'
                                                                           : sess.previewStack === 'java-spring-thymeleaf'
@@ -1769,7 +1769,7 @@ const TeacherProposalStudentDetail = () => {
                                                     )}
                                                     {running && !previewOpenReady && sess.portReachable === false && (
                                                         <span className="text-sm font-bold text-rose-700">
-                                                            UI port not responding — click Stop, then Start preview again.
+                                                            UI port not responding - click Stop, then Start preview again.
                                                         </span>
                                                     )}
                                                     {running &&
@@ -1777,7 +1777,7 @@ const TeacherProposalStudentDetail = () => {
                                                         sess.portReachable &&
                                                         sess.previewAppReadyReason === 'placeholder_or_empty' && (
                                                             <span className="text-sm font-bold text-amber-800">
-                                                                Student app is still installing in Docker — wait for “Preview ready” in the log.
+                                                                Student app is still installing in Docker - wait for “Preview ready” in the log.
                                                             </span>
                                                         )}
                                                     {running &&
@@ -1785,10 +1785,10 @@ const TeacherProposalStudentDetail = () => {
                                                         sess.apiPortReachable === false && (
                                                             <span className="text-sm font-bold text-rose-700">
                                                                 {sess.previewStack === 'java-spring-react'
-                                                                    ? `Spring API on :${sess.previewApiHostPort} is not ready — login will fail until it listens. Wait for Maven (first start) or Stop + Start preview so H2 is rebuilt into the jar. Check session logs for DIAGNOSIS.`
+                                                                    ? `Spring API on :${sess.previewApiHostPort} is not ready - login will fail until it listens. Wait for Maven (first start) or Stop + Start preview so H2 is rebuilt into the jar. Check session logs for DIAGNOSIS.`
                                                                     : sess.previewStack === 'node-js-mysql'
-                                                                      ? `Student API on :${sess.previewApiHostPort} not ready — wait for MySQL sidecar / Express (not MongoDB).`
-                                                                      : `Student API on :${sess.previewApiHostPort} not ready — wait for Express API or check MongoDB sidecar.`}
+                                                                      ? `Student API on :${sess.previewApiHostPort} not ready - wait for MySQL sidecar / Express (not MongoDB).`
+                                                                      : `Student API on :${sess.previewApiHostPort} not ready - wait for Express API or check MongoDB sidecar.`}
                                                             </span>
                                                         )}
                                                     {previewOpenReady ? (

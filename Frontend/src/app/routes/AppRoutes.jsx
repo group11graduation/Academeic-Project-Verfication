@@ -67,7 +67,7 @@ const AppRoutes = () => {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Admin — nested layout matches pattern used in AdminRoutes (Outlet inside AdminLayout) */}
+            {/* Admin - nested layout matches pattern used in AdminRoutes (Outlet inside AdminLayout) */}
             <Route
                 path="/admin/*"
                 element={
@@ -77,7 +77,7 @@ const AppRoutes = () => {
                 }
             />
 
-            {/* Teacher — nested routes + DashboardLayout Outlet (fixes index route under /teacher) */}
+            {/* Teacher - nested routes + DashboardLayout Outlet (fixes index route under /teacher) */}
             <Route
                 path="/teacher"
                 element={
@@ -110,7 +110,7 @@ const AppRoutes = () => {
                 <Route path="profile" element={<TeacherMyProfile />} />
             </Route>
 
-            {/* Student app — sidebar + Outlet */}
+            {/* Student app - sidebar + Outlet */}
             <Route
                 path="/student"
                 element={

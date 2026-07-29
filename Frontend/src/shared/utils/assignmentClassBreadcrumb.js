@@ -17,7 +17,7 @@ export function resolveAssignmentClassCrumb(assignment) {
 
   const code = String(primary.code || '').trim();
   const name = String(primary.name || '').trim();
-  const label = [code, name].filter(Boolean).join(' — ') || 'Class';
+  const label = [code, name].filter(Boolean).join(' - ') || 'Class';
 
   return {
     id,

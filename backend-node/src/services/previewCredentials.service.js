@@ -88,7 +88,7 @@ function isPlatformPlaceholderCredential(email, password) {
 function parseSeedScriptCredentials(content) {
   const text = String(content || '');
 
-  // Prefer plain passwords from bcrypt.hash('password123', 12) — common in seedUsers().
+  // Prefer plain passwords from bcrypt.hash('password123', 12) - common in seedUsers().
   const hashPass =
     text.match(/bcrypt(?:js)?\.hash\(\s*["']([^"']{3,64})["']/i)?.[1]?.trim() ||
     text.match(/\.hash\(\s*["']([^"']{3,64})["']\s*,\s*(?:8|10|12|saltRounds)/i)?.[1]?.trim() ||
@@ -223,7 +223,7 @@ export async function discoverSeedScriptCredentials(extractDir) {
 }
 
 const LOGIN_FORM_FIELD_RULES = [
-  // Strong HTML/JS signals first — weak /username/i must not beat type="email".
+  // Strong HTML/JS signals first - weak /username/i must not beat type="email".
   {
     type: 'email',
     label: 'Email',
@@ -268,7 +268,7 @@ const LOGIN_FORM_FIELD_RULES = [
     score: 40,
     patterns: [/name\s*=\s*["']id["']/i, /\bidentifier\b/i],
   },
-  // Weak fallbacks (last resort — many apps mention "username" in copy without using it)
+  // Weak fallbacks (last resort - many apps mention "username" in copy without using it)
   { type: 'email', label: 'Email', score: 20, patterns: [/\bemail address\b/i, /\bemail\b/i] },
   { type: 'username', label: 'Username', score: 15, patterns: [/\busername\b/i] },
 ];
@@ -637,7 +637,7 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
   }
 
   const phpAdmin = await discoverPhpAdminCredentials(extractDir);
-  // PHP setup credentials are one paired match — never bolt on an unrelated UI email.
+  // PHP setup credentials are one paired match - never bolt on an unrelated UI email.
   if (phpAdmin.username && phpAdmin.password) {
     username = phpAdmin.username;
     password = phpAdmin.password;
@@ -726,7 +726,7 @@ export async function discoverPreviewCredentialsFromExtract(extractDir, { loginP
         /* ignore */
       }
     }
-    // UI-documented staff login wins over .env / platform placeholders — but not over a PHP pair.
+    // UI-documented staff login wins over .env / platform placeholders - but not over a PHP pair.
     if (!phpPairLocked && uiEmail && uiPassword) {
       email = uiEmail;
       password = uiPassword;
@@ -988,7 +988,7 @@ export function resolvePreviewLoginCredentials({
     password &&
     !isPlatformPlaceholderCredential(discovered.phpUsername, password)
   ) {
-    // One PHP setup match owns the identity — do not mix with unrelated UI emails.
+    // One PHP setup match owns the identity - do not mix with unrelated UI emails.
     username = discovered.phpUsername;
     if (looksLikeEmail(username)) {
       email = username;
@@ -1052,7 +1052,7 @@ export function resolvePreviewLoginCredentials({
     username = defaults.username;
     hint =
       hint ||
-      'Uses preview defaults for both email and username — enter whichever the student login form asks for.';
+      'Uses preview defaults for both email and username - enter whichever the student login form asks for.';
   }
 
   if (!hint) {
@@ -1139,7 +1139,7 @@ export async function buildPreviewLoginCredentials({
 
 /**
  * Env vars injected into preview containers (many student apps read different names).
- * Uses the SAME coherent set shown to the teacher — never invent previewadmin beside a project password.
+ * Uses the SAME coherent set shown to the teacher - never invent previewadmin beside a project password.
  */
 export function buildPreviewCredentialEnvVars({
   email,

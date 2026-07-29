@@ -255,7 +255,7 @@ const GroupManagement = () => {
                             <p className="mb-1">Rejected student IDs (not on class roster or duplicate row):</p>
                             <ul className="list-disc pl-5 space-y-0.5 font-mono text-xs">
                                 {importSummary.rejectedStudentRows.slice(0, 30).map((r, i) => (
-                                    <li key={i}>{r.studentId} — {r.reason} {r.groupName ? `(group: ${r.groupName})` : ''}</li>
+                                    <li key={i}>{r.studentId} - {r.reason} {r.groupName ? `(group: ${r.groupName})` : ''}</li>
                                 ))}
                             </ul>
                             {importSummary.rejectedStudentRows.length > 30 && (

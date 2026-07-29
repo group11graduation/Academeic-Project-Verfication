@@ -21,7 +21,7 @@ function InfoRow({ label, value }) {
         >
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
             <span className="text-sm font-bold text-slate-800 dark:text-slate-100 break-words text-right sm:text-left">
-                {value ?? '—'}
+                {value ?? '-'}
             </span>
         </div>
     );
@@ -37,7 +37,7 @@ function proposalStatusLabel(status) {
         teacher_rejected: 'Rejected',
         revision_required: 'Revision required',
         requirements_rejected: 'Requirements rejected',
-        requirements_review: 'Requirements — teacher review',
+        requirements_review: 'Requirements - teacher review',
         ai_rejected_same_semester: 'Similarity rejected',
         ai_flagged_previous_semester: 'Flagged (previous term)',
     };

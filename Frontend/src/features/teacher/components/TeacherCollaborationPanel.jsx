@@ -188,7 +188,7 @@ const TeacherCollaborationPanel = ({
 
     const inviteCollapsedSummary = useMemo(() => {
         if (draftActive) {
-            return 'Assignment draft in progress — expand only if you need to invite another co-teacher.';
+            return 'Assignment draft in progress - expand only if you need to invite another co-teacher.';
         }
         if (accepted.length > 0) {
             const names = accepted.map((r) => r.partner?.name || r.partner?.email).filter(Boolean);
@@ -204,7 +204,7 @@ const TeacherCollaborationPanel = ({
             ]
                 .filter(Boolean)
                 .join(' · ');
-            return `Request sent to ${name}${meta ? ` (${meta})` : ''} — waiting for acceptance.`;
+            return `Request sent to ${name}${meta ? ` (${meta})` : ''} - waiting for acceptance.`;
         }
         return 'Invite form hidden. Expand to send another collaboration request.';
     }, [accepted, outgoing, draftActive]);
@@ -327,7 +327,7 @@ const TeacherCollaborationPanel = ({
                 </p>
                 <p className="mt-0.5">
                     You can partner with <strong>many teachers</strong> (one partnership each). Each partner gets their own assignment draft.
-                    <strong> Delete draft</strong> only removes assignment work — partnerships and requests stay unless you cancel or end them.
+                    <strong> Delete draft</strong> only removes assignment work - partnerships and requests stay unless you cancel or end them.
                 </p>
             </div>
 
@@ -364,13 +364,13 @@ const TeacherCollaborationPanel = ({
                             <div className="rounded-md border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/40 p-2 space-y-2">
                                 <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">From their request</p>
                                 <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                                    Class: <strong>{row.class?.code || '—'}</strong>
-                                    {row.class?.name ? ` — ${row.class.name}` : ''}
+                                    Class: <strong>{row.class?.code || '-'}</strong>
+                                    {row.class?.name ? ` - ${row.class.name}` : ''}
                                 </p>
                                 <p className="text-[10px] text-slate-600 dark:text-slate-400">
                                     Their role: <strong>{roleLabel(row.requesterRole)}</strong>
                                     {requesterSubject?.code ? (
-                                        <> · Their subject: <strong>{requesterSubject.code} — {requesterSubject.name}</strong></>
+                                        <> · Their subject: <strong>{requesterSubject.code} - {requesterSubject.name}</strong></>
                                     ) : null}
                                 </p>
                             </div>
@@ -411,7 +411,7 @@ const TeacherCollaborationPanel = ({
                                         >
                                             {acceptSubjects.map((s) => (
                                                 <option key={String(s._id)} value={String(s._id)}>
-                                                    {s.code} — {s.name}
+                                                    {s.code} - {s.name}
                                                 </option>
                                             ))}
                                         </select>
@@ -460,7 +460,7 @@ const TeacherCollaborationPanel = ({
                                 <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
                                     {row.partner?.name || row.partner?.email}
                                 </p>
-                                <p className="text-[10px] text-slate-500">Pending — they need to accept</p>
+                                <p className="text-[10px] text-slate-500">Pending - they need to accept</p>
                                 {renderRequestMeta(row)}
                             </div>
                             <button
@@ -547,7 +547,7 @@ const TeacherCollaborationPanel = ({
                 {inviteFormOpen && (
             <form onSubmit={handleSendRequest} className="px-3 pb-3 pt-0 space-y-2.5 border-t border-indigo-200/60 dark:border-indigo-900/30">
                 <p className="text-[10px] text-slate-600 dark:text-slate-400 pt-2">
-                    Choose class and your subject role. Collaboration requires one Frontend teacher and one Backend teacher in the same class — not two frontend or two backend subjects.
+                    Choose class and your subject role. Collaboration requires one Frontend teacher and one Backend teacher in the same class - not two frontend or two backend subjects.
                 </p>
                 {catalog.length === 0 ? (
                     <p className="text-[11px] text-slate-500">No classes assigned yet. Ask admin to assign you to a class first.</p>
@@ -566,7 +566,7 @@ const TeacherCollaborationPanel = ({
                             >
                                 {catalog.map((row) => (
                                     <option key={String(row.class?._id)} value={String(row.class?._id)}>
-                                        {row.class?.code} — {row.class?.name}
+                                        {row.class?.code} - {row.class?.name}
                                     </option>
                                 ))}
                             </select>
@@ -602,7 +602,7 @@ const TeacherCollaborationPanel = ({
                                 <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={Z_INPUT}>
                                     {subjectsForRole.map((s) => (
                                         <option key={String(s._id)} value={String(s._id)}>
-                                            {s.code} — {s.name}
+                                            {s.code} - {s.name}
                                         </option>
                                     ))}
                                 </select>
@@ -616,7 +616,7 @@ const TeacherCollaborationPanel = ({
                                     <option key={String(t._id)} value={String(t._id)}>
                                         {t.name || t.email}
                                         {t.email ? ` (${t.email})` : ''}
-                                        {t.collaborationStatus === 'declined' ? ' — previously declined' : ''}
+                                        {t.collaborationStatus === 'declined' ? ' - previously declined' : ''}
                                     </option>
                                 ))}
                             </select>
@@ -626,7 +626,7 @@ const TeacherCollaborationPanel = ({
                             type="text"
                             value={requestNotes}
                             onChange={(e) => setRequestNotes(e.target.value)}
-                            placeholder="Optional message (e.g. Joint capstone — I handle frontend, you handle backend)"
+                            placeholder="Optional message (e.g. Joint capstone - I handle frontend, you handle backend)"
                             className={Z_INPUT}
                         />
                         <button

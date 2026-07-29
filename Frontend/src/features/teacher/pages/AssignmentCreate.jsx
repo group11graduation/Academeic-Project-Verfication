@@ -173,7 +173,7 @@ const AssignmentCreate = () => {
     const formatClassLabel = (row) => {
         const semester = row.semester?.name || 'Semester';
         const year = row.academicYear?.label || 'Year';
-        return `${row.class?.code || row.class?.name} — ${row.class?.name || 'Class'} (${semester}, ${year})`;
+        return `${row.class?.code || row.class?.name} - ${row.class?.name || 'Class'} (${semester}, ${year})`;
     };
 
     const selectedSubject = useMemo(() => {
@@ -441,7 +441,7 @@ const AssignmentCreate = () => {
                         {isNormal ? (
                             <div className="rounded-lg border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/25 p-3 space-y-3">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-[#2a3fa4] dark:text-blue-300">
-                                    Normal assignment — requirements only
+                                    Normal assignment - requirements only
                                 </p>
                                 <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 -mt-1">
                                     Students upload one file per assignment. Use the fields below for what they must submit; other proposal/project options are hidden.
@@ -482,7 +482,7 @@ const AssignmentCreate = () => {
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
                                         required
-                                        placeholder="e.g. Homework 3 — Linear regression"
+                                        placeholder="e.g. Homework 3 - Linear regression"
                                         className={Z_INPUT}
                                     />
                                 </div>
@@ -661,7 +661,7 @@ const AssignmentCreate = () => {
                                     />
                                     <div className="mt-2 flex flex-wrap items-center gap-3">
                                         <p className="text-xs text-slate-500">
-                                            If you attach a file, typed requirements and keyword filters are hidden—students follow the document.
+                                            If you attach a file, typed requirements and keyword filters are hidden-students follow the document.
                                         </p>
                                         {hasExistingRequirementsFile && (
                                             <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">

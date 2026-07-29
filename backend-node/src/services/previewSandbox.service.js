@@ -230,7 +230,7 @@ export async function reconcileStalePreviewSession(sessionId) {
             'Preview did not finish starting (container stopped). Click Start preview again and check the log below.';
       session.endedAt = new Date();
       if (!lastError) {
-        appendLog(session, 'warn', 'Cleared stale starting session — no running container.');
+        appendLog(session, 'warn', 'Cleared stale starting session - no running container.');
       }
       await session.save();
       return session;
@@ -542,7 +542,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
           appendLog(
             session,
             'warn',
-            `Spring API on :${deployResult.apiHostPort} is still starting (Maven may take several minutes). Wait, then try login — check /tmp/preview-spring.log in the container if it stays down.`
+            `Spring API on :${deployResult.apiHostPort} is still starting (Maven may take several minutes). Wait, then try login - check /tmp/preview-spring.log in the container if it stays down.`
           );
           const springTail = await dockerOrchestrator
             .execInPreviewContainer(
@@ -655,7 +655,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
                   .join(' or ');
                 session.previewLoginHint = previewLoginVerify.mergePreviewLoginRouteHint(
                   session.previewLoginHint,
-                  `Platform admin login returned 401 — try project credentials shown on the student login page (${tip}).`
+                  `Platform admin login returned 401 - try project credentials shown on the student login page (${tip}).`
                 );
                 const tipCred = fallbackCredentials[0];
                 if (deployResult.containerName && tipCred?.email) {
@@ -759,8 +759,8 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
         session,
         'info',
         thymeleaf
-          ? 'Preview container is still building (Maven can take 10–20 min on first start). Do not click Stop — Open preview unlocks when the app responds on port 8080.'
-          : 'Preview container is still building (npm install + React build + Maven can take 20–30 min on first start). Keep this page open — Open preview will unlock when the UI responds.'
+          ? 'Preview container is still building (Maven can take 10–20 min on first start). Do not click Stop - Open preview unlocks when the app responds on port 8080.'
+          : 'Preview container is still building (npm install + React build + Maven can take 20–30 min on first start). Keep this page open - Open preview will unlock when the UI responds.'
       );
       const springTail = await dockerOrchestrator
         .execInPreviewContainer(
@@ -809,7 +809,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
         appendLog(
           session,
           'warn',
-          `Student API on port ${deployResult.apiHostPort} is still starting — login may fail until the backend is up (${dbHint}).`
+          `Student API on port ${deployResult.apiHostPort} is still starting - login may fail until the backend is up (${dbHint}).`
         );
       }
       if (session.extractDirPath) {
@@ -954,7 +954,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   // Only stop this teacher's prior sessions so co-teachers can preview in parallel.
   await stopActiveSessionsForProposalTeacher(proposal._id, teacherId, docker, { includeStarting: true });
 
-  // Student ZIP hint first, then assignment title — file signals still win when auto-detecting.
+  // Student ZIP hint first, then assignment title - file signals still win when auto-detecting.
   const submissionHint = submission.projectStackHint || null;
   const stackHint = isProjectStackHint(submissionHint)
     ? submissionHint
@@ -993,7 +993,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
         ? {
             level: 'info',
             message:
-              'Reusing cached project workspace (2nd+ start — npm/Maven/build artifacts kept; usually 1–3 min).',
+              'Reusing cached project workspace (2nd+ start - npm/Maven/build artifacts kept; usually 1–3 min).',
           }
         : { level: 'info', message: 'Project type will be detected automatically from ZIP files after extract.' },
     ],
@@ -1048,7 +1048,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       structureAudit.detection?.reasons?.length > 0
         ? ` (${structureAudit.detection.reasons.slice(0, 2).join('; ')})`
         : '';
-    appendLog(session, 'info', `Project structure OK — detected stack: ${structureAudit.stack}${stackReason}.`);
+    appendLog(session, 'info', `Project structure OK - detected stack: ${structureAudit.stack}${stackReason}.`);
 
     const discovered = await previewCredentials.discoverPreviewCredentialsFromExtract(extractDir);
     const login = previewCredentials.resolvePreviewLoginCredentials({
@@ -1179,7 +1179,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   if (deployResult.stack === 'static-html' || deployResult.stack === 'static-html-js') {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
     session.previewLoginHint =
-      `${baseHint}Static web preview — open the URL in Chrome to view the student site (no server login unless their page includes one).`;
+      `${baseHint}Static web preview - open the URL in Chrome to view the student site (no server login unless their page includes one).`;
     appendLog(session, 'info', `Static site preview on port ${deployResult.hostPort}`);
   } else if (deployResult.flutterPair && deployResult.apiHostPort) {
     const baseHint = session.previewLoginHint ? `${session.previewLoginHint} ` : '';
@@ -1225,13 +1225,13 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   const stackName = session.previewStackLabel;
   const stackDisplay =
     deployResult.mernPair?.detectionNote || deployResult.springPair?.detectionNote
-      ? `${stackName} — ${deployResult.mernPair?.detectionNote || deployResult.springPair?.detectionNote}`
+      ? `${stackName} - ${deployResult.mernPair?.detectionNote || deployResult.springPair?.detectionNote}`
       : `${stackName} (${deployResult.stack})`;
 
   appendLog(
     session,
     'info',
-    `Detected project type: ${stackDisplay} — ${deployResult.detectionReason || 'from ZIP files'}`
+    `Detected project type: ${stackDisplay} - ${deployResult.detectionReason || 'from ZIP files'}`
   );
   appendLog(
     session,
@@ -1256,7 +1256,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   }
   await session.save();
 
-  // Return immediately — readiness continues in background (React/Vite installs can take several minutes)
+  // Return immediately - readiness continues in background (React/Vite installs can take several minutes)
   setImmediate(() => {
     finalizePreviewReadiness(session._id, deployResult, extractDir).catch((err) => {
       console.error('preview readiness', err);
@@ -1346,7 +1346,7 @@ async function maybeFailPreviewFromContainerLogs(session) {
 export async function getPreviewSessionForTeacher(teacherId, sessionId) {
   await reconcileStalePreviewSession(sessionId);
 
-  // Use a real Mongoose document — Spring unlock / diagnosis / login-verify all call .save().
+  // Use a real Mongoose document - Spring unlock / diagnosis / login-verify all call .save().
   // A .lean() plain object silently broke "Open preview" (session.save is not a function).
   const session = await PreviewSession.findById(sessionId);
   if (!session) {
@@ -1438,7 +1438,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             stack,
           });
           if (probe.reason === 'placeholder_or_empty') {
-            // Still the install holder page — keep Open preview locked.
+            // Still the install holder page - keep Open preview locked.
             session.previewAppReady = false;
             session.previewAppReadyReason = 'placeholder_or_empty';
             session.previewApiReady = probe.apiReady === true;
@@ -1477,7 +1477,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
               'info',
               session.previewApiReady
                 ? `Preview ready (UI + Spring API) at ${session.previewUrl}.`
-                : `Preview UI ready at ${session.previewUrl}. Spring API on :${apiPort} may still be starting — login can fail until it listens.`
+                : `Preview UI ready at ${session.previewUrl}. Spring API on :${apiPort} may still be starting - login can fail until it listens.`
             );
           }
           await schedulePreviewTtl(session);
@@ -1509,7 +1509,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
               appendLog(
                 session,
                 'warn',
-                `Spring API on :${apiPort} is not listening — login will fail until it starts. Build/runtime log:\n${springTail.trim().slice(-2500)}`
+                `Spring API on :${apiPort} is not listening - login will fail until it starts. Build/runtime log:\n${springTail.trim().slice(-2500)}`
               );
               if (/Cannot load driver class/i.test(springTail)) {
                 appendLog(
@@ -1541,7 +1541,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
           }
         }
 
-        // Spring: API came up later — detect login route then verify credentials.
+        // Spring: API came up later - detect login route then verify credentials.
         if (
           stack === 'java-spring-react' &&
           running &&
@@ -1588,7 +1588,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             appendLog(
               session,
               'warn',
-              `Preview UI is up but Spring login returned ${loginCheck.status || 401} (invalid username/password). Preview seeds previewadmin into H2 when UserService hooks are detected — check /tmp/preview-spring.log if login still fails.`
+              `Preview UI is up but Spring login returned ${loginCheck.status || 401} (invalid username/password). Preview seeds previewadmin into H2 when UserService hooks are detected - check /tmp/preview-spring.log if login still fails.`
             );
           }
           await session.save();

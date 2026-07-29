@@ -186,7 +186,7 @@ const StudentList = () => {
                                 <tbody className="app-table-body">
                                     {filteredAndSortedStudents.map((student, index) => {
                                         const userId = student.userId;
-                                        const displayId = student.studentId || student.id || '—';
+                                        const displayId = student.studentId || student.id || '-';
                                         const photoUrl =
                                             student.photo && student.photo !== 'default-student.jpg'
                                                 ? student.photo.startsWith('http')
@@ -230,7 +230,7 @@ const StudentList = () => {
                                                 <td className="app-table-td hidden md:table-cell">
                                                     <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
                                                         <Mail className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                                                        {student.email || '—'}
+                                                        {student.email || '-'}
                                                     </span>
                                                 </td>
                                                 <td className="app-table-td text-center hidden sm:table-cell">

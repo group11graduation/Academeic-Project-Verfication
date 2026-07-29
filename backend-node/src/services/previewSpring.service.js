@@ -133,7 +133,7 @@ export function springReactDisplayLabel(pair) {
 }
 
 /**
- * Locate a single Spring Boot project root (Thymeleaf / server-rendered — no React frontend).
+ * Locate a single Spring Boot project root (Thymeleaf / server-rendered - no React frontend).
  */
 export async function resolveSpringOnlyRoot(buildContext) {
   const springDirs = [];
@@ -329,7 +329,7 @@ async function patchSpringSecurityCors(root) {
     let content = await fs.readFile(file, 'utf8');
     if (!content.includes('setAllowedOrigins') && !content.includes('setAllowedOriginPatterns')) continue;
     let changed = false;
-    // Preview VPS teachers open UI at http://SERVER:UI_PORT — localhost-only CORS blocks that.
+    // Preview VPS teachers open UI at http://SERVER:UI_PORT - localhost-only CORS blocks that.
     const previewOrigins =
       'setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*", "http://*:*", "https://*:*"))';
     if (/setAllowedOrigins\s*\(\s*List\.of\s*\([^)]*\)\s*\)/.test(content)) {
@@ -445,7 +445,7 @@ async function detectSpringUserSeedHooks(root) {
     userRepoSimple: userRepo?.simple || '',
     userEntityFqn,
     userEntitySimple: 'User',
-    // Default true when PasswordEncoder appears anywhere in UserService — helpers
+    // Default true when PasswordEncoder appears anywhere in UserService - helpers
     // like encodePassword() live outside the saveUser() body and used to be missed.
     serviceEncodesPassword: userService
       ? springSaveUserEncodesPassword(userService.content)
@@ -458,7 +458,7 @@ async function detectSpringUserSeedHooks(root) {
 
 /**
  * True when the student's UserService (or a helper it calls) encodes passwords.
- * Broad match on purpose — false negatives cause double-hash → permanent 401.
+ * Broad match on purpose - false negatives cause double-hash → permanent 401.
  */
 export function springSaveUserEncodesPassword(serviceContent) {
   const content = String(serviceContent || '');
@@ -558,7 +558,7 @@ ${emailLine}${phoneLine}            user.setRole("ROLE_ADMIN");
             boolean ok = loaded != null && loaded.getPassword() != null
                 && passwordEncoder.matches(password, loaded.getPassword());
             if (!ok && loaded != null) {
-                System.out.println("[preview-seed] encoded password did not match — retrying with RAW password (listener/entity may encode)");
+                System.out.println("[preview-seed] encoded password did not match - retrying with RAW password (listener/entity may encode)");
                 loaded.setPassword(password);
                 userRepository.save(loaded);
                 loaded = loadUser(userRepository, username);
@@ -574,7 +574,7 @@ ${emailLine}${phoneLine}            user.setRole("ROLE_ADMIN");
 }
 
 function buildUserServiceSeedJava(hooks, seed, seedEmail) {
-  // Prefer RAW when the service looks like it encodes — then verify via a second
+  // Prefer RAW when the service looks like it encodes - then verify via a second
   // attempt with pre-encoded if we can re-save (exists check skipped on retry by delete pattern).
   // Without a repository we can't reliably re-read; pass RAW when encode helpers exist,
   // otherwise encode here.
@@ -603,7 +603,7 @@ public class ScholarVerifyPreviewSeed {
             String password = System.getenv().getOrDefault("PREVIEW_SEED_PASSWORD", "${seed.password}");
             String email = System.getenv().getOrDefault("PREVIEW_ADMIN_EMAIL", "${seedEmail}");
             if (userService.existsByUsername(username)) {
-                System.out.println("[preview-seed] admin username=" + username + " already exists — leaving as-is");
+                System.out.println("[preview-seed] admin username=" + username + " already exists - leaving as-is");
                 return;
             }
             ${hooks.userEntitySimple} user = new ${hooks.userEntitySimple}();

@@ -17,7 +17,7 @@ export const PROJECT_STACK_HINT_HELP = {
   'node-js':
     'React + Express with MongoDB/Mongoose. Include frontend and backend folders with package.json (e.g. client/ + server/).',
   'node-js-mysql':
-    'React + Express with MySQL (mysql2 / sequelize / prisma mysql — not MongoDB). Include frontend + backend package.json folders. Preview starts a MySQL sidecar automatically.',
+    'React + Express with MySQL (mysql2 / sequelize / prisma mysql - not MongoDB). Include frontend + backend package.json folders. Preview starts a MySQL sidecar automatically.',
   'java-spring-react':
     'React + Spring Boot only (not Express). Include Spring Boot backend (pom.xml or build.gradle) and React frontend (package.json) as sibling folders in the ZIP.',
   'java-spring-thymeleaf':

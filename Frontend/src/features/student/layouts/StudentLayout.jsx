@@ -37,7 +37,7 @@ const StudentLayout = () => (
     </ShellSearchProvider>
 );
 
-/** Authenticated student shell — edge-attached sidebar + curved top-right corner. */
+/** Authenticated student shell - edge-attached sidebar + curved top-right corner. */
 const StudentLayoutInner = () => {
     const { pathname } = useLocation();
     const { logout } = useAuth();

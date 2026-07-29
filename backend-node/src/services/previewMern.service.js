@@ -534,8 +534,8 @@ export async function patchBackendForPreview(
 
   const previewEnv = [
     useMysql
-      ? '# ScholarVerify preview — MySQL sidecar (React + Express + MySQL)'
-      : '# ScholarVerify preview — do not use localhost Mongo inside Docker',
+      ? '# ScholarVerify preview - MySQL sidecar (React + Express + MySQL)'
+      : '# ScholarVerify preview - do not use localhost Mongo inside Docker',
     'PORT=5050',
     'HOST=0.0.0.0',
     `JWT_SECRET=${jwtSecret}`,
@@ -603,7 +603,7 @@ export async function patchBackendForPreview(
   const corsFix = await installPreviewCorsFix(extractDir, backendSubdir);
   files += corsFix.files || 0;
 
-  // Remove legacy Express login aliases — they shadowed real routes (SYADA /auth/login),
+  // Remove legacy Express login aliases - they shadowed real routes (SYADA /auth/login),
   // poisoned route probes, and caused "Route not found" / empty-body 400s.
   // Login path fixes now use: source discovery + live probe + frontend rewrite + browser fallback.
   const removed = await removePreviewLoginPathAliases(extractDir, backendSubdir);
@@ -705,7 +705,7 @@ async function patchDbNoExitOnPreviewFail(backendRoot, engine = 'mongo', depth =
       const needle = 'process.exit(1);';
       const dbLabel = engine === 'mysql' ? 'MySQL' : 'MongoDB';
       const replacement = `if (process.env.PREVIEW_SANDBOX === '1') {
-    console.warn('[preview] ${dbLabel} unavailable — API stays up; check sidecar / env');
+    console.warn('[preview] ${dbLabel} unavailable - API stays up; check sidecar / env');
     return;
   }
   process.exit(1);`;
@@ -750,7 +750,7 @@ async function walkRelaxCors(dir, depth = 0) {
       /origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*\|\|\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]/g,
       'origin: true'
     );
-    // cors({ origin: process.env.CLIENT_URL }) without fallback — still open in preview.
+    // cors({ origin: process.env.CLIENT_URL }) without fallback - still open in preview.
     content = content.replace(
       /cors\(\s*\{\s*origin\s*:\s*process\.env\.(?:CLIENT_URL|FRONTEND_URL|CORS_ORIGIN|ALLOWED_ORIGIN)\s*,/g,
       'cors({ origin: true,'
@@ -888,7 +888,7 @@ async function walkReplaceLoginPaths(dir, confirmedPath, { depth = 0 } = {}) {
       files += sub.files;
       continue;
     }
-    // Never rewrite ScholarVerify inject helpers — PATHS[] literals were being
+    // Never rewrite ScholarVerify inject helpers - PATHS[] literals were being
     // collapsed to one wrong route and broke the login fallback.
     if (
       /preview-login-fallback/i.test(entry.name) ||
@@ -998,7 +998,7 @@ function injectCorsFixRequire(content, requirePath) {
     line = `try { require(${JSON.stringify(requirePath)}).installPreviewCorsFix(app); } catch (_sv) { /* ${CORS_FIX_MARKER} */ }\n`;
   }
 
-  // Install as early as possible — before student cors() — so setHeader wrap wins.
+  // Install as early as possible - before student cors() - so setHeader wrap wins.
   const expressAppRe = /(const|let|var)\s+app\s*=\s*express\s*\(\s*\)\s*;?/;
   if (expressAppRe.test(next)) {
     return { content: next.replace(expressAppRe, (m) => `${m}\n${line}`), changed: true };
@@ -1053,7 +1053,7 @@ const LOGIN_ALIAS_MARKER_LEGACY = 'scholarverify-preview-login-aliases';
 function buildLoginAliasModule(realPath) {
   const real = String(realPath || '').replace(/\\/g, '/');
   const allPaths = [...LOGIN_PATH_REWRITE_CANDIDATES];
-  return `/* ${LOGIN_ALIAS_MARKER} — auto-injected for ScholarVerify preview */
+  return `/* ${LOGIN_ALIAS_MARKER} - auto-injected for ScholarVerify preview */
 'use strict';
 const http = require('http');
 const { execFileSync } = require('child_process');
@@ -1160,9 +1160,9 @@ function installPreviewLoginAliases(app) {
   }
 
   const handlers = [];
-  // Do NOT run a second express.json() here — it can race/consume the body and
+  // Do NOT run a second express.json() here - it can race/consume the body and
   // leave req.body empty for fallthrough handlers (SYADA "Empty body" 400).
-  // IMPORTANT: must accept next — when this path IS the real login route (e.g. SYADA
+  // IMPORTANT: must accept next - when this path IS the real login route (e.g. SYADA
   // POST /auth/login), we must fall through instead of swallowing it with 404.
   handlers.push(async (req, res, next) => {
     // Proxied follow-up: do not re-enter alias logic; let the project's handler run.
@@ -1210,7 +1210,7 @@ function installPreviewLoginAliases(app) {
     }
 
     // Only treat these as "a real login handler answered". A 400 from a wrong
-    // candidate (or empty-body validator) must NOT stop the search — that was
+    // candidate (or empty-body validator) must NOT stop the search - that was
     // returning SYADA's "Empty body" error from a non-canonical path.
     const AUTH_HIT = new Set([200, 201, 204, 401, 403, 422]);
     for (const path of ordered) {
@@ -1223,12 +1223,12 @@ function installPreviewLoginAliases(app) {
       if (result.headers['content-type']) res.setHeader('Content-Type', result.headers['content-type']);
       return res.send(normalizeLoginJsonBuffer(result.body, result.status));
     }
-    // No alternate worked — fall through to the project's own handler on this path.
+    // No alternate worked - fall through to the project's own handler on this path.
     console.log('[preview] login alias ' + incoming + ' → fallthrough to app handler');
     return next();
   });
   for (const alias of CANDIDATES) {
-    // Never mount an alias on the confirmed real login path — that would shadow
+    // Never mount an alias on the confirmed real login path - that would shadow
     // the student handler (exact bug that caused SYADA "Route not found").
     if (PREFERRED && alias === PREFERRED) continue;
     app.post(alias, ...handlers);
@@ -1333,11 +1333,11 @@ async function findExpressEntryFiles(backendRoot) {
 /**
  * Mount POST aliases for common wrong login paths onto the real Express route
  * (e.g. /auth/login → /api/auth/login) so student UIs stop getting "Route not found".
- * @deprecated Prefer removePreviewLoginPathAliases — aliases shadowed real routes.
+ * @deprecated Prefer removePreviewLoginPathAliases - aliases shadowed real routes.
  */
 export async function installPreviewLoginPathAliases(extractDir, backendSubdir, realLoginPath) {
   const real = String(realLoginPath || '').trim();
-  // Allow empty real path — smart aliases still try every common candidate.
+  // Allow empty real path - smart aliases still try every common candidate.
   if (real === '/login') return { files: 0, realPath: real };
   const backendRoot = path.join(extractDir, backendSubdir || '');
   if (!(await pathExists(backendRoot))) return { files: 0, realPath: real };
@@ -1419,7 +1419,7 @@ export async function patchFrontendApiPort(
 
   const envLocal = path.join(frontendRoot, '.env.local');
   const envBlock = [
-    '# ScholarVerify preview — API reachable from teacher browser',
+    '# ScholarVerify preview - API reachable from teacher browser',
     `VITE_API_URL=${targetApiUrl}`,
     `REACT_APP_API_URL=${targetApiUrl}`,
     `VITE_API_BASE_URL=${targetApiUrl}`,
@@ -1515,7 +1515,7 @@ export function preferLoginApiPath(discoveredPaths = []) {
 
 /**
  * Scan backend route files for login POST paths (e.g. /api/users/login).
- * Returns ONLY paths found in source — do not seed defaults (that falsely preferred /api/auth/login).
+ * Returns ONLY paths found in source - do not seed defaults (that falsely preferred /api/auth/login).
  */
 export async function discoverLoginApiPaths(extractDir, backendSubdir = '') {
   const backendRoot = backendSubdir

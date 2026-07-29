@@ -112,7 +112,7 @@ function formatTechList(list) {
   return canonicalizeTechList(list).join(', ');
 }
 
-/** What students must mention — teacher-stated stack first, subject only as fallback. */
+/** What students must mention - teacher-stated stack first, subject only as fallback. */
 export function resolveRequiredTechnologiesForProposal(assignment, block) {
   const allowedTechnologies = toList(block?.allowedTechnologies);
   const requirementText = String(block?.requirementText || '').trim();

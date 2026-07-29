@@ -15,7 +15,7 @@ const MAX_CHARS = Number(process.env.AI_REQUIREMENT_FILE_MAX_CHARS || 12000);
  * - absolute paths under the real upload root
  *
  * IMPORTANT: DB paths often look like `/uploads/...`. On both Windows and Linux,
- * `path.isAbsolute('/uploads/...')` is true, so we must NOT treat those as OS roots —
+ * `path.isAbsolute('/uploads/...')` is true, so we must NOT treat those as OS roots -
  * they are web paths relative to UPLOAD_DIR.
  */
 export function resolveRequirementFilePath(fileRef) {
@@ -97,7 +97,7 @@ export async function extractRequirementFileText(fileRef) {
       );
       return '';
     }
-    // Unknown binary — try utf8 as last resort (may be empty garbage).
+    // Unknown binary - try utf8 as last resort (may be empty garbage).
     const raw = await fs.readFile(abs, 'utf8').catch(() => '');
     return String(raw || '').trim().slice(0, MAX_CHARS);
   } catch (e) {

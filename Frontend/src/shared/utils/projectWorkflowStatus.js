@@ -77,7 +77,7 @@ export function getProjectTeacherFeedbackEntries(row) {
   return entries;
 }
 
-/** @deprecated use getProjectTeacherFeedbackEntries — first/merged entry for simple badges */
+/** @deprecated use getProjectTeacherFeedbackEntries - first/merged entry for simple badges */
 export function getProjectTeacherFeedback(row) {
   const entries = getProjectTeacherFeedbackEntries(row);
   if (!entries.length) return null;
@@ -136,7 +136,7 @@ export function getProjectWorkflowStatus(row) {
       stage: 'ready',
       label: 'Ready to submit',
       tone: 'blue',
-      description: 'Proposal approved — upload your project ZIP.',
+      description: 'Proposal approved - upload your project ZIP.',
     };
   }
   if (
@@ -190,10 +190,10 @@ export function getWorkflowBadgeClasses(tone) {
 }
 
 export function formatWorkflowDate(value) {
-  if (!value) return '—';
+  if (!value) return '-';
   try {
     return new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' });
   } catch {
-    return '—';
+    return '-';
   }
 }

@@ -19,7 +19,7 @@ const adminUserService = {
         return { success: true, data: mapped };
     },
 
-    /** POST /admin/admins — { name, email, username?, password | passcode } */
+    /** POST /admin/admins - { name, email, username?, password | passcode } */
     async createAdmin(body) {
         const res = await api.post('/admin/admins', body);
         return res.data;

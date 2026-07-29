@@ -205,7 +205,7 @@ function buildDescriptionMismatchReason(consistencyRaw) {
     typeof score === 'number' && Number.isFinite(score) ? ` (${Math.round(score * 100)}% match)` : '';
   return (
     `This ZIP does not match your approved proposal description${pct}. ` +
-    'Upload the project that implements what you proposed — same technology alone is not enough.'
+    'Upload the project that implements what you proposed - same technology alone is not enough.'
   );
 }
 
@@ -294,7 +294,7 @@ function significantTitlePhrases(title) {
 
 /**
  * Score only ZIP identity surfaces (filename + package name) against a known title.
- * Do NOT use README/proposal body — that confuses "already exists" with "related topic".
+ * Do NOT use README/proposal body - that confuses "already exists" with "related topic".
  */
 function scoreAgainstZipIdentity({ title, zipLower, zipSlug }) {
   const titleTrim = String(title || '').trim();
@@ -308,7 +308,7 @@ function scoreAgainstZipIdentity({ title, zipLower, zipSlug }) {
   if (titleLower.length >= 8 && zipLower.includes(titleLower)) score = Math.max(score, 0.95);
   if (titleSlug.length >= 10 && zipSlug.includes(titleSlug)) score = Math.max(score, 0.95);
 
-  // Significant phrases (building+management) — typo tolerant
+  // Significant phrases (building+management) - typo tolerant
   const phrases = significantTitlePhrases(titleTrim);
   const phraseHits = phrases.filter((p) => wordMatchesZip(p, zipLower, zipSlug) || zipSlug.includes(p)).length;
   if (phraseHits >= 1 && phrases.length >= 1) {
@@ -335,7 +335,7 @@ function scoreAgainstZipIdentity({ title, zipLower, zipSlug }) {
 }
 
 /**
- * Fast legacy / prior-work match (no AI) — runs BEFORE description/keyword gate.
+ * Fast legacy / prior-work match (no AI) - runs BEFORE description/keyword gate.
  * Only strong title identity → "already exists". Unrelated ZIPs must fall through
  * to the functionality gate → "not related to your proposal".
  */
@@ -350,7 +350,7 @@ async function findLegacyProjectMatch({
     .replace(/\.zip$/i, '')
     .replace(/[-_]+/g, ' ');
   const packageId = String(evidence?.package_identity || '').trim();
-  // Identity only — never full README (avoids mixing prior uploads / topic overlap)
+  // Identity only - never full README (avoids mixing prior uploads / topic overlap)
   const identityText = [nameHint, packageId].filter(Boolean).join('\n');
   if (!identityText.trim() || identityText.trim().length < 4) return null;
 
@@ -390,7 +390,7 @@ async function findLegacyProjectMatch({
     });
   }
 
-  // --- 2) Other approved proposals (same subject) — title identity only ---
+  // --- 2) Other approved proposals (same subject) - title identity only ---
   if (subjectId) {
     const assignmentIds = await Assignment.find({ subject: subjectId }).select('_id').limit(200).lean();
     const ids = assignmentIds.map((a) => a._id);
@@ -574,7 +574,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       throw extractErr;
     }
 
-    // 2) Rule-based tech match — hard-capped (stack scan can be slow on huge trees)
+    // 2) Rule-based tech match - hard-capped (stack scan can be slow on huge trees)
     let techMatch;
     try {
       techMatch = await withDeadline(
@@ -635,7 +635,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
 
     // 3) Fast local gates: hash → light evidence → legacy (before description) → keyword.
-    // AI is OFF by default — never blocks upload.
+    // AI is OFF by default - never blocks upload.
     const declaredTech = approvedTechnologiesForProposal(assignment, proposal);
     const consistencyEnabled = isConsistencyCheckEnabled();
     let detectedTech = [...(techMatch.zipTech || [])];
@@ -691,7 +691,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // Light ZIP identity (README / package.json) — used by legacy gate first, then description gate
+    // Light ZIP identity (README / package.json) - used by legacy gate first, then description gate
     try {
       evidence = await withDeadline(
         buildLightFunctionalityEvidence(auditDir),
@@ -723,7 +723,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     if (legacyHit) {
       const ownerBit = legacyHit.ownerLabel ? ` (${legacyHit.ownerLabel})` : '';
       const reason =
-        `REJECTED — already exists in the system: this ZIP matches "${legacyHit.title}"${ownerBit}. ` +
+        `REJECTED - already exists in the system: this ZIP matches "${legacyHit.title}"${ownerBit}. ` +
         'Do not upload a legacy or another student’s project. Upload your own work for your approved proposal.';
       const consistencyCheck = normalizeConsistencyCheck(null, { needsReview: false });
       const saved = await upsertSubmissionRecord({
@@ -765,7 +765,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // Option 1 — Keyword / feature overlap (only after legacy check passes)
+    // Option 1 - Keyword / feature overlap (only after legacy check passes)
     if (isFunctionalityMatchEnabled()) {
       const functionality = scoreProposalZipFunctionality({
         proposal,
@@ -915,7 +915,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       String(consistencyRaw?.overall_verdict || '').toLowerCase() === 'needs_review';
     const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview });
 
-    // ACCEPT — rename staging → permanent project-code/
+    // ACCEPT - rename staging → permanent project-code/
     const relDir = path.join('project-code', String(proposal._id));
     const destDir = path.join(uploadsRoot, relDir);
     await fs.mkdir(destDir, { recursive: true });
@@ -1021,7 +1021,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
           techMatch.message ||
           (needsReview
             ? consistencyTimedOut
-              ? 'Project ZIP saved. Description AI check timed out — flagged for teacher review.'
+              ? 'Project ZIP saved. Description AI check timed out - flagged for teacher review.'
               : 'Project ZIP saved but flagged for teacher review.'
             : isUpdate
               ? 'Project ZIP updated. Your teacher was notified.'

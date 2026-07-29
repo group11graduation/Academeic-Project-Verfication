@@ -214,7 +214,7 @@ const ProjectsOverview = () => {
         const group = teamEditorGroups.find((row) => row.id === groupId);
         const ok = await appConfirm(
             group?.members?.length
-                ? `Remove ${group.name || 'this team'}? Its students will become unassigned. Click Save teams to apply — they can then be moved or generated into new teams.`
+                ? `Remove ${group.name || 'this team'}? Its students will become unassigned. Click Save teams to apply - they can then be moved or generated into new teams.`
                 : `Remove ${group?.name || 'this empty team'}? Click Save teams to apply.`,
         );
         if (!ok) return;
@@ -534,7 +534,7 @@ const ProjectsOverview = () => {
                             <option value="">Select class</option>
                             {myClasses.map((c) => (
                                 <option key={c.code} value={c.code}>
-                                    {c.code} — {c.title}
+                                    {c.code} - {c.title}
                                 </option>
                             ))}
                         </select>
@@ -598,7 +598,7 @@ const ProjectsOverview = () => {
                     {importPreview && (
                         <div className="md:col-span-2 rounded-lg border border-blue-200 dark:border-blue-900/40 bg-blue-50/80 dark:bg-blue-950/25 p-3 text-[12px]">
                             <p className="font-black text-slate-800 dark:text-slate-100 mb-1">
-                                Preview ready — {importPreview.proposedGroups?.length ?? 0} team(s),{' '}
+                                Preview ready - {importPreview.proposedGroups?.length ?? 0} team(s),{' '}
                                 {(importPreview.proposedGroups || []).reduce((n, g) => n + (g.members?.length || 0), 0)} roster row(s). Nothing is saved until you apply.
                             </p>
                             {(importPreview.rejectedStudentRows?.length ?? 0) > 0 && (
@@ -606,7 +606,7 @@ const ProjectsOverview = () => {
                                     <p className="mb-1">Would be skipped (not on roster or duplicate in file):</p>
                                     <ul className="max-h-28 overflow-y-auto list-disc pl-4 font-mono">
                                         {importPreview.rejectedStudentRows.slice(0, 20).map((r, i) => (
-                                            <li key={i}>{r.studentId} — {r.reason}</li>
+                                            <li key={i}>{r.studentId} - {r.reason}</li>
                                         ))}
                                     </ul>
                                     {importPreview.rejectedStudentRows.length > 20 && (
@@ -621,7 +621,7 @@ const ProjectsOverview = () => {
                             )}
                             {!(importPreview.proposedGroups?.length > 0) && (
                                 <p className="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">
-                                    No teams to save — every row was skipped or invalid. Fix the file and preview again.
+                                    No teams to save - every row was skipped or invalid. Fix the file and preview again.
                                 </p>
                             )}
                             <div className="mt-4 flex flex-wrap gap-2">
@@ -658,7 +658,7 @@ const ProjectsOverview = () => {
                                     <p className="mb-1">Rejected (not on roster or duplicate):</p>
                                     <ul className="max-h-28 overflow-y-auto list-disc pl-4 font-mono">
                                         {importSummary.rejectedStudentRows.slice(0, 20).map((r, i) => (
-                                            <li key={i}>{r.studentId} — {r.reason}</li>
+                                            <li key={i}>{r.studentId} - {r.reason}</li>
                                         ))}
                                     </ul>
                                     {importSummary.rejectedStudentRows.length > 20 && (
@@ -920,7 +920,7 @@ const ProjectsOverview = () => {
                         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4 dark:border-white/10">
                             <div>
                                 <h2 className="text-base font-black text-slate-900 dark:text-white">
-                                    Edit class teams — {createForm.classCode}
+                                    Edit class teams - {createForm.classCode}
                                 </h2>
                                 <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                                     Rename teams, move students, and choose leaders. Existing assignment/project groups remain unchanged; these teams are used for future assignments.
@@ -947,7 +947,7 @@ const ProjectsOverview = () => {
                                     <div className="grid gap-3 md:grid-cols-2">
                                         {teamEditorGroups.length === 0 ? (
                                             <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs font-medium text-slate-400 md:col-span-2 dark:border-white/10">
-                                                No teams — add a team, or assign students below. Click Save teams to clear all class teams permanently.
+                                                No teams - add a team, or assign students below. Click Save teams to clear all class teams permanently.
                                             </p>
                                         ) : null}
                                         {teamEditorGroups.map((group) => (
@@ -975,7 +975,7 @@ const ProjectsOverview = () => {
 
                                                 {group.members.length === 0 ? (
                                                     <p className="rounded-lg border border-dashed border-slate-200 p-3 text-center text-xs font-medium text-slate-400 dark:border-white/10">
-                                                        Empty team — move an unassigned student here.
+                                                        Empty team - move an unassigned student here.
                                                     </p>
                                                 ) : (
                                                     <div className="space-y-2">
@@ -1053,7 +1053,7 @@ const ProjectsOverview = () => {
                                             Unassigned students ({editorUnassignedStudents.length})
                                         </h3>
                                         <p className="mt-1 text-[11px] text-amber-800/80 dark:text-amber-200/70">
-                                            Choose an existing team to add the student there, or create a new team for them. Saving updates the original team — it does not copy members into a duplicate group.
+                                            Choose an existing team to add the student there, or create a new team for them. Saving updates the original team - it does not copy members into a duplicate group.
                                         </p>
                                         {editorUnassignedStudents.length > 0 && (
                                             <div className="mt-3 grid gap-2 sm:grid-cols-2">

@@ -1,6 +1,6 @@
 /**
  * Ensure the uploaded project ZIP's detected stack matches the approved proposal / assignment tech.
- * Rule-based (file signals via detectProjectStackWithMeta) — no ML.
+ * Rule-based (file signals via detectProjectStackWithMeta) - no ML.
  */
 
 import * as dockerOrchestrator from './dockerOrchestrator.service.js';
@@ -67,7 +67,7 @@ export async function assertZipMatchesApprovedTechnology({
   const detectedStack = meta?.stack || '';
   const zipTech = technologiesForDetectedStack(detectedStack);
 
-  // Static HTML / unknown: cannot prove mismatch — allow but annotate.
+  // Static HTML / unknown: cannot prove mismatch - allow but annotate.
   if (!detectedStack || !zipTech.length) {
     return {
       ok: true,

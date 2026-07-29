@@ -237,7 +237,7 @@ const AdminAddClass = () => {
                                         {getSubjectDepartments(s).length > 0 ? (
                                             <span className="text-slate-400 font-medium">
                                                 {' '}
-                                                — {getSubjectDepartments(s).join(', ')}
+                                                - {getSubjectDepartments(s).join(', ')}
                                             </span>
                                         ) : null}
                                     </span>

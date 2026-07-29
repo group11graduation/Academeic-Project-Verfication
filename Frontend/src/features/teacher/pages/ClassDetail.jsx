@@ -29,7 +29,7 @@ const ALERT_STATUS_LABELS = {
     ai_rejected_same_semester: 'AI rejected (same semester)',
     ai_flagged_previous_semester: 'AI warning (legacy similarity)',
     requirements_rejected: 'Requirements rejected',
-    requirements_review: 'Requirements — needs review',
+    requirements_review: 'Requirements - needs review',
     pending_teacher_approval: 'Pending your approval',
 };
 
@@ -170,23 +170,23 @@ const ClassDetail = () => {
                         <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Class information</h2>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-                        <InfoItem icon={<Layers className="h-4 w-4" />} label="Category" value={classData.category || '—'} />
+                        <InfoItem icon={<Layers className="h-4 w-4" />} label="Category" value={classData.category || '-'} />
                         <InfoItem
                             icon={<GraduationCap className="h-4 w-4" />}
                             label="Academic period"
-                            value={classData.timing || '—'}
+                            value={classData.timing || '-'}
                         />
-                        <InfoItem icon={<Building2 className="h-4 w-4" />} label="Department" value={classData.department || '—'} />
-                        <InfoItem icon={<Users className="h-4 w-4" />} label="Faculty / unit" value={classData.faculty || '—'} />
+                        <InfoItem icon={<Building2 className="h-4 w-4" />} label="Department" value={classData.department || '-'} />
+                        <InfoItem icon={<Users className="h-4 w-4" />} label="Faculty / unit" value={classData.faculty || '-'} />
                         <InfoItem
                             icon={<ClipboardList className="h-4 w-4" />}
                             label="Section"
-                            value={classData.section ? `Section ${classData.section}` : '—'}
+                            value={classData.section ? `Section ${classData.section}` : '-'}
                         />
                         <InfoItem
                             icon={<Hash className="h-4 w-4" />}
                             label="Internal ID"
-                            value={classData._id ? String(classData._id) : '—'}
+                            value={classData._id ? String(classData._id) : '-'}
                         />
                     </div>
                     {classData.description ? (
@@ -256,7 +256,7 @@ const ClassDetail = () => {
                                     <div className="min-w-0">
                                         <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 truncate">
                                             {alert.studentName}
-                                            {alert.proposalTitle ? ` — ${alert.proposalTitle}` : ''}
+                                            {alert.proposalTitle ? ` - ${alert.proposalTitle}` : ''}
                                         </p>
                                         <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                                             {alert.assignmentTitle}
@@ -370,7 +370,7 @@ const ClassDetail = () => {
                                                 <td className="app-table-td hidden md:table-cell">
                                                     <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
                                                         <Mail className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                                                        {student.email || '—'}
+                                                        {student.email || '-'}
                                                     </span>
                                                 </td>
                                                 <td className="app-table-td text-center">

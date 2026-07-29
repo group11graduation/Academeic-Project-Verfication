@@ -19,7 +19,7 @@ const techRequirementBlockSchema = new mongoose.Schema(
 
 const assignmentSchema = new mongoose.Schema(
   {
-    /** Primary teacher (owner) — maps to primaryTeacherId in collaborative assignments */
+    /** Primary teacher (owner) - maps to primaryTeacherId in collaborative assignments */
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     /** Co-teacher partner when isCollaborative is true */
     coTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

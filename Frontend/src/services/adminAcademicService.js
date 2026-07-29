@@ -1,6 +1,6 @@
 import api from '../lib/api';
 
-/** Academic years, semesters, settings — Phase 1 admin API */
+/** Academic years, semesters, settings - Phase 1 admin API */
 export const adminAcademicService = {
     getAcademicYears: async () => {
         const res = await api.get('/admin/academic-years');

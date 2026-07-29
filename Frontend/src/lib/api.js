@@ -43,7 +43,7 @@ function resolveApiBase() {
 
 const base = resolveApiBase();
 
-/** Default for JSON/list requests — fail fast instead of hanging. */
+/** Default for JSON/list requests - fail fast instead of hanging. */
 export const API_TIMEOUT_MS = 12_000;
 
 /** Used automatically for FormData / file uploads (large project ZIPs can take several minutes). */

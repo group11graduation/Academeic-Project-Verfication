@@ -26,7 +26,7 @@ const upload = multer({
 
 const router = Router();
 
-/** Profile images — returns path string for existing frontend: `http://host` + path */
+/** Profile images - returns path string for existing frontend: `http://host` + path */
 router.post('/upload', requireAuth, upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file uploaded' });

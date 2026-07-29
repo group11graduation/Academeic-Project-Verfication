@@ -322,7 +322,7 @@ const GroupDetailPage = () => {
         if (!hasProposal) {
             return (
                 <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-10 text-center">
-                    <p className="text-slate-500 font-bold">No proposal submitted yet — similarity checks run after students submit.</p>
+                    <p className="text-slate-500 font-bold">No proposal submitted yet - similarity checks run after students submit.</p>
                 </div>
             );
         }
@@ -332,10 +332,10 @@ const GroupDetailPage = () => {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
                         <h2 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
-                            Similarity Report — {group.title}
+                            Similarity Report - {group.title}
                         </h2>
                         <p className="text-slate-500 font-bold mt-1">
-                            Advisory only — you make the final approve / revision / reject decision.
+                            Advisory only - you make the final approve / revision / reject decision.
                         </p>
                     </div>
                     <span
@@ -458,7 +458,7 @@ const GroupDetailPage = () => {
 
                 {!hasSignal && (
                     <p className="text-center text-sm font-bold text-emerald-600">
-                        No significant overlap detected — scores are advisory and low.
+                        No significant overlap detected - scores are advisory and low.
                     </p>
                 )}
             </div>

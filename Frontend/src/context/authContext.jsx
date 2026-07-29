@@ -123,7 +123,7 @@ export const AuthProvider = ({ children }) => {
 
       const { token: t, user: u, message, explicitFail } = extractLoginPayload(res.data);
 
-      // Do not require a `success` boolean — backends may only return token/user/message.
+      // Do not require a `success` boolean - backends may only return token/user/message.
       if (explicitFail || !t || !u) {
         return {
           success: false,

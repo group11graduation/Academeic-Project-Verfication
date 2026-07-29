@@ -19,10 +19,10 @@ export const LOGIN_ROUTE_PROBE_CANDIDATES = [
 const DEFAULT_LOGIN_PATHS = LOGIN_ROUTE_PROBE_CANDIDATES;
 
 const LOGIN_ROUTE_MISS_HINT =
-  "Could not auto-detect the login route on this project's backend — check the student's Express route definitions directly (look for app.post inside their routes/ or controllers/ folder).";
+  "Could not auto-detect the login route on this project's backend - check the student's Express route definitions directly (look for app.post inside their routes/ or controllers/ folder).";
 
 const LOGIN_ROUTE_MISS_HINT_SPRING =
-  "Could not auto-detect the login route on this project's backend — check the student's Spring controllers for @PostMapping / @RequestMapping login endpoints.";
+  "Could not auto-detect the login route on this project's backend - check the student's Spring controllers for @PostMapping / @RequestMapping login endpoints.";
 
 function loginBodies({ email, password, identifierType }) {
   const userPart = String(email || '').includes('@') ? String(email).split('@')[0] : String(email || '');
@@ -87,7 +87,7 @@ async function postLogin(baseUrl, loginPath, body) {
 }
 
 // Statuses that clearly mean "a login handler processed this request and rejected
-// the throwaway credentials" — not just a security filter denying an unknown path.
+// the throwaway credentials" - not just a security filter denying an unknown path.
 const LOGIN_PROBE_STRONG_STATUSES = new Set([400, 401, 415, 422]);
 
 /**
@@ -95,7 +95,7 @@ const LOGIN_PROBE_STRONG_STATUSES = new Set([400, 401, 415, 422]);
  * 404 → route missing. 400/401/415/422 → a login handler rejected the probe (strong match).
  *
  * Important: collect ALL strong hits and prefer paths discovered in student source
- * (extraPaths) over generic guesses like /api/users/login — otherwise Express aliases
+ * (extraPaths) over generic guesses like /api/users/login - otherwise Express aliases
  * or catch-alls poison detection and we rewrite SYADA's real /auth/login away.
  */
 export async function detectPreviewLoginApiRoute({
@@ -133,7 +133,7 @@ export async function detectPreviewLoginApiRoute({
       return { found: true, path: fromSource[0].path, status: fromSource[0].status, probeUrl: fromSource[0].probeUrl };
     }
     // Prefer paths that already authenticated with a real verify (status may still be 401
-    // for throwaway probe). Prefer /api/users/login when both auth+users exist — many
+    // for throwaway probe). Prefer /api/users/login when both auth+users exist - many
     // student apps mount the working route there while /api/auth/login is a stub.
     const prefer = [
       '/api/users/login',
@@ -173,7 +173,7 @@ export async function detectPreviewLoginApiRoute({
 }
 
 /**
- * Teacher-facing hint for Node/MERN (and Spring) — mirrors buildPhpPreviewLoginHint().
+ * Teacher-facing hint for Node/MERN (and Spring) - mirrors buildPhpPreviewLoginHint().
  */
 export function buildApiLoginRouteHint({
   previewApiUrl = '',
@@ -400,7 +400,7 @@ export async function verifyAndFixMernPreviewLogin({
     };
   }
 
-  // Spring H2 seeding is done by ScholarVerifyPreviewSeed.java at boot — not Node mongoose seed.
+  // Spring H2 seeding is done by ScholarVerifyPreviewSeed.java at boot - not Node mongoose seed.
   if (isSpring) {
     const fallback = await tryFallbackLogins({
       apiHostPort,
@@ -420,7 +420,7 @@ export async function verifyAndFixMernPreviewLogin({
     }
     return {
       ok: false,
-      message: `Preview UI is up but Spring login returned ${attempt.status || 401} (invalid username/password). Preview seeds previewadmin into H2 when UserService hooks are detected — check /tmp/preview-spring.log if login still fails.`,
+      message: `Preview UI is up but Spring login returned ${attempt.status || 401} (invalid username/password). Preview seeds previewadmin into H2 when UserService hooks are detected - check /tmp/preview-spring.log if login still fails.`,
       attempt,
     };
   }
@@ -444,7 +444,7 @@ export async function verifyAndFixMernPreviewLogin({
     };
   }
 
-  // Some student apps have no usable User model for seeding — try register endpoints.
+  // Some student apps have no usable User model for seeding - try register endpoints.
   const registered = await tryRegisterPreviewAdmin({
     apiHostPort,
     email,
@@ -594,7 +594,7 @@ async function tryRegisterPreviewAdmin({
       // eslint-disable-next-line no-await-in-loop
       const result = await postLogin(baseUrl, regPath, body);
       if (result.ok || result.status === 409 || result.status === 400) {
-        // 409/400 often mean "already exists" — still worth trying login after.
+        // 409/400 often mean "already exists" - still worth trying login after.
         return { ok: result.ok || result.status === 409, status: result.status, url: result.url };
       }
     }

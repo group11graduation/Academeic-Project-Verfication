@@ -167,7 +167,7 @@ export async function runPreviewStructureAudit(extractDir, { stackHint = '', sta
       fail(
         failures,
         'missing_index_html',
-        'Missing index.html — static sites need a main HTML page at the project root or in a subfolder. Without it the preview has nothing to display.',
+        'Missing index.html - static sites need a main HTML page at the project root or in a subfolder. Without it the preview has nothing to display.',
         'index.html'
       );
     }

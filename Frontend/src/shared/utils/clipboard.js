@@ -39,7 +39,7 @@ export async function copyTextToClipboard(text) {
             await navigator.clipboard.writeText(value);
             return;
         } catch {
-            // HTTP or permission denied — use legacy fallback below.
+            // HTTP or permission denied - use legacy fallback below.
         }
     }
 

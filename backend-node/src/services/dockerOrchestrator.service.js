@@ -105,7 +105,7 @@ export const STACK_BLUEPRINTS = {
     internalPort: 3000,
     imagePrefix: 'sv-project-spring-react',
   },
-  /** Spring Boot + Thymeleaf (server-rendered HTML) — preview URL is the app on :8080 */
+  /** Spring Boot + Thymeleaf (server-rendered HTML) - preview URL is the app on :8080 */
   'java-spring-thymeleaf': {
     templateDir: 'java-spring-react',
     internalPort: 8080,
@@ -169,7 +169,7 @@ function stagePreviewOverlayFile(srcPath, destFileName) {
   const stagingDir = previewOverlayStagingDir();
   if (!isHostVisibleDockerPath(stagingDir)) {
     logger.warn(
-      `preview overlay skipped (cache not host-visible): ${destFileName} — using files baked into the preview image`
+      `preview overlay skipped (cache not host-visible): ${destFileName} - using files baked into the preview image`
     );
     return null;
   }
@@ -263,7 +263,7 @@ async function finishBaseImageBuildOrFallback({
     );
     return { imageTag, reused: true, stale: true, rebuildError: buildResult.error };
   }
-  // No prior image (e.g. teacher ran `docker rmi`) — surface a clear rebuild error.
+  // No prior image (e.g. teacher ran `docker rmi`) - surface a clear rebuild error.
   logger.error(
     `Preview base image build failed (${label}) and no fallback image exists: ${buildResult.error || 'unknown'}`
   );
@@ -288,7 +288,7 @@ async function stagePreviewBaseBuildDir(templateDirName) {
   const script = await fs.readFile(entrypointSrc, 'utf8');
   await fs.writeFile(path.join(stageDir, 'entrypoint.sh'), script.replace(/\r\n/g, '\n'));
 
-  // Node Express/Flutter seed+verify scripts only — not Spring/PHP/Jupyter images.
+  // Node Express/Flutter seed+verify scripts only - not Spring/PHP/Jupyter images.
   const needsNodePreviewScripts =
     templateDirName === 'node-js' || templateDirName === 'node-js-flutter';
   if (needsNodePreviewScripts) {
@@ -919,7 +919,7 @@ async function ensurePreviewJavaBaseImage() {
     await spawnProcess('docker', ['image', 'inspect', PREVIEW_JAVA_BASE_IMAGE], { timeoutMs: 20_000 });
     return { pulled: false };
   } catch {
-    /* not local — pull below */
+    /* not local - pull below */
   }
 
   const maxAttempts = 3;
@@ -994,7 +994,7 @@ async function ensurePreviewJupyterBaseImage({ forceRebuild = false } = {}) {
 }
 
 /**
- * Pick the pre-built Docker base image for a detected stack (ZIP mounted at runtime — no per-ZIP build).
+ * Pick the pre-built Docker base image for a detected stack (ZIP mounted at runtime - no per-ZIP build).
  */
 async function ensurePreviewBaseImage(stack, { flutterPair = null, forceRebuild = false } = {}) {
   if (stack === 'php-apache') {
@@ -1187,7 +1187,7 @@ function isStrongReactStaticSignal(reactStatic) {
   );
 }
 
-/** Student HTML/CSS sites often have js/ or assets/*.js — not a React build. */
+/** Student HTML/CSS sites often have js/ or assets/*.js - not a React build. */
 function detectPlainStaticStack(signals, bestNodePkgScore, reactStatic) {
   if (!signals.indexHtml && signals.htmlFiles === 0) return null;
   if (signals.pubspecYaml || signals.composerJson || signals.artisanPhp || signals.indexPhp) return null;
@@ -1338,7 +1338,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   }
 
   const hasJupyter = signals.ipynbFiles > 0;
-  // Require Spring Boot markers — a stray pom.xml must not steal React+Express ZIPs.
+  // Require Spring Boot markers - a stray pom.xml must not steal React+Express ZIPs.
   const hasStrongSpring =
     signals.springBootJava || signals.springBootPom || signals.springBootGradle;
   const hasReactOrJsFrontend =
@@ -1418,7 +1418,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
       if (signals.cssFiles) reasons.push(`${signals.cssFiles} CSS file(s)`);
     }
   } else if (hasStrongSpring && hasSpringReactFrontend) {
-    // React + Spring Boot — never treat as Express/Node even if FE has package.json.
+    // React + Spring Boot - never treat as Express/Node even if FE has package.json.
     stack = 'java-spring-react';
     reasons.push('Spring Boot Java backend with React/JavaScript frontend');
     if (signals.pomXmlCount) reasons.push(`${signals.pomXmlCount} pom.xml`);
@@ -1429,7 +1429,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     if (nodePkgCount) reasons.push(`${nodePkgCount} JavaScript package.json`);
     if (reactStatic.reactStatic) reasons.push(reactStatic.reason);
   } else if (hasStrongSpring) {
-    // Spring Boot only (Thymeleaf / server-rendered pages) — not a static HTML site.
+    // Spring Boot only (Thymeleaf / server-rendered pages) - not a static HTML site.
     stack = 'java-spring-thymeleaf';
     reasons.push('Spring Boot Java web app (Thymeleaf / server-rendered)');
     if (signals.pomXmlCount) reasons.push(`${signals.pomXmlCount} pom.xml`);
@@ -1468,11 +1468,11 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
   // ZIP file signals beat assignment hints: never force Node when Spring Boot is present.
   if (isNodeExpressStack(stack) && hasStrongSpring && hasSpringReactFrontend) {
     stack = 'java-spring-react';
-    reasons.push('overrode Node hint — Spring Boot + React frontend detected in ZIP');
+    reasons.push('overrode Node hint - Spring Boot + React frontend detected in ZIP');
   }
   if (isNodeExpressStack(stack) && hasStrongSpring && !hasSpringReactFrontend) {
     stack = 'java-spring-thymeleaf';
-    reasons.push('overrode Node hint — Spring Boot (Thymeleaf) detected in ZIP');
+    reasons.push('overrode Node hint - Spring Boot (Thymeleaf) detected in ZIP');
   }
   if (hint === 'java-spring-react' && !stack && hasSpringReactFrontend && (signals.pomXmlCount || signals.gradleBuild)) {
     stack = 'java-spring-react';
@@ -1487,16 +1487,16 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     // Generic "react" hint must not force Node when Spring files exist.
     if ((hint === 'node-js' || hint === 'node-js-mysql') && hasStrongSpring && hasSpringReactFrontend) {
       stack = 'java-spring-react';
-      reasons.push('assignment hinted Node/React but ZIP has Spring Boot — using React + Spring Boot');
+      reasons.push('assignment hinted Node/React but ZIP has Spring Boot - using React + Spring Boot');
     } else if ((hint === 'node-js' || hint === 'node-js-mysql') && hasStrongSpring) {
       stack = 'java-spring-thymeleaf';
-      reasons.push('assignment hinted Node/React but ZIP has Spring Boot only — using Thymeleaf preview');
+      reasons.push('assignment hinted Node/React but ZIP has Spring Boot only - using Thymeleaf preview');
     } else if ((hint === 'static-html' || hint === 'static-html-js') && hasStrongSpring) {
       stack = 'java-spring-thymeleaf';
-      reasons.push('assignment hinted static HTML but ZIP has Spring Boot — using Thymeleaf preview');
+      reasons.push('assignment hinted static HTML but ZIP has Spring Boot - using Thymeleaf preview');
     } else {
       stack = hint;
-      reasons.push(`assignment hint (${hint}) — no strong file signals`);
+      reasons.push(`assignment hint (${hint}) - no strong file signals`);
     }
   }
 
@@ -1668,7 +1668,7 @@ async function runPreviewContainer({
   // Overlay latest Node preview helpers via host-visible cache copies.
   // Applies to EVERY new student ZIP preview (Mongo/MySQL/static) so fixes in
   // preview-login-fallback.js / seed / gateway ship without rebuilding base images.
-  // Never bind-mount /app/docker-templates/* directly — that path lives only in the
+  // Never bind-mount /app/docker-templates/* directly - that path lives only in the
   // API image, so the host daemon creates empty directories and `docker run` fails with
   // "mount … not a directory" (file vs directory).
   if (
@@ -1697,7 +1697,7 @@ async function runPreviewContainer({
       args.push('-v', `${dockerVolumePath(staged)}:${dest}:ro`);
     }
 
-    // Entrypoint must be LF — stage a normalized copy under the host-visible cache.
+    // Entrypoint must be LF - stage a normalized copy under the host-visible cache.
     const entrySrc = path.join(sharedNodeDir, 'entrypoint.sh');
     if (fsSync.existsSync(entrySrc)) {
       try {
@@ -1932,7 +1932,7 @@ export async function warmPreviewBaseImages() {
       .then((r) => (r?.failed ? 'failed' : r?.reused ? 'ready' : 'built'))
       .catch(() => 'failed');
 
-  // Warm Node first (needed for MERN). Flutter image is huge / flaky on VPS networks —
+  // Warm Node first (needed for MERN). Flutter image is huge / flaky on VPS networks -
   // only warm it when explicitly enabled so it cannot block or lock docker builds.
   const node = await toStatus(ensurePreviewNodeBaseImage(null, warmOpts));
   const flutter =
@@ -1953,7 +1953,7 @@ export async function ensurePreviewMongoImage() {
     await spawnProcess('docker', ['image', 'inspect', PREVIEW_MONGO_IMAGE], { timeoutMs: 20_000 });
     return { pulled: false };
   } catch {
-    /* not local — pull below */
+    /* not local - pull below */
   }
   await spawnProcess('docker', ['pull', PREVIEW_MONGO_IMAGE], { timeoutMs: PREVIEW_MONGO_PULL_TIMEOUT_MS });
   return { pulled: true };
@@ -1965,7 +1965,7 @@ export async function ensurePreviewMysqlImage() {
     await spawnProcess('docker', ['image', 'inspect', PREVIEW_MYSQL_IMAGE], { timeoutMs: 20_000 });
     return { pulled: false };
   } catch {
-    /* not local — pull below */
+    /* not local - pull below */
   }
   await spawnProcess('docker', ['pull', PREVIEW_MYSQL_IMAGE], {
     timeoutMs: PREVIEW_MONGO_PULL_TIMEOUT_MS,
@@ -2212,7 +2212,7 @@ export async function removeImageIfExists(imageTag) {
 
 function buildPreviewUrl(hostPort, stack) {
   const base = getPublicPreviewBase();
-  // Jupyter serves from /tree or /lab; root often redirects — keep root for notebook listing
+  // Jupyter serves from /tree or /lab; root often redirects - keep root for notebook listing
   return `${base}:${hostPort}/`;
 }
 
@@ -2283,7 +2283,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     if (!springPair) {
       const err = new Error(
         'Could not find Spring Boot (pom.xml / mvnw / Gradle) and React (package.json) in separate folders. ' +
-          'ZIP should contain e.g. backend/ with Java and frontend/ with React — not only one package.json. ' +
+          'ZIP should contain e.g. backend/ with Java and frontend/ with React - not only one package.json. ' +
           'For Spring Boot + Thymeleaf (no React), upload a Spring project with pom.xml and templates/ only.'
       );
       err.status = 400;
@@ -2391,7 +2391,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       let resolvedDb = await resolveNodeMysqlDatabaseName(path.join(buildContext, backendRel)).catch(
         () => PREVIEW_NODE_MYSQL_DATABASE
       );
-      // bbms is the PHP blood-bank default — never inherit it for Express+MySQL (PayFlow).
+      // bbms is the PHP blood-bank default - never inherit it for Express+MySQL (PayFlow).
       if (!resolvedDb || /^bbms$/i.test(resolvedDb)) {
         resolvedDb = PREVIEW_NODE_MYSQL_DATABASE || 'preview';
       }
@@ -2738,7 +2738,7 @@ export function isTcpPortOpen(host, port) {
   });
 }
 
-/** TCP or HTTP GET — Windows Docker port maps sometimes fail raw TCP from the API host. */
+/** TCP or HTTP GET - Windows Docker port maps sometimes fail raw TCP from the API host. */
 export async function isPreviewPortReachable(previewUrl, host, port) {
   if (await isTcpPortOpen(host, port)) return true;
   if (!previewUrl) return false;
@@ -2748,7 +2748,7 @@ export async function isPreviewPortReachable(previewUrl, host, port) {
 
 /**
  * Poll until the mapped host port accepts traffic. Docker often needs several seconds
- * to publish -p bindings after `docker run` returns — a single TCP probe is too early.
+ * to publish -p bindings after `docker run` returns - a single TCP probe is too early.
  */
 export async function waitForHostPortPublished({
   previewUrl = '',
@@ -2953,7 +2953,7 @@ export async function checkPreviewAppHttpReady({
   if (apiHit.ok && apiHit.status < 500) {
     return { ready: true, reason: 'api_http', apiReady: true };
   }
-  // Spring often returns 401/404 on `/` before actuator — TCP open + UI is enough.
+  // Spring often returns 401/404 on `/` before actuator - TCP open + UI is enough.
   if (stack === 'java-spring-react' && uiReady) {
     return { ready: true, reason: 'http_spring_api_open', apiReady: true };
   }
@@ -3182,7 +3182,7 @@ export async function waitForPreviewReady({
  * Detect UI readiness from docker logs (serve access log, static server started).
  * Used when host HTTP probes fail on Windows Docker but the container is clearly serving.
  *
- * Do NOT treat CRA "build folder is ready" or bare GET 200 as ready — the placeholder
+ * Do NOT treat CRA "build folder is ready" or bare GET 200 as ready - the placeholder
  * holder page also returns 200 while npm/Maven still run. Unlock only after the
  * entrypoint switches to the real student build (`[preview] serve static:`).
  */
@@ -3195,7 +3195,7 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
     if (/\[preview\]\s*serve static:/i.test(logText)) {
       return { ready: true, reason: 'log_serve_static', apiReady: springApiUp };
     }
-    // API-only signal — do not unlock Open preview (UI may still be the placeholder).
+    // API-only signal - do not unlock Open preview (UI may still be the placeholder).
     if (springApiUp) {
       return { ready: false, reason: 'log_spring_api_listening', apiReady: true };
     }
@@ -3278,7 +3278,7 @@ export function diagnosePreviewFailure({ wait, session = {}, logs = '' } = {}) {
     return {
       failed: true,
       message: 'Preview failed: student backend (Express/API) did not start. See backend log in container output below.',
-      failures: [{ rule: 'backend_start_failed', message: 'Backend API failed to start — check server.js, package.json scripts, and MongoDB.' }],
+      failures: [{ rule: 'backend_start_failed', message: 'Backend API failed to start - check server.js, package.json scripts, and MongoDB.' }],
     };
   }
 
@@ -3304,7 +3304,7 @@ export function describePreviewWaitFailure(wait, session = {}) {
     return `Preview UI on port ${uiPort} did not return a valid page in time. The student frontend may be missing index.html or the build failed.`;
   }
   if (wait?.reason === 'port_timeout') {
-    return `Preview port ${uiPort} never opened on the host. Docker may still be building — if the log shows HTTP 200, click Start preview again.`;
+    return `Preview port ${uiPort} never opened on the host. Docker may still be building - if the log shows HTTP 200, click Start preview again.`;
   }
   return `Preview did not become ready in time (port ${uiPort}). See container log below.`;
 }

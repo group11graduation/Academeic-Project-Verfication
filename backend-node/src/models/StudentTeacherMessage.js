@@ -26,7 +26,7 @@ const studentTeacherMessageSchema = new mongoose.Schema(
       enum: RECIPIENT_TARGETS,
       default: 'primary',
     },
-    /** Human label e.g. "Both teachers" or "Frontend teacher — ALI" */
+    /** Human label e.g. "Both teachers" or "Frontend teacher - ALI" */
     recipientLabel: { type: String, default: '' },
     assignment: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
     category: {

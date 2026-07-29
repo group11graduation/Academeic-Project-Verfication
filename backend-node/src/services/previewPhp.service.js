@@ -261,7 +261,7 @@ function patchPdoDsnHosts(content, dbHost, dbName, { dbUser = null, dbPass = nul
     changed = true;
   }
 
-  // mysqli_connect('host', ...) — any literal host including stale sidecar names
+  // mysqli_connect('host', ...) - any literal host including stale sidecar names
   content = content.replace(
     /mysqli_connect\s*\(\s*(['"])([^'"]*)\1/gi,
     (_m, _q, host) => {
@@ -323,7 +323,7 @@ function inferMysqliDatabaseName(content) {
 function fixSetupDbUseStatements(content, dbName) {
   if (!dbName) return content;
   let next = content;
-  // $pdo->exec("USE dbname") / ->query('USE dbname') — common in student setup scripts
+  // $pdo->exec("USE dbname") / ->query('USE dbname') - common in student setup scripts
   next = next.replace(
     /((?:->exec|->query|\bexec|\bquery)\s*\(\s*["']USE\s+)\s*([A-Za-z0-9_]+)(["']\s*\))/gi,
     `$1${dbName}$3`
@@ -396,12 +396,12 @@ function syncCreateDatabaseStatement(content, dbName) {
 
 function buildPreviewEnvOverrideBlock() {
   return `<?php
-// ${PREVIEW_MARKER} — overrides XAMPP/localhost DB settings from Docker env
+// ${PREVIEW_MARKER} - overrides XAMPP/localhost DB settings from Docker env
 if (getenv('PREVIEW_SANDBOX') === '1' || getenv('DB_HOST')) {
   if ($__svHost = getenv('DB_HOST')) {
     $host = $__svHost; $dbhost = $__svHost; $db_host = $__svHost;
   }
-  // Use db-specific names only — never overwrite $username/$password used for app login.
+  // Use db-specific names only - never overwrite $username/$password used for app login.
   if ($__svUser = getenv('DB_USER')) {
     $dbuser = $__svUser; $db_user = $__svUser; $dbusername = $__svUser; $db_username = $__svUser;
   }
@@ -488,7 +488,7 @@ export async function discoverPhpAdminCredentials(root) {
       }
 
       // Prefer paired patterns above. Do NOT accept independent password_hash() +
-      // execute(['user']) matches from distant parts of the file — that mixes rows.
+      // execute(['user']) matches from distant parts of the file - that mixes rows.
 
       const insertMatch = content.match(
         /INSERT INTO\s+[`]?(?:users|admins|accounts|tbl_users)[`]?[\s\S]{0,400}?VALUES\s*\(\s*['"]([^'"]+)['"][\s\S]{0,160}?['"]([^'"]+)['"][\s\S]{0,120}?password_hash\s*\(\s*['"]([^'"]+)['"]/i
@@ -533,7 +533,7 @@ export async function discoverPhpAdminCredentials(root) {
       );
       if (superadmin && accept(superadmin[1], superadmin[2], `From ${base} role seed`)) break;
 
-      // Echo / "reset to:" lines last — source often contains "$pass\n" placeholders.
+      // Echo / "reset to:" lines last - source often contains "$pass\n" placeholders.
       const userPassEcho = content.match(
         /(?:User|Username|Login)\s*[:=]\s*['"]?([A-Za-z0-9._@-]+)['"]?[^\n]{0,80}(?:Pass|Password)\s*[:=]\s*['"]?([^'"<\s]+)/i
       );
@@ -630,7 +630,7 @@ async function patchPhpFile(filePath, options, { bootstrap = false, injectOverri
         [['host', 'dbhost', 'db_host'], options.dbHost],
         [['dbuser', 'db_user', 'dbusername', 'db_username'], options.dbUser],
         [['dbpass', 'db_pass', 'dbpassword', 'db_password'], options.dbPass],
-        // Legacy configs that use $username/$password for mysqli — patch only when clearly DB vars.
+        // Legacy configs that use $username/$password for mysqli - patch only when clearly DB vars.
         [['username', 'user'], options.dbUser],
         [['password', 'pass'], options.dbPass],
         [['dbname', 'database', 'db_name'], options.dbName],
@@ -720,7 +720,7 @@ function normalizeBootstrapLogLine(line) {
     .trim();
 }
 
-/** MySQL sidecar password — must never be treated as the student app login password. */
+/** MySQL sidecar password - must never be treated as the student app login password. */
 function isMysqlSidecarPassword(value) {
   const pass = String(value || '').trim();
   if (!pass) return false;
@@ -730,7 +730,7 @@ function isMysqlSidecarPassword(value) {
   return pass === mysqlPass || pass === 'preview-root';
 }
 
-/** Keep only the credential token — bootstrap logs often append HTML or punctuation after the value. */
+/** Keep only the credential token - bootstrap logs often append HTML or punctuation after the value. */
 function sanitizeBootstrapCredential(raw, kind = 'password') {
   let value = normalizeBootstrapLogLine(raw).replace(/^['"]+|['"]+$/g, '');
   if (!value) return '';
@@ -796,7 +796,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
       continue;
     }
 
-    // Password reset echoes — last match wins (bootstrap scripts may run more than once).
+    // Password reset echoes - last match wins (bootstrap scripts may run more than once).
     const passReset =
       line.match(/(?:admin\s+)?password\s+reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<>,;)]+)/i) ||
       line.match(/reset\s+successfully\s+to\s*:\s*['"]?([^\s'"<>,;)]+)/i) ||
@@ -901,7 +901,7 @@ export function buildPhpPreviewLoginHint({
     if (bootstrapCredentials?.usernameAssumed) {
       const assumed = bootstrapCredentials.assumedUsername || bootstrapUser || 'admin';
       parts.push(
-        `Login from bootstrap script output (password: ${bootstrapPass}, username assumed to be '${assumed}' — verify on the login page).`
+        `Login from bootstrap script output (password: ${bootstrapPass}, username assumed to be '${assumed}' - verify on the login page).`
       );
       return parts.join(' ');
     }

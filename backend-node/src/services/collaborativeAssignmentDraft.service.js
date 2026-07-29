@@ -118,7 +118,7 @@ export async function createCollaborativeDraft(teacherId, { coTeacherId, myRole 
     throw err;
   }
   if (!collaboration.partnerSubject) {
-    const err = new Error('Collaboration is missing partner subject — ask your co-teacher to accept again with their subject');
+    const err = new Error('Collaboration is missing partner subject - ask your co-teacher to accept again with their subject');
     err.status = 400;
     throw err;
   }
@@ -134,7 +134,7 @@ export async function createCollaborativeDraft(teacherId, { coTeacherId, myRole 
     throw err;
   }
   if (roleFromCollab && role !== roleFromCollab) {
-    const err = new Error(`Your role for this partnership is ${roleFromCollab} — it was set when the collaboration was accepted`);
+    const err = new Error(`Your role for this partnership is ${roleFromCollab} - it was set when the collaboration was accepted`);
     err.status = 400;
     throw err;
   }

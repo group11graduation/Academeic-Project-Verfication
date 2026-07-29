@@ -28,7 +28,7 @@ function formatImportError(err) {
     if (key.username || /username/i.test(raw)) return 'Username already exists in the system';
     if (key.studentId || /studentId/i.test(raw)) return 'Student ID already exists in the system';
     if (key.employeeId || /employeeId/i.test(raw)) return 'Teacher ID already exists in the system';
-    return 'Duplicate value — this row already exists in the system';
+    return 'Duplicate value - this row already exists in the system';
   }
   return raw;
 }
@@ -843,7 +843,7 @@ export async function updateStudent(profileId, body) {
     !normalizeStudentClassCodeValue(profile.classCode) &&
     (body.classCode !== undefined || body.classId !== undefined)
   ) {
-    // Removed from class — keep last faculty unless explicitly cleared.
+    // Removed from class - keep last faculty unless explicitly cleared.
   }
   if (body.currentScore !== undefined) {
     profile.currentScore =
@@ -1094,7 +1094,7 @@ export async function importTeachers(rows) {
     };
   });
 
-  // Mark incomplete rows first — never create structure or accounts for these.
+  // Mark incomplete rows first - never create structure or accounts for these.
   const incompleteIndexes = new Set();
   for (const row of prepared) {
     const missing = [];
@@ -1109,12 +1109,12 @@ export async function importTeachers(rows) {
         index: row.index,
         teacherId: row.teacherId || row.raw?.teacherId || row.raw?.employeeId,
         email: row.email || row.raw?.email,
-        message: `Incomplete row — missing ${missing.join(', ')}. Entire row rejected.`,
+        message: `Incomplete row - missing ${missing.join(', ')}. Entire row rejected.`,
       });
     }
   }
 
-  // File-level duplicates (email / teacherId / name) — reject ALL rows that share the value.
+  // File-level duplicates (email / teacherId / name) - reject ALL rows that share the value.
   const emailGroups = new Map();
   const idGroups = new Map();
   const nameGroups = new Map();
@@ -1549,7 +1549,7 @@ export async function deleteStudent(profileId) {
   return { ok: true };
 }
 
-/** Admins — user accounts with primary role admin */
+/** Admins - user accounts with primary role admin */
 export async function listAdmins() {
   const users = await User.find({ role: 'admin' }).select('+handoffPasscode').sort({ createdAt: -1 }).lean();
   return users.map((u) => ({

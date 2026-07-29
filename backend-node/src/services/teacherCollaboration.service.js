@@ -217,7 +217,7 @@ export async function listCollaborationsForTeacher(teacherId) {
   };
 }
 
-/** Teachers assigned to the same class(es) as the requester — candidates for collaboration. */
+/** Teachers assigned to the same class(es) as the requester - candidates for collaboration. */
 export async function listTeachersAvailableForCollaboration(teacherId, { classId = null } = {}) {
   const tid = new mongoose.Types.ObjectId(teacherId);
   const classQuery = { 'teacherAssignments.teacher': tid };
@@ -354,7 +354,7 @@ export async function requestCollaboration(
       await existing.save();
       return existing.populate(['primaryTeacher', 'coTeacher', 'initiatedBy', 'class', 'subject', 'partnerSubject']);
     }
-    const err = new Error('Collaboration request already sent — waiting for their response');
+    const err = new Error('Collaboration request already sent - waiting for their response');
     err.status = 409;
     throw err;
   }

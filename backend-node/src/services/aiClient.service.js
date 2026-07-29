@@ -6,9 +6,9 @@ import { getAiServiceUrl } from '../config/env.js';
  * Same host as used for `POST /analyze/proposal`.
  *
  * Related Python routes (see `backend-python/docs/API_AND_STRUCTURE.md`):
- * - POST /analyze/proposal — sentence-transformers + same-semester / legacy thresholds (used below).
- * - POST /analyze/code — tree-sitter fingerprints + TF-IDF; optional CodeBERT if enabled server-side.
- * - POST /analyze/screenshot — Pillow + ImageHash phash vs stored reference hashes.
+ * - POST /analyze/proposal - sentence-transformers + same-semester / legacy thresholds (used below).
+ * - POST /analyze/code - tree-sitter fingerprints + TF-IDF; optional CodeBERT if enabled server-side.
+ * - POST /analyze/screenshot - Pillow + ImageHash phash vs stored reference hashes.
  */
 function aiBaseUrl() {
   return getAiServiceUrl();

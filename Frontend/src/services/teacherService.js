@@ -191,7 +191,7 @@ const teacherService = {
         return response.data;
     },
 
-    /** JSON body — preferred for orchestration API */
+    /** JSON body - preferred for orchestration API */
     createAssignmentJson: async (body) => {
         const response = await api.post(`${base}/assignments`, body);
         return response.data;

@@ -1,6 +1,6 @@
 /**
  * Central JWT / session secret configuration.
- * Secrets MUST come from persistent environment variables — never generated at runtime.
+ * Secrets MUST come from persistent environment variables - never generated at runtime.
  */
 
 const WEAK_SECRETS = new Set([
@@ -30,7 +30,7 @@ function validateSecretStrength(name, secret) {
     issues.push(`${name} must be at least ${MIN_SECRET_LENGTH} characters`);
   }
   if (WEAK_SECRETS.has(secret)) {
-    issues.push(`${name} is a known placeholder — generate a long random string`);
+    issues.push(`${name} is a known placeholder - generate a long random string`);
   }
   return issues;
 }

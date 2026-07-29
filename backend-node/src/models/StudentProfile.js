@@ -46,7 +46,7 @@ const studentProfileSchema = new mongoose.Schema(
     /** Latest academic summary (also mirrored from imports / admin edits) */
     currentScore: { type: Number },
     currentGpa: { type: Number },
-    /** Last plain login passcode for handoff to student (create / import / regenerate) — admin API only */
+    /** Last plain login passcode for handoff to student (create / import / regenerate) - admin API only */
     handoffPasscode: { type: String, default: '', select: true },
   },
   { timestamps: true }

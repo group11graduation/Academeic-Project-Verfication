@@ -21,7 +21,7 @@ const proposalStatusLabel = (s) => {
         teacher_approved: 'Approved',
         teacher_rejected: 'Rejected',
         requirements_rejected: 'Requirements rejected',
-        requirements_review: 'Requirements — needs your review',
+        requirements_review: 'Requirements - needs your review',
     };
     return map[s] || s;
 };
@@ -94,10 +94,10 @@ const AssignmentDetail = () => {
     }, [id, data?._id, data?.assignmentType]);
 
     const formatDate = (d) =>
-        d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+        d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
 
     const formatDateTime = (d) =>
-        d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
 
     const isPast = (d) => d && new Date(d) < new Date();
 
@@ -109,7 +109,7 @@ const AssignmentDetail = () => {
             return (normalBundle.students || []).map((row) => ({
                 studentName: row.name || row.email || 'Student',
                 studentIdLabel: row.studentId || '',
-                classId: row.classCode || '—',
+                classId: row.classCode || '-',
                 submitted: row.submitted,
                 submittedAt: row.submission?.createdAt,
                 submissionFile: row.submission?.downloadPath,
@@ -131,7 +131,7 @@ const AssignmentDetail = () => {
         (Array.isArray(data?.classNames) && data.classNames.length > 0 && data.classNames.join(', ')) ||
         (Array.isArray(data?.assignedClasses) && data.assignedClasses.length > 0 && data.assignedClasses.join(', ')) ||
         [data?.class?.code, data?.class?.name].filter(Boolean).join(' · ') ||
-        '—';
+        '-';
     const apiOrigin = getApiOrigin();
     const submittedCount = submitted.length;
     const pct = total > 0 ? Math.round((submittedCount / total) * 100) : 0;
@@ -197,7 +197,7 @@ const AssignmentDetail = () => {
 
             {proposalDeadlinePassed ? (
                 <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
-                    Proposal deadline has passed — students cannot submit or update proposals.{' '}
+                    Proposal deadline has passed - students cannot submit or update proposals.{' '}
                     <button
                         type="button"
                         onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
@@ -211,7 +211,7 @@ const AssignmentDetail = () => {
 
             {projectOrSubmissionDeadlinePassed ? (
                 <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
-                    {isNormalAssignment ? 'Submission deadline has passed' : 'Project deadline has passed'} — students
+                    {isNormalAssignment ? 'Submission deadline has passed' : 'Project deadline has passed'} - students
                     cannot upload.{' '}
                     <button
                         type="button"
@@ -531,17 +531,17 @@ const AssignmentDetail = () => {
                                                             ) : null}
                                                         </span>
                                                     ) : (
-                                                        <span className="text-slate-400">—</span>
+                                                        <span className="text-slate-400">-</span>
                                                     )}
                                                 </td>
                                                 <td className="app-table-td text-xs text-slate-500 font-medium max-w-[140px] truncate" title={s.matchedPeerLabel || ''}>
-                                                    {s.submitted && s.matchedPeerLabel ? s.matchedPeerLabel : '—'}
+                                                    {s.submitted && s.matchedPeerLabel ? s.matchedPeerLabel : '-'}
                                                 </td>
                                             </>
                                         )}
                                         {/* Submitted At */}
                                         <td className="app-table-td text-sm text-slate-500 font-medium">
-                                            {s.submittedAt ? formatDateTime(s.submittedAt) : '—'}
+                                            {s.submittedAt ? formatDateTime(s.submittedAt) : '-'}
                                         </td>
                                         {/* Download */}
                                         <td className="app-table-td">
@@ -557,7 +557,7 @@ const AssignmentDetail = () => {
                                                     {s.originalFileName || 'Download'}
                                                 </a>
                                             ) : (
-                                                <span className="text-slate-300 dark:text-slate-700 text-xs font-bold">—</span>
+                                                <span className="text-slate-300 dark:text-slate-700 text-xs font-bold">-</span>
                                             )}
                                         </td>
                                     </tr>
@@ -568,13 +568,13 @@ const AssignmentDetail = () => {
                 </div>
             </div>
 
-            {/* Proposal roster — same pattern as normal assignment student list */}
+            {/* Proposal roster - same pattern as normal assignment student list */}
             <div className="mt-6 bg-white dark:bg-[#0F172A] rounded-[28px] border border-slate-100 dark:border-white/5 p-6 md:p-7 shadow-xl">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
                     <div>
                         <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">Student proposals</h2>
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
-                            Open each student for full review — extracted-style proposal text, AI signals, and approve / revision / reject.
+                            Open each student for full review - extracted-style proposal text, AI signals, and approve / revision / reject.
                         </p>
                     </div>
                     <Link

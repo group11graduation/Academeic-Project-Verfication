@@ -256,7 +256,7 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
         try {
           await syncAssignmentGroupsFromClassTemplatesByAssignmentId(assignment._id, { onlyIfEmpty: true });
         } catch {
-          /* ignore — proposal submit will surface a clear error if needed */
+          /* ignore - proposal submit will surface a clear error if needed */
         }
       }
     }

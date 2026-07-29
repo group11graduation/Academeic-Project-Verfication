@@ -135,7 +135,7 @@ const AdminTeacherProfile = () => {
         const size = Number(n) || 0;
         if (size >= 1_048_576) return `${(size / 1_048_576).toFixed(1)} MB`;
         if (size >= 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
-        return size ? `${size} B` : '—';
+        return size ? `${size} B` : '-';
     };
 
     return (
@@ -426,7 +426,7 @@ const AdminTeacherProfile = () => {
                                               dateStyle: 'medium',
                                               timeStyle: 'short',
                                           })
-                                        : '—';
+                                        : '-';
                                     const openTo =
                                         row.assignmentId && row.proposalId
                                             ? `/teacher/assignments/${row.assignmentId}/proposals/${row.proposalId}`

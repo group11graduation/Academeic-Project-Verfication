@@ -182,7 +182,7 @@ async function readReadmeText(extractDir) {
   }
 }
 
-/** Shallow find of package.json / README only (option-1 gate — no code walk). */
+/** Shallow find of package.json / README only (option-1 gate - no code walk). */
 export async function buildLightFunctionalityEvidence(extractDir, { maxFiles = 40, maxDepth = 4 } = {}) {
   const empty = {
     detected_tech: [],

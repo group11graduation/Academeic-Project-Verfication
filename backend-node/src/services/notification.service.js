@@ -28,7 +28,7 @@ function uniqueIds(values = []) {
   return out;
 }
 
-/** Fire-and-forget — never blocks or fails the parent workflow. */
+/** Fire-and-forget - never blocks or fails the parent workflow. */
 export function notifySafe(task) {
   Promise.resolve()
     .then(() => task())

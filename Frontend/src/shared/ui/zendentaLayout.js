@@ -1,7 +1,7 @@
 /** Shared “Zendenta-style” shells for assignment / student dashboards (light UI). */
 
 export const Z_PAGE = 'min-h-0 min-h-screen bg-[var(--sv-page-bg)] text-[var(--sv-text)] text-[13px]';
-/** Inside StudentLayout sidebar shell — no full-page bg or extra padding. */
+/** Inside StudentLayout sidebar shell - no full-page bg or extra padding. */
 export const Z_SHELL = 'flex min-h-0 flex-1 flex-col text-[var(--sv-text)] text-[13px]';
 export const Z_SHELL_INNER = 'w-full flex-1';
 export const Z_INNER = 'mx-auto w-full max-w-[1400px] px-3 py-4 sm:px-4 md:px-5 md:py-5 safe-area-px';
@@ -23,7 +23,7 @@ export const Z_BTN_BACK = 'inline-flex min-h-[44px] items-center gap-1.5 rounded
 export const Z_BTN_SUBMIT = 'inline-flex w-full min-h-[44px] items-center justify-center gap-1.5 rounded-lg bg-[#2a3fa4] px-4 py-2.5 text-[12px] font-bold text-white hover:bg-[#223688] disabled:opacity-60 sm:min-h-0 sm:py-2';
 export const Z_BTN_INDIGO = 'inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-[12px] font-bold text-white hover:bg-indigo-700 disabled:opacity-60';
 
-/** Responsive layout tokens — use across all feature pages */
+/** Responsive layout tokens - use across all feature pages */
 export const Z_PAGE_PAD = 'px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 lg:px-8 safe-area-px';
 export const Z_PANEL =
     'min-w-0 overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6 lg:rounded-[2rem] lg:p-8 dark:border-white/5 dark:bg-[#0F172A]';

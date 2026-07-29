@@ -142,7 +142,7 @@ export function assertAcceptanceSubjects({
   }
   if (reqRole === parRole) {
     const err = new Error(
-      `Collaboration requires one Frontend teacher and one Backend teacher — not two ${reqRole} teachers.`
+      `Collaboration requires one Frontend teacher and one Backend teacher - not two ${reqRole} teachers.`
     );
     err.status = 400;
     throw err;
@@ -189,7 +189,7 @@ export function assertAcceptanceSubjects({
   }
   if (requesterSide === partnerSide) {
     const err = new Error(
-      `Collaboration requires one frontend subject and one backend subject — not two ${requesterSide} subjects.`
+      `Collaboration requires one frontend subject and one backend subject - not two ${requesterSide} subjects.`
     );
     err.status = 400;
     throw err;
@@ -251,7 +251,7 @@ export function assertComplementaryTeacherSubjects({
   });
   if (!targetOpposite.length) {
     const err = new Error(
-      `The selected teacher has no ${opposite} subject in this class. Collaboration requires one frontend teacher and one backend teacher — not two frontend or two backend subjects.`
+      `The selected teacher has no ${opposite} subject in this class. Collaboration requires one frontend teacher and one backend teacher - not two frontend or two backend subjects.`
     );
     err.status = 400;
     throw err;

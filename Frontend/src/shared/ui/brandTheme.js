@@ -1,4 +1,4 @@
-/** Project Verify brand palette — keep these hex values across public + dashboard UI */
+/** Project Verify brand palette - keep these hex values across public + dashboard UI */
 export const PROJECT_NAME = 'Project Verify';
 export const PROJECT_LEGAL_NAME = 'Project Verify Academic Systems';
 export const PRODUCT_TAGLINE = 'Project verification';
@@ -26,6 +26,6 @@ export const RAIL_GRADIENT = 'linear-gradient(180deg, #2a3fa4 0%, #223688 100%)'
 /** Short product descriptor shown in faculty/student console sidebars */
 export const PRODUCT_TAGLINE_SIDEBAR = 'Project verification & preview';
 
-/** Teacher dashboard sidebar card — functional label (not marketing brand) */
+/** Teacher dashboard sidebar card - functional label (not marketing brand) */
 export const FACULTY_SIDEBAR_TITLE = PROJECT_NAME;
 export const FACULTY_SIDEBAR_SUBTITLE = 'Review & preview student work';

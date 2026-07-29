@@ -1,4 +1,4 @@
-/** Imperative dialog API — use instead of window.alert / window.confirm */
+/** Imperative dialog API - use instead of window.alert / window.confirm */
 
 let api = null;
 

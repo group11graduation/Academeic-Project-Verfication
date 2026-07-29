@@ -187,7 +187,7 @@ const AdminLayoutInner = () => {
                                 onClick={() => navigate('/admin')}
                                 className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-white/50 shadow-sm"
                                 title="Admin home"
-                                aria-label="Project Verify — Admin home"
+                                aria-label="Project Verify - Admin home"
                             >
                                 <img
                                     src="/logo.png"

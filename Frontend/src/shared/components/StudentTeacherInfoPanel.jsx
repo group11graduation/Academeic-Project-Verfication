@@ -92,7 +92,7 @@ export function resolveAssignmentTeachers(assignment) {
   return list;
 }
 
-/** Shows assignment teacher(s) — name, photo, email — always visible to students. */
+/** Shows assignment teacher(s) - name, photo, email - always visible to students. */
 export default function StudentTeacherInfoPanel({
   teachers = [],
   assignmentTitle,

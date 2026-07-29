@@ -431,7 +431,7 @@ const CollaborativeAssignmentCreate = () => {
                 await reloadDrafts();
                 await reloadCollaborators();
                 setCollabRefreshKey((k) => k + 1);
-                showNotice('', 'The assignment draft was removed. Your accepted partnership with this teacher is still active — start a new draft anytime.', {
+                showNotice('', 'The assignment draft was removed. Your accepted partnership with this teacher is still active - start a new draft anytime.', {
                     variant: 'success',
                 });
             }
@@ -499,7 +499,7 @@ const CollaborativeAssignmentCreate = () => {
                 </span>
             </div>
             <p className="text-[10px] text-slate-500">
-                {editable ? 'Your section — upload your requirements file below.' : `Filled by ${teacherLabel(ownerTeacher)}.`}
+                {editable ? 'Your section - upload your requirements file below.' : `Filled by ${teacherLabel(ownerTeacher)}.`}
                 {!editable && <Lock className="inline h-3 w-3 ml-1 -mt-0.5" />}
             </p>
 
@@ -723,20 +723,20 @@ const CollaborativeAssignmentCreate = () => {
                         {selectedPartner && (
                             <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 p-3 space-y-1.5 text-[10px] text-slate-600 dark:text-slate-400">
                                 <p>
-                                    Class: <strong>{selectedPartner.class?.code || '—'}</strong>
-                                    {selectedPartner.class?.name ? ` — ${selectedPartner.class.name}` : ''}
+                                    Class: <strong>{selectedPartner.class?.code || '-'}</strong>
+                                    {selectedPartner.class?.name ? ` - ${selectedPartner.class.name}` : ''}
                                 </p>
                                 <p>
                                     Your role: <strong className="capitalize">{selectedPartner.myRole || myRole}</strong>
                                 </p>
                                 {selectedPartner.frontendSubject?.code ? (
                                     <p>
-                                        Frontend subject: <strong>{selectedPartner.frontendSubject.code} — {selectedPartner.frontendSubject.name}</strong>
+                                        Frontend subject: <strong>{selectedPartner.frontendSubject.code} - {selectedPartner.frontendSubject.name}</strong>
                                     </p>
                                 ) : null}
                                 {selectedPartner.backendSubject?.code ? (
                                     <p>
-                                        Backend subject: <strong>{selectedPartner.backendSubject.code} — {selectedPartner.backendSubject.name}</strong>
+                                        Backend subject: <strong>{selectedPartner.backendSubject.code} - {selectedPartner.backendSubject.name}</strong>
                                     </p>
                                 ) : null}
                                 <p className="text-slate-500">These were agreed when the collaboration was accepted.</p>
@@ -753,11 +753,11 @@ const CollaborativeAssignmentCreate = () => {
                             <p className="font-bold text-slate-900 dark:text-slate-100 mb-1">Partnership</p>
                             <p>
                                 Frontend: <strong>{teacherLabel(frontendTeacher)}</strong>
-                                {myDraftRole === 'frontend' ? ' (you)' : ''} — {frontendDone ? 'complete' : 'pending'}
+                                {myDraftRole === 'frontend' ? ' (you)' : ''} - {frontendDone ? 'complete' : 'pending'}
                             </p>
                             <p>
                                 Backend: <strong>{teacherLabel(backendTeacher)}</strong>
-                                {myDraftRole === 'backend' ? ' (you)' : ''} — {backendDone ? 'complete' : 'pending'}
+                                {myDraftRole === 'backend' ? ' (you)' : ''} - {backendDone ? 'complete' : 'pending'}
                             </p>
                         </div>
 
@@ -768,9 +768,9 @@ const CollaborativeAssignmentCreate = () => {
                             {collaborationLocked ? (
                                 <div className={`${Z_INPUT} opacity-80 cursor-not-allowed flex items-center gap-1.5`}>
                                     <Lock className="h-3 w-3 shrink-0" />
-                                    {selectedCatalogRow?.class?.code || draft?.class?.code || '—'}
+                                    {selectedCatalogRow?.class?.code || draft?.class?.code || '-'}
                                     {selectedCatalogRow?.class?.name || draft?.class?.name
-                                        ? ` — ${selectedCatalogRow?.class?.name || draft?.class?.name}`
+                                        ? ` - ${selectedCatalogRow?.class?.name || draft?.class?.name}`
                                         : ''}
                                     {selectedCatalogRow?.semester?.name ? ` · ${selectedCatalogRow.semester.name}` : ''}
                                 </div>
@@ -795,16 +795,16 @@ const CollaborativeAssignmentCreate = () => {
                                     <label className={Z_LABEL}>Frontend subject</label>
                                     <div className={`${Z_INPUT} opacity-80 cursor-not-allowed flex items-center gap-1.5`}>
                                         <Lock className="h-3 w-3 shrink-0" />
-                                        {frontendSubject?.code || '—'}
-                                        {frontendSubject?.name ? ` — ${frontendSubject.name}` : ''}
+                                        {frontendSubject?.code || '-'}
+                                        {frontendSubject?.name ? ` - ${frontendSubject.name}` : ''}
                                     </div>
                                 </div>
                                 <div>
                                     <label className={Z_LABEL}>Backend subject</label>
                                     <div className={`${Z_INPUT} opacity-80 cursor-not-allowed flex items-center gap-1.5`}>
                                         <Lock className="h-3 w-3 shrink-0" />
-                                        {backendSubject?.code || '—'}
-                                        {backendSubject?.name ? ` — ${backendSubject.name}` : ''}
+                                        {backendSubject?.code || '-'}
+                                        {backendSubject?.name ? ` - ${backendSubject.name}` : ''}
                                     </div>
                                 </div>
                             </div>
@@ -946,7 +946,7 @@ const CollaborativeAssignmentCreate = () => {
                                 onClick={() => handleDeleteDraft()}
                                 disabled={deleting || saving || publishing}
                                 className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900/40 dark:bg-transparent dark:text-rose-300 dark:hover:bg-rose-950/30"
-                                title="Removes assignment draft only — partnership with your co-teacher stays active"
+                                title="Removes assignment draft only - partnership with your co-teacher stays active"
                             >
                                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                 Delete draft

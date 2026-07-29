@@ -947,7 +947,7 @@ export async function listAllGroupsForTeacher(teacherId) {
 function buildProposalPlainText(proposal) {
   if (!proposal) return '';
   const parts = [];
-  parts.push(`PROJECT TITLE\n${proposal.title || '—'}`);
+  parts.push(`PROJECT TITLE\n${proposal.title || '-'}`);
   parts.push(`\n\nOVERVIEW\n${String(proposal.description || '').trim() || 'No overview provided.'}`);
   if (Array.isArray(proposal.features) && proposal.features.length) {
     parts.push('\n\nPROPOSED FUNCTIONALITY');
@@ -1051,7 +1051,7 @@ function buildHumanAiExplanation(proposal, matchedLegacy, matchedSameSemester) {
   } else {
     lines.push('No strong similarity was detected against same-semester peers or legacy projects.');
     if (samePct > 0 || legPct > 0) {
-      lines.push(`Advisory scores — same semester: ${samePct}%, legacy / past term: ${legPct}%.`);
+      lines.push(`Advisory scores - same semester: ${samePct}%, legacy / past term: ${legPct}%.`);
     }
   }
 

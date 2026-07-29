@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-/** Approved projects from past semesters — used for similarity warnings, not auto-reject */
+/** Approved projects from past semesters - used for similarity warnings, not auto-reject */
 const legacyProjectSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },

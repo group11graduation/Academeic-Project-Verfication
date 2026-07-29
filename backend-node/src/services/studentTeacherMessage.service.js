@@ -50,7 +50,7 @@ function resolveRecipients(assignment, recipientTarget = 'primary') {
     return {
       recipientTarget: 'primary',
       recipientTeacherIds: primaryId ? [primaryId] : [],
-      recipientLabel: assignment?.teacher?.name ? `Teacher — ${assignment.teacher.name}` : 'Teacher',
+      recipientLabel: assignment?.teacher?.name ? `Teacher - ${assignment.teacher.name}` : 'Teacher',
       primaryTeacherId: primaryId,
     };
   }
@@ -63,7 +63,7 @@ function resolveRecipients(assignment, recipientTarget = 'primary') {
     return {
       recipientTarget: 'frontend',
       recipientTeacherIds: [frontendId],
-      recipientLabel: `Frontend teacher${frontend?.name ? ` — ${frontend.name}` : ''}`,
+      recipientLabel: `Frontend teacher${frontend?.name ? ` - ${frontend.name}` : ''}`,
       primaryTeacherId: frontendId,
     };
   }
@@ -71,7 +71,7 @@ function resolveRecipients(assignment, recipientTarget = 'primary') {
     return {
       recipientTarget: 'backend',
       recipientTeacherIds: [backendId],
-      recipientLabel: `Backend teacher${backend?.name ? ` — ${backend.name}` : ''}`,
+      recipientLabel: `Backend teacher${backend?.name ? ` - ${backend.name}` : ''}`,
       primaryTeacherId: backendId,
     };
   }
@@ -91,7 +91,7 @@ function resolveRecipients(assignment, recipientTarget = 'primary') {
   return {
     recipientTarget: 'primary',
     recipientTeacherIds: primaryId ? [primaryId] : [],
-    recipientLabel: assignment?.teacher?.name ? `Teacher — ${assignment.teacher.name}` : 'Teacher',
+    recipientLabel: assignment?.teacher?.name ? `Teacher - ${assignment.teacher.name}` : 'Teacher',
     primaryTeacherId: primaryId,
   };
 }

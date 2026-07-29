@@ -9,7 +9,7 @@ const SIZE = {
 };
 
 /**
- * Shared Project Verify logo — image mark + optional wordmark.
+ * Shared Project Verify logo - image mark + optional wordmark.
  * Use `framed` (or `onDark`) for a white circle plate on blue/dark UI (login, sidebar).
  * Home/header stays unframed so the mark sits cleanly on white.
  */

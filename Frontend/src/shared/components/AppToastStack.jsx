@@ -2,7 +2,7 @@ import React from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 
 /**
- * Lightweight success toasts — top-right, auto-dismiss, no blocking modal.
+ * Lightweight success toasts - top-right, auto-dismiss, no blocking modal.
  */
 export default function AppToastStack({ toasts = [], onDismiss }) {
     if (!toasts.length) return null;

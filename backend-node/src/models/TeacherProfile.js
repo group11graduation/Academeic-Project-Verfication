@@ -11,7 +11,7 @@ const teacherProfileSchema = new mongoose.Schema(
     photo: { type: String, default: '' },
     /** Class codes this teacher is assigned to (admin workflow); detailed subject links live on Class */
     assignedClassCodes: [{ type: String, trim: true }],
-    /** Last plain login passcode (set on create / regenerate / password change) — admin API only; share with user offline */
+    /** Last plain login passcode (set on create / regenerate / password change) - admin API only; share with user offline */
     handoffPasscode: { type: String, default: '', select: true },
   },
   { timestamps: true }

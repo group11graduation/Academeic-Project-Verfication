@@ -367,7 +367,7 @@ const StudentAssignments = () => {
                                     <ChevronLeft className="h-4 w-4" />
                                 </button>
                                 <p className="text-[12px] font-semibold text-slate-600">
-                                    {selectedModuleLabel} — choose category
+                                    {selectedModuleLabel} - choose category
                                 </p>
                             </div>
                         ) : (
@@ -533,7 +533,7 @@ const StudentAssignments = () => {
                                         onClick={() => {
                                             setSelectedCollabKey(module.key);
                                             setSelectedSubjectId(null);
-                                            // Collab pairings are final-project only — skip the category step.
+                                            // Collab pairings are final-project only - skip the category step.
                                             setSelectedCategory('final');
                                             setQuery('');
                                         }}
@@ -707,7 +707,7 @@ const StudentAssignments = () => {
                                                                         <Calendar className="h-3.5 w-3.5" />
                                                                         {a.createdAt
                                                                             ? new Date(a.createdAt).toLocaleDateString()
-                                                                            : '—'}
+                                                                            : '-'}
                                                                     </span>
                                                                 </div>
                                                                 {isCollaborativeRow(row) ? (

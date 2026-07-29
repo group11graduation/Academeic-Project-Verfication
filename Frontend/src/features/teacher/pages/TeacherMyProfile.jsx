@@ -117,7 +117,7 @@ const TeacherMyProfile = () => {
                                 {row.label}
                             </div>
                             <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
-                                {row.value || '—'}
+                                {row.value || '-'}
                             </p>
                         </div>
                     ))}
@@ -153,7 +153,7 @@ const TeacherMyProfile = () => {
                                     <span className="font-bold text-slate-800 dark:text-slate-100">
                                         {cls.code}
                                         {cls.name ? (
-                                            <span className="font-medium text-slate-500"> — {cls.name}</span>
+                                            <span className="font-medium text-slate-500"> - {cls.name}</span>
                                         ) : null}
                                     </span>
                                     <button

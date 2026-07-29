@@ -1,11 +1,11 @@
 import { formatSimilarityPercent } from './proposalSimilarityUi';
 
 const OUTCOME_LABELS = {
-  requirements_rejected: 'Rejected — requirements not met',
-  requirements_review: 'Needs teacher review — requirements borderline',
-  ai_rejected_same_semester: 'Rejected — high same-semester similarity',
-  ai_flagged_previous_semester: 'Flagged — legacy similarity warning',
-  pending_teacher_approval: 'Passed checks — waiting for teacher',
+  requirements_rejected: 'Rejected - requirements not met',
+  requirements_review: 'Needs teacher review - requirements borderline',
+  ai_rejected_same_semester: 'Rejected - high same-semester similarity',
+  ai_flagged_previous_semester: 'Flagged - legacy similarity warning',
+  pending_teacher_approval: 'Passed checks - waiting for teacher',
   teacher_approved: 'Approved by teacher',
   teacher_rejected: 'Rejected by teacher',
   revision_required: 'Revision requested',
@@ -14,11 +14,11 @@ const OUTCOME_LABELS = {
 };
 
 function formatWhen(value) {
-  if (!value) return '—';
+  if (!value) return '-';
   try {
     return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
-    return '—';
+    return '-';
   }
 }
 
@@ -97,7 +97,7 @@ export function formatSubmissionHistoryEntry(entry, index) {
   } else if (outcome === 'pending_teacher_approval') {
     tone = entry?.resolvedRequirementIssues?.length ? 'success' : 'info';
     if (entry?.resolvedRequirementIssues?.length) {
-      headline = 'Requirements fixed — sent to teacher';
+      headline = 'Requirements fixed - sent to teacher';
     }
   } else if (outcome === 'ai_rejected_same_semester') {
     tone = 'error';

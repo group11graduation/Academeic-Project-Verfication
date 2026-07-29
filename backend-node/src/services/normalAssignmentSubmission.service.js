@@ -298,7 +298,7 @@ export async function listNormalSubmissionsForTeacher(teacherId, assignmentId) {
   return {
     assignmentId: String(assignmentId),
     plagiarismExplained:
-      'Each file is checked only against other students’ uploads for this same assignment (not other courses). Identical files, overlapping extracted text, or similar code (via the AI service when running) can raise the score. Scores ≥ 85% are flagged as high similarity—use your judgment; legitimate starter templates can sometimes overlap.',
+      'Each file is checked only against other students’ uploads for this same assignment (not other courses). Identical files, overlapping extracted text, or similar code (via the AI service when running) can raise the score. Scores ≥ 85% are flagged as high similarity-use your judgment; legitimate starter templates can sometimes overlap.',
     students,
     submittedCount: students.filter((s) => s.submitted).length,
     flaggedCount: students.filter((s) => s.submission?.plagiarismFlag).length,

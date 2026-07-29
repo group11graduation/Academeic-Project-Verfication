@@ -28,7 +28,7 @@ function statusBadge(status) {
 
 function buildRecipientOptions(teachers = []) {
   if (!Array.isArray(teachers) || teachers.length <= 1) {
-    return [{ value: 'primary', label: teachers[0]?.name ? `Teacher — ${teachers[0].name}` : 'Teacher' }];
+    return [{ value: 'primary', label: teachers[0]?.name ? `Teacher - ${teachers[0].name}` : 'Teacher' }];
   }
 
   const frontend = teachers.find((t) => /frontend/i.test(t.roleLabel || '')) || teachers[0];
@@ -37,15 +37,15 @@ function buildRecipientOptions(teachers = []) {
   return [
     {
       value: 'frontend',
-      label: `Frontend teacher — ${frontend?.name || 'Teacher 1'}`,
+      label: `Frontend teacher - ${frontend?.name || 'Teacher 1'}`,
     },
     {
       value: 'backend',
-      label: `Backend teacher — ${backend?.name || 'Teacher 2'}`,
+      label: `Backend teacher - ${backend?.name || 'Teacher 2'}`,
     },
     {
       value: 'both',
-      label: `Both teachers — ${frontend?.name || 'Teacher 1'} + ${backend?.name || 'Teacher 2'}`,
+      label: `Both teachers - ${frontend?.name || 'Teacher 1'} + ${backend?.name || 'Teacher 2'}`,
     },
   ];
 }
@@ -105,7 +105,7 @@ export default function StudentContactTeacherPanel({
 
   useEffect(() => {
     if (category === 'deadline_extension' && assignmentTitle && !subject) {
-      setSubject(`Deadline extension — ${assignmentTitle}`);
+      setSubject(`Deadline extension - ${assignmentTitle}`);
     }
   }, [category, assignmentTitle, subject]);
 

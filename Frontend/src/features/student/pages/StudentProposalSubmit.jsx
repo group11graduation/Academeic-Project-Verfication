@@ -250,7 +250,7 @@ const StudentProposalSubmit = () => {
             setError(
                 getApiErrorMessage(
                     e,
-                    'Submission failed. AI analysis can take 1–3 minutes — keep this page open and try again.'
+                    'Submission failed. AI analysis can take 1–3 minutes - keep this page open and try again.'
                 )
             );
         } finally {
@@ -445,7 +445,7 @@ const StudentProposalSubmit = () => {
                                 ]
                                     .filter(Boolean)
                                     .join(', ') || 'the required technologies'}{' '}
-                                in context — do not only list the words.
+                                in context - do not only list the words.
                             </p>
                         )}
                     </div>
@@ -526,7 +526,7 @@ const StudentProposalSubmit = () => {
 
                 {group && (
                     <div className="mb-6 rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                        Group: {group.name} — you are the leader.
+                        Group: {group.name} - you are the leader.
                     </div>
                 )}
 
@@ -540,14 +540,14 @@ const StudentProposalSubmit = () => {
                 {proposal?.status === 'requirements_rejected' && (
                     <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
                         Your proposal did not meaningfully match teacher requirements and was automatically rejected.
-                        Casual English or only listing technology names is not enough — rewrite in full sentences that address the requirements.
+                        Casual English or only listing technology names is not enough - rewrite in full sentences that address the requirements.
                         {proposal?.requirementCheckSummary ? ` ${proposal.requirementCheckSummary}` : ''}
                     </div>
                 )}
 
                 {proposal?.status === 'requirements_review' && (
                     <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-                        Borderline requirement match — waiting for teacher review.
+                        Borderline requirement match - waiting for teacher review.
                         {proposal?.requirementCheckSummary ? ` ${proposal.requirementCheckSummary}` : ''}
                     </div>
                 )}

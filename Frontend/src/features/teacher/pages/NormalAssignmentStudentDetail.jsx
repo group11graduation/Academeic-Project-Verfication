@@ -12,7 +12,7 @@ function DetailRow({ label, value }) {
     return (
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-3 gap-y-1 border-b border-slate-50 py-3 last:border-0 sm:grid-cols-[140px_1fr]">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-            <span className="text-sm font-semibold text-slate-900 break-words">{value ?? '—'}</span>
+            <span className="text-sm font-semibold text-slate-900 break-words">{value ?? '-'}</span>
         </div>
     );
 }
@@ -141,22 +141,22 @@ const NormalAssignmentStudentDetail = () => {
     const subj = assignment?.subject;
     const subjectLine =
         subj && typeof subj === 'object' && (subj.name || subj.code)
-            ? `${subj.name || ''}${subj.code ? ` (${subj.code})` : ''}`.trim() || '—'
-            : '—';
+            ? `${subj.name || ''}${subj.code ? ` (${subj.code})` : ''}`.trim() || '-'
+            : '-';
 
     const uploadDate = submission?.createdAt
         ? new Date(submission.createdAt).toLocaleString(undefined, {
               dateStyle: 'medium',
               timeStyle: 'short',
           })
-        : '—';
+        : '-';
 
     const fileSizeLabel =
         submission?.sizeBytes != null
             ? submission.sizeBytes >= 1_048_576
                 ? `${(submission.sizeBytes / 1_048_576).toFixed(1)} MB`
                 : `${Math.max(1, Math.round(submission.sizeBytes / 1024))} KB`
-            : '—';
+            : '-';
 
     return (
         <div className={Z_PAGE}>
@@ -232,14 +232,14 @@ const NormalAssignmentStudentDetail = () => {
                             {(student.name || student.email || '?').charAt(0).toUpperCase()}
                         </div>
                         <h1 className="mt-4 text-lg font-bold text-slate-900">{student.name || 'Student'}</h1>
-                        <p className="mt-1 max-w-full break-all text-sm text-slate-500">{student.email || '—'}</p>
+                        <p className="mt-1 max-w-full break-all text-sm text-slate-500">{student.email || '-'}</p>
                         <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2">
                             <div className="rounded-lg bg-slate-50 py-2 text-center">
                                 <p className="text-xl font-bold text-slate-900">{submitted ? 1 : 0}</p>
                                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">File uploaded</p>
                             </div>
                             <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                <p className="text-xl font-bold text-slate-900">{similarityPct != null ? `${similarityPct}%` : '—'}</p>
+                                <p className="text-xl font-bold text-slate-900">{similarityPct != null ? `${similarityPct}%` : '-'}</p>
                                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Vs closest peer</p>
                             </div>
                         </div>
@@ -266,18 +266,18 @@ const NormalAssignmentStudentDetail = () => {
                     <div className="divide-y divide-slate-50">
                         <DetailRow label="Assignment" value={assignmentTitle} />
                         <DetailRow label="Subject" value={subjectLine} />
-                        <DetailRow label="Class code" value={student.classCode || '—'} />
-                        <DetailRow label="Student ID" value={student.studentId || '—'} />
+                        <DetailRow label="Class code" value={student.classCode || '-'} />
+                        <DetailRow label="Student ID" value={student.studentId || '-'} />
                         <DetailRow label="Submission status" value={submitted ? 'Submitted' : 'Not submitted'} />
                         <DetailRow label="Uploaded" value={uploadDate} />
-                        <DetailRow label="Original filename" value={submission?.originalFilename || '—'} />
+                        <DetailRow label="Original filename" value={submission?.originalFilename || '-'} />
                         <DetailRow label="File size" value={fileSizeLabel} />
                         <DetailRow
                             label="Similarity"
                             value={
                                 similarityPct != null
                                     ? `${similarityPct}%${submission?.plagiarismFlag ? ' (flagged high)' : ''}`
-                                    : '—'
+                                    : '-'
                             }
                         />
                         {matchedPeer?.name || matchedPeer?.email ? (
@@ -286,7 +286,7 @@ const NormalAssignmentStudentDetail = () => {
                                 value={
                                     [matchedPeer.name, matchedPeer.email].filter(Boolean).join(' · ') ||
                                     matchedPeer.originalFilename ||
-                                    '—'
+                                    '-'
                                 }
                             />
                         ) : null}
@@ -299,7 +299,7 @@ const NormalAssignmentStudentDetail = () => {
                         <span className="text-xs font-semibold text-[#1e56e3]">Read-only</span>
                     </div>
                     <p className="text-xs leading-relaxed text-slate-500">
-                        Quick reference for plagiarism checks on this assignment. Judgment stays with you—similarity can
+                        Quick reference for plagiarism checks on this assignment. Judgment stays with you-similarity can
                         reflect shared templates or legitimate overlap.
                     </p>
                     <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
@@ -318,7 +318,7 @@ const NormalAssignmentStudentDetail = () => {
                                     Automated similarity vs the closest other submission on this same assignment:{' '}
                                     <strong>{similarityPct}%</strong>
                                     {submission?.plagiarismFlag ? (
-                                        <span className="font-bold text-rose-600"> — marked high (≥85%).</span>
+                                        <span className="font-bold text-rose-600"> - marked high (≥85%).</span>
                                     ) : (
                                         '.'
                                     )}
@@ -413,7 +413,7 @@ const NormalAssignmentStudentDetail = () => {
                                 <>
                                     {!submitted ? (
                                         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 py-16 text-center text-sm font-semibold text-slate-500">
-                                            No document to display — student has not submitted a file.
+                                            No document to display - student has not submitted a file.
                                         </div>
                                     ) : (
                                         <DocumentPane

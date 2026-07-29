@@ -684,7 +684,7 @@ const AdminStudents = () => {
                             value={csvText}
                             onChange={(e) => setCsvText(e.target.value)}
                             rows={8}
-                            placeholder={`name,email,studentId,classCode,phone,dob,gender,fatherName,fatherContact,motherName,motherContact,highSchoolName,graduationYear\nHassan Ali,hassan@student.com,ST-2026-001,CA229,+252617366205,2003-05-25,Male,Ahmed Ali,+252611111111,Fatima Ali,+252622222222,Jabir School,2022\n\nOr upload .csv / .xlsx — Excel is parsed automatically.`}
+                            placeholder={`name,email,studentId,classCode,phone,dob,gender,fatherName,fatherContact,motherName,motherContact,highSchoolName,graduationYear\nHassan Ali,hassan@student.com,ST-2026-001,CA229,+252617366205,2003-05-25,Male,Ahmed Ali,+252611111111,Fatima Ali,+252622222222,Jabir School,2022\n\nOr upload .csv / .xlsx - Excel is parsed automatically.`}
                             className="w-full rounded-lg border border-slate-200 dark:border-slate-700 p-3 font-mono text-[12px] text-slate-900 dark:text-slate-100"
                         />
                         {importError && (
@@ -721,7 +721,7 @@ const AdminStudents = () => {
                                             <li key={`${f.index}-${i}`}>
                                                 Row {(f.index ?? i) + 1}
                                                 {f.studentId ? ` (${f.studentId})` : ''}
-                                                {f.email ? ` — ${f.email}` : ''}: {f.message || 'Failed'}
+                                                {f.email ? ` - ${f.email}` : ''}: {f.message || 'Failed'}
                                             </li>
                                         ))}
                                         {importResult.failed.length > 25 && (

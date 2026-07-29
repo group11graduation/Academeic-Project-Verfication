@@ -27,7 +27,7 @@ export function requireAuth(req, res, next) {
   } catch (err) {
     const message =
       err?.name === 'TokenExpiredError'
-        ? 'Session expired — please sign in again'
+        ? 'Session expired - please sign in again'
         : 'Invalid or expired token';
     return fail(res, message, 401);
   }

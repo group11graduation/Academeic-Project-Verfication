@@ -131,7 +131,7 @@ const StudentGallery = () => {
                         Approved student <span className="text-[#1D68E3]">submissions</span>
                     </h1>
                     <p className="max-w-2xl text-lg font-medium leading-relaxed text-slate-500 dark:text-slate-300">
-                        Top teacher-approved capstone projects from the academic database — each with a description and UI
+                        Top teacher-approved capstone projects from the academic database - each with a description and UI
                         screenshot when the student uploads one.
                     </p>
                 </div>

@@ -86,7 +86,7 @@ const AdminTeacherImport = () => {
                 <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
                     {TEACHER_IMPORT_TEMPLATE_HEADERS.join(', ')}
                 </code>
-                . Missing or duplicate rows (name, email, teacherId) are fully rejected — nothing is saved for those rows.
+                . Missing or duplicate rows (name, email, teacherId) are fully rejected - nothing is saved for those rows.
                 Faculties/departments are added only for successfully imported teachers.
             </p>
 
@@ -176,7 +176,7 @@ Dr. Amina Cali,amina@academy.edu,TC-2026-0002,Business Administration,Accounting
                                                 {c.email}
                                             </span>
                                             <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-900">
-                                                {c.loginPasscode ?? '—'}
+                                                {c.loginPasscode ?? '-'}
                                             </code>
                                             <button
                                                 type="button"

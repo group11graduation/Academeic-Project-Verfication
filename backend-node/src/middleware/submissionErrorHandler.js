@@ -7,7 +7,7 @@ import {
 } from '../services/submissionErrorHandler.service.js';
 
 /**
- * Express error middleware — isolates ZIP / tech-audit / preview-runtime failures
+ * Express error middleware - isolates ZIP / tech-audit / preview-runtime failures
  * so a single bad submission cannot crash the API process.
  *
  * Mount after routes (before or merged with global errorHandler).

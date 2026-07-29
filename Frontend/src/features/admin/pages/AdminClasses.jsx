@@ -63,7 +63,7 @@ const AdminClasses = () => {
         const code = item?.code;
         if (!code) return;
         const ok = await appConfirm(
-            `Delete class "${code}"?\n\nStudents will NOT be deleted — they become unassigned.`,
+            `Delete class "${code}"?\n\nStudents will NOT be deleted - they become unassigned.`,
             { danger: true, confirmLabel: 'Delete class' }
         );
         if (!ok) return;

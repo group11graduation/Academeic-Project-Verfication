@@ -56,7 +56,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }) {
 
   const html = `
     <div style="font-family:Segoe UI,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1e293b;">
-      <h2 style="color:#1d4ed8;margin-bottom:8px;">${appName} — password reset</h2>
+      <h2 style="color:#1d4ed8;margin-bottom:8px;">${appName} - password reset</h2>
       <p>${greeting}</p>
       <p>We received a request to reset your password. Click the button below to choose a new one. This link expires in 30 minutes.</p>
       <p style="margin:28px 0;">
@@ -76,7 +76,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }) {
     await transporter.sendMail({
       from,
       to,
-      subject: `${appName} — reset your password`,
+      subject: `${appName} - reset your password`,
       text,
       html,
     });

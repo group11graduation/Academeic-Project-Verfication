@@ -115,7 +115,7 @@ export async function requestPasswordReset(identifier) {
   const recipientEmail = String(user.email || '').trim().toLowerCase();
   if (isEmailDeliveryEnabled()) {
     if (!recipientEmail) {
-      logger.warn(`[auth] Password reset for user ${user._id} — no email on account`);
+      logger.warn(`[auth] Password reset for user ${user._id} - no email on account`);
       return {
         message:
           'This account has no email address on file. Ask your administrator to reset your password or add an email to your profile.',
@@ -138,7 +138,7 @@ export async function requestPasswordReset(identifier) {
 
   const returnToken = String(process.env.AUTH_RETURN_RESET_TOKEN || 'false').toLowerCase() === 'true';
   if (returnToken) {
-    logger.info(`[auth] Password reset token issued for user ${user._id} (SMTP not configured — dev mode)`);
+    logger.info(`[auth] Password reset token issued for user ${user._id} (SMTP not configured - dev mode)`);
     return {
       message:
         'SMTP is not configured. Use the reset link shown in development mode only.',

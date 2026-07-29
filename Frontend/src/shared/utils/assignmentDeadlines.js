@@ -70,7 +70,7 @@ export function validateAssignmentDeadlinesForm({
 }
 
 export const DEADLINE_DUE_STUDENT_MESSAGE =
-    'Deadline due — submission is closed. Contact your teacher to request an extension.';
+    'Deadline due - submission is closed. Contact your teacher to request an extension.';
 
 /** Student already submitted a proposal (any state past draft). */
 export function isProposalPhaseComplete(row) {
