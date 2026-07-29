@@ -304,6 +304,102 @@ export function normalizeTeacherImportRow(raw) {
     };
 }
 
+/** Canonical column headers for admin teacher Excel/CSV import. */
+export const TEACHER_IMPORT_TEMPLATE_HEADERS = [
+    'name',
+    'email',
+    'teacherId',
+    'faculty',
+    'department',
+    'phone',
+    'skills',
+];
+
+/** Canonical column headers for admin student Excel/CSV import. */
+export const STUDENT_IMPORT_TEMPLATE_HEADERS = [
+    'name',
+    'email',
+    'studentId',
+    'classCode',
+    'faculty',
+    'department',
+    'phone',
+    'dob',
+    'gender',
+    'fatherName',
+    'fatherContact',
+    'motherName',
+    'motherContact',
+    'highSchoolName',
+    'graduationYear',
+];
+
+const TEACHER_IMPORT_SAMPLE = {
+    name: 'Dr. Amina Cali',
+    email: 'amina@academy.edu',
+    teacherId: 'TC-2026-0002',
+    faculty: 'Business Administration',
+    department: 'Accounting',
+    phone: '+252611000002',
+    skills: 'Accounting|Finance',
+};
+
+const STUDENT_IMPORT_SAMPLE = {
+    name: 'Hassan Ali',
+    email: 'hassan@student.com',
+    studentId: 'ST-2026-001',
+    classCode: 'CA229',
+    faculty: 'Computer Application',
+    department: 'Software Engineering',
+    phone: '+252617366205',
+    dob: '2003-05-25',
+    gender: 'Male',
+    fatherName: 'Ahmed Ali',
+    fatherContact: '+252611111111',
+    motherName: 'Fatima Ali',
+    motherContact: '+252622222222',
+    highSchoolName: 'Jabir School',
+    graduationYear: '2022',
+};
+
+/**
+ * Download an .xlsx template (header row + one sample row) for admin imports.
+ */
+export function downloadImportExcelTemplate({
+    headers,
+    sample = {},
+    filename = 'import-template.xlsx',
+    sheetName = 'Import',
+} = {}) {
+    const cols = Array.isArray(headers) ? headers : [];
+    if (!cols.length) throw new Error('Template headers are required.');
+    const aoa = [cols, cols.map((h) => sample[h] ?? '')];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    // Reasonable column widths for readability in Excel
+    ws['!cols'] = cols.map((h) => ({ wch: Math.max(14, String(h).length + 2) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+    XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
+}
+
+export function downloadTeacherImportTemplate() {
+    downloadImportExcelTemplate({
+        headers: TEACHER_IMPORT_TEMPLATE_HEADERS,
+        sample: TEACHER_IMPORT_SAMPLE,
+        filename: 'teachers-import-template.xlsx',
+        sheetName: 'Teachers',
+    });
+}
+
+export function downloadStudentImportTemplate() {
+    downloadImportExcelTemplate({
+        headers: STUDENT_IMPORT_TEMPLATE_HEADERS,
+        sample: STUDENT_IMPORT_SAMPLE,
+        filename: 'students-import-template.xlsx',
+        sheetName: 'Students',
+    });
+}
+
 /**
  * Read CSV as UTF-8 text, or parse Excel to a simple CSV string (first sheet).
  */

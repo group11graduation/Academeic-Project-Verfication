@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Plus, Upload, Eye, EyeOff, ShieldCheck, Loader2, GraduationCap, Pencil, Trash2 } from 'lucide-react';
+import { Search, Plus, Upload, Eye, EyeOff, ShieldCheck, Loader2, GraduationCap, Pencil, Trash2, Download } from 'lucide-react';
 import adminTeacherService from '../../../services/adminTeacherService';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
+import { downloadTeacherImportTemplate } from '../../../lib/spreadsheetImport';
 
 const AdminTeachers = () => {
     const location = useLocation();
@@ -92,6 +93,20 @@ const AdminTeachers = () => {
                             <Plus className="h-3.5 w-3.5" />
                             Add Teacher
                         </Link>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                try {
+                                    downloadTeacherImportTemplate();
+                                } catch (err) {
+                                    appError(err.message || 'Could not download template.');
+                                }
+                            }}
+                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors whitespace-nowrap"
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                            Excel template
+                        </button>
                         <Link
                             to="/admin/teachers/import"
                             className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors whitespace-nowrap"

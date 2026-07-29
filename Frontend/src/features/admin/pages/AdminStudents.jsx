@@ -28,6 +28,7 @@ import {
     normalizeStudentImportRow,
     parseStudentCsvToRecords,
     validateStudentImportRows,
+    downloadStudentImportTemplate,
 } from '../../../lib/spreadsheetImport';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { copyTextToClipboard } from '../../../shared/utils/clipboard';
@@ -473,6 +474,19 @@ const AdminStudents = () => {
                         </Link>
                         <button
                             type="button"
+                            onClick={() => {
+                                try {
+                                    downloadStudentImportTemplate();
+                                } catch (err) {
+                                    appError(err.message || 'Could not download template.');
+                                }
+                            }}
+                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60 whitespace-nowrap"
+                        >
+                            <Download className="h-3.5 w-3.5" /> Excel template
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => setMode('import')}
                             className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
                         >
@@ -635,12 +649,30 @@ const AdminStudents = () => {
 
             {mode === 'import' && (
                 <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm mb-4">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                         <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Import Students</h2>
-                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
-                            <ArrowLeft className="h-3.5 w-3.5" /> Back to list
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    try {
+                                        downloadStudentImportTemplate();
+                                    } catch (err) {
+                                        setImportError(err.message || 'Could not download template.');
+                                    }
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-[12px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            >
+                                <Download className="h-3.5 w-3.5" /> Download Excel template
+                            </button>
+                            <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
+                                <ArrowLeft className="h-3.5 w-3.5" /> Back to list
+                            </button>
+                        </div>
                     </div>
+                    <p className="mb-3 text-[11px] text-slate-500 dark:text-slate-400">
+                        Use the template headers exactly, fill your rows, then upload the .xlsx/.csv file below.
+                    </p>
                     <div className="space-y-3">
                         <input
                             type="file"

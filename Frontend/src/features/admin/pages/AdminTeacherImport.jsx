@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Upload, Loader2, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
+import { ArrowLeft, Upload, Loader2, CheckCircle2, AlertCircle, Copy, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import adminTeacherService from '../../../services/adminTeacherService';
 import {
     readSpreadsheetFileAsCsvText,
     normalizeTeacherImportRow,
     parseCsvToRecords,
+    downloadTeacherImportTemplate,
+    TEACHER_IMPORT_TEMPLATE_HEADERS,
 } from '../../../lib/spreadsheetImport';
 
 const AdminTeacherImport = () => {
@@ -80,15 +82,31 @@ const AdminTeacherImport = () => {
 
             <h1 className="text-base font-extrabold text-slate-900 tracking-tight mb-1">Import teachers</h1>
             <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-                Upload CSV/Excel or paste rows below. Columns:{' '}
+                Download the Excel template, fill in your teachers, then upload the file (or paste CSV). Columns:{' '}
                 <code className="text-[10px] bg-slate-200/80 px-1 py-0.5 rounded">
-                    name, email, teacherId, faculty, department, phone, skills
+                    {TEACHER_IMPORT_TEMPLATE_HEADERS.join(', ')}
                 </code>
                 . Missing or duplicate rows (name, email, teacherId) are fully rejected — nothing is saved for those rows.
                 Faculties/departments are added only for successfully imported teachers.
             </p>
 
             <div className="rounded-xl bg-white shadow-sm ring-1 ring-slate-200/60 p-4 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            try {
+                                downloadTeacherImportTemplate();
+                            } catch (err) {
+                                setError(err.message || 'Could not download template.');
+                            }
+                        }}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[12px] font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        Download Excel template
+                    </button>
+                </div>
                 <div>
                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">CSV or Excel file</label>
                     <input
