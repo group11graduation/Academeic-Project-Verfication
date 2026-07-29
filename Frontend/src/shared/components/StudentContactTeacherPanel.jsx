@@ -22,7 +22,7 @@ function categoryLabel(value) {
 
 function statusBadge(status) {
   if (status === 'replied') return { text: 'Teacher replied', cls: 'bg-emerald-100 text-emerald-800' };
-  if (status === 'closed') return { text: 'Closed', cls: 'bg-slate-100 text-slate-600' };
+  if (status === 'closed') return { text: 'Closed', cls: 'bg-[var(--sv-card-muted)] text-[var(--sv-muted)]' };
   return { text: 'Waiting for teacher', cls: 'bg-amber-100 text-amber-900' };
 }
 
@@ -148,8 +148,8 @@ export default function StudentContactTeacherPanel({
       <div className="mb-3 flex items-start gap-2">
         <MessageSquare className="h-5 w-5 shrink-0 text-[#1e56e3]" />
         <div>
-          <h2 className="text-sm font-bold text-slate-900">Contact teacher</h2>
-          <p className="text-xs text-slate-500">
+          <h2 className="text-sm font-bold text-[var(--sv-text)]">Contact teacher</h2>
+          <p className="text-xs text-[var(--sv-muted)]">
             {isCollab
               ? 'Choose which teacher to contact, or send to both together.'
               : `Request a deadline extension or ask ${teacherName || 'your teacher'} for help.`}
@@ -166,11 +166,11 @@ export default function StudentContactTeacherPanel({
       <form onSubmit={handleSubmit} className="space-y-3">
         {isCollab ? (
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Send to</label>
+            <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Send to</label>
             <select
               value={recipientTarget}
               onChange={(e) => setRecipientTarget(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+              className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-sm font-semibold text-[var(--sv-text)]"
             >
               {recipientOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -178,7 +178,7 @@ export default function StudentContactTeacherPanel({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-[var(--sv-muted)]">
               {recipientTarget === 'both'
                 ? 'Both teachers will see this message and either one can reply.'
                 : `Only ${selectedRecipientLabel} will receive this message.`}
@@ -187,11 +187,11 @@ export default function StudentContactTeacherPanel({
         ) : null}
 
         <div>
-          <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Topic</label>
+          <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Topic</label>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-sm"
           >
             {CATEGORY_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -203,11 +203,11 @@ export default function StudentContactTeacherPanel({
 
         {category === 'deadline_extension' ? (
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Which deadline?</label>
+            <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Which deadline?</label>
             <select
               value={deadlineType}
               onChange={(e) => setDeadlineType(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-sm"
             >
               {DEADLINE_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -219,7 +219,7 @@ export default function StudentContactTeacherPanel({
         ) : null}
 
         <div>
-          <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Subject</label>
+          <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Subject</label>
           <input
             type="text"
             value={subject}
@@ -227,12 +227,12 @@ export default function StudentContactTeacherPanel({
             maxLength={200}
             required
             placeholder="Short title for your request"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-sm"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Message</label>
+          <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Message</label>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -240,7 +240,7 @@ export default function StudentContactTeacherPanel({
             required
             maxLength={4000}
             placeholder="Explain why you need an extension or what you need help with…"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-sm"
           />
         </div>
 
@@ -259,20 +259,20 @@ export default function StudentContactTeacherPanel({
 
       {loading ? (
         <div className="mt-4 flex justify-center py-4">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--sv-muted)]" />
         </div>
       ) : messages.length ? (
-        <div className="mt-5 border-t border-slate-100 pt-4">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        <div className="mt-5 border-t border-[var(--sv-border)] pt-4">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
             Previous messages ({messages.length})
           </p>
           <ul className="space-y-2 max-h-64 overflow-y-auto">
             {messages.map((m) => {
               const badge = statusBadge(m.status);
               return (
-                <li key={m._id} className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2 text-xs">
+                <li key={m._id} className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2 text-xs">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-slate-800">{m.subject}</span>
+                    <span className="font-bold text-[var(--sv-text)]">{m.subject}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${badge.cls}`}>
                       {badge.text}
                     </span>
@@ -280,10 +280,10 @@ export default function StudentContactTeacherPanel({
                   {m.recipientLabel ? (
                     <p className="mt-1 font-semibold text-[#1e56e3]">To: {m.recipientLabel}</p>
                   ) : null}
-                  <p className="mt-1 text-slate-500">
+                  <p className="mt-1 text-[var(--sv-muted)]">
                     {categoryLabel(m.category)} · {new Date(m.createdAt).toLocaleString()}
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-slate-700">{m.message}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-[var(--sv-text)]">{m.message}</p>
                   {m.teacherReply ? (
                     <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/80 px-2 py-2 text-emerald-900">
                       <p className="font-bold text-[10px] uppercase text-emerald-700">Teacher reply</p>

@@ -28,7 +28,7 @@ const statusBadge = (row) => {
     if (s === 'teacher_rejected' || s === 'requirements_rejected') {
         return { label: 'Declined', cls: 'bg-rose-100 text-rose-700' };
     }
-    return { label: 'Proposal needed', cls: 'bg-slate-100 text-slate-600' };
+    return { label: 'Proposal needed', cls: 'bg-[var(--sv-card-muted)] text-[var(--sv-muted)]' };
 };
 
 const StudentProjectsList = () => {
@@ -70,7 +70,7 @@ const StudentProjectsList = () => {
     return (
         <div className={Z_SHELL}>
             <div className={Z_SHELL_INNER}>
-                <p className="mb-4 max-w-2xl text-[12px] leading-relaxed text-slate-600">
+                <p className="mb-4 max-w-2xl text-[12px] leading-relaxed text-[var(--sv-muted)]">
                     Final projects and capstone work. Open a project to upload code, manage your abstract, and track
                     teacher feedback.
                 </p>
@@ -78,8 +78,8 @@ const StudentProjectsList = () => {
                 {sortedRows.length === 0 ? (
                     <div className={`${Z_CARD} p-6 text-center`}>
                         <FolderKanban className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                        <p className="text-[13px] font-bold text-slate-700">No project assignments yet</p>
-                        <p className="mt-1.5 text-[12px] text-slate-500">
+                        <p className="text-[13px] font-bold text-[var(--sv-text)]">No project assignments yet</p>
+                        <p className="mt-1.5 text-[12px] text-[var(--sv-muted)]">
                             When your teacher publishes a final project, it will appear here.
                         </p>
                         <Link
@@ -112,8 +112,8 @@ const StudentProjectsList = () => {
                                             <Rocket className="h-4 w-4" />
                                         </div>
                                         <div className="min-w-0">
-                                            <p className="truncate text-sm font-bold text-slate-900">{a.title}</p>
-                                            <p className="text-xs font-semibold text-slate-500">
+                                            <p className="truncate text-sm font-bold text-[var(--sv-text)]">{a.title}</p>
+                                            <p className="text-xs font-semibold text-[var(--sv-muted)]">
                                                 {a.subject?.name || 'Subject'}
                                                 {a.subject?.code ? ` · ${a.subject.code}` : ''}
                                             </p>
@@ -133,7 +133,7 @@ const StudentProjectsList = () => {
                     </div>
                 )}
 
-                <p className="mt-6 text-xs font-semibold text-slate-500">
+                <p className="mt-6 text-xs font-semibold text-[var(--sv-muted)]">
                     Need a normal assignment instead?{' '}
                     <Link to="/student/assignments" className={Z_LINK}>
                         Go to assignments

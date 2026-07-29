@@ -40,7 +40,7 @@ export default function MatchedSimilarProjectPanel({
                 <button
                     type="button"
                     onClick={() => screenshotUrls.length && setLightboxOpen(true)}
-                    className={`relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left transition hover:ring-2 hover:ring-[#1D68E3]/40 ${
+                    className={`relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] text-left transition hover:ring-2 hover:ring-[#1D68E3]/40 ${
                         screenshotUrls.length ? 'cursor-zoom-in' : 'cursor-default'
                     }`}
                     title={screenshotUrls.length ? 'View project screenshots' : 'No screenshot uploaded'}
@@ -49,8 +49,8 @@ export default function MatchedSimilarProjectPanel({
                         <img src={thumb} alt="" className="h-full w-full object-cover object-top" />
                     ) : (
                         <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
-                            <ImageIcon className="h-8 w-8 text-slate-400" />
-                            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">No screenshot</span>
+                            <ImageIcon className="h-8 w-8 text-[var(--sv-muted)]" />
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">No screenshot</span>
                         </div>
                     )}
                     {screenshotUrls.length > 1 && (
@@ -62,22 +62,22 @@ export default function MatchedSimilarProjectPanel({
 
                 <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[#2a3fa4]">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[#2a3fa4]">
                             <ShieldCheck className="h-3 w-3" />
                             Verified archive
                         </span>
                         {match.category ? (
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-600">
+                            <span className="rounded-full bg-[var(--sv-card-muted)] px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--sv-muted)]">
                                 {match.category}
                             </span>
                         ) : null}
                     </div>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white">{match.title}</h3>
+                    <h3 className="text-lg font-black text-[var(--sv-text)] dark:text-white">{match.title}</h3>
                     {match.author ? (
-                        <p className="mt-1 text-xs font-semibold text-slate-500">By {match.author}</p>
+                        <p className="mt-1 text-xs font-semibold text-[var(--sv-muted)]">By {match.author}</p>
                     ) : null}
                     {match.description ? (
-                        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
                             {match.description}
                         </p>
                     ) : null}
@@ -105,7 +105,7 @@ export default function MatchedSimilarProjectPanel({
                             <button
                                 type="button"
                                 onClick={() => setLightboxOpen(true)}
-                                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-2 text-sm font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                             >
                                 View screenshots
                                 <ArrowRight className="h-4 w-4" />

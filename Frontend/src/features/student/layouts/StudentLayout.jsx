@@ -51,7 +51,7 @@ const StudentLayoutInner = () => {
     });
 
     return (
-        <div className="flex min-h-screen w-full bg-[#f8fafc] font-sans text-slate-900 dark:bg-[#020617] dark:text-slate-100">
+        <div className="flex min-h-screen w-full bg-[#f8fafc] font-sans text-[var(--sv-text)] dark:bg-[#020617] dark:text-slate-100">
             <StudentSidebar />
 
             <div className="flex min-h-screen min-w-0 flex-1 flex-col">
@@ -65,7 +65,7 @@ const StudentLayoutInner = () => {
                             <button
                                 type="button"
                                 onClick={() => setMobileOpen((v) => !v)}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-[#111827]"
+                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] dark:border-white/10 dark:bg-[#111827]"
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                             </button>
@@ -85,7 +85,7 @@ const StudentLayoutInner = () => {
                                     onClick={() => setMobileOpen(false)}
                                     className={({ isActive }) =>
                                         `flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold ${
-                                            isActive ? 'bg-white text-[#1d2f82]' : 'text-white/85'
+                                            isActive ? 'bg-[var(--sv-card)] text-[#1d2f82]' : 'text-white/85'
                                         }`
                                     }
                                 >
@@ -107,15 +107,15 @@ const StudentLayoutInner = () => {
                     )}
 
                     <header className="flex flex-col gap-2 px-4 pb-1 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
-                        <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">{title}</h1>
+                        <h1 className="text-lg font-black tracking-tight text-[var(--sv-text)] dark:text-slate-100 sm:text-xl">{title}</h1>
                         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                             <ThemeToggle compact className="hidden sm:inline-flex" />
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600 shadow-sm dark:border-white/10 dark:bg-[#111827] dark:text-slate-300"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-[var(--sv-card)] px-3 py-1.5 text-[12px] font-bold text-[var(--sv-muted)] shadow-sm dark:border-white/10 dark:bg-[#111827] dark:text-slate-300"
                             >
                                 {today}
-                                <ChevronDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                                <ChevronDown className="h-3.5 w-3.5 text-[var(--sv-muted)] dark:text-[var(--sv-muted)]" />
                             </button>
                         </div>
                     </header>

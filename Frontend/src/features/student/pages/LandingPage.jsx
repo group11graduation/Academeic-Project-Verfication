@@ -184,7 +184,7 @@ const LandingPage = () => {
                                     key={label}
                                     className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111827]"
                                 >
-                                    <div className="ui-icon-box w-9 h-9 rounded-lg bg-blue-50 text-[#2a3fa4] mb-3">
+                                    <div className="ui-icon-box w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/15 text-[#2a3fa4] mb-3">
                                         <Icon className="h-4 w-4 shrink-0" />
                                     </div>
                                     <p className="text-xs font-bold leading-snug text-slate-700 dark:text-slate-200">{label}</p>
@@ -246,7 +246,7 @@ const LandingPage = () => {
                                     className="flex flex-col rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]"
                                 >
                                     <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#2a3fa4] flex items-center justify-center">
+                                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 text-[#2a3fa4] flex items-center justify-center">
                                             <Icon className="h-5 w-5" />
                                         </div>
                                         <h3 className="text-base font-black text-slate-900 dark:text-slate-100">{mod.title}</h3>
@@ -286,7 +286,7 @@ const LandingPage = () => {
                         <div className="flex flex-wrap justify-center gap-3">
                             <Link
                                 to="/about"
-                                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-[#2a3fa4] text-sm font-black hover:bg-blue-50"
+                                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-[#2a3fa4] text-sm font-black hover:bg-blue-50 dark:hover:bg-blue-500/15 dark:bg-blue-500/15"
                             >
                                 Platform guide
                             </Link>

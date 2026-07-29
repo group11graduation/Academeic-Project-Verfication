@@ -27,8 +27,8 @@ const StudentMessages = () => {
     <div className={Z_SHELL}>
       <div className={Z_SHELL_INNER}>
         <div className="mb-4">
-          <h1 className="text-lg font-bold text-slate-900">Messages to teachers</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-lg font-bold text-[var(--sv-text)]">Messages to teachers</h1>
+          <p className="text-sm text-[var(--sv-muted)]">
             Track deadline extension requests and replies from your teachers.
           </p>
         </div>
@@ -40,8 +40,8 @@ const StudentMessages = () => {
         ) : messages.length === 0 ? (
           <div className={`${Z_CARD} p-8 text-center`}>
             <MessageSquare className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-            <p className="text-sm font-semibold text-slate-600">No messages yet.</p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="text-sm font-semibold text-[var(--sv-muted)]">No messages yet.</p>
+            <p className="mt-1 text-xs text-[var(--sv-muted)]">
               Open an assignment and use <strong>Contact teacher</strong> to send a request.
             </p>
             <Link to="/student/assignments" className={`${Z_LINK} mt-4 inline-block text-sm font-bold`}>
@@ -57,8 +57,8 @@ const StudentMessages = () => {
                 <li key={m._id} className={`${Z_CARD} p-4`}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <h2 className="text-sm font-bold text-slate-900">{m.subject}</h2>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <h2 className="text-sm font-bold text-[var(--sv-text)]">{m.subject}</h2>
+                      <p className="mt-0.5 text-xs text-[var(--sv-muted)]">
                         {m.assignment?.title || 'Assignment'} · {categoryLabel(m.category)} ·{' '}
                         {new Date(m.createdAt).toLocaleString()}
                       </p>
@@ -70,7 +70,7 @@ const StudentMessages = () => {
                       {badge.text}
                     </span>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{m.message}</p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-[var(--sv-text)]">{m.message}</p>
                   {m.teacherReply ? (
                     <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
                       <p className="text-[10px] font-bold uppercase text-emerald-700">Teacher reply</p>

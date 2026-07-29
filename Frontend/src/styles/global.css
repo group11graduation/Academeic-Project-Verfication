@@ -13,6 +13,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --sv-primary: #2a3fa4;
     --sv-primary-hover: #223688;
     --sv-action: #1d68e3;
@@ -31,12 +32,13 @@
   }
 
   .dark {
+    color-scheme: dark;
     --sv-page-bg: #020617;
     --sv-card: #0f172a;
     --sv-card-muted: #111827;
     --sv-border: rgba(255, 255, 255, 0.1);
     --sv-text: #e5eefc;
-    --sv-muted: #94a3b8;
+    --sv-muted: #cbd5e1;
     --sv-input-text: #f8fafc;
     --sv-input-placeholder: #94a3b8;
   }

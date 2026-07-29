@@ -11,7 +11,7 @@ const STYLES = {
         icon: AlertCircle,
     },
     info: {
-        wrap: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300',
+        wrap: 'border-[var(--sv-border)] bg-[var(--sv-card-muted)] text-[var(--sv-text)] dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300',
         icon: Info,
     },
 };

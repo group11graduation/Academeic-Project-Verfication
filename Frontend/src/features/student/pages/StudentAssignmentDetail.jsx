@@ -33,8 +33,8 @@ import StudentTeacherInfoPanel, {
 function DetailRow({ label, value }) {
     return (
         <div className="grid grid-cols-1 gap-1 border-b border-slate-50 py-3 last:border-0 sm:grid-cols-[minmax(0,140px)_1fr] sm:gap-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-            <span className="text-sm font-semibold text-slate-900 break-words">{value ?? '-'}</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--sv-muted)]">{label}</span>
+            <span className="text-sm font-semibold text-[var(--sv-text)] break-words">{value ?? '-'}</span>
         </div>
     );
 }
@@ -91,7 +91,7 @@ const StudentAssignmentDetail = () => {
         return (
             <div className={Z_SHELL}>
                 <div className={Z_SHELL_INNER}>
-                    <h2 className="text-lg font-bold text-slate-500">Assignment not found</h2>
+                    <h2 className="text-lg font-bold text-[var(--sv-muted)]">Assignment not found</h2>
                     <button type="button" onClick={() => navigate('/student/assignments')} className={`${Z_LINK} mt-4`}>
                         Back to assignments
                     </button>
@@ -170,12 +170,12 @@ const StudentAssignmentDetail = () => {
     return (
         <div className={`${Z_SHELL} flex-1`}>
             <div className={Z_SHELL_INNER}>
-                <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--sv-muted)]">
                     <Link to="/student/assignments" className={Z_LINK}>
                         Assignments
                     </Link>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="max-w-[min(100%,20rem)] truncate text-slate-800" title={displayTitle}>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
+                    <span className="max-w-[min(100%,20rem)] truncate text-[var(--sv-text)]" title={displayTitle}>
                         {displayTitle}
                     </span>
                 </nav>
@@ -184,7 +184,7 @@ const StudentAssignmentDetail = () => {
                     <button
                         type="button"
                         onClick={() => navigate('/student/assignments')}
-                        className="w-fit text-sm font-semibold text-slate-500 transition hover:text-slate-800"
+                        className="w-fit text-sm font-semibold text-[var(--sv-muted)] transition hover:text-[var(--sv-text)]"
                     >
                         ← Back to list
                     </button>
@@ -238,11 +238,11 @@ const StudentAssignmentDetail = () => {
                             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-lg font-bold text-white shadow-md">
                                 {displayTitle.charAt(0).toUpperCase()}
                             </div>
-                            <h2 className="mt-3 text-base font-bold leading-snug text-slate-900">{displayTitle}</h2>
-                            <p className="mt-0.5 text-[12px] text-slate-500">{subjectLabel}</p>
-                            <div className="mt-4 grid w-full grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2">
-                                <div className="rounded-lg bg-slate-50 py-1.5 text-center">
-                                    <p className="text-base font-bold text-slate-900">
+                            <h2 className="mt-3 text-base font-bold leading-snug text-[var(--sv-text)]">{displayTitle}</h2>
+                            <p className="mt-0.5 text-[12px] text-[var(--sv-muted)]">{subjectLabel}</p>
+                            <div className="mt-4 grid w-full grid-cols-1 gap-2 border-t border-[var(--sv-border)] pt-4 sm:grid-cols-2">
+                                <div className="rounded-lg bg-[var(--sv-card-muted)] py-1.5 text-center">
+                                    <p className="text-base font-bold text-[var(--sv-text)]">
                                         {isNormalAssignment
                                             ? row?.latestNormalSubmission
                                                 ? '1'
@@ -251,17 +251,17 @@ const StudentAssignmentDetail = () => {
                                               ? '1'
                                               : '0'}
                                     </p>
-                                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Your uploads</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">Your uploads</p>
                                 </div>
-                                <div className="rounded-lg bg-slate-50 py-1.5 text-center">
-                                    <p className="text-base font-bold text-slate-900">
+                                <div className="rounded-lg bg-[var(--sv-card-muted)] py-1.5 text-center">
+                                    <p className="text-base font-bold text-[var(--sv-text)]">
                                         {assignment.projectDeadline || assignment.proposalDeadline
                                             ? new Date(
                                                   assignment.projectDeadline || assignment.proposalDeadline
                                               ).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                                             : '-'}
                                     </p>
-                                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Next deadline</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">Next deadline</p>
                                 </div>
                             </div>
                             {!isNormalAssignment && workflow ? (
@@ -291,10 +291,10 @@ const StudentAssignmentDetail = () => {
                     </div>
 
                     <div className={`${Z_CARD} p-4`}>
-                        <h2 className="text-[12px] font-bold text-slate-900">Assignment details</h2>
-                        <p className="mb-3 text-[11px] text-slate-500">Information from your teacher.</p>
+                        <h2 className="text-[12px] font-bold text-[var(--sv-text)]">Assignment details</h2>
+                        <p className="mb-3 text-[11px] text-[var(--sv-muted)]">Information from your teacher.</p>
                         {assignmentTeachers.length ? (
-                            <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                            <div className="mb-4 rounded-xl border border-blue-100 dark:border-blue-400/30 bg-blue-50/50 dark:bg-blue-500/10 p-3">
                                 <StudentTeacherInfoPanel
                                     teachers={assignmentTeachers}
                                     compact
@@ -325,18 +325,18 @@ const StudentAssignmentDetail = () => {
 
                     <div className={`${Z_CARD} flex flex-col p-4`}>
                         <div className="mb-2 flex items-start justify-between gap-2">
-                            <h2 className="text-[12px] font-bold text-slate-900">Notes</h2>
+                            <h2 className="text-[12px] font-bold text-[var(--sv-text)]">Notes</h2>
                             <span className="text-xs font-semibold text-[#1e56e3]">{studentName}</span>
                         </div>
                         {teacherFeedbackEntries.length ? (
                             <StudentProjectFeedbackPanel entries={teacherFeedbackEntries} />
                         ) : row?.proposal?.teacherComment && !row?.latestProjectSubmission ? (
-                            <div className="flex-1 rounded-lg border border-blue-100 bg-blue-50/80 p-3 text-sm leading-relaxed text-blue-950">
+                            <div className="flex-1 rounded-lg border border-blue-100 dark:border-blue-400/30 bg-blue-50/80 p-3 text-sm leading-relaxed text-blue-950">
                                 <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">Proposal feedback</p>
                                 {row.proposal.teacherComment}
                             </div>
                         ) : (
-                            <ul className="flex-1 space-y-2 text-sm text-slate-600">
+                            <ul className="flex-1 space-y-2 text-sm text-[var(--sv-muted)]">
                                 <li className="flex gap-2">
                                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
                                     <span>
@@ -359,7 +359,7 @@ const StudentAssignmentDetail = () => {
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:gap-4">
                     <div className="lg:col-span-3">
                         <div className={`${Z_CARD} flex min-h-[280px] flex-col overflow-hidden`}>
-                            <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 pt-1.5">
+                            <div className="flex flex-wrap gap-1 border-b border-[var(--sv-border)] px-2 pt-1.5">
                                 {[
                                     { id: 'workspace', label: isNormalAssignment ? 'Submit work' : 'Workflow' },
                                     { id: 'activity', label: 'Activity' },
@@ -371,50 +371,50 @@ const StudentAssignmentDetail = () => {
                                         onClick={() => setTab(t.id)}
                                         className={`rounded-t-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wide transition ${
                                             tab === t.id
-                                                ? 'border border-b-0 border-slate-200 bg-white text-[#1e56e3]'
-                                                : 'border border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                                                ? 'border border-b-0 border-[var(--sv-border)] bg-[var(--sv-card)] text-[#1e56e3]'
+                                                : 'border border-transparent text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] hover:text-[var(--sv-text)]'
                                         }`}
                                     >
                                         {t.label}
                                     </button>
                                 ))}
                             </div>
-                            <div className="min-h-0 flex-1 bg-white p-3 md:p-4">
+                            <div className="min-h-0 flex-1 bg-[var(--sv-card)] p-3 md:p-4">
                                 {tab === 'activity' && (
                                     <div className="relative pl-6">
                                         <div className="absolute bottom-2 left-[11px] top-2 w-0.5 bg-[#1e56e3]/20" />
                                         <ul className="space-y-6">
                                             <li className="relative">
                                                 <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
-                                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Assignment</p>
-                                                <p className="mt-1 font-bold text-slate-900">{displayTitle}</p>
-                                                <p className="mt-1 text-sm text-slate-600">Teacher: {teacherName}</p>
+                                                <p className="text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">Assignment</p>
+                                                <p className="mt-1 font-bold text-[var(--sv-text)]">{displayTitle}</p>
+                                                <p className="mt-1 text-sm text-[var(--sv-muted)]">Teacher: {teacherName}</p>
                                             </li>
                                             {effectiveDeadline ? (
                                                 <li className="relative">
                                                     <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
-                                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Deadlines</p>
+                                                    <p className="text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">Deadlines</p>
                                                     {proposalDeadline ? (
-                                                        <p className="mt-1 text-sm text-slate-600">Proposal: {proposalDeadline}</p>
+                                                        <p className="mt-1 text-sm text-[var(--sv-muted)]">Proposal: {proposalDeadline}</p>
                                                     ) : null}
                                                     {projectDeadline ? (
-                                                        <p className="mt-1 text-sm text-slate-600">Project: {projectDeadline}</p>
+                                                        <p className="mt-1 text-sm text-[var(--sv-muted)]">Project: {projectDeadline}</p>
                                                     ) : null}
                                                 </li>
                                             ) : null}
                                             {!isNormalAssignment && row?.proposal?.status ? (
                                                 <li className="relative">
                                                     <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
-                                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Proposal</p>
-                                                    <p className="mt-1 font-bold text-slate-900">{proposalStatusLabel(row)}</p>
+                                                    <p className="text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">Proposal</p>
+                                                    <p className="mt-1 font-bold text-[var(--sv-text)]">{proposalStatusLabel(row)}</p>
                                                 </li>
                                             ) : null}
                                             {isNormalAssignment && row?.latestNormalSubmission ? (
                                                 <li className="relative">
                                                     <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-emerald-500 shadow" />
-                                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Latest file</p>
-                                                    <p className="mt-1 font-bold text-slate-900">{row.latestNormalSubmission.originalFilename}</p>
-                                                    <p className="mt-1 text-sm text-slate-600">
+                                                    <p className="text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">Latest file</p>
+                                                    <p className="mt-1 font-bold text-[var(--sv-text)]">{row.latestNormalSubmission.originalFilename}</p>
+                                                    <p className="mt-1 text-sm text-[var(--sv-muted)]">
                                                         Similarity: {Math.round((Number(row.latestNormalSubmission.plagiarismScore || 0)) * 100)}%
                                                     </p>
                                                 </li>
@@ -426,21 +426,21 @@ const StudentAssignmentDetail = () => {
                                 {tab === 'requirements' && (
                                     <div className="space-y-4 text-sm">
                                         <div>
-                                            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">Teacher instructions</p>
-                                            <p className="whitespace-pre-wrap rounded-lg border border-slate-100 bg-slate-50 p-4 text-slate-700">
+                                            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">Teacher instructions</p>
+                                            <p className="whitespace-pre-wrap rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-4 text-[var(--sv-text)]">
                                                 {assignment?.requirementText?.trim() || 'No requirement text was provided for this assignment.'}
                                             </p>
                                         </div>
                                         {Array.isArray(assignment?.requiredKeywords) && assignment.requiredKeywords.length > 0 ? (
                                             <div>
-                                                <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">Required keywords</p>
-                                                <p className="text-slate-800">{assignment.requiredKeywords.join(', ')}</p>
+                                                <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">Required keywords</p>
+                                                <p className="text-[var(--sv-text)]">{assignment.requiredKeywords.join(', ')}</p>
                                             </div>
                                         ) : null}
                                         {Array.isArray(assignment?.allowedTechnologies) && assignment.allowedTechnologies.length > 0 ? (
                                             <div>
-                                                <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">Allowed technologies</p>
-                                                <p className="text-slate-800">{assignment.allowedTechnologies.join(', ')}</p>
+                                                <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">Allowed technologies</p>
+                                                <p className="text-[var(--sv-text)]">{assignment.allowedTechnologies.join(', ')}</p>
                                             </div>
                                         ) : null}
                                     </div>
@@ -449,19 +449,19 @@ const StudentAssignmentDetail = () => {
                                 {tab === 'workspace' && (
                                     <div className="space-y-6">
                                         {isNormalAssignment ? (
-                                            <div id="normal-upload-anchor" className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                                            <div id="normal-upload-anchor" className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-4">
                                                 <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[#1e56e3]">
                                                     Normal assignment
                                                 </div>
-                                                <h3 className="text-sm font-bold text-slate-900">Upload your file</h3>
-                                                <p className="mt-1 text-[12px] text-slate-600">
+                                                <h3 className="text-sm font-bold text-[var(--sv-text)]">Upload your file</h3>
+                                                <p className="mt-1 text-[12px] text-[var(--sv-muted)]">
                                                     Allowed: pdf, docx, txt, md, json, csv, Jupyter (.ipynb), and common code files.
                                                 </p>
                                                 <input
                                                     type="file"
                                                     onChange={(e) => setNormalFile(e.target.files?.[0] || null)}
                                                     disabled={normalDeadlineClosed}
-                                                    className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm disabled:opacity-60"
+                                                    className="mt-4 w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-sm disabled:opacity-60"
                                                 />
                                                 <button
                                                     type="button"
@@ -475,11 +475,11 @@ const StudentAssignmentDetail = () => {
                                                 {normalUploadErr ? <p className="mt-3 text-sm font-semibold text-rose-600">{normalUploadErr}</p> : null}
                                                 {normalUploadMsg ? <p className="mt-3 text-sm font-semibold text-emerald-700">{normalUploadMsg}</p> : null}
                                                 {row?.latestNormalSubmission ? (
-                                                    <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                                                        <p className="text-xs font-bold text-slate-800">
+                                                    <div className="mt-4 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-3">
+                                                        <p className="text-xs font-bold text-[var(--sv-text)]">
                                                             Latest: {row.latestNormalSubmission.originalFilename}
                                                         </p>
-                                                        <p className="mt-1 text-xs text-slate-500">
+                                                        <p className="mt-1 text-xs text-[var(--sv-muted)]">
                                                             Similarity: {Math.round((Number(row.latestNormalSubmission.plagiarismScore || 0)) * 100)}%
                                                             {row.latestNormalSubmission.plagiarismFlag ? ' (high similarity flag)' : ''}
                                                         </p>
@@ -491,7 +491,7 @@ const StudentAssignmentDetail = () => {
                                                 {showProposalDeadlineBanner ? (
                                                     <div className={`${Z_CARD} border-rose-200 bg-rose-50/80 p-4 opacity-95`}>
                                                         <div className="text-[10px] font-bold uppercase tracking-widest text-rose-700">Step 1 (closed)</div>
-                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-[var(--sv-text)]">Proposal</h3>
                                                         <p className="mt-1 text-[12px] text-rose-800">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
                                                     </div>
                                                 ) : proposalPhaseComplete ? (
@@ -500,17 +500,17 @@ const StudentAssignmentDetail = () => {
                                                         className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
                                                     >
                                                         <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 1 (done)</div>
-                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
-                                                        <p className="mt-1 text-[12px] text-slate-600">Submitted - view your proposal details.</p>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-[var(--sv-text)]">Proposal</h3>
+                                                        <p className="mt-1 text-[12px] text-[var(--sv-muted)]">Submitted - view your proposal details.</p>
                                                     </Link>
                                                 ) : (
                                                     <Link
                                                         to={`/student/assignments/${assignment._id}/proposal`}
-                                                        className={`${Z_CARD} border-slate-200 p-4 transition hover:border-[#1e56e3]/35 hover:shadow-md`}
+                                                        className={`${Z_CARD} border-[var(--sv-border)] p-4 transition hover:border-[#1e56e3]/35 hover:shadow-md`}
                                                     >
                                                         <div className="text-[10px] font-bold uppercase tracking-widest text-[#1e56e3]">Step 1</div>
-                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-900">Proposal</h3>
-                                                        <p className="mt-1 text-[12px] text-slate-600">Describe your idea for AI and teacher review.</p>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-[var(--sv-text)]">Proposal</h3>
+                                                        <p className="mt-1 text-[12px] text-[var(--sv-muted)]">Describe your idea for AI and teacher review.</p>
                                                     </Link>
                                                 )}
                                                 {proposalApprovedOrProjectUploaded ? (
@@ -520,15 +520,15 @@ const StudentAssignmentDetail = () => {
                                                             className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
                                                         >
                                                             <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 2 (done)</div>
-                                                            <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
-                                                            <p className="mt-1 text-[12px] text-slate-600">
+                                                            <h3 className="mt-1.5 text-sm font-bold text-[var(--sv-text)]">Project ZIP</h3>
+                                                            <p className="mt-1 text-[12px] text-[var(--sv-muted)]">
                                                                 Submitted - view project and teacher feedback.
                                                             </p>
                                                         </Link>
                                                     ) : showProjectDeadlineBanner ? (
                                                         <div className={`${Z_CARD} border-rose-200 bg-rose-50/80 p-4 opacity-95`}>
                                                             <div className="text-[10px] font-bold uppercase tracking-widest text-rose-700">Step 2 (closed)</div>
-                                                            <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
+                                                            <h3 className="mt-1.5 text-sm font-bold text-[var(--sv-text)]">Project ZIP</h3>
                                                             <p className="mt-1 text-[12px] text-rose-800">{DEADLINE_DUE_STUDENT_MESSAGE}</p>
                                                         </div>
                                                     ) : (
@@ -537,15 +537,15 @@ const StudentAssignmentDetail = () => {
                                                             className={`${Z_CARD} border-emerald-200 bg-emerald-50/50 p-4 transition hover:border-emerald-300 hover:shadow-md`}
                                                         >
                                                             <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Step 2</div>
-                                                            <h3 className="mt-1.5 text-sm font-bold text-slate-900">Project ZIP</h3>
-                                                            <p className="mt-1 text-[12px] text-slate-600">Upload your final project archive.</p>
+                                                            <h3 className="mt-1.5 text-sm font-bold text-[var(--sv-text)]">Project ZIP</h3>
+                                                            <p className="mt-1 text-[12px] text-[var(--sv-muted)]">Upload your final project archive.</p>
                                                         </Link>
                                                     )
                                                 ) : (
-                                                    <div className={`${Z_CARD} border-dashed border-slate-200 bg-slate-50 p-4 opacity-90`}>
-                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Step 2 (locked)</div>
-                                                        <h3 className="mt-1.5 text-sm font-bold text-slate-800">Project ZIP</h3>
-                                                        <p className="mt-1 text-[12px] text-slate-600">Available after teacher approves your proposal.</p>
+                                                    <div className={`${Z_CARD} border-dashed border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-4 opacity-90`}>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)]">Step 2 (locked)</div>
+                                                        <h3 className="mt-1.5 text-sm font-bold text-[var(--sv-text)]">Project ZIP</h3>
+                                                        <p className="mt-1 text-[12px] text-[var(--sv-muted)]">Available after teacher approves your proposal.</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -572,7 +572,7 @@ const StudentAssignmentDetail = () => {
                                                 ) : null}
                                             </div>
                                         ) : !isNormalAssignment ? (
-                                            <p className="text-sm font-medium text-slate-500">
+                                            <p className="text-sm font-medium text-[var(--sv-muted)]">
                                                 No project file yet. Complete the proposal step first.
                                             </p>
                                         ) : null}
@@ -585,44 +585,44 @@ const StudentAssignmentDetail = () => {
                     <div className="lg:col-span-2">
                         <div className={`${Z_CARD} p-4`}>
                             <div className="mb-3 flex items-center justify-between gap-2">
-                                <h2 className="text-[12px] font-bold text-slate-900">Files / documents</h2>
+                                <h2 className="text-[12px] font-bold text-[var(--sv-text)]">Files / documents</h2>
                             </div>
                             <ul className="space-y-2">
                                 {teacherFileUrl ? (
-                                    <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3">
-                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                                    <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
                                             <FileText className="h-5 w-5 text-[#1e56e3]" />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-sm font-bold text-slate-900">{teacherFileName}</p>
-                                            <p className="text-xs font-medium text-slate-500">Teacher requirements</p>
+                                            <p className="truncate text-sm font-bold text-[var(--sv-text)]">{teacherFileName}</p>
+                                            <p className="text-xs font-medium text-[var(--sv-muted)]">Teacher requirements</p>
                                         </div>
                                         <a
                                             href={teacherFileUrl}
                                             download
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="shrink-0 rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-[#1e56e3]"
+                                            className="shrink-0 rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[#1e56e3]"
                                             title="Download"
                                         >
                                             <Download className="h-4 w-4" />
                                         </a>
                                     </li>
                                 ) : (
-                                    <li className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs font-semibold text-slate-400">
+                                    <li className="rounded-xl border border-dashed border-[var(--sv-border)] px-3 py-4 text-center text-xs font-semibold text-[var(--sv-muted)]">
                                         No teacher file attached.
                                     </li>
                                 )}
                                 {row?.latestNormalSubmission?.originalFilename ? (
-                                    <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-3 ring-1 ring-slate-100">
-                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 ring-1 ring-blue-100">
+                                    <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-3 ring-1 ring-slate-100">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/15 ring-1 ring-blue-100">
                                             <FileText className="h-5 w-5 text-blue-600" />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-sm font-bold text-slate-900">{row.latestNormalSubmission.originalFilename}</p>
-                                            <p className="text-xs font-medium text-slate-500">Your submission</p>
+                                            <p className="truncate text-sm font-bold text-[var(--sv-text)]">{row.latestNormalSubmission.originalFilename}</p>
+                                            <p className="text-xs font-medium text-[var(--sv-muted)]">Your submission</p>
                                         </div>
-                                        <span className="text-[10px] font-bold uppercase text-slate-400">On server</span>
+                                        <span className="text-[10px] font-bold uppercase text-[var(--sv-muted)]">On server</span>
                                     </li>
                                 ) : null}
                             </ul>

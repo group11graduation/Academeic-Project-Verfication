@@ -80,7 +80,7 @@ const StudentHeader = ({ forcePublic = false }) => {
 
     const desktopNavClass = ({ isActive }) =>
         `relative px-1 py-4 text-sm font-semibold transition-colors ${
-            isActive ? 'text-[#2a3fa4] dark:text-blue-300' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+            isActive ? 'text-[#2a3fa4] dark:text-blue-300' : 'text-[var(--sv-muted)] hover:text-[var(--sv-text)] dark:text-slate-300 dark:hover:text-white'
         } after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:rounded-full after:transition-opacity ${
             isActive ? 'after:opacity-100 after:bg-[#2a3fa4]' : 'after:opacity-0 hover:after:opacity-40 after:bg-slate-300 dark:after:bg-slate-600'
         }`;
@@ -98,7 +98,7 @@ const StudentHeader = ({ forcePublic = false }) => {
     };
 
     return (
-        <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white shadow-[0_1px_0_rgba(42,63,164,0.04)] dark:border-white/10 dark:bg-[#0b1220]">
+        <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-[var(--sv-card)] shadow-[0_1px_0_rgba(42,63,164,0.04)] dark:border-white/10 dark:bg-[#0b1220]">
             <div className="h-[3px] w-full" style={{ background: BRAND_GRADIENT }} />
 
             <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -125,7 +125,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                                 <button
                                     type="button"
                                     onClick={() => setProfileOpen((v) => !v)}
-                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/60 pl-1 pr-3 py-1 hover:bg-slate-100 dark:border-white/10 dark:bg-[#111827] dark:hover:bg-[#1f2937]"
+                                    className="flex items-center gap-2 rounded-full border border-[var(--sv-border)] bg-slate-50/60 pl-1 pr-3 py-1 hover:bg-[var(--sv-card-muted)] dark:border-white/10 dark:bg-[#111827] dark:hover:bg-[#1f2937]"
                                 >
                                     <div
                                         className="h-8 w-8 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-black ring-2 ring-white"
@@ -137,10 +137,10 @@ const StudentHeader = ({ forcePublic = false }) => {
                                             (user.name || 'U').charAt(0).toUpperCase()
                                         )}
                                     </div>
-                                    <span className="hidden lg:block max-w-[120px] truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                                    <span className="hidden lg:block max-w-[120px] truncate text-xs font-bold text-[var(--sv-text)] dark:text-slate-100">
                                         {user.name || user.role}
                                     </span>
-                                    <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform dark:text-slate-500 ${profileOpen ? 'rotate-180' : ''}`} />
+                                    <ChevronDown className={`h-3.5 w-3.5 text-[var(--sv-muted)] transition-transform dark:text-[var(--sv-muted)] ${profileOpen ? 'rotate-180' : ''}`} />
                                 </button>
 
                                 {profileOpen && (
@@ -151,18 +151,18 @@ const StudentHeader = ({ forcePublic = false }) => {
                                             aria-label="Close menu"
                                             onClick={() => setProfileOpen(false)}
                                         />
-                                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl dark:border-white/10 dark:bg-[#111827]">
-                                            <div className="px-4 py-2.5 border-b border-slate-100 dark:border-white/10">
-                                                <p className="text-xs font-black text-slate-900 truncate dark:text-slate-100">{user.name}</p>
-                                                <p className="text-[11px] text-slate-500 truncate capitalize dark:text-slate-400">{user.role} account</p>
+                                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] py-1.5 shadow-xl dark:border-white/10 dark:bg-[#111827]">
+                                            <div className="px-4 py-2.5 border-b border-[var(--sv-border)] dark:border-white/10">
+                                                <p className="text-xs font-black text-[var(--sv-text)] truncate dark:text-slate-100">{user.name}</p>
+                                                <p className="text-[11px] text-[var(--sv-muted)] truncate capitalize dark:text-[var(--sv-muted)]">{user.role} account</p>
                                             </div>
                                             {user.role === 'student' && (
                                                 <Link
                                                     to="/student/profile"
                                                     onClick={() => setProfileOpen(false)}
-                                                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10"
+                                                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:text-slate-200 dark:hover:bg-white/10"
                                                 >
-                                                    <UserRound className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                                                    <UserRound className="h-4 w-4 text-[var(--sv-muted)] dark:text-[var(--sv-muted)]" />
                                                     My profile
                                                 </Link>
                                             )}
@@ -181,7 +181,7 @@ const StudentHeader = ({ forcePublic = false }) => {
 
                             <button
                                 type="button"
-                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-white/10 dark:text-slate-100"
+                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sv-border)] dark:border-white/10 dark:text-slate-100"
                                 onClick={() => setMobileOpen((v) => !v)}
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -205,7 +205,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                                         handleSwitchAccount();
                                     }
                                 }}
-                                className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-slate-700 hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300"
+                                className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[var(--sv-text)] hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300"
                             >
                                 Sign in
                             </Link>
@@ -220,7 +220,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                             </button>
                             <button
                                 type="button"
-                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-white/10 dark:text-slate-100"
+                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sv-border)] dark:border-white/10 dark:text-slate-100"
                                 onClick={() => setMobileOpen((v) => !v)}
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -231,7 +231,7 @@ const StudentHeader = ({ forcePublic = false }) => {
             </div>
 
             {mobileOpen && (
-                <div className="lg:hidden border-t border-slate-200 bg-white dark:border-white/10 dark:bg-[#0b1220] safe-area-px">
+                <div className="lg:hidden border-t border-[var(--sv-border)] bg-[var(--sv-card)] dark:border-white/10 dark:bg-[#0b1220] safe-area-px">
                     <nav className="max-w-[1400px] mx-auto px-4 py-4 space-y-1">
                         <ThemeToggle className="mb-2 w-full justify-center" />
                         {navItems.map((item) => {
@@ -244,7 +244,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     onClick={() => setMobileOpen(false)}
                                     className={({ isActive }) =>
                                         `flex items-center justify-between rounded-lg px-4 py-3 text-sm font-bold ${
-                                            isActive ? 'bg-[#2a3fa4]/10 text-[#2a3fa4] dark:text-blue-300' : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10'
+                                            isActive ? 'bg-[#2a3fa4]/10 text-[#2a3fa4] dark:text-blue-300' : 'text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:text-slate-200 dark:hover:bg-white/10'
                                         }`
                                     }
                                 >
@@ -257,11 +257,11 @@ const StudentHeader = ({ forcePublic = false }) => {
                         })}
                         {user?.role === 'student' && (
                             <>
-                                <div className="my-2 border-t border-slate-100 dark:border-white/10" />
+                                <div className="my-2 border-t border-[var(--sv-border)] dark:border-white/10" />
                                 <Link
                                     to="/student/profile"
                                     onClick={() => setMobileOpen(false)}
-                                    className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10"
+                                    className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:text-slate-200 dark:hover:bg-white/10"
                                 >
                                     <UserRound className="h-4 w-4" /> My profile
                                 </Link>

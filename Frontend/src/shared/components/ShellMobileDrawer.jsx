@@ -58,7 +58,7 @@ export default function ShellMobileDrawer({ open, onClose, navSections = [], onL
                                             onClick={onClose}
                                             className={({ isActive }) =>
                                                 `flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors ${
-                                                    isActive ? 'bg-white text-[#1d2f82]' : 'text-white/90 hover:bg-white/12'
+                                                    isActive ? 'bg-[var(--sv-card)] text-[#1d2f82]' : 'text-white/90 hover:bg-white/12'
                                                 }`
                                             }
                                         >

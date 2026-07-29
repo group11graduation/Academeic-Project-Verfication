@@ -269,7 +269,7 @@ const StudentAssignments = () => {
     };
 
     const getDeadlineStatus = (deadline) => {
-        if (!deadline) return { label: 'No deadline', color: 'text-slate-500', bg: 'bg-slate-100' };
+        if (!deadline) return { label: 'No deadline', color: 'text-[var(--sv-muted)]', bg: 'bg-[var(--sv-card-muted)]' };
         const now = new Date();
         const dl = new Date(deadline);
         const days = Math.ceil((dl - now) / (1000 * 60 * 60 * 24));
@@ -304,7 +304,7 @@ const StudentAssignments = () => {
     if (loading) {
         return (
             <div className={`${Z_SHELL} items-center justify-center py-24`}>
-                <Loader2 className="h-10 w-10 animate-spin text-[#1e56e3]" />
+                <Loader2 className="h-10 w-10 animate-spin text-[#1e56e3] dark:text-sky-300" />
             </div>
         );
     }
@@ -313,13 +313,13 @@ const StudentAssignments = () => {
         <div className={Z_SHELL}>
             <div className={Z_SHELL_INNER}>
                 {(moduleSelected || selectedCategory) && (
-                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--sv-muted)]">
                         <Link to="/student/assignments" className={Z_LINK}>
                             Assignments
                         </Link>
                         {moduleSelected ? (
                             <>
-                                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
                                 <button
                                     type="button"
                                     onClick={resetModuleSelection}
@@ -331,8 +331,8 @@ const StudentAssignments = () => {
                         ) : null}
                         {selectedCategory ? (
                             <>
-                                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                                <span className="text-slate-800">
+                                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
+                                <span className="text-[var(--sv-text)]">
                                     {selectedCategory === 'final' ? 'Final projects' : 'Normal assignments'}
                                 </span>
                             </>
@@ -343,17 +343,17 @@ const StudentAssignments = () => {
                 <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <div>
                         <div className="mb-2 flex flex-wrap gap-1.5">
-                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                            <span className="rounded-full border border-[var(--sv-border)] bg-[var(--sv-card)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                 {new Date().getFullYear()}
                             </span>
                             {studentInfo?.code ? (
-                                <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1e56e3]">
+                                <span className="rounded-full border border-blue-100 dark:border-blue-400/30 bg-blue-50 dark:bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1e56e3] dark:text-sky-300">
                                     Class {studentInfo.code}
                                 </span>
                             ) : null}
                         </div>
                         {!moduleSelected ? (
-                            <p className="max-w-2xl text-[12px] leading-relaxed text-slate-600">
+                            <p className="max-w-2xl text-[12px] leading-relaxed text-[var(--sv-muted)]">
                                 Browse regular subjects or collaborative subject pairs, then open their assignments.
                             </p>
                         ) : !selectedCategory ? (
@@ -361,12 +361,12 @@ const StudentAssignments = () => {
                                 <button
                                     type="button"
                                     onClick={resetModuleSelection}
-                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] shadow-sm transition hover:bg-[var(--sv-card-muted)]"
                                     aria-label="Back to modules"
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </button>
-                                <p className="text-[12px] font-semibold text-slate-600">
+                                <p className="text-[12px] font-semibold text-[var(--sv-muted)]">
                                     {selectedModuleLabel} - choose category
                                 </p>
                             </div>
@@ -382,12 +382,12 @@ const StudentAssignments = () => {
                                         setSelectedCategory(null);
                                         setQuery('');
                                     }}
-                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] shadow-sm transition hover:bg-[var(--sv-card-muted)]"
                                     aria-label={selectedCollabKey ? 'Back to collab subjects' : 'Back to categories'}
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </button>
-                                <p className="text-[12px] text-slate-600">
+                                <p className="text-[12px] text-[var(--sv-muted)]">
                                     {selectedCategory === 'final'
                                         ? 'Proposal, AI checks, teacher approval, then project ZIP.'
                                         : 'Upload your work for each task.'}
@@ -397,7 +397,7 @@ const StudentAssignments = () => {
                     </div>
                     {(moduleSelected && selectedCategory) || !moduleSelected ? (
                         <div className="relative w-full md:max-w-sm">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sv-muted)]" />
                             <input
                                 type="search"
                                 value={query}
@@ -427,7 +427,7 @@ const StudentAssignments = () => {
                             className={`rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition ${
                                 moduleTab === 'subjects'
                                     ? 'border-[#1e56e3] bg-[#1e56e3] text-white'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                    : 'border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]'
                             }`}
                         >
                             Subjects
@@ -441,7 +441,7 @@ const StudentAssignments = () => {
                             className={`rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition ${
                                 moduleTab === 'collab'
                                     ? 'border-[#1e56e3] bg-[#1e56e3] text-white'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                    : 'border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]'
                             }`}
                         >
                             Collab subjects
@@ -466,8 +466,8 @@ const StudentAssignments = () => {
                         subjects.length === 0 ? (
                             <div className={`${Z_CARD} p-8 text-center`}>
                                 <BookOpen className="mx-auto mb-3 h-9 w-9 text-slate-300" />
-                                <h3 className="text-sm font-bold text-slate-500">No modules</h3>
-                                <p className="mt-1.5 text-[12px] text-slate-500">You are not enrolled in any subjects yet.</p>
+                                <h3 className="text-sm font-bold text-[var(--sv-muted)]">No modules</h3>
+                                <p className="mt-1.5 text-[12px] text-[var(--sv-muted)]">You are not enrolled in any subjects yet.</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -485,26 +485,26 @@ const StudentAssignments = () => {
                                             }}
                                             className={`${Z_CARD} p-4 text-left transition hover:border-[#1e56e3]/30 hover:shadow-md`}
                                         >
-                                            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-[#1e56e3]">
+                                            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/15 text-[#1e56e3] dark:text-sky-300">
                                                 <BookOpen className="h-4 w-4" />
                                             </div>
-                                            <h3 className="text-sm font-bold text-slate-900">{subject.name}</h3>
-                                            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1e56e3]">
+                                            <h3 className="text-sm font-bold text-[var(--sv-text)]">{subject.name}</h3>
+                                            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1e56e3] dark:text-sky-300">
                                                 {subject.code}
                                             </p>
-                                            <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-slate-500">
+                                            <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-[var(--sv-muted)]">
                                                 <User className="h-3.5 w-3.5 shrink-0" />
                                                 {subject.teacher}
                                             </div>
-                                            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                                            <div className="mt-3 flex items-center justify-between border-t border-[var(--sv-border)] pt-3">
                                                 <div className="flex gap-4 text-center">
                                                     <div>
-                                                        <p className="text-base font-bold text-slate-900">{stats.total}</p>
-                                                        <p className="text-[10px] font-bold uppercase text-slate-400">All</p>
+                                                        <p className="text-base font-bold text-[var(--sv-text)]">{stats.total}</p>
+                                                        <p className="text-[10px] font-bold uppercase text-[var(--sv-muted)]">All</p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-base font-bold text-[#1e56e3]">{stats.finals}</p>
-                                                        <p className="text-[10px] font-bold uppercase text-slate-400">Final</p>
+                                                        <p className="text-base font-bold text-[#1e56e3] dark:text-sky-300">{stats.finals}</p>
+                                                        <p className="text-[10px] font-bold uppercase text-[var(--sv-muted)]">Final</p>
                                                     </div>
                                                 </div>
                                                 <ChevronRight className="h-4 w-4 text-slate-300" />
@@ -517,8 +517,8 @@ const StudentAssignments = () => {
                     ) : collabModules.length === 0 ? (
                         <div className={`${Z_CARD} p-8 text-center`}>
                             <Users className="mx-auto mb-3 h-9 w-9 text-slate-300" />
-                            <h3 className="text-sm font-bold text-slate-500">No collab subjects</h3>
-                            <p className="mt-1.5 text-[12px] text-slate-500">
+                            <h3 className="text-sm font-bold text-[var(--sv-muted)]">No collab subjects</h3>
+                            <p className="mt-1.5 text-[12px] text-[var(--sv-muted)]">
                                 Collaborative assignments that combine frontend and backend subjects will appear here.
                             </p>
                         </div>
@@ -545,9 +545,9 @@ const StudentAssignments = () => {
                                         <p className="text-[10px] font-black uppercase tracking-wide text-indigo-600">
                                             Collab subjects
                                         </p>
-                                        <h3 className="mt-1 text-sm font-bold text-slate-900">{module.title}</h3>
+                                        <h3 className="mt-1 text-sm font-bold text-[var(--sv-text)]">{module.title}</h3>
                                         {module.codes ? (
-                                            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1e56e3]">
+                                            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1e56e3] dark:text-sky-300">
                                                 {module.codes}
                                             </p>
                                         ) : null}
@@ -555,31 +555,31 @@ const StudentAssignments = () => {
                                             {module.subjects.map((s) => (
                                                 <p
                                                     key={`${module.key}-${s._id}`}
-                                                    className="text-[11px] font-semibold text-slate-600"
+                                                    className="text-[11px] font-semibold text-[var(--sv-muted)]"
                                                 >
                                                     {s.side === 'frontend'
                                                         ? 'Frontend'
                                                         : s.side === 'backend'
                                                           ? 'Backend'
                                                           : 'Subject'}
-                                                    : <span className="text-slate-900">{s.name}</span>
+                                                    : <span className="text-[var(--sv-text)]">{s.name}</span>
                                                     {s.code ? ` (${s.code})` : ''}
                                                 </p>
                                             ))}
                                         </div>
-                                        <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-slate-500">
+                                        <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium text-[var(--sv-muted)]">
                                             <User className="h-3.5 w-3.5 shrink-0" />
                                             {module.teachers.join(' · ') || 'Teachers'}
                                         </div>
-                                        <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                                        <div className="mt-3 flex items-center justify-between border-t border-[var(--sv-border)] pt-3">
                                             <div className="flex gap-4 text-center">
                                                 <div>
-                                                    <p className="text-base font-bold text-slate-900">{stats.total}</p>
-                                                    <p className="text-[10px] font-bold uppercase text-slate-400">All</p>
+                                                    <p className="text-base font-bold text-[var(--sv-text)]">{stats.total}</p>
+                                                    <p className="text-[10px] font-bold uppercase text-[var(--sv-muted)]">All</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-base font-bold text-[#1e56e3]">{stats.finals}</p>
-                                                    <p className="text-[10px] font-bold uppercase text-slate-400">Final</p>
+                                                    <p className="text-base font-bold text-[#1e56e3] dark:text-sky-300">{stats.finals}</p>
+                                                    <p className="text-[10px] font-bold uppercase text-[var(--sv-muted)]">Final</p>
                                                 </div>
                                             </div>
                                             <ChevronRight className="h-4 w-4 text-slate-300" />
@@ -596,13 +596,13 @@ const StudentAssignments = () => {
                                 <p className="text-[10px] font-black uppercase tracking-wide text-indigo-600">
                                     Collaborative pairing
                                 </p>
-                                <p className="mt-1 text-[12px] font-semibold text-slate-700">
+                                <p className="mt-1 text-[12px] font-semibold text-[var(--sv-text)]">
                                     {selectedCollabModule.subjects
                                         .map((s) => `${s.name}${s.code ? ` (${s.code})` : ''}`)
                                         .join(' + ')}
                                 </p>
                                 {selectedModuleTeachers ? (
-                                    <p className="mt-1 text-[11px] text-slate-500">Teachers: {selectedModuleTeachers}</p>
+                                    <p className="mt-1 text-[11px] text-[var(--sv-muted)]">Teachers: {selectedModuleTeachers}</p>
                                 ) : null}
                             </div>
                         ) : null}
@@ -615,14 +615,14 @@ const StudentAssignments = () => {
                                 }}
                                 className={`${Z_CARD} p-4 text-left transition hover:border-[#1e56e3]/30 hover:shadow-md`}
                             >
-                                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-[#1e56e3]">
+                                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/15 text-[#1e56e3] dark:text-sky-300">
                                     <Rocket className="h-4 w-4" />
                                 </div>
-                                <h3 className="text-sm font-bold text-slate-900">Final class-based projects</h3>
-                                <p className="mt-1.5 text-[12px] text-slate-600">
+                                <h3 className="text-sm font-bold text-[var(--sv-text)]">Final class-based projects</h3>
+                                <p className="mt-1.5 text-[12px] text-[var(--sv-muted)]">
                                     Proposal, AI review, teacher approval, project ZIP.
                                 </p>
-                                <p className="mt-3 text-[10px] font-bold uppercase text-slate-500">
+                                <p className="mt-3 text-[10px] font-bold uppercase text-[var(--sv-muted)]">
                                     {finalRows.length} assignments
                                 </p>
                             </button>
@@ -635,12 +635,12 @@ const StudentAssignments = () => {
                                     }}
                                     className={`${Z_CARD} p-4 text-left transition hover:border-[#1e56e3]/30 hover:shadow-md`}
                                 >
-                                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--sv-card-muted)] text-[var(--sv-text)]">
                                         <FileText className="h-4 w-4" />
                                     </div>
-                                    <h3 className="text-sm font-bold text-slate-900">Normal assignments</h3>
-                                    <p className="mt-1.5 text-[12px] text-slate-600">Regular uploads for this subject.</p>
-                                    <p className="mt-3 text-[10px] font-bold uppercase text-slate-500">
+                                    <h3 className="text-sm font-bold text-[var(--sv-text)]">Normal assignments</h3>
+                                    <p className="mt-1.5 text-[12px] text-[var(--sv-muted)]">Regular uploads for this subject.</p>
+                                    <p className="mt-3 text-[10px] font-bold uppercase text-[var(--sv-muted)]">
                                         {normalRows.length} assignments
                                     </p>
                                 </button>
@@ -653,13 +653,13 @@ const StudentAssignments = () => {
                             {displayedRowsFiltered.length === 0 ? (
                                 <div className={`${Z_CARD} p-8 text-center`}>
                                     <FileText className="mx-auto mb-3 h-9 w-9 text-slate-300" />
-                                    <p className="text-[12px] font-semibold text-slate-500">No assignments in this view.</p>
+                                    <p className="text-[12px] font-semibold text-[var(--sv-muted)]">No assignments in this view.</p>
                                 </div>
                             ) : (
                                 <div className={`${Z_CARD} overflow-hidden`}>
-                                    <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2 md:px-4">
-                                        <h2 className="text-[12px] font-bold text-slate-900">Assignment list</h2>
-                                        <span className="text-[10px] font-semibold text-slate-400">
+                                    <div className="flex items-center justify-between border-b border-[var(--sv-border)] px-3 py-2 md:px-4">
+                                        <h2 className="text-[12px] font-bold text-[var(--sv-text)]">Assignment list</h2>
+                                        <span className="text-[10px] font-semibold text-[var(--sv-muted)]">
                                             {displayedRowsFiltered.length} shown
                                         </span>
                                     </div>
@@ -685,7 +685,7 @@ const StudentAssignments = () => {
                                                                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                                                                     isProjectSubmitted(row)
                                                                         ? 'bg-emerald-50 text-emerald-600'
-                                                                        : 'bg-blue-50 text-[#1e56e3]'
+                                                                        : 'bg-blue-50 dark:bg-blue-500/15 text-[#1e56e3] dark:text-sky-300'
                                                                 }`}
                                                             >
                                                                 {isProjectSubmitted(row) ? (
@@ -695,10 +695,10 @@ const StudentAssignments = () => {
                                                                 )}
                                                             </div>
                                                             <div className="min-w-0 flex-1">
-                                                                <h3 className="text-[13px] font-bold text-slate-900">
+                                                                <h3 className="text-[13px] font-bold text-[var(--sv-text)]">
                                                                     {a.title || 'Assignment'}
                                                                 </h3>
-                                                                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500">
+                                                                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs font-medium text-[var(--sv-muted)]">
                                                                     <span className="flex items-center gap-1">
                                                                         <User className="h-3.5 w-3.5" />
                                                                         {teacherLabel}
@@ -726,7 +726,7 @@ const StudentAssignments = () => {
                                                                     </span>
                                                                     {showOverdue ? (
                                                                         <span
-                                                                            className={`rounded-full border border-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${deadlineStatus.bg} ${deadlineStatus.color}`}
+                                                                            className={`rounded-full border border-[var(--sv-border)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${deadlineStatus.bg} ${deadlineStatus.color}`}
                                                                         >
                                                                             {deadlineStatus.label}
                                                                         </span>
@@ -768,7 +768,7 @@ const StudentAssignments = () => {
                                                         <div className="flex flex-wrap gap-2 lg:shrink-0">
                                                             <Link
                                                                 to={`/student/assignments/${a._id}`}
-                                                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                                                className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-center text-xs font-bold text-[var(--sv-text)] shadow-sm transition hover:bg-[var(--sv-card-muted)]"
                                                             >
                                                                 Details
                                                             </Link>
@@ -778,7 +778,7 @@ const StudentAssignments = () => {
                                                                     download
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
-                                                                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm transition hover:bg-slate-50"
+                                                                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-xs font-bold text-[var(--sv-muted)] shadow-sm transition hover:bg-[var(--sv-card-muted)]"
                                                                 >
                                                                     <Download className="h-3.5 w-3.5" />
                                                                     File
@@ -820,22 +820,22 @@ const StudentAssignments = () => {
 
                         <div className="w-full shrink-0 space-y-3 xl:w-[260px]">
                             <div className={`${Z_CARD} p-4`}>
-                                <h3 className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                <h3 className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                     Overview
                                 </h3>
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[12px] font-medium text-slate-600">Total</span>
-                                        <span className="text-base font-bold text-slate-900">
+                                        <span className="text-[12px] font-medium text-[var(--sv-muted)]">Total</span>
+                                        <span className="text-base font-bold text-[var(--sv-text)]">
                                             {displayedRowsFiltered.length}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[12px] font-medium text-slate-600">Submitted</span>
+                                        <span className="text-[12px] font-medium text-[var(--sv-muted)]">Submitted</span>
                                         <span className="text-base font-bold text-emerald-600">{submittedCount}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[12px] font-medium text-slate-600">Pending</span>
+                                        <span className="text-[12px] font-medium text-[var(--sv-muted)]">Pending</span>
                                         <span className="text-base font-bold text-amber-600">{pendingCount}</span>
                                     </div>
                                 </div>

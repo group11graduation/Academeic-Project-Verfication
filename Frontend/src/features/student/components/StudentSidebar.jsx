@@ -61,8 +61,8 @@ const StudentSidebar = () => {
                 ))}
             </nav>
 
-            <div className="mt-4 mr-1 rounded-xl bg-white p-3 text-slate-900 shadow-lg ring-1 ring-slate-200/80 dark:bg-[#111827] dark:text-slate-100 dark:ring-white/10">
-                <p className="text-[10px] font-bold leading-snug text-slate-800 dark:text-slate-100">
+            <div className="mt-4 mr-1 rounded-xl bg-[var(--sv-card)] p-3 text-[var(--sv-text)] shadow-lg ring-1 ring-[var(--sv-border)]/80 dark:bg-[#111827] dark:text-slate-100 dark:ring-white/10">
+                <p className="text-[10px] font-bold leading-snug text-[var(--sv-text)] dark:text-slate-100">
                     Need more time? Use Contact teacher to request a deadline extension.
                 </p>
                 <Link

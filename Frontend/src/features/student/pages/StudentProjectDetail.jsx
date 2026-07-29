@@ -117,7 +117,7 @@ const StudentProjectDetail = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-slate-900">
+            <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-[var(--sv-text)]">
                 <StudentHeader />
                 <div className="flex-1 flex items-center justify-center">
                     <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
@@ -128,10 +128,10 @@ const StudentProjectDetail = () => {
 
     if (!project) {
         return (
-            <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-slate-900">
+            <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-[var(--sv-text)]">
                 <StudentHeader />
                 <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                    <h2 className="text-xl font-bold text-slate-400">Project Not Found</h2>
+                    <h2 className="text-xl font-bold text-[var(--sv-muted)]">Project Not Found</h2>
                     <button onClick={() => navigate('/student')} className="text-[#1D68E3] font-bold">Back to Projects</button>
                 </div>
             </div>
@@ -139,13 +139,13 @@ const StudentProjectDetail = () => {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#FAFAFA] font-sans text-slate-900 overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
+        <div className="min-h-screen flex flex-col bg-[#FAFAFA] font-sans text-[var(--sv-text)] overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
             <StudentHeader />
 
             <main className="flex-1 pt-16 pb-24 px-6 max-w-[1536px] mx-auto w-full">
                 
                 {/* Back Button */}
-                <Link to="/student" className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-[#1D68E3] transition-colors mb-10 group">
+                <Link to="/student" className="inline-flex items-center gap-2 text-sm font-bold text-[var(--sv-muted)] hover:text-[#1D68E3] transition-colors mb-10 group">
                     <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" /> Back to My Projects
                 </Link>
 
@@ -156,10 +156,10 @@ const StudentProjectDetail = () => {
                             <div className="inline-flex items-center gap-2 bg-[#E1EDF7] text-[#4F6C8A] px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border border-[#CFDFEF]">
                                 <ShieldCheck className="h-4 w-4" /> VERIFIED PROJECT
                             </div>
-                            <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">CLASS {project.classCode}</span>
+                            <span className="text-xs font-bold text-[var(--sv-muted)] tracking-widest uppercase">CLASS {project.classCode}</span>
                         </div>
                         
-                        <h1 className="text-4xl lg:text-[64px] font-black text-slate-900 leading-[1.05] tracking-tight mb-2">
+                        <h1 className="text-4xl lg:text-[64px] font-black text-[var(--sv-text)] leading-[1.05] tracking-tight mb-2">
                             {project.title}
                         </h1>
                         
@@ -184,8 +184,8 @@ const StudentProjectDetail = () => {
 
                     {/* Proposal Submit Block */}
                     <div className="relative">
-                        <div className="w-full bg-white rounded-2xl sm:rounded-[32px] shadow-xl border border-slate-100 p-4 sm:p-6 lg:p-10 flex flex-col z-10 relative min-w-0">
-                            <h2 className="text-[28px] font-black text-[#0F172A] tracking-tight mb-6">
+                        <div className="w-full bg-[var(--sv-card)] rounded-2xl sm:rounded-[32px] shadow-xl border border-[var(--sv-border)] p-4 sm:p-6 lg:p-10 flex flex-col z-10 relative min-w-0">
+                            <h2 className="text-[28px] font-black text-[var(--sv-text)] tracking-tight mb-6">
                                 {project.documentUrl ? 'Your Document' : 'Submit Project Document'}
                             </h2>
 
@@ -194,10 +194,10 @@ const StudentProjectDetail = () => {
                                     <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 mx-auto">
                                         <CheckCircle2 className="h-8 w-8" />
                                     </div>
-                                    <div className="text-[18px] font-bold text-[#0F172A] mb-1">
+                                    <div className="text-[18px] font-bold text-[var(--sv-text)] mb-1">
                                         {project.originalFileName || 'project_document.pdf'}
                                     </div>
-                                    <div className="text-[14px] font-medium text-slate-500 mb-6">
+                                    <div className="text-[14px] font-medium text-[var(--sv-muted)] mb-6">
                                         Status: {project.status}
                                     </div>
                                     <a 
@@ -218,9 +218,9 @@ const StudentProjectDetail = () => {
                                         onDragLeave={onDragLeave}
                                         onDrop={onDrop}
                                         className={`border-2 border-dashed rounded-xl p-8 mb-6 relative overflow-hidden transition-all flex flex-col items-center justify-center min-h-[200px] 
-                                            ${uploadedFile ? 'border-blue-400 bg-blue-50/50 cursor-default' : 
-                                            isDragging ? 'border-[#1D68E3] bg-blue-50/50 cursor-pointer' : 
-                                            'border-slate-200 bg-slate-50 hover:border-[#1D68E3] hover:bg-blue-50/50 cursor-pointer group'}`}
+                                            ${uploadedFile ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-500/10 cursor-default' : 
+                                            isDragging ? 'border-[#1D68E3] bg-blue-50/50 dark:bg-blue-500/10 cursor-pointer' : 
+                                            'border-[var(--sv-border)] bg-[var(--sv-card-muted)] hover:border-[#1D68E3] hover:bg-blue-50/50 dark:bg-blue-500/10 cursor-pointer group'}`}
                                     >
                                         <input 
                                             type="file" 
@@ -237,10 +237,10 @@ const StudentProjectDetail = () => {
                                                 <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 mx-auto">
                                                     <CheckCircle2 className="h-7 w-7" />
                                                 </div>
-                                                <div className="text-[16px] font-bold text-[#0F172A] mb-1">
+                                                <div className="text-[16px] font-bold text-[var(--sv-text)] mb-1">
                                                     {uploadedFile.name}
                                                 </div>
-                                                <div className="text-[13px] font-medium text-slate-500 mb-4">
+                                                <div className="text-[13px] font-medium text-[var(--sv-muted)] mb-4">
                                                     {uploadedFile.size}
                                                 </div>
                                                 <button 
@@ -255,10 +255,10 @@ const StudentProjectDetail = () => {
                                                 <div className="w-12 h-12 bg-blue-100 text-[#1D68E3] rounded-xl flex items-center justify-center mb-5 mx-auto group-hover:bg-[#1D68E3] group-hover:text-white transition-colors">
                                                     <UploadCloud className="h-6 w-6" />
                                                 </div>
-                                                <div className="text-[16px] font-bold text-[#0F172A] mb-2">
+                                                <div className="text-[16px] font-bold text-[var(--sv-text)] mb-2">
                                                     Drag and drop your document
                                                 </div>
-                                                <div className="text-[12px] font-medium text-slate-400">
+                                                <div className="text-[12px] font-medium text-[var(--sv-muted)]">
                                                     Support: PDF, ZIP, RAR
                                                 </div>
                                             </div>
@@ -287,23 +287,23 @@ const StudentProjectDetail = () => {
                             <div className="inline-flex items-center gap-2 bg-[#8C5221] text-white px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest">
                                 <Cpu className="h-3 w-3" /> ML DIAGNOSTICS
                             </div>
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Similarity Score</h2>
+                            <h2 className="text-3xl font-black text-[var(--sv-text)] tracking-tight mb-2">Similarity Score</h2>
                             <div className="flex items-baseline gap-4">
                                 <span className={`text-6xl font-black leading-none tracking-tight ${project.similarityLevel === 'High' ? 'text-rose-600' : 'text-[#1D68E3]'}`}>
                                     {project.similarity || 0}%
                                 </span>
-                                <span className="text-sm font-black text-slate-500 uppercase tracking-widest">{project.similarityLevel} SIMILARITY</span>
+                                <span className="text-sm font-black text-[var(--sv-muted)] uppercase tracking-widest">{project.similarityLevel} SIMILARITY</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Team Members */}
-                    <div className="bg-white rounded-2xl sm:rounded-3xl lg:rounded-[2rem] p-4 sm:p-6 lg:p-10 border border-slate-100 shadow-sm min-w-0">
-                        <h2 className="text-2xl font-black text-slate-900 mb-6 font-mono uppercase tracking-tight">Project Team Members</h2>
+                    <div className="bg-[var(--sv-card)] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] p-4 sm:p-6 lg:p-10 border border-[var(--sv-border)] shadow-sm min-w-0">
+                        <h2 className="text-2xl font-black text-[var(--sv-text)] mb-6 font-mono uppercase tracking-tight">Project Team Members</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {project.members && project.members.map((member, idx) => (
-                                <div key={idx} className="bg-slate-50 rounded-[20px] p-4 flex items-center gap-4 border border-slate-100">
-                                    <div className="w-12 h-12 bg-white rounded-xl shadow-sm overflow-hidden flex items-center justify-center font-black text-slate-400 text-lg">
+                                <div key={idx} className="bg-[var(--sv-card-muted)] rounded-[20px] p-4 flex items-center gap-4 border border-[var(--sv-border)]">
+                                    <div className="w-12 h-12 bg-[var(--sv-card)] rounded-xl shadow-sm overflow-hidden flex items-center justify-center font-black text-[var(--sv-muted)] text-lg">
                                         {member.photo && member.photo !== 'default-student.jpg' ? (
                                             <img src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)} className="w-full h-full object-cover" alt="" />
                                         ) : (
@@ -311,7 +311,7 @@ const StudentProjectDetail = () => {
                                         )}
                                     </div>
                                     <div>
-                                        <h3 className="text-sm font-black text-slate-900">{member.name}</h3>
+                                        <h3 className="text-sm font-black text-[var(--sv-text)]">{member.name}</h3>
                                         <p className="text-[10px] font-black text-[#1D68E3] uppercase tracking-widest">{member.studentId}</p>
                                     </div>
                                 </div>
@@ -331,11 +331,11 @@ const StudentProjectDetail = () => {
                 </div>
                 
                 <div className="flex flex-wrap justify-center gap-10">
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Privacy Policy</a>
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Terms of Service</a>
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Institutional Access</a>
-                    <a href="#" className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors">Support</a>
-                    <span className="text-[11px] font-medium text-slate-400 ml-4">
+                    <a href="#" className="text-[11px] font-medium text-[var(--sv-muted)] hover:text-white transition-colors">Privacy Policy</a>
+                    <a href="#" className="text-[11px] font-medium text-[var(--sv-muted)] hover:text-white transition-colors">Terms of Service</a>
+                    <a href="#" className="text-[11px] font-medium text-[var(--sv-muted)] hover:text-white transition-colors">Institutional Access</a>
+                    <a href="#" className="text-[11px] font-medium text-[var(--sv-muted)] hover:text-white transition-colors">Support</a>
+                    <span className="text-[11px] font-medium text-[var(--sv-muted)] ml-4">
                         &copy; {new Date().getFullYear()} {PROJECT_LEGAL_NAME}. All research rights reserved.
                     </span>
                 </div>

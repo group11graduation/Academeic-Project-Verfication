@@ -46,8 +46,8 @@ const StudentMyGroups = () => {
   return (
     <div className={`${Z_SHELL} space-y-4`}>
       <div>
-        <h1 className="text-xl font-black text-slate-900 dark:text-slate-100">My groups</h1>
-        <p className="mt-1 text-[12px] font-medium text-slate-500 dark:text-slate-400">
+        <h1 className="text-xl font-black text-[var(--sv-text)] dark:text-slate-100">My groups</h1>
+        <p className="mt-1 text-[12px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
           Groups are listed by subject. You can see who is the leader (you or a classmate) on each
           assignment.
         </p>
@@ -62,10 +62,10 @@ const StudentMyGroups = () => {
       {grouped.totalGroups === 0 ? (
         <div className={`${Z_CARD} p-8 text-center`}>
           <Users className="mx-auto h-10 w-10 text-slate-300" />
-          <p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+          <p className="mt-3 text-sm font-bold text-[var(--sv-text)] dark:text-slate-200">
             You are not in any group yet
           </p>
-          <p className="mt-1 text-[12px] text-slate-500">
+          <p className="mt-1 text-[12px] text-[var(--sv-muted)]">
             When a teacher creates group-mode assignments and places you in a team, they will show
             here by subject.
           </p>
@@ -80,18 +80,18 @@ const StudentMyGroups = () => {
         <div className="space-y-5">
           {grouped.subjects.map((subject) => (
             <section key={subject.subjectId} className={`${Z_CARD} overflow-hidden`}>
-              <header className="flex items-center gap-2 border-b border-slate-100 bg-[#f8f9fc] px-4 py-3 dark:border-white/10 dark:bg-[#0f172a]">
+              <header className="flex items-center gap-2 border-b border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-4 py-3 dark:border-white/10 dark:bg-[#0f172a]">
                 <BookOpen className="h-4 w-4 text-[#2a3fa4]" />
                 <div className="min-w-0">
-                  <h2 className="truncate text-[13px] font-black text-slate-900 dark:text-slate-100">
+                  <h2 className="truncate text-[13px] font-black text-[var(--sv-text)] dark:text-slate-100">
                     {subject.subjectName}
                     {subject.subjectCode ? (
-                      <span className="ml-2 text-[11px] font-bold text-slate-400">
+                      <span className="ml-2 text-[11px] font-bold text-[var(--sv-muted)]">
                         ({subject.subjectCode})
                       </span>
                     ) : null}
                   </h2>
-                  <p className="text-[10px] font-semibold text-slate-400">
+                  <p className="text-[10px] font-semibold text-[var(--sv-muted)]">
                     {subject.groups.length} group{subject.groups.length === 1 ? '' : 's'}
                   </p>
                 </div>
@@ -102,10 +102,10 @@ const StudentMyGroups = () => {
                   <div key={`${subject.subjectId}-${g.groupId}`} className="px-4 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-[13px] font-black text-slate-900 dark:text-slate-100">
+                        <p className="text-[13px] font-black text-[var(--sv-text)] dark:text-slate-100">
                           {g.groupName}
                         </p>
-                        <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                        <p className="mt-0.5 text-[11px] font-medium text-[var(--sv-muted)]">
                           Assignment: {g.assignmentTitle}
                           {g.isCollaborative ? ' · Collaborative' : ''}
                         </p>
@@ -114,7 +114,7 @@ const StudentMyGroups = () => {
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
                           g.youAreLeader
                             ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
-                            : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-[#0f172a] dark:text-slate-300 dark:ring-white/10'
+                            : 'bg-[var(--sv-card-muted)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] dark:bg-[#0f172a] dark:text-slate-300 dark:ring-white/10'
                         }`}
                       >
                         {g.youAreLeader ? (
@@ -129,11 +129,11 @@ const StudentMyGroups = () => {
                       </span>
                     </div>
 
-                    <div className="mt-2 rounded-lg bg-[#f8f9fc] px-3 py-2 dark:bg-[#0f172a]">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    <div className="mt-2 rounded-lg bg-[var(--sv-card-muted)] px-3 py-2 dark:bg-[#0f172a]">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                         Group leader
                       </p>
-                      <p className="mt-0.5 text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                      <p className="mt-0.5 text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-100">
                         {g.leaderName}
                         {g.youAreLeader ? ' (you)' : ''}
                       </p>
@@ -146,7 +146,7 @@ const StudentMyGroups = () => {
                           className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
                             m.role === 'leader'
                               ? 'bg-amber-100/80 text-amber-900'
-                              : 'bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-transparent dark:text-slate-300 dark:ring-white/10'
+                              : 'bg-[var(--sv-card)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] dark:bg-transparent dark:text-slate-300 dark:ring-white/10'
                           }`}
                         >
                           {m.name || 'Student'}
@@ -167,7 +167,7 @@ const StudentMyGroups = () => {
                         </Link>
                         <Link
                           to={`/student/project/${g.assignmentId}`}
-                          className="text-[11px] font-bold text-slate-500 hover:text-[#2a3fa4] hover:underline"
+                          className="text-[11px] font-bold text-[var(--sv-muted)] hover:text-[#2a3fa4] hover:underline"
                         >
                           Project workspace
                         </Link>

@@ -33,9 +33,9 @@ export function TeacherCard({ teacher, size = 'md' }) {
         {teacher?.roleLabel ? (
           <p className="text-[10px] font-bold uppercase tracking-wide text-[#1e56e3]">{teacher.roleLabel}</p>
         ) : null}
-        <p className="truncate text-sm font-bold text-slate-900">{name}</p>
+        <p className="truncate text-sm font-bold text-[var(--sv-text)]">{name}</p>
         {teacher?.department ? (
-          <p className="truncate text-xs font-medium text-slate-500">{teacher.department}</p>
+          <p className="truncate text-xs font-medium text-[var(--sv-muted)]">{teacher.department}</p>
         ) : null}
         {teacher?.email ? (
           <a
@@ -47,7 +47,7 @@ export function TeacherCard({ teacher, size = 'md' }) {
           </a>
         ) : null}
         {teacher?.employeeId ? (
-          <p className="text-[11px] text-slate-400">ID: {teacher.employeeId}</p>
+          <p className="text-[11px] text-[var(--sv-muted)]">ID: {teacher.employeeId}</p>
         ) : null}
       </div>
     </div>
@@ -108,14 +108,14 @@ export default function StudentTeacherInfoPanel({
         <div className="mb-3 flex items-center gap-2">
           <UserRound className="h-4 w-4 text-[#1e56e3]" />
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Your teacher{list.length > 1 ? 's' : ''}</h2>
+            <h2 className="text-sm font-bold text-[var(--sv-text)]">Your teacher{list.length > 1 ? 's' : ''}</h2>
             {assignmentTitle ? (
-              <p className="text-xs text-slate-500">For assignment: {assignmentTitle}</p>
+              <p className="text-xs text-[var(--sv-muted)]">For assignment: {assignmentTitle}</p>
             ) : null}
           </div>
         </div>
       ) : (
-        <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
           {list.length > 1 ? 'Teachers' : 'Teacher'}
         </p>
       )}

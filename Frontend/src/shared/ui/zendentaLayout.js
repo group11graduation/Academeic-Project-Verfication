@@ -12,7 +12,7 @@ export const Z_BTN_PRIMARY =
     'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg bg-[#2a3fa4] px-3 py-2 text-[12px] font-bold text-white shadow-sm transition hover:bg-[#223688] disabled:pointer-events-none disabled:opacity-50 sm:min-h-0 sm:py-1.5';
 export const Z_BTN_SECONDARY =
     'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-[12px] font-bold text-[var(--sv-text)] shadow-sm transition hover:brightness-95 sm:min-h-0 sm:py-1.5';
-export const Z_LINK = 'text-[#2a3fa4] font-semibold hover:underline text-[12px]';
+export const Z_LINK = 'text-[#2a3fa4] dark:text-sky-300 font-semibold hover:underline text-[12px]';
 export const Z_INPUT =
     'w-full min-w-0 rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] px-2.5 py-2.5 text-base sm:text-[12px] font-medium text-[var(--sv-text)] outline-none transition focus:border-[#2a3fa4]/35 focus:ring-2 focus:ring-[#2a3fa4]/15 sm:py-2';
 export const Z_TEXTAREA = `${Z_INPUT} min-h-[88px] resize-y sm:min-h-[72px]`;

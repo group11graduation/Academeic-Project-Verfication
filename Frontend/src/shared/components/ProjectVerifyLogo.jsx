@@ -40,7 +40,7 @@ export default function ProjectVerifyLogo({
             {showMark ? (
                 useFrame ? (
                     <span
-                        className={`${s.box} inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-[0_4px_18px_rgba(15,23,42,0.18)] ring-1 ring-white/50`}
+                        className={`${s.box} inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--sv-card)] shadow-[0_4px_18px_rgba(15,23,42,0.18)] ring-1 ring-white/50`}
                     >
                         {mark}
                     </span>
@@ -52,7 +52,7 @@ export default function ProjectVerifyLogo({
                 <div className={`leading-tight min-w-0 ${hideTextOnMobile ? 'hidden sm:block' : ''} ${textClassName}`}>
                     <span
                         className={`block font-extrabold tracking-tight ${s.title} ${
-                            onDark ? 'text-white' : 'text-slate-900'
+                            onDark ? 'text-white' : 'text-[var(--sv-text)]'
                         }`}
                     >
                         {PROJECT_NAME}
@@ -60,7 +60,7 @@ export default function ProjectVerifyLogo({
                     {tagline ? (
                         <span
                             className={`block text-[10px] font-bold uppercase tracking-[0.14em] ${
-                                onDark ? 'text-white/65' : 'text-slate-400'
+                                onDark ? 'text-white/65' : 'text-[var(--sv-muted)]'
                             }`}
                         >
                             {tagline}

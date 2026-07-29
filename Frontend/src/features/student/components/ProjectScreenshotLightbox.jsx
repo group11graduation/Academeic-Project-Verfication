@@ -29,15 +29,15 @@ export default function ProjectScreenshotLightbox({ urls = [], title = 'Project'
             onClick={onClose}
         >
             <div
-                className="relative max-h-[90vh] w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden"
+                className="relative max-h-[90vh] w-full max-w-5xl rounded-2xl bg-[var(--sv-card)] shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                    <p className="text-sm font-bold text-slate-800 truncate pr-4">{title}</p>
+                <div className="flex items-center justify-between border-b border-[var(--sv-border)] px-4 py-3">
+                    <p className="text-sm font-bold text-[var(--sv-text)] truncate pr-4">{title}</p>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                        className="rounded-lg p-2 text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]"
                         aria-label="Close"
                     >
                         <X className="h-5 w-5" />
@@ -51,7 +51,7 @@ export default function ProjectScreenshotLightbox({ urls = [], title = 'Project'
                                 type="button"
                                 disabled={index <= 0}
                                 onClick={() => setIndex((i) => Math.max(0, i - 1))}
-                                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow disabled:opacity-40"
+                                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-[var(--sv-card)]/90 p-2 shadow disabled:opacity-40"
                                 aria-label="Previous screenshot"
                             >
                                 <ChevronLeft className="h-5 w-5" />
@@ -60,7 +60,7 @@ export default function ProjectScreenshotLightbox({ urls = [], title = 'Project'
                                 type="button"
                                 disabled={index >= list.length - 1}
                                 onClick={() => setIndex((i) => Math.min(list.length - 1, i + 1))}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow disabled:opacity-40"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-[var(--sv-card)]/90 p-2 shadow disabled:opacity-40"
                                 aria-label="Next screenshot"
                             >
                                 <ChevronRight className="h-5 w-5" />

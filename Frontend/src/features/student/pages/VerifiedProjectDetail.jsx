@@ -40,12 +40,12 @@ const VerifiedProjectDetail = () => {
 
     return (
         <StudentPublicShell>
-        <div className="min-h-screen bg-[#f8faff] font-sans text-slate-900 dark:bg-[#020617] dark:text-slate-100">
+        <div className="min-h-screen bg-[#f8faff] font-sans text-[var(--sv-text)] dark:bg-[#020617] dark:text-slate-100">
 
             <main className="pt-28 pb-16 px-6 max-w-[1200px] mx-auto">
                 <Link
                     to="/gallery"
-                    className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-[#2a3fa4] dark:text-slate-400 dark:hover:text-blue-300"
+                    className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-[var(--sv-muted)] hover:text-[#2a3fa4] dark:text-[var(--sv-muted)] dark:hover:text-blue-300"
                 >
                     <ArrowLeft className="h-4 w-4" /> Back to verified projects
                 </Link>
@@ -55,12 +55,12 @@ const VerifiedProjectDetail = () => {
                         <Loader2 className="h-10 w-10 animate-spin text-[#2a3fa4]" />
                     </div>
                 ) : error || !project ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 lg:p-10 text-center dark:border-white/10 dark:bg-[#111827]">
-                        <p className="font-semibold text-slate-600 dark:text-slate-300">{error || 'Project not found'}</p>
+                    <div className="rounded-2xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 sm:p-8 lg:p-10 text-center dark:border-white/10 dark:bg-[#111827]">
+                        <p className="font-semibold text-[var(--sv-muted)] dark:text-slate-300">{error || 'Project not found'}</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10 items-start">
-                        <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-lg dark:border-white/10 dark:bg-[#111827]">
+                        <div className="overflow-hidden rounded-[24px] border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-lg dark:border-white/10 dark:bg-[#111827]">
                             {heroSrc ? (
                                 <button
                                     type="button"
@@ -84,13 +84,13 @@ const VerifiedProjectDetail = () => {
                                 </div>
                             )}
                             {resolvedUrls.length > 1 && (
-                                <div className="flex gap-2 overflow-x-auto border-t border-slate-100 p-3 dark:border-white/10">
+                                <div className="flex gap-2 overflow-x-auto border-t border-[var(--sv-border)] p-3 dark:border-white/10">
                                     {resolvedUrls.map((src, i) => (
                                         <button
                                             key={src}
                                             type="button"
                                             onClick={() => setLightboxIndex(i)}
-                                            className="h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 hover:ring-2 hover:ring-[#2a3fa4] dark:border-white/10"
+                                            className="h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-[var(--sv-border)] hover:ring-2 hover:ring-[#2a3fa4] dark:border-white/10"
                                         >
                                             <img src={src} alt="" className="h-full w-full object-cover object-top" />
                                         </button>
@@ -101,7 +101,7 @@ const VerifiedProjectDetail = () => {
 
                         <div>
                             <div className="flex flex-wrap gap-2 mb-4">
-                                    <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#2a3fa4] dark:bg-blue-500/15 dark:text-blue-300">
+                                    <span className="rounded-full bg-blue-50 dark:bg-blue-500/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#2a3fa4] dark:bg-blue-500/15 dark:text-blue-300">
                                     {project.category}
                                 </span>
                                 {project.teacherScore != null && (
@@ -111,26 +111,26 @@ const VerifiedProjectDetail = () => {
                                 )}
                             </div>
 
-                            <h1 className="mb-3 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100 md:text-4xl">{project.title}</h1>
-                            <p className="mb-6 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                            <h1 className="mb-3 text-3xl font-black tracking-tight text-[var(--sv-text)] dark:text-slate-100 md:text-4xl">{project.title}</h1>
+                            <p className="mb-6 text-sm font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
                                 By {project.author}
                                 {project.subject ? ` · ${project.subject}` : ''}
                                 {project.className ? ` · ${project.className}` : ''}
                             </p>
 
-                            <div className="mb-6 rounded-[20px] border border-slate-100 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]">
-                                <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Description</h2>
-                                <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-700 dark:text-slate-300">
+                            <div className="mb-6 rounded-[20px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]">
+                                <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Description</h2>
+                                <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--sv-text)] dark:text-slate-300">
                                     {project.description || 'No description provided.'}
                                 </p>
                             </div>
 
                             {project.features?.length > 0 && (
-                                <div className="mb-6 rounded-[20px] border border-slate-100 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]">
-                                    <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Features</h2>
+                                <div className="mb-6 rounded-[20px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]">
+                                    <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Features</h2>
                                     <ul className="space-y-2">
                                         {project.features.map((f) => (
-                                            <li key={f} className="flex gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                            <li key={f} className="flex gap-2 text-sm font-medium text-[var(--sv-text)] dark:text-slate-300">
                                                 <span className="text-[#2a3fa4]">•</span> {f}
                                             </li>
                                         ))}
@@ -143,7 +143,7 @@ const VerifiedProjectDetail = () => {
                                     {project.tags.map((tag) => (
                                         <span
                                             key={tag}
-                                            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-500 dark:border-white/10 dark:bg-[#111827] dark:text-slate-400"
+                                            className="rounded-md border border-[var(--sv-border)] bg-[var(--sv-card)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-[var(--sv-muted)] dark:border-white/10 dark:bg-[#111827] dark:text-[var(--sv-muted)]"
                                         >
                                             {tag}
                                         </span>

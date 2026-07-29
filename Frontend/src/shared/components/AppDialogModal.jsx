@@ -78,7 +78,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                 aria-modal="true"
                 aria-labelledby="app-dialog-title"
                 aria-describedby="app-dialog-message"
-                className="relative w-full max-w-md overflow-hidden rounded-[24px] border border-slate-200 bg-[var(--sv-card)] p-6 shadow-2xl shadow-[#2a3fa4]/10"
+                className="relative w-full max-w-md overflow-hidden rounded-[24px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 shadow-2xl shadow-[#2a3fa4]/10"
             >
                 <div
                     className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[var(--sv-primary)] via-[var(--sv-action)] to-[var(--sv-shell)]"
@@ -88,7 +88,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                 <button
                     type="button"
                     onClick={() => onClose(false)}
-                    className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-[#EEF4FF] hover:text-[var(--sv-primary)]"
+                    className="absolute right-4 top-4 rounded-lg p-1.5 text-[var(--sv-muted)] transition-colors hover:bg-[#EEF4FF] hover:text-[var(--sv-primary)]"
                     aria-label="Close"
                 >
                     <X className="h-4 w-4" />
@@ -129,7 +129,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                             <button
                                 type="button"
                                 onClick={() => onClose(false)}
-                                className="rounded-[12px] border border-slate-200 bg-white px-5 py-2.5 text-[14px] font-bold text-slate-700 transition-colors hover:bg-slate-50"
+                                className="rounded-[12px] border border-[var(--sv-border)] bg-[var(--sv-card)] px-5 py-2.5 text-[14px] font-bold text-[var(--sv-text)] transition-colors hover:bg-[var(--sv-card-muted)]"
                             >
                                 {cancelLabel}
                             </button>
