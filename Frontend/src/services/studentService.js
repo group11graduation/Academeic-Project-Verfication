@@ -79,12 +79,45 @@ const studentService = {
 
     /** Multipart: codeArchive (zip), optional projectScreenshot (image) */
     submitProjectCode: async (assignmentId, file, projectStackHint = '', screenshotFile = null) => {
+        const origin =
+            typeof window !== 'undefined' && window.location?.origin
+                ? window.location.origin
+                : '';
+        // Always same-origin /api on the live preview host (avoids hung :5000).
+        const apiRoot = origin ? `${origin}/api` : undefined;
+
+        if (origin) {
+            try {
+                // Node exposes GET /health (proxied by Vite preview), not under /api.
+                const health = await api.get('/health', {
+                    baseURL: origin,
+                    timeout: 4000,
+                    validateStatus: () => true,
+                });
+                if (!health || health.status >= 500) {
+                    const err = new Error(
+                        'Server is busy or restarting. Wait 10 seconds and try uploading again.'
+                    );
+                    err.code = 'ECONNABORTED';
+                    throw err;
+                }
+            } catch (e) {
+                if (e.message?.includes('Server is busy')) throw e;
+                const err = new Error(
+                    'Cannot reach the API from this page. Hard-refresh (Ctrl+Shift+R), then try again. If it still fails, ask admin to restart node-backend.'
+                );
+                err.code = 'ECONNABORTED';
+                throw err;
+            }
+        }
+
         const fd = new FormData();
         fd.append('codeArchive', file);
         if (projectStackHint) fd.append('projectStackHint', projectStackHint);
         if (screenshotFile) fd.append('projectScreenshot', screenshotFile);
         const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd, {
-            timeout: 120_000,
+            ...(apiRoot ? { baseURL: apiRoot } : {}),
+            timeout: 90_000,
         });
         return response.data;
     },

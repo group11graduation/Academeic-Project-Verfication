@@ -35,7 +35,10 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
     }
 
     if (error.code === 'ECONNABORTED') {
-        return 'Upload timed out. Try a smaller ZIP, wait a few seconds, and upload again. If it keeps failing, ask your teacher — the server may be busy.';
+        const text = String(error.message || '');
+        if (/Cannot reach the API from this page/i.test(text)) return text;
+        if (/Server is busy or restarting/i.test(text)) return text;
+        return 'Upload timed out. Hard-refresh the page (Ctrl+Shift+R), wait 10 seconds, then try again. If it keeps failing, ask admin to restart node-backend.';
     }
 
     if (error.message === 'Network Error' || !error.response) {

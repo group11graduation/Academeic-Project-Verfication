@@ -171,7 +171,7 @@ export async function extractDependencies(extractDir) {
 }
 
 async function readReadmeText(extractDir) {
-  const files = await walkFiles(extractDir, { maxFiles: 80 });
+  const files = await walkFiles(extractDir, { maxFiles: 40 });
   const readme = files.find((f) => /^readme(\.(md|txt|rst))?$/i.test(path.basename(f)));
   if (!readme) return '';
   try {
@@ -180,6 +180,81 @@ async function readReadmeText(extractDir) {
   } catch {
     return '';
   }
+}
+
+/** Shallow find of package.json / README only (option-1 gate — no code walk). */
+export async function buildLightFunctionalityEvidence(extractDir, { maxFiles = 40, maxDepth = 4 } = {}) {
+  const empty = {
+    detected_tech: [],
+    readme_text: '',
+    routes: [],
+    models: [],
+    package_identity: '',
+  };
+  if (!extractDir || !fsSync.existsSync(extractDir)) return empty;
+
+  let packageIdentity = '';
+  let readmeOnly = '';
+  let seen = 0;
+
+  async function walk(dir, depth) {
+    if (seen >= maxFiles || depth > maxDepth) return;
+    if (packageIdentity && readmeOnly) return;
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (seen >= maxFiles || (packageIdentity && readmeOnly)) return;
+      const name = ent.name;
+      if (name.startsWith('.')) continue;
+      const abs = path.join(dir, name);
+      if (ent.isDirectory()) {
+        if (SKIP_DIR_NAMES.has(name.toLowerCase())) continue;
+        await walk(abs, depth + 1);
+        continue;
+      }
+      seen += 1;
+      const base = name.toLowerCase();
+      if (!packageIdentity && base === 'package.json') {
+        try {
+          const pkg = JSON.parse(await fs.readFile(abs, 'utf8'));
+          packageIdentity = [pkg.name, pkg.description, pkg.productName]
+            .filter(Boolean)
+            .map(String)
+            .join('\n')
+            .slice(0, 2000);
+        } catch {
+          /* ignore */
+        }
+      } else if (!packageIdentity && base === 'composer.json') {
+        try {
+          const pkg = JSON.parse(await fs.readFile(abs, 'utf8'));
+          packageIdentity = [pkg.name, pkg.description].filter(Boolean).map(String).join('\n').slice(0, 2000);
+        } catch {
+          /* ignore */
+        }
+      } else if (!readmeOnly && /^readme(\.(md|txt|rst))?$/i.test(base)) {
+        try {
+          readmeOnly = (await fs.readFile(abs, 'utf8')).slice(0, 6000);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
+  await walk(extractDir, 0);
+  const readme_text = [packageIdentity, readmeOnly].filter(Boolean).join('\n\n').slice(0, 8000);
+  return {
+    detected_tech: [],
+    readme_text,
+    routes: [],
+    models: [],
+    package_identity: packageIdentity,
+  };
 }
 
 /** package.json / composer name+description help catch wrong-project ZIPs when README is thin. */

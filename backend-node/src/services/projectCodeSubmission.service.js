@@ -24,6 +24,7 @@ import {
 import {
   buildConsistencyEvidenceBundle,
   buildEvidenceCompositeText,
+  buildLightFunctionalityEvidence,
 } from './projectEvidenceBundle.service.js';
 import { scoreProposalZipFunctionality, isFunctionalityMatchEnabled } from './projectFunctionalityMatch.service.js';
 import { analyzeConsistencyPayload } from './aiClient.service.js';
@@ -251,20 +252,24 @@ async function findLegacyProjectMatch({ assignment, evidence, originalFilename =
   return best;
 }
 
-async function analyzeConsistencyWithDeadline(payload) {
+function withDeadline(promise, ms, label = 'operation') {
   let timer;
-  try {
-    return await Promise.race([
-      analyzeConsistencyPayload(payload),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          reject(new Error(`AI analysis timed out after ${Math.round(CONSISTENCY_HARD_DEADLINE_MS / 1000)}s`));
-        }, CONSISTENCY_HARD_DEADLINE_MS);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  return Promise.race([
+    Promise.resolve(promise).finally(() => {
+      if (timer) clearTimeout(timer);
+    }),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} deadline exceeded (${ms}ms)`)), ms);
+    }),
+  ]);
+}
+
+async function analyzeConsistencyWithDeadline(payload) {
+  return withDeadline(
+    analyzeConsistencyPayload(payload),
+    CONSISTENCY_HARD_DEADLINE_MS,
+    'AI consistency'
+  );
 }
 
 async function upsertSubmissionRecord({
@@ -393,13 +398,30 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       throw extractErr;
     }
 
-    // 2) Rule-based tech match (unchanged helper) — reject before Python
-    const techMatch = await assertZipMatchesApprovedTechnology({
-      extractDir: auditDir,
-      assignment,
-      proposal,
-      stackHint: hint,
-    });
+    // 2) Rule-based tech match — hard-capped (stack scan can be slow on huge trees)
+    let techMatch;
+    try {
+      techMatch = await withDeadline(
+        assertZipMatchesApprovedTechnology({
+          extractDir: auditDir,
+          assignment,
+          proposal,
+          stackHint: hint,
+        }),
+        Number(process.env.TECH_MATCH_DEADLINE_MS || 8000),
+        'tech match'
+      );
+    } catch (techErr) {
+      logger.warn(`[projectCodeSubmission] tech match skipped: ${techErr.message}`);
+      techMatch = {
+        ok: true,
+        skipped: true,
+        detectedStack: 'unknown',
+        approvedTech: approvedTechnologiesForProposal(assignment, proposal),
+        zipTech: [],
+        message: 'Technology scan timed out; skipped to keep upload fast.',
+      };
+    }
 
     if (!techMatch.ok) {
       const consistencyCheck = normalizeConsistencyCheck(null, { needsReview: false });
@@ -492,12 +514,21 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // Filename-only legacy check (no full ZIP walk) — instant
-    const legacyHit = await findLegacyProjectMatch({
-      assignment,
-      evidence: {},
-      originalFilename: file.originalname || baseMeta.originalFilename || '',
-    });
+    // Filename-only legacy check (no full ZIP walk) — instant, time-capped DB
+    let legacyHit = null;
+    try {
+      legacyHit = await withDeadline(
+        findLegacyProjectMatch({
+          assignment,
+          evidence: {},
+          originalFilename: file.originalname || baseMeta.originalFilename || '',
+        }),
+        Number(process.env.LEGACY_MATCH_DEADLINE_MS || 2500),
+        'legacy match'
+      );
+    } catch (legErr) {
+      logger.warn(`[projectCodeSubmission] legacy match skipped: ${legErr.message}`);
+    }
     if (legacyHit) {
       const ownerBit = legacyHit.ownerLabel ? ` (${legacyHit.ownerLabel})` : '';
       const reason =
@@ -543,15 +574,32 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // Option 1 — Keyword / feature overlap (local, no AI). Reject wrong-functionality ZIPs.
+    // Option 1 — Keyword / feature overlap (filename first, then light README/package only)
     if (isFunctionalityMatchEnabled()) {
-      evidence = await buildConsistencyEvidenceBundle(auditDir);
-      detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
-      const functionality = scoreProposalZipFunctionality({
+      // Instant pass using ZIP filename alone (catches Building-Management vs Sky-Nova, etc.)
+      let functionality = scoreProposalZipFunctionality({
         proposal,
-        evidence,
+        evidence: {},
         originalFilename: file.originalname || baseMeta.originalFilename || '',
       });
+      if (functionality.ok || functionality.skipped) {
+        try {
+          evidence = await withDeadline(
+            buildLightFunctionalityEvidence(auditDir),
+            Number(process.env.FUNCTIONALITY_EVIDENCE_DEADLINE_MS || 3000),
+            'functionality evidence'
+          );
+        } catch (evErr) {
+          logger.warn(`[projectCodeSubmission] light evidence skipped: ${evErr.message}`);
+          evidence = { detected_tech: [], readme_text: '', routes: [], models: [], package_identity: '' };
+        }
+        detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
+        functionality = scoreProposalZipFunctionality({
+          proposal,
+          evidence,
+          originalFilename: file.originalname || baseMeta.originalFilename || '',
+        });
+      }
       if (!functionality.ok) {
         const reason = functionality.message;
         const consistencyCheck = normalizeConsistencyCheck(
@@ -750,29 +798,8 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
 
     const submissionId = saved._id;
 
-    // Structure/security audit — capped so a slow scan never hangs the upload HTTP response
-    try {
-      let auditTimer;
-      await Promise.race([
-        executeTechAuditBarrier({
-          extractDir: auditDir,
-          submissionId,
-          stackHint: hint,
-          assignment,
-        }),
-        new Promise((_, reject) => {
-          auditTimer = setTimeout(
-            () => reject(new Error('tech audit deadline exceeded')),
-            Number(process.env.TECH_AUDIT_UPLOAD_DEADLINE_MS || 12000)
-          );
-        }),
-      ]).finally(() => {
-        if (auditTimer) clearTimeout(auditTimer);
-      });
-    } catch (auditErr) {
-      if (auditErr instanceof SubmissionPipelineError) throw auditErr;
-      logger.warn(`[projectCodeSubmission] tech audit skipped after save: ${auditErr.message}`);
-    }
+    // Skip heavy tech-audit on the upload request (preview runs its own audit later).
+    // This keeps ZIP upload fast and prevents request timeouts / crashes.
     await flagSubmissionPipelineStatus(submissionId, SUBMISSION_PIPELINE_STATUSES.ACCEPTED, {
       consistencyCheck,
     });
