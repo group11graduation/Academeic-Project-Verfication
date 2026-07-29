@@ -77,8 +77,8 @@ const studentService = {
         return response.data;
     },
 
-    /** Multipart: codeArchive (zip), optional projectScreenshot (image) */
-    submitProjectCode: async (assignmentId, file, projectStackHint = '', screenshotFile = null) => {
+    /** Multipart: codeArchive (zip) + required projectScreenshot images (4–10) */
+    submitProjectCode: async (assignmentId, file, projectStackHint = '', screenshotFiles = []) => {
         const origin =
             typeof window !== 'undefined' && window.location?.origin
                 ? window.location.origin
@@ -114,7 +114,14 @@ const studentService = {
         const fd = new FormData();
         fd.append('codeArchive', file);
         if (projectStackHint) fd.append('projectStackHint', projectStackHint);
-        if (screenshotFile) fd.append('projectScreenshot', screenshotFile);
+        const shots = Array.isArray(screenshotFiles)
+            ? screenshotFiles
+            : screenshotFiles
+              ? [screenshotFiles]
+              : [];
+        shots.forEach((img) => {
+            if (img) fd.append('projectScreenshot', img);
+        });
         const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd, {
             ...(apiRoot ? { baseURL: apiRoot } : {}),
             timeout: 90_000,
@@ -122,9 +129,16 @@ const studentService = {
         return response.data;
     },
 
-    submitProjectScreenshot: async (assignmentId, screenshotFile) => {
+    submitProjectScreenshot: async (assignmentId, screenshotFiles) => {
         const fd = new FormData();
-        fd.append('projectScreenshot', screenshotFile);
+        const shots = Array.isArray(screenshotFiles)
+            ? screenshotFiles
+            : screenshotFiles
+              ? [screenshotFiles]
+              : [];
+        shots.forEach((img) => {
+            if (img) fd.append('projectScreenshot', img);
+        });
         const response = await api.post(`${base}/assignments/${assignmentId}/project-screenshot`, fd, {
             timeout: 0,
         });

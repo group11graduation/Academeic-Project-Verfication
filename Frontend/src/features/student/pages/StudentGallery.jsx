@@ -131,8 +131,8 @@ const StudentGallery = () => {
                         Approved student <span className="text-[#1D68E3]">submissions</span>
                     </h1>
                     <p className="max-w-2xl text-lg font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                        Top teacher-approved capstone projects from the academic database - each with a description and UI
-                        screenshot when the student uploads one.
+                        Top teacher-approved capstone projects from the academic database. Open a project to read the
+                        full proposal and features, and view the UI screenshot when the student uploads one.
                     </p>
                 </div>
 
@@ -255,27 +255,12 @@ const StudentGallery = () => {
                                     </div>
                                     <div className="p-8 flex flex-col flex-grow">
                                         <h3 className="mb-2 text-2xl font-black text-[var(--sv-text)] dark:text-slate-100">{proj.title}</h3>
-                                        <p className="mb-4 text-sm font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
+                                        <p className="mb-6 text-sm font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
                                             By <span className="text-[var(--sv-text)] dark:text-slate-200">{proj.author}</span>
                                             {proj.subject ? (
-                                                <span className="text-[var(--sv-muted)] dark:text-[var(--sv-muted)]"> · {proj.subject}</span>
+                                                <span className="text-[var(--sv-muted)] dark:text-[var(--sv-muted)]"> - {proj.subject}</span>
                                             ) : null}
                                         </p>
-                                        <p className="mb-8 flex-grow line-clamp-4 text-[15px] leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                                            {proj.description}
-                                        </p>
-                                        {proj.tags?.length > 0 && (
-                                            <div className="flex flex-wrap gap-2 mb-8">
-                                                {proj.tags.map((tag) => (
-                                                    <span
-                                                        key={tag}
-                                                        className="rounded-md border border-[var(--sv-border)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--sv-muted)] dark:border-white/10 dark:text-[var(--sv-muted)]"
-                                                    >
-                                                        {tag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
                                         <Link
                                             to={`/gallery/${proj.id}`}
                                             className="inline-flex items-center gap-2 text-sm font-bold text-[#1D68E3] group-hover:gap-3 transition-all w-fit mt-auto"

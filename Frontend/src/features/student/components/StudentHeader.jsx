@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-    Rocket,
-    BookOpen,
     GalleryHorizontal,
     LogOut,
     UserRound,
@@ -34,8 +32,6 @@ function buildNavItems(user) {
         return [
             { label: 'Home', path: '/', end: true },
             { label: 'My Workspace', path: '/student' },
-            { label: 'Assignments', path: '/student/assignments' },
-            { label: 'My Projects', path: '/student/project' },
             { label: 'Verified Projects', path: '/gallery' },
         ];
     }
@@ -74,13 +70,6 @@ const StudentHeader = ({ forcePublic = false }) => {
         navigate('/');
     };
 
-    const handleSwitchAccount = () => {
-        setProfileOpen(false);
-        setMobileOpen(false);
-        logout();
-        navigate('/login');
-    };
-
     const desktopNavClass = ({ isActive }) =>
         `relative px-1 py-4 text-sm font-semibold transition-colors ${
             isActive ? 'text-[#2a3fa4] dark:text-blue-300' : 'text-[var(--sv-muted)] hover:text-[var(--sv-text)] dark:text-slate-300 dark:hover:text-white'
@@ -93,8 +82,6 @@ const StudentHeader = ({ forcePublic = false }) => {
         if (path === '/about') return Users;
         if (path === '/guide') return Info;
         if (path === '/gallery') return GalleryHorizontal;
-        if (path.includes('assignments')) return BookOpen;
-        if (path.includes('project')) return Rocket;
         if (path === '/teacher') return Users;
         if (path === '/admin') return Shield;
         if (path === '/student') return LayoutDashboard;
@@ -201,26 +188,34 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     My workspace
                                 </Link>
                             ) : null}
-                            <Link
-                                to="/login"
-                                onClick={(e) => {
-                                    if (user && showPublicShell) {
-                                        e.preventDefault();
-                                        handleSwitchAccount();
-                                    }
-                                }}
-                                className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[var(--sv-text)] hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300"
-                            >
-                                Sign in
-                            </Link>
+                            {!user ? (
+                                <Link
+                                    to="/login"
+                                    className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[var(--sv-text)] hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300"
+                                >
+                                    Sign in
+                                </Link>
+                            ) : null}
                             <ThemeToggle compact className="hidden sm:inline-flex" />
                             <button
                                 type="button"
-                                onClick={() => (user && showPublicShell ? handleSwitchAccount() : navigate('/login'))}
+                                onClick={() => {
+                                    if (user && showPublicShell) {
+                                        navigate(
+                                            user.role === 'student'
+                                                ? '/student'
+                                                : user.role === 'teacher'
+                                                  ? '/teacher'
+                                                  : '/admin'
+                                        );
+                                        return;
+                                    }
+                                    navigate('/login');
+                                }}
                                 className="inline-flex px-4 py-2 rounded-lg text-sm font-bold text-white"
                                 style={{ backgroundColor: BRAND.primary }}
                             >
-                                {user && showPublicShell ? 'Switch account' : 'Access platform'}
+                                {user && showPublicShell ? 'Go to workspace' : 'Access platform'}
                             </button>
                             <button
                                 type="button"

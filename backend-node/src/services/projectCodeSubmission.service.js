@@ -36,6 +36,10 @@ import {
 } from './notification.service.js';
 import { User } from '../models/User.js';
 import { logger } from '../config/logger.js';
+import {
+  MIN_PROJECT_SCREENSHOTS,
+  MAX_PROJECT_SCREENSHOTS,
+} from '../middleware/projectArtifactsUpload.js';
 
 /**
  * Legacy = strong TITLE identity only (filename / package name).
@@ -117,19 +121,9 @@ async function unlinkQuiet(absPath) {
   await fs.unlink(absPath).catch(() => {});
 }
 
-async function persistProjectScreenshot(proposalId, file) {
-  if (!file?.path) return null;
-
+async function clearProjectScreenshotDir(proposalId) {
   const uploadsRoot = getUploadDir();
-  const relDir = path.join('project-screenshots', String(proposalId));
-  const destDir = path.join(uploadsRoot, relDir);
-  await fs.mkdir(destDir, { recursive: true });
-
-  const ext = path.extname(file.originalname || '').toLowerCase();
-  const safeExt = ['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext) ? ext : '.png';
-  const storedRelativePath = path.join(relDir, `screenshot${safeExt}`).replace(/\\/g, '/');
-  const destPath = path.join(uploadsRoot, storedRelativePath);
-
+  const destDir = path.join(uploadsRoot, 'project-screenshots', String(proposalId));
   try {
     const existing = await fs.readdir(destDir);
     for (const name of existing) {
@@ -140,15 +134,59 @@ async function persistProjectScreenshot(proposalId, file) {
   } catch {
     /* ignore */
   }
+}
 
-  try {
-    await fs.rename(file.path, destPath);
-  } catch {
-    await fs.copyFile(file.path, destPath);
-    await fs.unlink(file.path).catch(() => {});
+/**
+ * Persist 1..N screenshot images. Returns relative paths (forward slashes).
+ * Replaces any previous screenshots for this proposal.
+ */
+async function persistProjectScreenshots(proposalId, files) {
+  const list = (Array.isArray(files) ? files : files ? [files] : []).filter((f) => f?.path);
+  if (!list.length) return [];
+
+  const uploadsRoot = getUploadDir();
+  const relDir = path.join('project-screenshots', String(proposalId));
+  const destDir = path.join(uploadsRoot, relDir);
+  await fs.mkdir(destDir, { recursive: true });
+  await clearProjectScreenshotDir(proposalId);
+
+  const saved = [];
+  for (let i = 0; i < list.length; i += 1) {
+    const file = list[i];
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext) ? ext : '.png';
+    const storedRelativePath = path
+      .join(relDir, `screenshot-${i + 1}${safeExt}`)
+      .replace(/\\/g, '/');
+    const destPath = path.join(uploadsRoot, storedRelativePath);
+    try {
+      await fs.rename(file.path, destPath);
+    } catch {
+      await fs.copyFile(file.path, destPath);
+      await fs.unlink(file.path).catch(() => {});
+    }
+    saved.push(storedRelativePath);
   }
+  return saved;
+}
 
-  return storedRelativePath;
+/** @deprecated single-file helper kept for callers; prefer persistProjectScreenshots */
+async function persistProjectScreenshot(proposalId, file) {
+  const paths = await persistProjectScreenshots(proposalId, file ? [file] : []);
+  return paths[0] || null;
+}
+
+function assertScreenshotCount(files, { allowEmpty = false } = {}) {
+  const list = (Array.isArray(files) ? files : files ? [files] : []).filter((f) => f?.path);
+  if (allowEmpty && !list.length) return list;
+  if (list.length < MIN_PROJECT_SCREENSHOTS || list.length > MAX_PROJECT_SCREENSHOTS) {
+    const err = new Error(
+      `Upload between ${MIN_PROJECT_SCREENSHOTS} and ${MAX_PROJECT_SCREENSHOTS} project screenshots (PNG/JPG/WebP). You selected ${list.length}.`
+    );
+    err.status = 400;
+    throw err;
+  }
+  return list;
 }
 
 function normalizeConsistencyCheck(raw, { needsReview = false } = {}) {
@@ -471,19 +509,27 @@ async function upsertSubmissionRecord({
  * One submission record per proposal.
  * ZIP stays on staging until the full gate accepts; only then rename to project-code/.
  */
-async function upsertProjectZipForProposal(proposal, submittedByUserId, file, projectStackHint = '', screenshotFile = null) {
+async function upsertProjectZipForProposal(proposal, submittedByUserId, file, projectStackHint = '', screenshotFiles = null) {
   if (!file?.path) {
     const err = new Error('No file uploaded');
     err.status = 400;
     throw err;
   }
 
+  const screenshots = assertScreenshotCount(screenshotFiles, { allowEmpty: false });
+
   const stagingZipPath = file.path;
   let auditDir = null;
   let renamedToPermanent = false;
+  let pendingScreenshots = [];
 
   const cleanupStaging = async () => {
-    if (!renamedToPermanent) await unlinkQuiet(stagingZipPath);
+    if (!renamedToPermanent) {
+      await unlinkQuiet(stagingZipPath);
+      for (const f of pendingScreenshots) {
+        await unlinkQuiet(f?.path);
+      }
+    }
   };
 
   try {
@@ -528,11 +574,15 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
 
     const hint = normalizeProjectStackHint(projectStackHint);
-    let screenshotRelativePath = primary?.screenshotRelativePath || '';
-    if (screenshotFile) {
-      screenshotRelativePath =
-        (await persistProjectScreenshot(proposal._id, screenshotFile)) || screenshotRelativePath;
-    }
+    pendingScreenshots = screenshots;
+
+    let screenshotRelativePaths = Array.isArray(primary?.screenshotRelativePaths)
+      ? [...primary.screenshotRelativePaths]
+      : primary?.screenshotRelativePath
+        ? [primary.screenshotRelativePath]
+        : [];
+    // New screenshots are saved only after the ZIP is accepted (see below).
+    const screenshotRelativePath = screenshotRelativePaths[0] || '';
 
     const baseMeta = {
       originalFilename: file.originalname || 'project.zip',
@@ -542,6 +592,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       group: proposal.group || null,
       projectStackHint: hint,
       screenshotRelativePath,
+      screenshotRelativePaths,
     };
 
     auditDir = await fs.mkdtemp(path.join(os.tmpdir(), 'scholar-upload-audit-'));
@@ -948,6 +999,10 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
     renamedToPermanent = true;
 
+    if (pendingScreenshots.length) {
+      screenshotRelativePaths = await persistProjectScreenshots(proposal._id, pendingScreenshots);
+    }
+
     const stat = await fs.stat(destPath);
     const saved = await upsertSubmissionRecord({
       primary,
@@ -955,6 +1010,8 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       submittedByUserId,
       payload: {
         ...baseMeta,
+        screenshotRelativePath: screenshotRelativePaths[0] || '',
+        screenshotRelativePaths,
         contentHash,
         storedRelativePath,
         sizeBytes: stat.size,
@@ -1038,7 +1095,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
   }
 }
 
-export async function submitProjectZip(userId, assignmentId, file, projectStackHint = '', screenshotFile = null) {
+export async function submitProjectZip(userId, assignmentId, file, projectStackHint = '', screenshotFiles = null) {
   const access = await proposalWorkflow.canAccessProjectSubmission(userId, assignmentId);
   if (!access.allowed) {
     const err = new Error(access.reason);
@@ -1046,15 +1103,11 @@ export async function submitProjectZip(userId, assignmentId, file, projectStackH
     throw err;
   }
 
-  return upsertProjectZipForProposal(access.proposal, userId, file, projectStackHint, screenshotFile);
+  return upsertProjectZipForProposal(access.proposal, userId, file, projectStackHint, screenshotFiles);
 }
 
-export async function submitProjectScreenshotOnly(userId, assignmentId, screenshotFile) {
-  if (!screenshotFile?.path) {
-    const err = new Error('Screenshot image is required.');
-    err.status = 400;
-    throw err;
-  }
+export async function submitProjectScreenshotOnly(userId, assignmentId, screenshotFiles) {
+  const screenshots = assertScreenshotCount(screenshotFiles, { allowEmpty: false });
 
   const access = await proposalWorkflow.canAccessProjectSubmission(userId, assignmentId);
   if (!access.allowed) {
@@ -1068,34 +1121,38 @@ export async function submitProjectScreenshotOnly(userId, assignmentId, screensh
   if (!isProposalFullyApprovedForProject(proposal, assignment)) {
     const err = new Error(
       assignment?.isCollaborative
-        ? 'Both teachers must approve the proposal before uploading a project screenshot.'
-        : 'Proposal must be teacher-approved before uploading a project screenshot.'
+        ? 'Both teachers must approve the proposal before uploading project screenshots.'
+        : 'Proposal must be teacher-approved before uploading project screenshots.'
     );
     err.status = 400;
     throw err;
   }
 
-  const screenshotRelativePath = await persistProjectScreenshot(proposal._id, screenshotFile);
+  const screenshotRelativePaths = await persistProjectScreenshots(proposal._id, screenshots);
   const primary = await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 });
 
   if (!primary) {
-    const err = new Error('Upload your project ZIP first, then add a UI screenshot for the verified gallery.');
+    const err = new Error(
+      'Upload your project ZIP together with 4–10 screenshots first (screenshots are required with the ZIP).'
+    );
     err.status = 400;
     throw err;
   }
 
   if (!primary.storedRelativePath || primary.pipelineStatus !== SUBMISSION_PIPELINE_STATUSES.ACCEPTED) {
-    const err = new Error('Upload an accepted project ZIP first, then add a UI screenshot for the verified gallery.');
+    const err = new Error(
+      'Upload an accepted project ZIP first (with 4–10 screenshots), then you can replace gallery screenshots.'
+    );
     err.status = 400;
     throw err;
   }
 
-  primary.screenshotRelativePath = screenshotRelativePath;
+  primary.screenshotRelativePaths = screenshotRelativePaths;
+  primary.screenshotRelativePath = screenshotRelativePaths[0] || '';
   await primary.save();
 
   return { submission: primary.toObject ? primary.toObject() : primary };
 }
-
 export async function getLatestSubmissionForProposal(proposalId) {
   return ProjectSubmission.findOne({ proposal: proposalId }).sort({ createdAt: -1 }).lean();
 }

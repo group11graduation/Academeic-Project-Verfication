@@ -147,7 +147,7 @@ async function latestSubmissionsByProposal(proposalIds) {
   if (!proposalIds.length) return new Map();
   const rows = await ProjectSubmission.find({ proposal: { $in: proposalIds } })
     .sort({ createdAt: -1 })
-    .select('proposal screenshotRelativePath originalFilename version createdAt')
+    .select('proposal screenshotRelativePath screenshotRelativePaths originalFilename version createdAt')
     .lean();
   const map = new Map();
   for (const row of rows) {
@@ -162,6 +162,14 @@ function mapGalleryRow(proposal, submission) {
   const subject = assignment.subject || {};
   const author = proposal.submittedBy || {};
   const teacherScore = proposal.teacherProposalScore ?? null;
+  const pathList = Array.isArray(submission?.screenshotRelativePaths)
+    ? submission.screenshotRelativePaths.filter(Boolean)
+    : [];
+  const screenshotUrls = pathList.length
+    ? screenshotUrlsFromPaths(pathList)
+    : submission?.screenshotRelativePath
+      ? [toPublicUrl(submission.screenshotRelativePath)].filter(Boolean)
+      : [];
 
   return {
     id: String(proposal._id),
@@ -174,12 +182,11 @@ function mapGalleryRow(proposal, submission) {
     subjectCode: subject.code || '',
     teacherScore,
     hasProjectSubmission: Boolean(submission),
-    screenshotUrl: submission?.screenshotRelativePath ? toPublicUrl(submission.screenshotRelativePath) : null,
-    screenshotUrls: submission?.screenshotRelativePath
-      ? [toPublicUrl(submission.screenshotRelativePath)]
-      : [],
+    screenshotUrl: screenshotUrls[0] || null,
+    screenshotUrls,
     approvedAt: proposal.updatedAt || proposal.submittedAt,
-    featuredRank: (teacherScore ?? 0) + (submission?.screenshotRelativePath ? 10 : 0) + (submission ? 5 : 0),
+    featuredRank:
+      (teacherScore ?? 0) + (screenshotUrls.length ? 10 + Math.min(screenshotUrls.length, 5) : 0) + (submission ? 5 : 0),
   };
 }
 
@@ -336,11 +343,16 @@ async function resolveFromMatchedKey(matchedKey, similarityPercent) {
     if (!prev) return null;
     const submission = await ProjectSubmission.findOne({ proposal: prev._id })
       .sort({ createdAt: -1 })
-      .select('screenshotRelativePath')
+      .select('screenshotRelativePath screenshotRelativePaths')
       .lean();
-    const screenshotUrls = submission?.screenshotRelativePath
-      ? [toPublicUrl(submission.screenshotRelativePath)]
+    const pathListA = Array.isArray(submission?.screenshotRelativePaths)
+      ? submission.screenshotRelativePaths.filter(Boolean)
       : [];
+    const screenshotUrls = pathListA.length
+      ? screenshotUrlsFromPaths(pathListA)
+      : submission?.screenshotRelativePath
+        ? [toPublicUrl(submission.screenshotRelativePath)]
+        : [];
     return {
       id: String(prev._id),
       kind: 'proposal',
@@ -438,11 +450,16 @@ export async function resolveSimilarMatchedProject(proposal) {
     if (prev) {
       const submission = await ProjectSubmission.findOne({ proposal: prev._id })
         .sort({ createdAt: -1 })
-        .select('screenshotRelativePath')
+        .select('screenshotRelativePath screenshotRelativePaths')
         .lean();
-      const screenshotUrls = submission?.screenshotRelativePath
-        ? [toPublicUrl(submission.screenshotRelativePath)]
+      const pathListB = Array.isArray(submission?.screenshotRelativePaths)
+        ? submission.screenshotRelativePaths.filter(Boolean)
         : [];
+      const screenshotUrls = pathListB.length
+        ? screenshotUrlsFromPaths(pathListB)
+        : submission?.screenshotRelativePath
+          ? [toPublicUrl(submission.screenshotRelativePath)]
+          : [];
 
       return {
         id: String(prev._id),

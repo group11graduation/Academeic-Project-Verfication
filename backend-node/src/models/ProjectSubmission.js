@@ -77,8 +77,10 @@ const projectSubmissionSchema = new mongoose.Schema(
     lastExtractFileCount: { type: Number },
     lastAuditAt: { type: Date },
     lastRuntimeErrorAt: { type: Date },
-    /** UI preview image for verified projects gallery (png/jpg/webp) */
+    /** UI preview image for verified projects gallery (png/jpg/webp) - first/primary */
     screenshotRelativePath: { type: String, default: '' },
+    /** Multiple UI screenshots for gallery (4–10). Primary also mirrored in screenshotRelativePath. */
+    screenshotRelativePaths: [{ type: String }],
     /** Teacher review of the uploaded project (separate from proposal feedback) */
     teacherComment: { type: String, default: '' },
     teacherScore: { type: Number, min: 0, default: null },

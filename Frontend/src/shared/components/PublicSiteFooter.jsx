@@ -1,23 +1,23 @@
 import { Link } from 'react-router-dom';
 import { Github, Linkedin, Twitter } from 'lucide-react';
-import { PROJECT_LEGAL_NAME } from '../ui/brandTheme';
+import { PRODUCT_TAGLINE, PROJECT_LEGAL_NAME } from '../ui/brandTheme';
 import ProjectVerifyLogo from './ProjectVerifyLogo';
 
 const PublicSiteFooter = () => (
     <footer className="border-t border-[var(--sv-border)] bg-[var(--sv-card)] dark:border-white/10 dark:bg-[#0b1220]">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
             <div className="md:col-span-1">
-                <Link to="/" className="inline-block mb-4">
-                    <ProjectVerifyLogo size="lg" />
+                <Link to="/" className="mb-4 inline-block">
+                    <ProjectVerifyLogo size="lg" showMark={false} tagline={PRODUCT_TAGLINE} />
                 </Link>
                 <p className="text-sm font-medium leading-relaxed text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
-                    Academic project verification with AI similarity checks, teacher review, and secure previews.
+                    Automated Academic Project Verification Using Machine Learning with Integrated Docker-Based
+                    Sandbox Preview
                 </p>
             </div>
             <div>
                 <p className="mb-4 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Platform</p>
                 <ul className="space-y-2 text-sm font-semibold text-[var(--sv-muted)] dark:text-slate-300">
-                    <li><Link to="/" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">System overview</Link></li>
                     <li><Link to="/" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Home</Link></li>
                     <li><Link to="/guide" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Guide</Link></li>
                     <li><Link to="/about" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">About</Link></li>

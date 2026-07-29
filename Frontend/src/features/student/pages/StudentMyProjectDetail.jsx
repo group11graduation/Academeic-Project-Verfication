@@ -88,8 +88,10 @@ const StudentMyProjectDetail = () => {
     const [codeZipMessage, setCodeZipMessage] = useState('');
     const [codeZipTone, setCodeZipTone] = useState(''); // success | error | ''
     const [selectedZipFile, setSelectedZipFile] = useState(null);
-    const [selectedScreenshotFile, setSelectedScreenshotFile] = useState(null);
+    const [selectedScreenshotFiles, setSelectedScreenshotFiles] = useState([]);
     const [screenshotBusy, setScreenshotBusy] = useState(false);
+    const MIN_SCREENSHOTS = 4;
+    const MAX_SCREENSHOTS = 10;
 
     const project = useMemo(() => {
         if (!row?.assignment) return null;
@@ -237,6 +239,16 @@ const StudentMyProjectDetail = () => {
             setCodeZipMessage(DEADLINE_DUE_STUDENT_MESSAGE);
             return;
         }
+        if (
+            selectedScreenshotFiles.length < MIN_SCREENSHOTS ||
+            selectedScreenshotFiles.length > MAX_SCREENSHOTS
+        ) {
+            const msg = `Project screenshots are required: upload between ${MIN_SCREENSHOTS} and ${MAX_SCREENSHOTS} images (you selected ${selectedScreenshotFiles.length}).`;
+            setCodeZipTone('error');
+            setCodeZipMessage(msg);
+            await appError(msg, { title: 'Screenshots required' });
+            return;
+        }
         setCodeZipBusy(true);
         setCodeZipMessage('');
         setCodeZipTone('');
@@ -245,7 +257,7 @@ const StudentMyProjectDetail = () => {
                 assignmentId,
                 selectedZipFile,
                 '',
-                selectedScreenshotFile
+                selectedScreenshotFiles
             );
             const data = res?.data && typeof res.data === 'object' ? res.data : res;
             // Business rejects now return HTTP 200 with success:true and accepted:false
@@ -286,7 +298,7 @@ const StudentMyProjectDetail = () => {
                     await appSuccess(successMsg, { title: updated ? 'Project updated' : 'Project uploaded' });
                 }
                 setSelectedZipFile(null);
-                setSelectedScreenshotFile(null);
+                setSelectedScreenshotFiles([]);
                 const assignRes = await studentService.getAssignment(assignmentId);
                 if (assignRes.success) setRow(assignRes.data);
             } else {
@@ -319,7 +331,17 @@ const StudentMyProjectDetail = () => {
     };
 
     const handleScreenshotUpload = async () => {
-        if (!selectedScreenshotFile || !assignmentId) return;
+        if (!assignmentId) return;
+        if (
+            selectedScreenshotFiles.length < MIN_SCREENSHOTS ||
+            selectedScreenshotFiles.length > MAX_SCREENSHOTS
+        ) {
+            setCodeZipTone('error');
+            setCodeZipMessage(
+                `Select between ${MIN_SCREENSHOTS} and ${MAX_SCREENSHOTS} screenshots (you selected ${selectedScreenshotFiles.length}).`
+            );
+            return;
+        }
         if (row?.projectDeadlinePassed) {
             setCodeZipMessage(DEADLINE_DUE_STUDENT_MESSAGE);
             return;
@@ -327,16 +349,21 @@ const StudentMyProjectDetail = () => {
         setScreenshotBusy(true);
         setCodeZipMessage('');
         try {
-            const res = await studentService.submitProjectScreenshot(assignmentId, selectedScreenshotFile);
+            const res = await studentService.submitProjectScreenshot(assignmentId, selectedScreenshotFiles);
             if (res.success) {
-                setCodeZipMessage('Screenshot saved. Your project can appear in Verified Projects.');
-                setSelectedScreenshotFile(null);
+                setCodeZipTone('success');
+                setCodeZipMessage(
+                    `${selectedScreenshotFiles.length} screenshots saved for the Verified Projects gallery.`
+                );
+                setSelectedScreenshotFiles([]);
                 const assignRes = await studentService.getAssignment(assignmentId);
                 if (assignRes.success) setRow(assignRes.data);
             } else {
+                setCodeZipTone('error');
                 setCodeZipMessage(res.message || 'Screenshot upload failed.');
             }
         } catch (e) {
+            setCodeZipTone('error');
             setCodeZipMessage(e.response?.data?.message || e.message || 'Screenshot upload failed.');
         } finally {
             setScreenshotBusy(false);
@@ -601,7 +628,11 @@ const StudentMyProjectDetail = () => {
                                     </p>
                                     <button
                                         type="button"
-                                        disabled={codeZipBusy || !selectedZipFile}
+                                        disabled={
+                                            codeZipBusy ||
+                                            !selectedZipFile ||
+                                            selectedScreenshotFiles.length < MIN_SCREENSHOTS
+                                        }
                                         onClick={handleProjectZipUpload}
                                         className={`${Z_BTN_PRIMARY} bg-emerald-600 hover:bg-emerald-700`}
                                     >
@@ -618,27 +649,44 @@ const StudentMyProjectDetail = () => {
                                         )}
                                     </button>
                                     <p className="text-xs font-black uppercase tracking-widest text-[var(--sv-muted)] mb-2 mt-6">
-                                        Step 3 - Project screenshot (for Verified Projects gallery)
+                                        Step 3 - Project screenshots (required, for Verified Projects gallery)
                                     </p>
                                     <p className="mb-3 text-xs font-medium text-[var(--sv-muted)]">
-                                        Upload a PNG or JPG showing how your app looks (homepage or main screen).
+                                        Required: upload {MIN_SCREENSHOTS}–{MAX_SCREENSHOTS} PNG/JPG images showing your
+                                        app (homepage, key screens). ZIP upload will not be accepted without them.
                                     </p>
                                     <input
                                         type="file"
                                         ref={screenshotInputRef}
                                         accept="image/png,image/jpeg,image/webp,image/gif"
+                                        multiple
                                         disabled={codeZipBusy || screenshotBusy}
-                                        onChange={(e) => setSelectedScreenshotFile(e.target.files?.[0] || null)}
+                                        onChange={(e) => {
+                                            const files = Array.from(e.target.files || []).slice(0, MAX_SCREENSHOTS);
+                                            setSelectedScreenshotFiles(files);
+                                        }}
                                         className="mb-3 w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2 text-sm text-[var(--sv-text)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--sv-card)] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[var(--sv-text)]"
                                     />
-                                    {selectedScreenshotFile ? (
+                                    {selectedScreenshotFiles.length ? (
                                         <p className="mb-3 text-sm font-semibold text-[var(--sv-text)]">
-                                            Selected: {selectedScreenshotFile.name}
+                                            Selected: {selectedScreenshotFiles.length} image
+                                            {selectedScreenshotFiles.length === 1 ? '' : 's'}
+                                            {selectedScreenshotFiles.length < MIN_SCREENSHOTS
+                                                ? ` (need at least ${MIN_SCREENSHOTS})`
+                                                : ''}
                                         </p>
-                                    ) : null}
+                                    ) : (
+                                        <p className="mb-3 text-sm font-semibold text-rose-600">
+                                            No screenshots selected - required to upload the project ZIP.
+                                        </p>
+                                    )}
                                     <button
                                         type="button"
-                                        disabled={screenshotBusy || !selectedScreenshotFile || !row?.latestProjectSubmission}
+                                        disabled={
+                                            screenshotBusy ||
+                                            selectedScreenshotFiles.length < MIN_SCREENSHOTS ||
+                                            !row?.latestProjectSubmission
+                                        }
                                         onClick={handleScreenshotUpload}
                                         className="inline-flex items-center gap-2 rounded-xl border border-[#2a3fa4] bg-[var(--sv-card)] px-6 py-3 text-sm font-black uppercase tracking-widest text-[#2a3fa4] hover:bg-blue-50 disabled:opacity-50 dark:border-sky-400 dark:text-sky-300 dark:hover:bg-blue-500/15"
                                     >
@@ -648,11 +696,14 @@ const StudentMyProjectDetail = () => {
                                                 Saving…
                                             </>
                                         ) : (
-                                            'Save screenshot only'
+                                            'Replace screenshots only'
                                         )}
                                     </button>
                                     {!row?.latestProjectSubmission ? (
-                                        <p className="mt-2 text-xs text-[var(--sv-muted)]">Upload your ZIP first, or attach a screenshot with the ZIP upload above.</p>
+                                        <p className="mt-2 text-xs text-[var(--sv-muted)]">
+                                            Select ZIP + {MIN_SCREENSHOTS}–{MAX_SCREENSHOTS} screenshots, then click Upload
+                                            project ZIP above.
+                                        </p>
                                     ) : null}
                                 </>
                             )}

@@ -54,7 +54,7 @@ export const projectAccess = asyncHandler(async (req, res) => {
 export const submitProjectCode = asyncHandler(async (req, res) => {
   const hint = req.body?.projectStackHint || req.body?.projectType || '';
   const zipFile = req.files?.codeArchive?.[0];
-  const screenshotFile = req.files?.projectScreenshot?.[0];
+  const screenshotFiles = req.files?.projectScreenshot || [];
   if (!zipFile) return fail(res, 'Project ZIP file (codeArchive) is required.', 400);
 
   const result = await projectCodeSubmission.submitProjectZip(
@@ -62,7 +62,7 @@ export const submitProjectCode = asyncHandler(async (req, res) => {
     req.params.assignmentId,
     zipFile,
     hint,
-    screenshotFile || null
+    screenshotFiles
   );
 
   if (result.accepted === false) {
@@ -102,10 +102,11 @@ export const submitProjectCode = asyncHandler(async (req, res) => {
 });
 
 export const submitProjectScreenshot = asyncHandler(async (req, res) => {
+  const files = Array.isArray(req.files) ? req.files : req.file ? [req.file] : [];
   const result = await projectCodeSubmission.submitProjectScreenshotOnly(
     req.userId,
     req.params.assignmentId,
-    req.file
+    files
   );
   return success(res, result.submission, 200);
 });

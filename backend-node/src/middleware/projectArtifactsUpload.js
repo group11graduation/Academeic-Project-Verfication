@@ -12,6 +12,8 @@ if (!fs.existsSync(staging)) {
 /** Default 250 MB - full student MERN/Spring ZIPs often exceed the old 50 MB cap. */
 const maxZipBytes = Number(process.env.MAX_PROJECT_ZIP_BYTES || 262_144_000);
 const maxImageBytes = Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 5_242_880);
+export const MIN_PROJECT_SCREENSHOTS = Number(process.env.MIN_PROJECT_SCREENSHOTS || 4);
+export const MAX_PROJECT_SCREENSHOTS = Number(process.env.MAX_PROJECT_SCREENSHOTS || 10);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, staging),
@@ -20,6 +22,10 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`);
   },
 });
+
+function isScreenshotFile(file) {
+  return String(file.mimetype || '').startsWith('image/');
+}
 
 export const uploadProjectArtifacts = multer({
   storage,
@@ -35,11 +41,11 @@ export const uploadProjectArtifacts = multer({
       return cb(null, true);
     }
     if (file.fieldname === 'projectScreenshot') {
-      if (!String(file.mimetype || '').startsWith('image/')) {
+      if (!isScreenshotFile(file)) {
         return cb(new Error('Project screenshot must be an image (PNG, JPG, or WebP).'));
       }
       if (file.size && file.size > maxImageBytes) {
-        return cb(new Error('Screenshot is too large (max 5 MB).'));
+        return cb(new Error('Screenshot is too large (max 5 MB each).'));
       }
       return cb(null, true);
     }
@@ -47,16 +53,16 @@ export const uploadProjectArtifacts = multer({
   },
 }).fields([
   { name: 'codeArchive', maxCount: 1 },
-  { name: 'projectScreenshot', maxCount: 1 },
+  { name: 'projectScreenshot', maxCount: MAX_PROJECT_SCREENSHOTS },
 ]);
 
 export const uploadProjectScreenshotOnly = multer({
   storage,
   limits: { fileSize: maxImageBytes },
   fileFilter: (_req, file, cb) => {
-    if (!String(file.mimetype || '').startsWith('image/')) {
+    if (!isScreenshotFile(file)) {
       return cb(new Error('Project screenshot must be an image (PNG, JPG, or WebP).'));
     }
     cb(null, true);
   },
-}).single('projectScreenshot');
+}).array('projectScreenshot', MAX_PROJECT_SCREENSHOTS);
