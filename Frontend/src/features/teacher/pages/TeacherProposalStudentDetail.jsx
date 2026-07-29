@@ -138,9 +138,9 @@ const safePreviewUrl = (url) => {
 
 function DetailRow({ label, value }) {
     return (
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-3 gap-y-1 border-b border-slate-50 py-3 last:border-0 sm:grid-cols-[140px_1fr]">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-            <span className="text-sm font-semibold break-words text-slate-900">{value ?? '-'}</span>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-3 gap-y-1 border-b border-[var(--sv-border)] py-3 last:border-0 sm:grid-cols-[140px_1fr]">
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--sv-muted)]">{label}</span>
+            <span className="text-sm font-semibold break-words text-[var(--sv-text)]">{value ?? '-'}</span>
         </div>
     );
 }
@@ -201,14 +201,22 @@ function SubmissionAttemptTimeline({ history, emptyMessage = 'No submission atte
         formatSubmissionHistoryEntry(entry, index)
     );
     if (!items.length) {
-        return <p className="text-sm text-slate-500">{emptyMessage}</p>;
+        return <p className="text-sm text-[var(--sv-muted)]">{emptyMessage}</p>;
     }
     const toneClass = (tone) => {
-        if (tone === 'error') return 'border-rose-200 bg-rose-50 text-rose-950';
-        if (tone === 'warn') return 'border-amber-200 bg-amber-50 text-amber-950';
-        if (tone === 'success') return 'border-emerald-200 bg-emerald-50 text-emerald-950';
-        if (tone === 'info') return 'border-blue-200 bg-blue-50 text-blue-950';
-        return 'border-slate-200 bg-slate-50 text-slate-800';
+        if (tone === 'error') {
+            return 'border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/40 dark:bg-rose-950/45 dark:text-rose-100';
+        }
+        if (tone === 'warn') {
+            return 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/45 dark:text-amber-100';
+        }
+        if (tone === 'success') {
+            return 'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/45 dark:text-emerald-100';
+        }
+        if (tone === 'info') {
+            return 'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-500/40 dark:bg-blue-950/45 dark:text-blue-100';
+        }
+        return 'border-[var(--sv-border)] bg-[var(--sv-card-muted)] text-[var(--sv-text)]';
     };
     return (
         <ul className="space-y-3">
@@ -223,7 +231,7 @@ function SubmissionAttemptTimeline({ history, emptyMessage = 'No submission atte
                     <p className="mt-1 text-[11px] font-semibold opacity-80">{item.when}</p>
                     {item.detail ? <p className="mt-2 text-xs leading-relaxed">{item.detail}</p> : null}
                     {item.resolved?.length ? (
-                        <p className="mt-2 text-xs font-semibold text-emerald-800">
+                        <p className="mt-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
                             Fixed: {item.resolved.join(', ')}
                         </p>
                     ) : null}
@@ -235,18 +243,18 @@ function SubmissionAttemptTimeline({ history, emptyMessage = 'No submission atte
 
 function DocumentPane({ title, subtitle, onCopy, text }) {
     return (
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-sm">
+            <div className="flex items-start justify-between gap-2 border-b border-[var(--sv-border)] px-4 py-3">
                 <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-[#1e56e3]">{title}</p>
-                    <p className="mt-0.5 truncate text-base font-bold text-slate-900">{subtitle}</p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">Structured like extracted submission text for easier reading.</p>
+                    <p className="mt-0.5 truncate text-base font-bold text-[var(--sv-text)]">{subtitle}</p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--sv-muted)]">Structured like extracted submission text for easier reading.</p>
                 </div>
                 {text ? (
                     <button
                         type="button"
                         onClick={onCopy}
-                        className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+                        className="shrink-0 rounded-lg border border-[var(--sv-border)] p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)]"
                         title="Copy proposal text"
                     >
                         <Copy className="h-4 w-4" />
@@ -628,11 +636,11 @@ const TeacherProposalStudentDetail = () => {
         return (
             <div className={Z_PAGE}>
                 <div className={Z_INNER}>
-                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--sv-muted)]">
                         <Link to="/teacher/assignments" className={Z_LINK}>
                             Assignments
                         </Link>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
                         <Link to={`/teacher/assignments/${assignmentId}/proposals`} className={Z_LINK}>
                             Proposals
                         </Link>
@@ -647,11 +655,11 @@ const TeacherProposalStudentDetail = () => {
         return (
             <div className={Z_PAGE}>
                 <div className={Z_INNER}>
-                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--sv-muted)]">
                         <Link to="/teacher/assignments" className={Z_LINK}>
                             Assignments
                         </Link>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
                         <Link to={`/teacher/assignments/${assignmentId}/proposals`} className={Z_LINK}>
                             Proposals
                         </Link>
@@ -700,13 +708,13 @@ const TeacherProposalStudentDetail = () => {
     return (
         <div className={Z_PAGE}>
             <div className={Z_INNER}>
-                <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--sv-muted)]">
                     <Link to="/teacher/assignments" className={Z_LINK}>
                         Assignments
                     </Link>
                     {classCrumb ? (
                         <>
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
                             <Link
                                 to={classCrumb.to}
                                 className={`${Z_LINK} max-w-[min(100%,14rem)] truncate`}
@@ -716,7 +724,7 @@ const TeacherProposalStudentDetail = () => {
                             </Link>
                         </>
                     ) : null}
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
                     <Link
                         to={`/teacher/assignments/${assignmentId}/proposals`}
                         className={`${Z_LINK} max-w-[200px] truncate md:max-w-xs`}
@@ -724,8 +732,8 @@ const TeacherProposalStudentDetail = () => {
                     >
                         {assignmentTitle}
                     </Link>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="max-w-[180px] truncate text-slate-800 md:max-w-md" title={profileTitle}>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
+                    <span className="max-w-[180px] truncate text-[var(--sv-text)] md:max-w-md" title={profileTitle}>
                         {profileTitle}
                     </span>
                 </nav>
@@ -734,7 +742,7 @@ const TeacherProposalStudentDetail = () => {
                     <button
                         type="button"
                         onClick={() => navigate(`/teacher/assignments/${assignmentId}/proposals`)}
-                        className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
+                        className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-[var(--sv-muted)] transition hover:text-[var(--sv-text)]"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         Back to proposal roster
@@ -743,7 +751,7 @@ const TeacherProposalStudentDetail = () => {
                         <button
                             type="button"
                             onClick={() => window.print()}
-                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                            className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-2 text-sm font-bold text-[var(--sv-text)] shadow-sm transition hover:bg-[var(--sv-card-muted)]"
                         >
                             <Printer className="h-4 w-4" />
                             Print
@@ -812,13 +820,13 @@ const TeacherProposalStudentDetail = () => {
                             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-2xl font-bold text-white shadow-md">
                                 {profileInitial}
                             </div>
-                            <h1 className="mt-4 max-w-full break-words text-lg font-bold text-slate-900">{profileTitle}</h1>
+                            <h1 className="mt-4 max-w-full break-words text-lg font-bold text-[var(--sv-text)]">{profileTitle}</h1>
                             {isGroupSubmission ? (
                                 <ul className="mt-3 w-full space-y-2 text-left">
                                     {groupRoster.length ? (
                                         groupRoster.map((member) => (
-                                            <li key={member._id || member.email} className="rounded-lg bg-slate-50 px-3 py-2">
-                                                <p className="text-sm font-semibold break-words text-slate-900">
+                                            <li key={member._id || member.email} className="rounded-lg bg-[var(--sv-card-muted)] px-3 py-2">
+                                                <p className="text-sm font-semibold break-words text-[var(--sv-text)]">
                                                     {member.name || member.email || 'Student'}
                                                     {member.isLeader ? (
                                                         <span className="ml-1 text-[11px] font-bold uppercase tracking-wide text-[#1e56e3]">
@@ -827,46 +835,46 @@ const TeacherProposalStudentDetail = () => {
                                                     ) : null}
                                                 </p>
                                                 {member.email ? (
-                                                    <p className="mt-0.5 text-xs break-all text-slate-500">{member.email}</p>
+                                                    <p className="mt-0.5 text-xs break-all text-[var(--sv-muted)]">{member.email}</p>
                                                 ) : null}
                                             </li>
                                         ))
                                     ) : (
-                                        <li className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">No members listed</li>
+                                        <li className="rounded-lg bg-[var(--sv-card-muted)] px-3 py-2 text-sm text-[var(--sv-muted)]">No members listed</li>
                                     )}
                                 </ul>
                             ) : (
-                                <p className="mt-1 min-h-[1.25rem] max-w-full break-all text-sm text-slate-500">{student?.email || '-'}</p>
+                                <p className="mt-1 min-h-[1.25rem] max-w-full break-all text-sm text-[var(--sv-muted)]">{student?.email || '-'}</p>
                             )}
                             <p className="mt-2 text-xs font-bold uppercase tracking-wide text-[#1e56e3]">
                                 {statusLabel(proposal.status, proposal)}
                             </p>
-                            <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-slate-100 pt-5">
+                            <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-[var(--sv-border)] pt-5">
                                 <div
                                     className={`col-span-2 rounded-lg border py-3 px-2 text-center ${
                                         submissionJourney.tone === 'success'
-                                            ? 'border-emerald-200 bg-emerald-50'
+                                            ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-950/45'
                                             : submissionJourney.tone === 'error'
-                                              ? 'border-rose-200 bg-rose-50'
-                                              : 'border-blue-200 bg-blue-50'
+                                              ? 'border-rose-200 bg-rose-50 dark:border-rose-500/40 dark:bg-rose-950/45'
+                                              : 'border-blue-200 bg-blue-50 dark:border-blue-500/40 dark:bg-blue-950/45'
                                     }`}
                                 >
                                     <p
                                         className={`text-sm font-bold ${
                                             submissionJourney.tone === 'success'
-                                                ? 'text-emerald-800'
+                                                ? 'text-emerald-800 dark:text-emerald-200'
                                                 : submissionJourney.tone === 'error'
-                                                  ? 'text-rose-800'
-                                                  : 'text-blue-900'
+                                                  ? 'text-rose-800 dark:text-rose-200'
+                                                  : 'text-blue-900 dark:text-blue-100'
                                         }`}
                                     >
                                         {submissionJourney.title}
                                     </p>
-                                    <p className="mt-1 text-[11px] font-medium leading-relaxed text-slate-700">
+                                    <p className="mt-1 text-[11px] font-medium leading-relaxed text-[var(--sv-muted)]">
                                         {submissionJourney.subtitle}
                                     </p>
                                     {submissionHistoryCtx.attemptCount > 1 ? (
-                                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                             {submissionHistoryCtx.attemptCount} submission attempts
                                         </p>
                                     ) : null}
@@ -879,16 +887,16 @@ const TeacherProposalStudentDetail = () => {
                                         </p>
                                     </div>
                                 ) : submissionHistoryCtx.resolvedAfterFailure ? (
-                                    <div className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/80 py-3 px-2 text-center">
+                                    <div className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/40 py-3 px-2 text-center">
                                         <p className="text-sm font-bold text-emerald-800">Earlier issue resolved</p>
                                         <p className="mt-1 text-[11px] font-semibold text-emerald-700">
                                             {submissionHistoryCtx.lastResolved.join(', ') || 'Requirements now pass'}
                                         </p>
                                     </div>
                                 ) : aiSimilarity.level === 'ok' ? (
-                                    <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 py-3 px-2 text-center">
-                                        <p className="text-sm font-bold text-slate-800">AI similarity (advisory)</p>
-                                        <p className="mt-1 text-[11px] font-semibold text-slate-600">
+                                    <div className="col-span-2 rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] py-3 px-2 text-center">
+                                        <p className="text-sm font-bold text-[var(--sv-text)]">AI similarity (advisory)</p>
+                                        <p className="mt-1 text-[11px] font-semibold text-[var(--sv-muted)]">
                                             {sameSemPct} same-term · did not block student
                                         </p>
                                     </div>
@@ -907,9 +915,9 @@ const TeacherProposalStudentDetail = () => {
                                                 Same term (blocked)
                                             </p>
                                         </div>
-                                        <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                            <p className="text-xl font-bold text-slate-900">{legacyPct}</p>
-                                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                        <div className="rounded-lg bg-[var(--sv-card-muted)] py-2 text-center">
+                                            <p className="text-xl font-bold text-[var(--sv-text)]">{legacyPct}</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                                 Legacy (max)
                                             </p>
                                         </div>
@@ -919,7 +927,7 @@ const TeacherProposalStudentDetail = () => {
                             {classCodeForStudents ? (
                                 <Link
                                     to={`/teacher/classes/${classCodeForStudents}/students`}
-                                    className="mt-5 w-full rounded-xl border border-slate-200 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                                    className="mt-5 w-full rounded-xl border border-[var(--sv-border)] py-2.5 text-center text-sm font-bold text-[var(--sv-text)] transition hover:bg-[var(--sv-card-muted)]"
                                 >
                                     Open class student profiles
                                 </Link>
@@ -928,8 +936,8 @@ const TeacherProposalStudentDetail = () => {
                     </div>
 
                     <div className={`${Z_CARD} p-5`}>
-                        <h2 className="mb-1 text-sm font-bold text-slate-900">Student and proposal</h2>
-                        <p className="mb-4 text-xs text-slate-500">Identity and submission metadata.</p>
+                        <h2 className="mb-1 text-sm font-bold text-[var(--sv-text)]">Student and proposal</h2>
+                        <p className="mb-4 text-xs text-[var(--sv-muted)]">Identity and submission metadata.</p>
                         <div className="divide-y divide-slate-50">
                             <DetailRow label="Proposal title" value={proposal.title} />
                             {isGroupSubmission ? (
@@ -980,14 +988,14 @@ const TeacherProposalStudentDetail = () => {
 
                     <div className={`${Z_CARD} flex flex-col p-5`}>
                         <div className="mb-3 flex items-start justify-between gap-2">
-                            <h2 className="text-sm font-bold text-slate-900">Submission checks & history</h2>
+                            <h2 className="text-sm font-bold text-[var(--sv-text)]">Submission checks & history</h2>
                             {requirementIssue.failed ? (
                                 <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
                             ) : (
                                 <BarChart2 className="h-4 w-4 shrink-0 text-[#1e56e3]" />
                             )}
                         </div>
-                        <p className="text-xs leading-relaxed text-slate-500">
+                        <p className="text-xs leading-relaxed text-[var(--sv-muted)]">
                             Each student resubmit is logged here. Requirement failures block submission. Same-semester
                             overlap ≥ 55% auto-rejects; previous-semester overlap only adds recommendations.
                         </p>
@@ -1009,13 +1017,13 @@ const TeacherProposalStudentDetail = () => {
                         ) : null}
 
                         {requirementIssue.failed ? (
-                            <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50/80 p-3 text-sm font-semibold text-rose-900">
+                            <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50/80 dark:bg-rose-950/40 p-3 text-sm font-semibold text-rose-900">
                                 {requirementIssue.summary}
                             </p>
                         ) : null}
 
                         <div className="mt-4">
-                            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                 Attempt timeline
                             </p>
                             <SubmissionAttemptTimeline
@@ -1025,8 +1033,8 @@ const TeacherProposalStudentDetail = () => {
                         </div>
 
                         {!requirementIssue.failed && aiSimilarity.level === 'ok' ? (
-                            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                                <p className="font-bold text-slate-800">Latest AI similarity (advisory)</p>
+                            <div className="mt-4 rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3 text-xs text-[var(--sv-text)]">
+                                <p className="font-bold text-[var(--sv-text)]">Latest AI similarity (advisory)</p>
                                 <p className="mt-1">{aiSimilarity.detail}</p>
                                 <ul className="mt-2 space-y-1">
                                     <li>
@@ -1040,12 +1048,12 @@ const TeacherProposalStudentDetail = () => {
                         ) : null}
 
                         {proposal.aiSummary ? (
-                            <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-2 text-[11px] font-mono text-slate-600">
+                            <p className="mt-3 rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-2 text-[11px] font-mono text-[var(--sv-muted)]">
                                 {proposal.aiSummary}
                             </p>
                         ) : null}
                         {proposal.teacherComment ? (
-                            <div className="mt-4 border-t border-slate-100 pt-3 text-xs font-semibold text-amber-800">
+                            <div className="mt-4 border-t border-[var(--sv-border)] pt-3 text-xs font-semibold text-amber-800">
                                 <span className="flex items-start gap-2">
                                     <MessageSquare className="h-4 w-4 shrink-0" />
                                     {proposal.teacherComment}
@@ -1058,7 +1066,7 @@ const TeacherProposalStudentDetail = () => {
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
                     <div className="lg:col-span-3">
                         <div className={`${Z_CARD} flex min-h-0 flex-col overflow-hidden lg:min-h-[320px]`}>
-                            <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 pt-2">
+                            <div className="flex flex-wrap gap-1 border-b border-[var(--sv-border)] px-2 pt-2">
                                 {[
                                     { id: 'proposal', label: 'Proposal content' },
                                     { id: 'activity', label: 'Submission activity' },
@@ -1069,15 +1077,15 @@ const TeacherProposalStudentDetail = () => {
                                         onClick={() => setTab(t.id)}
                                         className={`rounded-t-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wide transition ${
                                             tab === t.id
-                                                ? 'border border-b-0 border-slate-200 bg-white text-[#1e56e3]'
-                                                : 'border border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                                                ? 'border border-b-0 border-[var(--sv-border)] bg-[var(--sv-card)] text-[#1e56e3]'
+                                                : 'border border-transparent text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] hover:text-[var(--sv-text)]'
                                         }`}
                                     >
                                         {t.label}
                                     </button>
                                 ))}
                             </div>
-                            <div className="min-h-0 flex-1 bg-white p-4 md:p-5">
+                            <div className="min-h-0 flex-1 bg-[var(--sv-card)] p-4 md:p-5">
                                 {tab === 'proposal' && (
                                     <DocumentPane
                                         title="Extracted-style view"
@@ -1088,7 +1096,7 @@ const TeacherProposalStudentDetail = () => {
                                 )}
                                 {tab === 'activity' && (
                                     <div>
-                                        <p className="mb-4 text-sm text-slate-600">
+                                        <p className="mb-4 text-sm text-[var(--sv-muted)]">
                                             Full log of requirement checks, fixes, and AI similarity on each finalize
                                             attempt.
                                         </p>
@@ -1097,12 +1105,12 @@ const TeacherProposalStudentDetail = () => {
                                             emptyMessage="No submission attempts recorded yet."
                                         />
                                         {zipUrl ? (
-                                            <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+                                            <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/35 p-4">
                                                 <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
                                                     Project code
                                                 </p>
-                                                <p className="mt-1 font-bold text-slate-900">ZIP uploaded</p>
-                                                <p className="mt-1 text-sm text-slate-600">
+                                                <p className="mt-1 font-bold text-[var(--sv-text)]">ZIP uploaded</p>
+                                                <p className="mt-1 text-sm text-[var(--sv-muted)]">
                                                     {zip?.originalFilename || 'project.zip'} ({zipSizeLabel}) at{' '}
                                                     {zipUploadedAt}.
                                                 </p>
@@ -1116,10 +1124,10 @@ const TeacherProposalStudentDetail = () => {
 
                     <div className="flex flex-col gap-4 lg:col-span-2">
                         <div className={`${Z_CARD} p-5`}>
-                            <h2 className="text-sm font-bold text-slate-900">
+                            <h2 className="text-sm font-bold text-[var(--sv-text)]">
                                 {isProjectReviewPhase ? 'Project feedback' : 'Your review'}
                             </h2>
-                            <p className="mb-4 text-xs text-slate-500">
+                            <p className="mb-4 text-xs text-[var(--sv-muted)]">
                                 {isProjectReviewPhase
                                     ? 'Score and written feedback on the student project ZIP. The student sees this after submission.'
                                     : 'Score, AI comparison, and written feedback on the proposal.'}
@@ -1133,8 +1141,8 @@ const TeacherProposalStudentDetail = () => {
                             ) : null}
                             {otherCollabProjectSlot &&
                             (otherCollabProjectSlot.comment || otherCollabProjectSlot.score != null) ? (
-                                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
-                                    <p className="font-bold uppercase tracking-wide text-slate-500">
+                                <div className="mb-4 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2 text-xs text-[var(--sv-text)]">
+                                    <p className="font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                         Co-teacher project feedback
                                     </p>
                                     {otherCollabProjectSlot.score != null ? (
@@ -1148,7 +1156,7 @@ const TeacherProposalStudentDetail = () => {
                                 </div>
                             ) : null}
                             {isProjectReviewPhase && (projectFeedbackComment || projectFeedbackScore != null) ? (
-                                <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50/80 px-3 py-2 text-xs text-violet-900">
+                                <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2 text-xs text-violet-900">
                                     <p className="font-bold uppercase tracking-wide text-violet-700">
                                         {isCollaborative && myReviewRole ? 'Your saved project feedback' : 'Current project feedback'}
                                     </p>
@@ -1162,34 +1170,34 @@ const TeacherProposalStudentDetail = () => {
                             ) : null}
                             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
-                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Points earned</label>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Points earned</label>
                                     <input
                                         type="number"
                                         min={0}
                                         value={evalScore}
                                         onChange={(e) => setEvalScore(e.target.value)}
-                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                        className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2.5 text-sm text-[var(--sv-text)]"
                                         placeholder="e.g. 29"
                                     />
                                 </div>
                                 <div>
-                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Out of (total)</label>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Out of (total)</label>
                                     <input
                                         type="number"
                                         min={1}
                                         value={evalScoreMax}
                                         onChange={(e) => setEvalScoreMax(e.target.value)}
-                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                        className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2.5 text-sm text-[var(--sv-text)]"
                                         placeholder="e.g. 30"
                                     />
                                 </div>
                                 {!isProjectReviewPhase ? (
                                 <div>
-                                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Vs AI signal</label>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Vs AI signal</label>
                                     <select
                                         value={vsAi}
                                         onChange={(e) => setVsAi(e.target.value)}
-                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                        className="w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2.5 text-sm text-[var(--sv-text)]"
                                     >
                                         <option value="not_set">Not specified</option>
                                         <option value="aligns">I agree with the AI risk picture</option>
@@ -1199,18 +1207,18 @@ const TeacherProposalStudentDetail = () => {
                                 </div>
                                 ) : (
                                 <div className="flex items-end">
-                                    <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600">
+                                    <p className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2.5 text-xs font-semibold text-[var(--sv-muted)]">
                                         Preview: {evalScore.trim() ? `${evalScore}/${evalScoreMax || '100'}` : '-'}
                                     </p>
                                 </div>
                                 )}
                             </div>
-                            <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Written feedback</label>
+                            <label className="mb-1 block text-[10px] font-bold uppercase text-[var(--sv-muted)]">Written feedback</label>
                             <textarea
                                 value={comment}
                                 onChange={(e) => setComment(e.target.value)}
                                 rows={3}
-                                className="mb-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                                className="mb-3 w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2.5 text-sm text-[var(--sv-text)]"
                                 placeholder="Feedback for the student…"
                             />
                             <button
@@ -1226,8 +1234,8 @@ const TeacherProposalStudentDetail = () => {
 
                         {showCollabPanel && (
                             <div className={`${Z_CARD} border-indigo-100 bg-indigo-50/40 p-5`}>
-                                <h2 className="mb-2 text-sm font-bold text-slate-900">Collaborative approval</h2>
-                                <p className="mb-3 text-xs text-slate-600">
+                                <h2 className="mb-2 text-sm font-bold text-[var(--sv-text)]">Collaborative approval</h2>
+                                <p className="mb-3 text-xs text-[var(--sv-muted)]">
                                     Both the frontend and backend teachers must approve before the student can submit their project.
                                 </p>
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1262,7 +1270,7 @@ const TeacherProposalStudentDetail = () => {
                                     </p>
                                 )}
                                 {myReviewRole && !mySlotApproved && (
-                                    <p className="mt-3 text-xs text-slate-600">
+                                    <p className="mt-3 text-xs text-[var(--sv-muted)]">
                                         You are reviewing as the <strong>{myReviewRole}</strong> teacher on this assignment.
                                     </p>
                                 )}
@@ -1271,7 +1279,7 @@ const TeacherProposalStudentDetail = () => {
 
                         {canDecide && (
                             <div className={`${Z_CARD} p-5`}>
-                                <h2 className="mb-3 text-sm font-bold text-slate-900">Decision</h2>
+                                <h2 className="mb-3 text-sm font-bold text-[var(--sv-text)]">Decision</h2>
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         type="button"
@@ -1306,7 +1314,7 @@ const TeacherProposalStudentDetail = () => {
 
 
                         {isFullyApproved && !proposal.hasProjectSubmission && (
-                            <div className={`${Z_CARD} border-amber-100 bg-amber-50/80 p-5`}>
+                            <div className={`${Z_CARD} border-amber-100 bg-amber-50/80 dark:bg-amber-950/40 p-5`}>
                                 <p className="text-xs font-black uppercase tracking-widest text-amber-900">Project preview</p>
                                 <p className="mt-2 text-sm font-semibold text-amber-900/90">
                                     Sandbox preview will be available after the student uploads a project <code className="text-xs">.zip</code>.
@@ -1315,25 +1323,25 @@ const TeacherProposalStudentDetail = () => {
                         )}
 
                         {isFullyApproved && proposal.hasProjectSubmission && zipUrl && (
-                            <div className={`${Z_CARD} border-slate-200 bg-white p-5`}>
+                            <div className={`${Z_CARD} border-[var(--sv-border)] bg-[var(--sv-card)] p-5`}>
                                 <div className="mb-3 flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#1e56e3]">
                                         <Package className="h-4 w-4" />
                                         Student project (ZIP)
                                     </div>
-                                    <span className="text-[10px] font-bold uppercase text-slate-400">Download and inspect</span>
+                                    <span className="text-[10px] font-bold uppercase text-[var(--sv-muted)]">Download and inspect</span>
                                 </div>
-                                <p className="mb-4 text-xs leading-relaxed text-slate-600">
+                                <p className="mb-4 text-xs leading-relaxed text-[var(--sv-muted)]">
                                     This is the archive the student uploaded after approval. Download it to open locally, or use the
                                     sandbox below to run it in the browser.
                                 </p>
-                                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/90 px-3 py-3">
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
                                         <Package className="h-5 w-5 text-[#1e56e3]" />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-bold text-slate-900">{zip?.originalFilename || 'project.zip'}</p>
-                                        <p className="text-xs font-medium text-slate-500">
+                                        <p className="truncate text-sm font-bold text-[var(--sv-text)]">{zip?.originalFilename || 'project.zip'}</p>
+                                        <p className="text-xs font-medium text-[var(--sv-muted)]">
                                             {zipSizeLabel} · {zipUploadedAt}
                                         </p>
                                     </div>
@@ -1352,7 +1360,7 @@ const TeacherProposalStudentDetail = () => {
                                             href={zipUrl}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                                            className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-2 text-sm font-bold text-[var(--sv-text)] transition hover:bg-[var(--sv-card-muted)]"
                                         >
                                             <ExternalLink className="h-4 w-4" />
                                             Open file
@@ -1363,7 +1371,7 @@ const TeacherProposalStudentDetail = () => {
                         )}
 
                         {isFullyApproved && proposal.hasProjectSubmission && (
-                            <div className={`${Z_CARD} border-emerald-100 bg-emerald-50/60 p-5`}>
+                            <div className={`${Z_CARD} border-emerald-100 bg-emerald-50/60 dark:bg-emerald-950/35 p-5`}>
                                 <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-900">
                                     <Shield className="h-4 w-4" />
                                     Docker sandbox preview
@@ -1502,9 +1510,9 @@ const TeacherProposalStudentDetail = () => {
 
                                     if (!previewOpenReady) {
                                         return (
-                                            <div className="mb-4 rounded-2xl border border-dashed border-emerald-300 bg-white/80 p-4">
-                                                <p className="text-sm font-black text-slate-900">Login credentials</p>
-                                                <p className="mt-1 text-xs font-semibold text-slate-600">
+                                            <div className="mb-4 rounded-2xl border border-dashed border-emerald-300 bg-[var(--sv-card)]/80 p-4">
+                                                <p className="text-sm font-black text-[var(--sv-text)]">Login credentials</p>
+                                                <p className="mt-1 text-xs font-semibold text-[var(--sv-muted)]">
                                                     {!sess
                                                         ? 'Click Start preview below. Email and password appear here once the container is ready and Open preview unlocks.'
                                                         : previewStarting || previewRunning
@@ -1516,13 +1524,13 @@ const TeacherProposalStudentDetail = () => {
                                     }
 
                                     return (
-                                        <div className="mb-4 rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-sm">
+                                        <div className="mb-4 rounded-2xl border-2 border-emerald-500 bg-[var(--sv-card)] p-4 shadow-sm">
                                             <p className="text-sm font-black text-emerald-900">
                                                 {fromProject
                                                     ? 'Real login (from this student project)'
                                                     : 'Preview ready - sign in to the student app'}
                                             </p>
-                                            <p className="mt-1 mb-4 text-xs font-semibold text-slate-600">
+                                            <p className="mt-1 mb-4 text-xs font-semibold text-[var(--sv-muted)]">
                                                 Use the <strong>{preferredLabel}</strong> field on the student login form
                                                 {preferredType === 'username'
                                                     ? ' (Username + Password).'
@@ -1538,7 +1546,7 @@ const TeacherProposalStudentDetail = () => {
                                                 {showEmailField ? (
                                                     <div>
                                                         <label
-                                                            className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+                                                            className="text-[10px] font-black uppercase tracking-widest text-[var(--sv-muted)]"
                                                             htmlFor="preview-admin-email"
                                                         >
                                                             Email{preferredType === 'email' ? ' (use this)' : ''}
@@ -1551,12 +1559,12 @@ const TeacherProposalStudentDetail = () => {
                                                                 onChange={(e) => setPreviewAdminEmail(e.target.value)}
                                                                 disabled={!!previewBusyId}
                                                                 readOnly={fromProject && !!sess?.previewLoginEmail}
-                                                                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
+                                                                className="flex-1 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2.5 text-sm font-bold text-[var(--sv-text)]"
                                                             />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => copyText('Email', displayEmail)}
-                                                                className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                                                className="shrink-0 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-xs font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)]"
                                                                 title="Copy email"
                                                             >
                                                                 <Copy className="h-4 w-4" />
@@ -1567,7 +1575,7 @@ const TeacherProposalStudentDetail = () => {
                                                 {showUsernameField ? (
                                                     <div>
                                                         <label
-                                                            className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+                                                            className="text-[10px] font-black uppercase tracking-widest text-[var(--sv-muted)]"
                                                             htmlFor="preview-admin-username"
                                                         >
                                                             Username{preferredType === 'username' ? ' (use this)' : ''}
@@ -1583,13 +1591,13 @@ const TeacherProposalStudentDetail = () => {
                                                                         ? 'Detecting from setup script…'
                                                                         : 'previewadmin'
                                                                 }
-                                                                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
+                                                                className="flex-1 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2.5 text-sm font-bold text-[var(--sv-text)]"
                                                             />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => copyText('Username', displayUsername)}
                                                                 disabled={!displayUsername}
-                                                                className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                                                                className="shrink-0 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-xs font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] disabled:opacity-40"
                                                                 title="Copy username"
                                                             >
                                                                 <Copy className="h-4 w-4" />
@@ -1599,7 +1607,7 @@ const TeacherProposalStudentDetail = () => {
                                                 ) : null}
                                                 <div>
                                                     <label
-                                                        className="text-[10px] font-black uppercase tracking-widest text-slate-500"
+                                                        className="text-[10px] font-black uppercase tracking-widest text-[var(--sv-muted)]"
                                                         htmlFor="preview-admin-password"
                                                     >
                                                         Password{fromProject ? ' (use this)' : ''}
@@ -1612,12 +1620,12 @@ const TeacherProposalStudentDetail = () => {
                                                             onChange={(e) => setPreviewAdminPassword(e.target.value)}
                                                             disabled={!!previewBusyId}
                                                             readOnly={fromProject && !!sess?.previewLoginPassword}
-                                                            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900"
+                                                            className="flex-1 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2.5 text-sm font-bold text-[var(--sv-text)]"
                                                         />
                                                         <button
                                                             type="button"
                                                             onClick={() => copyText('Password', displayPassword)}
-                                                            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                                            className="shrink-0 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-xs font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)]"
                                                             title="Copy password"
                                                         >
                                                             <Copy className="h-4 w-4" />
@@ -1626,7 +1634,7 @@ const TeacherProposalStudentDetail = () => {
                                                 </div>
                                             </div>
                                             {loginUrl && (
-                                                <p className="mt-4 text-xs font-semibold text-slate-700">
+                                                <p className="mt-4 text-xs font-semibold text-[var(--sv-text)]">
                                                     Student login page:{' '}
                                                     <a
                                                         href={safePreviewUrl(loginUrl)}
@@ -1639,9 +1647,9 @@ const TeacherProposalStudentDetail = () => {
                                                 </p>
                                             )}
                                             {sess?.previewApiUrl && (
-                                                <p className="mt-2 text-xs font-semibold text-slate-600">
+                                                <p className="mt-2 text-xs font-semibold text-[var(--sv-muted)]">
                                                     Student API (not port 5000):{' '}
-                                                    <code className="bg-white px-1 rounded text-[11px]">{sess.previewApiUrl}</code>
+                                                    <code className="bg-[var(--sv-card)] px-1 rounded text-[11px]">{sess.previewApiUrl}</code>
                                                     {sess.apiPortReachable === false && (
                                                         <span className="ml-1 text-rose-700 font-bold">
                                                             - API still starting; wait a moment before signing in.
@@ -1656,7 +1664,7 @@ const TeacherProposalStudentDetail = () => {
                                     );
                                 })()}
 
-                                <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5">
+                                <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/40 px-3 py-2.5">
                                     <p className="text-xs font-bold text-emerald-900">
                                         Automatic preview
                                     </p>
@@ -1670,7 +1678,7 @@ const TeacherProposalStudentDetail = () => {
                                         return (
                                             <p className="mt-2 text-xs font-bold text-emerald-900">
                                                 Detected type:{' '}
-                                                <span className="rounded-md bg-white px-2 py-0.5 text-emerald-800">
+                                                <span className="rounded-md bg-[var(--sv-card)] px-2 py-0.5 text-emerald-800">
                                                     {previewStackLabel(sess.previewStack, sess)}
                                                 </span>
                                             </p>
@@ -1716,7 +1724,7 @@ const TeacherProposalStudentDetail = () => {
                                                     </div>
                                                 )}
                                                 {sess.runtimeTraceback && (
-                                                    <pre className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg border border-rose-200 bg-white/80 p-2 text-[10px] font-mono text-rose-900">
+                                                    <pre className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg border border-rose-200 bg-[var(--sv-card)]/80 p-2 text-[10px] font-mono text-rose-900">
                                                         {sess.runtimeTraceback.slice(-3000)}
                                                     </pre>
                                                 )}
@@ -1740,7 +1748,7 @@ const TeacherProposalStudentDetail = () => {
                                                 </button>
                                             )}
                                             {starting && !sess.previewUrl && (
-                                                <span className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                                                <span className="flex items-center gap-2 text-sm font-bold text-[var(--sv-muted)]">
                                                     <Loader2 className="h-4 w-4 animate-spin" />
                                                     Building container…
                                                 </span>
@@ -1804,7 +1812,7 @@ const TeacherProposalStudentDetail = () => {
                                                         </a>
                                                     ) : (
                                                         <span
-                                                            className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-300 px-4 py-2 text-sm font-bold text-slate-600"
+                                                            className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-300 px-4 py-2 text-sm font-bold text-[var(--sv-muted)]"
                                                             title="Wait until the log shows Preview ready"
                                                         >
                                                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1835,14 +1843,14 @@ const TeacherProposalStudentDetail = () => {
                                     const sess = previewSessionByProposal[proposal._id];
                                     if (!sess?.logs?.length && !sess?.liveContainerLog) return null;
                                     return (
-                                    <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white/90 p-2 font-mono text-[11px] text-slate-600">
+                                    <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)]/90 p-2 font-mono text-[11px] text-[var(--sv-muted)]">
                                         {(sess.logs || []).slice(-8).map((log, i) => (
                                             <div key={`l-${i}`} className="truncate">
-                                                <span className="text-slate-400">{log.level}</span> {log.message}
+                                                <span className="text-[var(--sv-muted)]">{log.level}</span> {log.message}
                                             </div>
                                         ))}
                                         {sess.liveContainerLog && (
-                                            <pre className="mt-2 whitespace-pre-wrap text-[10px] text-slate-500 border-t border-slate-100 pt-2">
+                                            <pre className="mt-2 whitespace-pre-wrap text-[10px] text-[var(--sv-muted)] border-t border-[var(--sv-border)] pt-2">
                                                 {sess.liveContainerLog}
                                             </pre>
                                         )}
@@ -1854,31 +1862,31 @@ const TeacherProposalStudentDetail = () => {
 
                         <div className={`${Z_CARD} p-5`}>
                             <div className="mb-2 flex items-center justify-between gap-2">
-                                <h2 className="text-sm font-bold text-slate-900">Proposal record</h2>
-                                <span className="text-xs font-semibold text-slate-400">Text submission</span>
+                                <h2 className="text-sm font-bold text-[var(--sv-text)]">Proposal record</h2>
+                                <span className="text-xs font-semibold text-[var(--sv-muted)]">Text submission</span>
                             </div>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-[var(--sv-muted)]">
                                 Text proposal fields render in the left panel like extracted uploads. When the student submits a project
                                 archive, it appears here too.
                             </p>
                             <ul className="mt-4 space-y-2">
-                                <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                                <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
                                         <FileText className="h-5 w-5 text-[#1e56e3]" />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-bold text-slate-900">{proposal.title || 'Proposal'}</p>
-                                        <p className="text-xs font-medium text-slate-500">Overview + feature list</p>
+                                        <p className="truncate text-sm font-bold text-[var(--sv-text)]">{proposal.title || 'Proposal'}</p>
+                                        <p className="text-xs font-medium text-[var(--sv-muted)]">Overview + feature list</p>
                                     </div>
                                 </li>
                                 {zipUrl ? (
-                                    <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3">
-                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                                    <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
                                             <Package className="h-5 w-5 text-emerald-600" />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="truncate text-sm font-bold text-slate-900">{zip?.originalFilename || 'project.zip'}</p>
-                                            <p className="text-xs font-medium text-slate-500">
+                                            <p className="truncate text-sm font-bold text-[var(--sv-text)]">{zip?.originalFilename || 'project.zip'}</p>
+                                            <p className="text-xs font-medium text-[var(--sv-muted)]">
                                                 {zipSizeLabel} · {zipUploadedAt}
                                             </p>
                                         </div>
@@ -1888,7 +1896,7 @@ const TeacherProposalStudentDetail = () => {
                                                 download
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-[#1e56e3]"
+                                                className="rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[#1e56e3]"
                                                 title="Download"
                                             >
                                                 <Download className="h-4 w-4" />
@@ -1897,7 +1905,7 @@ const TeacherProposalStudentDetail = () => {
                                                 href={zipUrl}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-[#1e56e3]"
+                                                className="rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[#1e56e3]"
                                                 title="Open"
                                             >
                                                 <ExternalLink className="h-4 w-4" />

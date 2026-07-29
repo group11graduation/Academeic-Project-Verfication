@@ -119,12 +119,12 @@ const ClassDetail = () => {
     return (
         <div className="font-sans text-[13px]">
             <main>
-                <header className="mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <header className="mb-4 border-b border-[var(--sv-border)] dark:border-slate-800 pb-3">
                     <Link
                         to="/teacher/classes"
                         className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-[#1D68E3] dark:hover:text-blue-400 transition-colors mb-3 group w-fit"
                     >
-                        <div className="bg-white dark:bg-[#0F172A] p-1.5 rounded-lg border border-slate-100 dark:border-white/5 group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
+                        <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] p-1.5 rounded-lg border border-[var(--sv-border)] dark:border-white/5 group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
                             <ArrowLeft className="h-3.5 w-3.5" />
                         </div>
                         <span className="text-[11px] font-black uppercase tracking-widest">Back to My Classes</span>
@@ -152,7 +152,7 @@ const ClassDetail = () => {
                             </Link>
                             <Link
                                 to={`/teacher/classes/${classData.code}/groups`}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--sv-border)] dark:border-white/10 text-slate-700 dark:text-slate-200 text-[11px] font-black uppercase tracking-widest hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/5 transition-colors"
                             >
                                 <Settings className="h-3.5 w-3.5" />
                                 Groups
@@ -162,9 +162,9 @@ const ClassDetail = () => {
                 </header>
 
                 {/* Class metadata */}
-                <section className="mb-4 rounded-xl border border-slate-100 dark:border-white/10 bg-slate-50/80 dark:bg-[#0F172A] p-4">
+                <section className="mb-4 rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card-muted)] dark:bg-[#0F172A] p-4">
                     <div className="flex items-center gap-2 mb-3">
-                        <div className="p-2 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 shadow-sm">
+                        <div className="p-2 rounded-lg bg-[var(--sv-card)] dark:bg-[#0B1120] border border-[var(--sv-border)] dark:border-white/5 shadow-sm">
                             <BookOpen className="h-4 w-4 text-[#1D68E3] dark:text-blue-400" />
                         </div>
                         <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Class information</h2>
@@ -190,11 +190,11 @@ const ClassDetail = () => {
                         />
                     </div>
                     {classData.description ? (
-                        <p className="mt-3 text-[12px] text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-200 dark:border-white/10 pt-3">
+                        <p className="mt-3 text-[12px] text-slate-600 dark:text-slate-400 leading-relaxed border-t border-[var(--sv-border)] dark:border-white/10 pt-3">
                             {classData.description}
                         </p>
                     ) : (
-                        <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-500 border-t border-slate-200 dark:border-white/10 pt-3 italic">
+                        <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-500 border-t border-[var(--sv-border)] dark:border-white/10 pt-3 italic">
                             No class description on file.
                         </p>
                     )}
@@ -243,7 +243,7 @@ const ClassDetail = () => {
                     />
                 </div>
 
-                <section id="review-alerts" className="rounded-xl border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] p-4 mb-4">
+                <section id="review-alerts" className="rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] p-4 mb-4">
                     <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Review alerts</h2>
                     {reviewAlerts.length > 0 ? (
                         <div className="space-y-2">
@@ -285,8 +285,8 @@ const ClassDetail = () => {
                 </section>
 
                 {/* Students on this page */}
-                <section className="rounded-xl border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] shadow-sm overflow-hidden mb-4">
-                    <div className="p-4 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <section className="rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] shadow-sm overflow-hidden mb-4">
+                    <div className="p-4 border-b border-[var(--sv-border)] dark:border-white/5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                             <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Students in this class</h2>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -300,7 +300,7 @@ const ClassDetail = () => {
                                 placeholder="Search name, ID, email..."
                                 value={studentSearch}
                                 onChange={(e) => setStudentSearch(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#0B1120] py-2 pl-9 pr-3 text-[12px] font-bold text-slate-800 dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card-muted)] dark:bg-[#0B1120] py-2 pl-9 pr-3 text-[12px] font-bold text-slate-800 dark:text-slate-100"
                             />
                         </div>
                     </div>
@@ -308,7 +308,7 @@ const ClassDetail = () => {
                         <div className="app-table-wrap custom-scrollbar max-h-[420px] overflow-y-auto">
                             <table className="app-table">
                                 <thead>
-                                    <tr className="app-table-headrow sticky top-0 z-[1] bg-white dark:bg-[#0F172A]">
+                                    <tr className="app-table-headrow sticky top-0 z-[1] bg-[var(--sv-card)] dark:bg-[#0F172A]">
                                         <th className="app-table-th">Student</th>
                                         <th className="app-table-th text-center">Student ID</th>
                                         <th className="app-table-th hidden md:table-cell">Email</th>
@@ -321,7 +321,7 @@ const ClassDetail = () => {
                                         filteredStudents.map((student) => (
                                             <tr
                                                 key={`${student.userId || student.id}`}
-                                                className="app-table-row cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.02]"
+                                                className="app-table-row cursor-pointer hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/[0.02]"
                                                 onClick={() =>
                                                     navigate(
                                                         `/teacher/classes/${id}/students/${student.userId}`,
@@ -340,7 +340,7 @@ const ClassDetail = () => {
                                             >
                                                 <td className="app-table-td">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-[#0B1120] flex items-center justify-center overflow-hidden border border-slate-100 dark:border-white/5 shrink-0">
+                                                        <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-[#0B1120] flex items-center justify-center overflow-hidden border border-[var(--sv-border)] dark:border-white/5 shrink-0">
                                                             {student.photo && student.photo !== 'default-student.jpg' ? (
                                                                 <img
                                                                     src={
@@ -380,7 +380,7 @@ const ClassDetail = () => {
                                                 </td>
                                                 <td className="app-table-td">
                                                     <div className="flex items-center gap-3 max-w-[180px]">
-                                                        <div className="flex-1 h-2 bg-slate-100 dark:bg-[#0B1120] rounded-full overflow-hidden border border-slate-200 dark:border-white/5">
+                                                        <div className="flex-1 h-2 bg-slate-100 dark:bg-[#0B1120] rounded-full overflow-hidden border border-[var(--sv-border)] dark:border-white/5">
                                                             <div
                                                                 className={`h-full rounded-full ${
                                                                     (student.attendance ?? 0) >= 50
@@ -418,7 +418,7 @@ const ClassDetail = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <Link
                             to={`/teacher/classes/${classData.code}/students`}
-                            className="rounded-xl p-4 border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-sm"
+                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-sm"
                         >
                             <UserCheck className="h-5 w-5 text-[#1D68E3] mb-2" />
                             <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 mb-1">Student directory</h3>
@@ -431,7 +431,7 @@ const ClassDetail = () => {
                         </Link>
                         <Link
                             to={`/teacher/classes/${classData.code}/groups`}
-                            className="rounded-xl p-4 border border-slate-100 dark:border-white/10 bg-white dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-sm"
+                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-sm"
                         >
                             <Settings className="h-5 w-5 text-slate-400 dark:text-slate-500 mb-2" />
                             <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 mb-1">Team setup</h3>
@@ -451,7 +451,7 @@ const ClassDetail = () => {
 
 function InfoItem({ icon, label, value }) {
     return (
-        <div className="flex gap-2 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 p-3">
+        <div className="flex gap-2 rounded-lg bg-[var(--sv-card)] dark:bg-[#0B1120] border border-[var(--sv-border)] dark:border-white/5 p-3">
             <div className="text-slate-400 dark:text-slate-500 mt-0.5">{icon}</div>
             <div className="min-w-0">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">{label}</p>
@@ -462,7 +462,7 @@ function InfoItem({ icon, label, value }) {
 }
 
 const MetricCard = ({ icon, label, value, subValue, trend, trendBg, trendText, iconBg }) => (
-    <div className="bg-white dark:bg-[#0F172A] p-3 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm relative overflow-hidden transition-all hover:border-blue-500/20 group">
+    <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] p-3 rounded-xl border border-[var(--sv-border)] dark:border-white/5 shadow-sm relative overflow-hidden transition-all hover:border-blue-500/20 group">
         <div className="flex justify-between items-start mb-2">
             <div className={`${iconBg} p-2 rounded-lg transition-transform group-hover:scale-105`}>{icon}</div>
             <div className={`${trendBg} px-2 py-0.5 rounded-full`}>

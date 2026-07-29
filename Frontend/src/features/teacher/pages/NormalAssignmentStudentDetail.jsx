@@ -10,20 +10,20 @@ import { resolveAssignmentClassCrumb } from '../../../shared/utils/assignmentCla
 
 function DetailRow({ label, value }) {
     return (
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-3 gap-y-1 border-b border-slate-50 py-3 last:border-0 sm:grid-cols-[140px_1fr]">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</span>
-            <span className="text-sm font-semibold text-slate-900 break-words">{value ?? '-'}</span>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-x-3 gap-y-1 border-b border-[var(--sv-border)] py-3 last:border-0 sm:grid-cols-[140px_1fr]">
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--sv-muted)]">{label}</span>
+            <span className="text-sm font-semibold text-[var(--sv-text)] break-words">{value ?? '-'}</span>
         </div>
     );
 }
 
 function DocumentPane({ title, subtitle, badge, filename, text, highlightNorms, onCopy, showCopy }) {
     return (
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-sm">
+            <div className="flex items-start justify-between gap-2 border-b border-[var(--sv-border)] px-4 py-3">
                 <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-[#1e56e3]">{title}</p>
-                    <p className="mt-0.5 truncate text-base font-bold text-slate-900">{subtitle}</p>
+                    <p className="mt-0.5 truncate text-base font-bold text-[var(--sv-text)]">{subtitle}</p>
                     {badge ? (
                         <p className="mt-1 truncate text-xs font-semibold text-[#1e56e3]" title={badge}>
                             {badge}
@@ -34,7 +34,7 @@ function DocumentPane({ title, subtitle, badge, filename, text, highlightNorms, 
                     <button
                         type="button"
                         onClick={onCopy}
-                        className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+                        className="shrink-0 rounded-lg border border-[var(--sv-border)] p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)]"
                         title="Copy extracted text"
                     >
                         <Copy className="h-4 w-4" />
@@ -116,11 +116,11 @@ const NormalAssignmentStudentDetail = () => {
         return (
             <div className={Z_PAGE}>
                 <div className={Z_INNER}>
-                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                    <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--sv-muted)]">
                         <Link to="/teacher/assignments" className={Z_LINK}>
                             Assignments
                         </Link>
-                        <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                        <ChevronRight className="h-3.5 w-3.5 text-[var(--sv-muted)]" />
                         <button type="button" onClick={() => navigate(-1)} className={Z_LINK}>
                             Students
                         </button>
@@ -161,13 +161,13 @@ const NormalAssignmentStudentDetail = () => {
     return (
         <div className={Z_PAGE}>
             <div className={Z_INNER}>
-            <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+            <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--sv-muted)]">
                 <Link to="/teacher/assignments" className={Z_LINK}>
                     Assignments
                 </Link>
                 {classCrumb ? (
                     <>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
                         <Link
                             to={classCrumb.to}
                             className={`${Z_LINK} max-w-[min(100%,14rem)] truncate`}
@@ -177,7 +177,7 @@ const NormalAssignmentStudentDetail = () => {
                         </Link>
                     </>
                 ) : null}
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
                 <Link
                     to={`/teacher/assignments/${assignmentId}/normal-students`}
                     className={`${Z_LINK} max-w-[200px] truncate md:max-w-xs`}
@@ -185,8 +185,8 @@ const NormalAssignmentStudentDetail = () => {
                 >
                     {assignmentTitle}
                 </Link>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="max-w-[180px] truncate text-slate-800 md:max-w-md" title={student?.name || ''}>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--sv-muted)]" />
+                <span className="max-w-[180px] truncate text-[var(--sv-text)] md:max-w-md" title={student?.name || ''}>
                     {student?.name || 'Student'}
                 </span>
             </nav>
@@ -195,7 +195,7 @@ const NormalAssignmentStudentDetail = () => {
                 <button
                     type="button"
                     onClick={() => navigate(`/teacher/assignments/${assignmentId}/normal-students`)}
-                    className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-800"
+                    className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-[var(--sv-muted)] transition hover:text-[var(--sv-text)]"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     Back to student list
@@ -204,7 +204,7 @@ const NormalAssignmentStudentDetail = () => {
                     <button
                         type="button"
                         onClick={() => window.print()}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-2 text-sm font-bold text-[var(--sv-text)] shadow-sm transition hover:bg-[var(--sv-card-muted)]"
                     >
                         <Printer className="h-4 w-4" />
                         Print
@@ -231,16 +231,16 @@ const NormalAssignmentStudentDetail = () => {
                         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-2xl font-bold text-white shadow-md">
                             {(student.name || student.email || '?').charAt(0).toUpperCase()}
                         </div>
-                        <h1 className="mt-4 text-lg font-bold text-slate-900">{student.name || 'Student'}</h1>
-                        <p className="mt-1 max-w-full break-all text-sm text-slate-500">{student.email || '-'}</p>
-                        <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2">
-                            <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                <p className="text-xl font-bold text-slate-900">{submitted ? 1 : 0}</p>
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">File uploaded</p>
+                        <h1 className="mt-4 text-lg font-bold text-[var(--sv-text)]">{student.name || 'Student'}</h1>
+                        <p className="mt-1 max-w-full break-all text-sm text-[var(--sv-muted)]">{student.email || '-'}</p>
+                        <div className="mt-5 grid w-full grid-cols-1 gap-3 border-t border-[var(--sv-border)] pt-5 sm:grid-cols-2">
+                            <div className="rounded-lg bg-[var(--sv-card-muted)] py-2 text-center">
+                                <p className="text-xl font-bold text-[var(--sv-text)]">{submitted ? 1 : 0}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">File uploaded</p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 py-2 text-center">
-                                <p className="text-xl font-bold text-slate-900">{similarityPct != null ? `${similarityPct}%` : '-'}</p>
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Vs closest peer</p>
+                            <div className="rounded-lg bg-[var(--sv-card-muted)] py-2 text-center">
+                                <p className="text-xl font-bold text-[var(--sv-text)]">{similarityPct != null ? `${similarityPct}%` : '-'}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">Vs closest peer</p>
                             </div>
                         </div>
                         {downloadUrl ? (
@@ -253,7 +253,7 @@ const NormalAssignmentStudentDetail = () => {
                                 Open submission file
                             </a>
                         ) : (
-                            <p className="mt-5 w-full rounded-xl border border-dashed border-slate-200 py-2.5 text-center text-xs font-semibold text-slate-400">
+                            <p className="mt-5 w-full rounded-xl border border-dashed border-[var(--sv-border)] py-2.5 text-center text-xs font-semibold text-[var(--sv-muted)]">
                                 No file to open
                             </p>
                         )}
@@ -261,8 +261,8 @@ const NormalAssignmentStudentDetail = () => {
                 </div>
 
                 <div className={`${Z_CARD} p-5`}>
-                    <h2 className="mb-1 text-sm font-bold text-slate-900">Student information</h2>
-                    <p className="mb-4 text-xs text-slate-500">Assignment and enrollment details.</p>
+                    <h2 className="mb-1 text-sm font-bold text-[var(--sv-text)]">Student information</h2>
+                    <p className="mb-4 text-xs text-[var(--sv-muted)]">Assignment and enrollment details.</p>
                     <div className="divide-y divide-slate-50">
                         <DetailRow label="Assignment" value={assignmentTitle} />
                         <DetailRow label="Subject" value={subjectLine} />
@@ -295,14 +295,14 @@ const NormalAssignmentStudentDetail = () => {
 
                 <div className={`${Z_CARD} flex flex-col p-5`}>
                     <div className="mb-3 flex items-start justify-between gap-2">
-                        <h2 className="text-sm font-bold text-slate-900">Review notes</h2>
+                        <h2 className="text-sm font-bold text-[var(--sv-text)]">Review notes</h2>
                         <span className="text-xs font-semibold text-[#1e56e3]">Read-only</span>
                     </div>
-                    <p className="text-xs leading-relaxed text-slate-500">
+                    <p className="text-xs leading-relaxed text-[var(--sv-muted)]">
                         Quick reference for plagiarism checks on this assignment. Judgment stays with you-similarity can
                         reflect shared templates or legitimate overlap.
                     </p>
-                    <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
+                    <ul className="mt-4 flex-1 space-y-2 text-sm text-[var(--sv-text)]">
                         <li className="flex gap-2">
                             <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1e56e3]" />
                             <span>
@@ -337,11 +337,11 @@ const NormalAssignmentStudentDetail = () => {
                         {submission?.plagiarismMethod ? (
                             <li className="flex gap-2">
                                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
-                                <span className="text-xs text-slate-500">Method: {submission.plagiarismMethod}</span>
+                                <span className="text-xs text-[var(--sv-muted)]">Method: {submission.plagiarismMethod}</span>
                             </li>
                         ) : null}
                     </ul>
-                    <div className="mt-4 border-t border-slate-100 pt-3 text-[11px] font-medium text-slate-400">
+                    <div className="mt-4 border-t border-[var(--sv-border)] pt-3 text-[11px] font-medium text-[var(--sv-muted)]">
                         Normal assignment · plagiarism compares only to other students on this assignment.
                     </div>
                 </div>
@@ -351,7 +351,7 @@ const NormalAssignmentStudentDetail = () => {
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
                 <div className="lg:col-span-3">
                     <div className={`${Z_CARD} flex min-h-0 flex-col overflow-hidden lg:min-h-[320px]`}>
-                        <div className="flex flex-wrap gap-1 border-b border-slate-100 px-2 pt-2">
+                        <div className="flex flex-wrap gap-1 border-b border-[var(--sv-border)] px-2 pt-2">
                             {[
                                 { id: 'document', label: 'Extracted document' },
                                 { id: 'activity', label: 'Submission activity' },
@@ -363,28 +363,28 @@ const NormalAssignmentStudentDetail = () => {
                                     onClick={() => setTab(t.id)}
                                     className={`rounded-t-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wide transition ${
                                         tab === t.id
-                                            ? 'border border-b-0 border-slate-200 bg-white text-[#1e56e3]'
-                                            : 'border border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                                            ? 'border border-b-0 border-[var(--sv-border)] bg-[var(--sv-card)] text-[#1e56e3]'
+                                            : 'border border-transparent text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] hover:text-[var(--sv-text)]'
                                     }`}
                                 >
                                     {t.label}
                                 </button>
                             ))}
                         </div>
-                        <div className="min-h-0 flex-1 bg-white p-4 md:p-5">
+                        <div className="min-h-0 flex-1 bg-[var(--sv-card)] p-4 md:p-5">
                             {tab === 'activity' && (
                                 <div className="relative pl-6">
                                     <div className="absolute bottom-2 left-[11px] top-2 w-0.5 bg-[#1e56e3]/25" />
                                     <ul className="space-y-6">
                                         <li className="relative">
                                             <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
-                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                                 Record
                                             </p>
-                                            <p className="mt-1 font-bold text-slate-900">
+                                            <p className="mt-1 font-bold text-[var(--sv-text)]">
                                                 {submitted ? 'Submission received' : 'Awaiting upload'}
                                             </p>
-                                            <p className="mt-1 text-sm text-slate-600">
+                                            <p className="mt-1 text-sm text-[var(--sv-muted)]">
                                                 {submitted
                                                     ? `File “${submission.originalFilename || 'upload'}” recorded at ${uploadDate}.`
                                                     : 'Student has not submitted a file for this assignment yet.'}
@@ -393,13 +393,13 @@ const NormalAssignmentStudentDetail = () => {
                                         {submitted && similarityPct != null ? (
                                             <li className="relative">
                                                 <span className="absolute -left-1 top-1.5 flex h-3 w-3 -translate-x-[1.125rem] items-center justify-center rounded-full border-2 border-white bg-[#1e56e3] shadow" />
-                                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                                <p className="text-xs font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                                                     Similarity
                                                 </p>
-                                                <p className="mt-1 font-bold text-slate-900">
+                                                <p className="mt-1 font-bold text-[var(--sv-text)]">
                                                     Peer comparison: {similarityPct}%
                                                 </p>
-                                                <p className="mt-1 text-sm text-slate-600">
+                                                <p className="mt-1 text-sm text-[var(--sv-muted)]">
                                                     {submission.plagiarismFlag
                                                         ? 'Flagged as high similarity (≥85%) versus another submission on this assignment.'
                                                         : 'Below the high-similarity threshold; still review contextually.'}
@@ -412,7 +412,7 @@ const NormalAssignmentStudentDetail = () => {
                             {tab === 'document' && (
                                 <>
                                     {!submitted ? (
-                                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 py-16 text-center text-sm font-semibold text-slate-500">
+                                        <div className="rounded-xl border border-dashed border-[var(--sv-border)] bg-[var(--sv-card-muted)] py-16 text-center text-sm font-semibold text-[var(--sv-muted)]">
                                             No document to display - student has not submitted a file.
                                         </div>
                                     ) : (
@@ -462,18 +462,18 @@ const NormalAssignmentStudentDetail = () => {
                 <div className="lg:col-span-2">
                     <div className={`${Z_CARD} p-5`}>
                         <div className="mb-4 flex items-center justify-between gap-2">
-                            <h2 className="text-sm font-bold text-slate-900">Files / documents</h2>
-                            <span className="text-xs font-semibold text-slate-400">{submitted ? '1 item' : '0 items'}</span>
+                            <h2 className="text-sm font-bold text-[var(--sv-text)]">Files / documents</h2>
+                            <span className="text-xs font-semibold text-[var(--sv-muted)]">{submitted ? '1 item' : '0 items'}</span>
                         </div>
                         {submitted && submission?.originalFilename ? (
                             <ul className="space-y-2">
-                                <li className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                                <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
                                         <FileText className="h-5 w-5 text-[#1e56e3]" />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-bold text-slate-900">{submission.originalFilename}</p>
-                                        <p className="text-xs font-medium text-slate-500">{fileSizeLabel}</p>
+                                        <p className="truncate text-sm font-bold text-[var(--sv-text)]">{submission.originalFilename}</p>
+                                        <p className="text-xs font-medium text-[var(--sv-muted)]">{fileSizeLabel}</p>
                                     </div>
                                     <div className="flex shrink-0 items-center gap-1">
                                         {downloadUrl ? (
@@ -482,7 +482,7 @@ const NormalAssignmentStudentDetail = () => {
                                                 download
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="rounded-lg p-2 text-slate-500 transition hover:bg-white hover:text-[#1e56e3]"
+                                                className="rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[#1e56e3]"
                                                 title="Download"
                                             >
                                                 <Download className="h-4 w-4" />
@@ -492,7 +492,7 @@ const NormalAssignmentStudentDetail = () => {
                                 </li>
                             </ul>
                         ) : (
-                            <p className="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm font-semibold text-slate-400">
+                            <p className="rounded-xl border border-dashed border-[var(--sv-border)] py-10 text-center text-sm font-semibold text-[var(--sv-muted)]">
                                 No files uploaded yet.
                             </p>
                         )}
