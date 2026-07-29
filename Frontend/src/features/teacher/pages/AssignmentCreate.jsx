@@ -43,6 +43,7 @@ const AssignmentCreate = () => {
     });
 
     const deadlineMin = useMemo(() => datetimeLocalMin(), []);
+    const projectDeadlineMin = proposalDeadline || deadlineMin;
 
     const isNormal = assignmentType === 'normal';
     const isFinal = assignmentType === 'final';
@@ -778,7 +779,14 @@ const AssignmentCreate = () => {
                                         <input
                                             type="datetime-local"
                                             value={proposalDeadline}
-                                            onChange={(e) => setProposalDeadline(e.target.value)}
+                                            onChange={(e) => {
+                                                const next = e.target.value;
+                                                setProposalDeadline(next);
+                                                // Keep project deadline from falling before the new proposal deadline
+                                                if (projectDeadline && next && projectDeadline < next) {
+                                                    setProjectDeadline(next);
+                                                }
+                                            }}
                                             min={deadlineMin}
                                             className={Z_INPUT}
                                         />
@@ -790,10 +798,14 @@ const AssignmentCreate = () => {
                                             type="datetime-local"
                                             value={projectDeadline}
                                             onChange={(e) => setProjectDeadline(e.target.value)}
-                                            min={deadlineMin}
+                                            min={projectDeadlineMin}
                                             className={Z_INPUT}
                                         />
-                                        <p className="mt-1 text-[11px] text-slate-500">Must be on or after the proposal deadline.</p>
+                                        <p className="mt-1 text-[11px] text-slate-500">
+                                            {proposalDeadline
+                                                ? 'Dates before the proposal deadline are not available.'
+                                                : 'Must be on or after the proposal deadline.'}
+                                        </p>
                                     </div>
                                 </div>
                             </>

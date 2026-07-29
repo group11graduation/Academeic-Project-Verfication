@@ -7,6 +7,7 @@ import { useAuth } from '../../../context/authContext';
 import teacherService from '../../../services/teacherService';
 import TeacherCollaborationPanel from '../components/TeacherCollaborationPanel';
 import { Z_BTN_BACK, Z_BTN_INDIGO, Z_FORM_CARD, Z_INPUT, Z_LABEL, Z_TEXTAREA } from '../../../shared/ui/zendentaLayout';
+import { datetimeLocalMin } from '../../../shared/utils/assignmentDeadlines';
 
 const emptyTechBlock = () => ({
     requirementText: '',
@@ -94,6 +95,8 @@ const CollaborativeAssignmentCreate = () => {
     const noticeTimerRef = useRef(null);
 
     const draftId = searchParams.get('draft');
+    const deadlineMin = useMemo(() => datetimeLocalMin(), []);
+    const projectDeadlineMin = proposalDeadline || deadlineMin;
 
     const showNotice = useCallback((title, message, { variant = 'error', autoHideMs = 5000 } = {}) => {
         if (noticeTimerRef.current) {
@@ -912,7 +915,14 @@ const CollaborativeAssignmentCreate = () => {
                                 <input
                                     type="datetime-local"
                                     value={proposalDeadline}
-                                    onChange={(e) => setProposalDeadline(e.target.value)}
+                                    onChange={(e) => {
+                                        const next = e.target.value;
+                                        setProposalDeadline(next);
+                                        if (projectDeadline && next && projectDeadline < next) {
+                                            setProjectDeadline(next);
+                                        }
+                                    }}
+                                    min={deadlineMin}
                                     className={Z_INPUT}
                                 />
                             </div>
@@ -922,8 +932,14 @@ const CollaborativeAssignmentCreate = () => {
                                     type="datetime-local"
                                     value={projectDeadline}
                                     onChange={(e) => setProjectDeadline(e.target.value)}
+                                    min={projectDeadlineMin}
                                     className={Z_INPUT}
                                 />
+                                {proposalDeadline ? (
+                                    <p className="mt-1 text-[11px] text-slate-500">
+                                        Dates before the proposal deadline are not available.
+                                    </p>
+                                ) : null}
                             </div>
                         </div>
 
