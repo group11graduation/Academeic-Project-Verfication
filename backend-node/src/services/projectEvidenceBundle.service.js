@@ -182,12 +182,40 @@ async function readReadmeText(extractDir) {
   }
 }
 
+/** package.json / composer name+description help catch wrong-project ZIPs when README is thin. */
+async function readPackageIdentity(extractDir) {
+  const files = await walkFiles(extractDir, { maxFiles: 80 });
+  const pkgAbs = files.find((f) => path.basename(f).toLowerCase() === 'package.json');
+  if (pkgAbs) {
+    try {
+      const pkg = JSON.parse(await fs.readFile(pkgAbs, 'utf8'));
+      const bits = [pkg.name, pkg.description, pkg.productName].filter(Boolean).map(String);
+      if (bits.length) return bits.join('\n').slice(0, 2000);
+    } catch {
+      /* ignore */
+    }
+  }
+  const composerAbs = files.find((f) => path.basename(f).toLowerCase() === 'composer.json');
+  if (composerAbs) {
+    try {
+      const pkg = JSON.parse(await fs.readFile(composerAbs, 'utf8'));
+      const bits = [pkg.name, pkg.description].filter(Boolean).map(String);
+      if (bits.length) return bits.join('\n').slice(0, 2000);
+    } catch {
+      /* ignore */
+    }
+  }
+  return '';
+}
+
 /**
  * @returns {Promise<{ readme_text: string, routes: string[], models: string[], detected_tech: string[] }>}
  */
 export async function buildConsistencyEvidenceBundle(extractDir) {
   const detected_tech = await extractDependencies(extractDir);
-  const readme_text = await readReadmeText(extractDir);
+  const readmeOnly = await readReadmeText(extractDir);
+  const packageIdentity = await readPackageIdentity(extractDir);
+  const readme_text = [packageIdentity, readmeOnly].filter(Boolean).join('\n\n').slice(0, 8000);
   const routes = [];
   const models = [];
 
@@ -220,5 +248,19 @@ export async function buildConsistencyEvidenceBundle(extractDir) {
     }
   }
 
-  return { detected_tech, readme_text, routes, models };
+  return { detected_tech, readme_text, routes, models, package_identity: packageIdentity };
+}
+
+/** Same weighting idea as Python consistency_check._build_composite_text (for legacy checks). */
+export function buildEvidenceCompositeText(evidence, maxChars = 3500) {
+  const readme = String(evidence?.readme_text || '').trim();
+  const routes = Array.isArray(evidence?.routes) ? evidence.routes : [];
+  const models = Array.isArray(evidence?.models) ? evidence.models : [];
+  const routePhrase = routes.map((r) => String(r).trim()).filter(Boolean).join(' ');
+  const modelPhrase = models.map((m) => String(m).trim()).filter(Boolean).join(' ');
+  const parts = [];
+  if (readme) parts.push(readme, readme, readme);
+  if (routePhrase) parts.push(`Routes: ${routePhrase}`);
+  if (modelPhrase) parts.push(`Models: ${modelPhrase}`);
+  return parts.join('\n').slice(0, maxChars);
 }

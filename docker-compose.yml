@@ -136,9 +136,8 @@ services:
       # Keep ZIP upload gate snappy (fail-closed if AI is slow/down)
       AI_CONSISTENCY_TIMEOUT_MS: ${AI_CONSISTENCY_TIMEOUT_MS:-20000}
       AI_CONSISTENCY_RETRIES: ${AI_CONSISTENCY_RETRIES:-0}
-      # Temporarily skip ML consistency until same-origin /api proxy is confirmed healthy.
-      # Set to "true" after frontend rebuild + /health via :4173 works.
-      ENABLE_PROJECT_CONSISTENCY_CHECK: ${ENABLE_PROJECT_CONSISTENCY_CHECK:-false}
+      # Reject ZIP when tech or proposal description does not match project evidence.
+      ENABLE_PROJECT_CONSISTENCY_CHECK: ${ENABLE_PROJECT_CONSISTENCY_CHECK:-true}
 
       # Uploads + preview cache (must match volume mounts below)
       UPLOAD_DIR: /app/uploads

@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import { LegacyProject } from '../models/LegacyProject.js';
 import { Assignment } from '../models/Assignment.js';
 import * as proposalWorkflow from './proposalWorkflow.service.js';
 import { evaluateProposalAgainstAssignmentRequirements } from './requirementCheck.service.js';
@@ -19,8 +21,11 @@ import {
   assertZipMatchesApprovedTechnology,
   approvedTechnologiesForProposal,
 } from './projectTechMatch.service.js';
-import { buildConsistencyEvidenceBundle } from './projectEvidenceBundle.service.js';
-import { analyzeConsistencyPayload } from './aiClient.service.js';
+import {
+  buildConsistencyEvidenceBundle,
+  buildEvidenceCompositeText,
+} from './projectEvidenceBundle.service.js';
+import { analyzeConsistencyPayload, analyzeProposalPayload } from './aiClient.service.js';
 import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { getUploadDir } from '../config/env.js';
 import { normalizeProjectStackHint } from '../constants/projectStackHints.js';
@@ -30,6 +35,8 @@ import {
 } from './notification.service.js';
 import { User } from '../models/User.js';
 import { logger } from '../config/logger.js';
+
+const LEGACY_ZIP_REJECT_THRESHOLD = Number(process.env.LEGACY_ZIP_REJECT_THRESHOLD || 0.72);
 
 export function isProjectDeadlineOpen(assignment) {
   if (!assignment?.projectDeadline) return true;
@@ -134,6 +141,78 @@ function buildDeclaredTechMissingReason(declaredTech, detectedTech) {
     `Declared technologies not found in the uploaded project dependencies: ${missing.join(', ')}. ` +
     'Update your ZIP so it uses the approved stack, then try again.'
   );
+}
+
+function buildDescriptionMismatchReason(consistencyRaw) {
+  const score = consistencyRaw?.description_match_score;
+  const pct =
+    typeof score === 'number' && Number.isFinite(score) ? ` (${Math.round(score * 100)}% match)` : '';
+  return (
+    `This ZIP does not match your approved proposal description${pct}. ` +
+    'Upload the project that implements what you proposed — same technology alone is not enough.'
+  );
+}
+
+async function sha256OfFile(absPath) {
+  const buf = await fs.readFile(absPath);
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+/** Exact ZIP copy already accepted by another proposal/student. */
+async function findExactDuplicateAcceptedZip({ contentHash, proposalId }) {
+  if (!contentHash) return null;
+  return ProjectSubmission.findOne({
+    contentHash,
+    pipelineStatus: SUBMISSION_PIPELINE_STATUSES.ACCEPTED,
+    storedRelativePath: { $nin: ['', null] },
+    proposal: { $ne: proposalId },
+  })
+    .select('_id originalFilename submittedBy proposal')
+    .lean();
+}
+
+/** ZIP evidence looks like an archived legacy project (another student's past work). */
+async function findLegacyProjectMatch({ assignment, evidence }) {
+  const composite = buildEvidenceCompositeText(evidence);
+  if (!composite.trim() || composite.trim().length < 40) return null;
+  const subjectId = assignment?.subject?._id || assignment?.subject;
+  if (!subjectId) return null;
+
+  const legacyDocs = await LegacyProject.find({ subject: subjectId })
+    .sort({ createdAt: -1 })
+    .limit(40)
+    .select('_id title proposalDescription features ownerLabel')
+    .lean();
+  if (!legacyDocs.length) return null;
+
+  const legacy = legacyDocs.map((l) => ({
+    id: `legacy:${l._id}`,
+    text: [l.title, l.proposalDescription || '', ...(Array.isArray(l.features) ? l.features : [])]
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 3500),
+  }));
+
+  try {
+    const ai = await analyzeProposalPayload({
+      text: composite.slice(0, 3500),
+      same_semester: [],
+      legacy,
+    });
+    const score = Number(ai?.legacy_max || 0);
+    if (score < LEGACY_ZIP_REJECT_THRESHOLD) return null;
+    const matchedId = String(ai?.matched_legacy_id || '').replace(/^legacy:/, '');
+    const matched = legacyDocs.find((l) => String(l._id) === matchedId) || null;
+    return {
+      score,
+      title: matched?.title || 'a previous project',
+      ownerLabel: matched?.ownerLabel || '',
+      matchedLegacyId: matchedId || null,
+    };
+  } catch (e) {
+    logger.warn(`[projectCodeSubmission] legacy ZIP check skipped: ${e.message}`);
+    return null;
+  }
 }
 
 async function upsertSubmissionRecord({
@@ -391,9 +470,14 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     const descVerdict = String(consistencyRaw?.description_verdict || '').toLowerCase();
     const overall = String(consistencyRaw?.overall_verdict || '').toLowerCase();
 
-    // 4) Final decision (ML gate only when enabled / response present)
-    if (consistencyEnabled && (techVerdict === 'mismatch' || overall === 'reject')) {
-      const reason = buildDeclaredTechMissingReason(declaredTech, detectedTech);
+    // 4) Reject when tech OR proposal description/functionality does not match the ZIP
+    if (consistencyEnabled && (techVerdict === 'mismatch' || descVerdict === 'mismatch' || overall === 'reject')) {
+      const isDescReject =
+        descVerdict === 'mismatch' ||
+        (overall === 'reject' && techVerdict !== 'mismatch');
+      const reason = isDescReject
+        ? buildDescriptionMismatchReason(consistencyRaw)
+        : buildDeclaredTechMissingReason(declaredTech, detectedTech);
       const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview: false });
       const saved = await upsertSubmissionRecord({
         primary,
@@ -408,9 +492,107 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
           pipelineError: reason,
           pipelineFailures: [
             {
-              rule: 'consistency_tech_mismatch',
+              rule: isDescReject ? 'consistency_description_mismatch' : 'consistency_tech_mismatch',
               message: reason,
               path: '',
+            },
+          ],
+          consistencyCheck,
+        },
+      });
+      return {
+        accepted: false,
+        reason,
+        isUpdate: Boolean(primary),
+        verdict: 'rejected',
+        consistencyCheck,
+        techMatch: {
+          ok: !isDescReject ? false : true,
+          detectedStack: techMatch.detectedStack || '',
+          approvedTech: techMatch.approvedTech || declaredTech,
+          zipTech: detectedTech,
+          message: reason,
+        },
+        submission: saved.toObject ? saved.toObject() : saved,
+      };
+    }
+
+    // 5) Block exact copies of another student's accepted ZIP
+    let contentHash = '';
+    try {
+      contentHash = await sha256OfFile(stagingZipPath);
+    } catch (e) {
+      logger.warn(`[projectCodeSubmission] zip hash failed: ${e.message}`);
+    }
+    const exactDup = await findExactDuplicateAcceptedZip({
+      contentHash,
+      proposalId: proposal._id,
+    });
+    if (exactDup) {
+      const reason =
+        'This ZIP is an exact copy of a project already submitted by another student. Upload your own work.';
+      const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview: false });
+      const saved = await upsertSubmissionRecord({
+        primary,
+        proposal,
+        submittedByUserId,
+        payload: {
+          ...baseMeta,
+          contentHash,
+          storedRelativePath: '',
+          sizeBytes: 0,
+          pipelineStatus: SUBMISSION_PIPELINE_STATUSES.TECH_MISMATCH_REJECTED,
+          pipelineUpdatedAt: new Date(),
+          pipelineError: reason,
+          pipelineFailures: [{ rule: 'duplicate_zip_hash', message: reason, path: '' }],
+          consistencyCheck,
+        },
+      });
+      return {
+        accepted: false,
+        reason,
+        isUpdate: Boolean(primary),
+        verdict: 'rejected',
+        consistencyCheck,
+        techMatch: {
+          ok: true,
+          detectedStack: techMatch.detectedStack || '',
+          approvedTech: techMatch.approvedTech || declaredTech,
+          zipTech: detectedTech,
+          message: reason,
+        },
+        submission: saved.toObject ? saved.toObject() : saved,
+      };
+    }
+
+    // 6) Block ZIPs that match archived legacy projects (previous students)
+    if (!(evidence?.readme_text || evidence?.routes?.length || evidence?.models?.length)) {
+      evidence = await buildConsistencyEvidenceBundle(auditDir);
+    }
+    const legacyHit = await findLegacyProjectMatch({ assignment, evidence });
+    if (legacyHit) {
+      const ownerBit = legacyHit.ownerLabel ? ` (${legacyHit.ownerLabel})` : '';
+      const reason =
+        `This project looks like a previous student's work: "${legacyHit.title}"${ownerBit}. ` +
+        'Upload your own implementation of your approved proposal.';
+      const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview: false });
+      const saved = await upsertSubmissionRecord({
+        primary,
+        proposal,
+        submittedByUserId,
+        payload: {
+          ...baseMeta,
+          contentHash,
+          storedRelativePath: '',
+          sizeBytes: 0,
+          pipelineStatus: SUBMISSION_PIPELINE_STATUSES.TECH_MISMATCH_REJECTED,
+          pipelineUpdatedAt: new Date(),
+          pipelineError: reason,
+          pipelineFailures: [
+            {
+              rule: 'legacy_project_match',
+              message: reason,
+              path: legacyHit.matchedLegacyId || '',
             },
           ],
           consistencyCheck,
@@ -433,8 +615,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    const needsReview = descVerdict === 'mismatch' || overall === 'needs_review';
-    const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview });
+    const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview: false });
 
     // ACCEPT — rename staging → permanent project-code/
     const relDir = path.join('project-code', String(proposal._id));
@@ -476,6 +657,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       submittedByUserId,
       payload: {
         ...baseMeta,
+        contentHash,
         storedRelativePath,
         sizeBytes: stat.size,
         pipelineStatus: '',
@@ -535,7 +717,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       accepted: true,
       reason: '',
       isUpdate,
-      verdict: needsReview ? 'needs_review' : 'accepted',
+      verdict: 'accepted',
       consistencyCheck,
       techMatch: {
         ok: true,
@@ -544,11 +726,9 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
         zipTech: detectedTech,
         message:
           techMatch.message ||
-          (needsReview
-            ? 'Project accepted but flagged for teacher review (description vs code consistency).'
-            : isUpdate
-              ? 'Project ZIP updated. Your teacher was notified.'
-              : 'Project ZIP technology matches the approved proposal.'),
+          (isUpdate
+            ? 'Project ZIP updated. Your teacher was notified.'
+            : 'Project ZIP matches your approved proposal (technology and description).'),
       },
       submission,
     };

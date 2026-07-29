@@ -77,6 +77,15 @@ export function humanizeModelOrServerError(raw, fallback = '') {
   if (/Consistency check unavailable/i.test(text)) {
     return 'We could not verify your project right now. Please wait a moment and try uploading again.';
   }
+  if (/exact copy of a project already submitted/i.test(text)) {
+    return 'This ZIP is an exact copy of another student\'s project. Upload your own work.';
+  }
+  if (/looks like a previous student's work|looks like a previous student/i.test(text)) {
+    return text;
+  }
+  if (/does not match your approved proposal description/i.test(text)) {
+    return text;
+  }
   if (/already has an accepted project submission/i.test(text)) {
     return 'This proposal already has an accepted project ZIP. Contact your teacher if you need to resubmit.';
   }
@@ -110,7 +119,7 @@ export function formatConsistencyCheckHuman(cc) {
 
   if (cc.description_verdict === 'mismatch') {
     lines.push(
-      'Description check: the project README/code does not clearly match your proposal description.'
+      'Description check: the project README/code does not match what you proposed to build. Same technology is not enough.'
     );
   } else if (desc && cc.description_verdict !== 'skipped') {
     lines.push(`Description check: ${desc}.`);
@@ -119,7 +128,7 @@ export function formatConsistencyCheckHuman(cc) {
   if (overall === 'rejected' || cc.overall_verdict === 'reject') {
     lines.push('Result: upload was not accepted. Fix the issues above and try again.');
   } else if (cc.overall_verdict === 'needs_review' || cc.needs_review) {
-    lines.push('Result: accepted, but flagged for your teacher to review.');
+    lines.push('Result: flagged for teacher review.');
   } else if (cc.overall_verdict === 'consistent') {
     lines.push('Result: consistency checks passed.');
   }

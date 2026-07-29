@@ -223,6 +223,7 @@ class ConsistencyAnalyzeOut(BaseModel):
     description_match_score: float = Field(..., ge=0.0, le=1.0)
     tech_verdict: Literal["match", "mismatch", "skipped"]
     description_verdict: Literal["match", "mismatch", "skipped"]
+    # needs_review kept for older clients; description mismatch now returns reject.
     overall_verdict: Literal["consistent", "needs_review", "reject"]
     summary: str = ""
     backend: Literal["sentence_transformers", "tfidf"] = "sentence_transformers"

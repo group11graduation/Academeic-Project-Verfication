@@ -161,17 +161,16 @@ def analyze_consistency(body: ConsistencyAnalyzeIn) -> dict[str, Any]:
         desc_score = 1.0
         desc_verdict = "skipped"
     elif not composite.strip():
-        # No README/routes/models evidence — cannot score description meaningfully.
+        # Proposal has a description but ZIP has no README/routes/models — fail closed.
         desc_score = 0.0
-        desc_verdict = "skipped"
+        desc_verdict = "mismatch"
     else:
         desc_score, backend = _description_similarity(proposal_text, composite)
         desc_verdict = "mismatch" if desc_score < desc_thr else "match"
 
-    if tech_verdict == "mismatch":
+    # Tech or description mismatch both reject the upload (not only flag for review).
+    if tech_verdict == "mismatch" or desc_verdict == "mismatch":
         overall = "reject"
-    elif desc_verdict == "mismatch":
-        overall = "needs_review"
     else:
         overall = "consistent"
 

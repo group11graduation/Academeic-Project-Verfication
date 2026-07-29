@@ -26,6 +26,8 @@ const projectSubmissionSchema = new mongoose.Schema(
     originalFilename: { type: String, default: '' },
     sizeBytes: { type: Number, default: 0 },
     mimeType: { type: String, default: 'application/zip' },
+    /** sha256 of accepted ZIP bytes — used to block exact copies from other students */
+    contentHash: { type: String, default: '', index: true },
     /** Increments when the student replaces the ZIP before the deadline */
     version: { type: Number, default: 1 },
     /** Optional hint for preview auto-detect */

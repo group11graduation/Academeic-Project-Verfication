@@ -61,7 +61,7 @@ class Settings(BaseSettings):
         default_factory=lambda: float(os.getenv("TECH_MISMATCH_THRESHOLD", "0.3"))
     )
     description_mismatch_threshold: float = Field(
-        default_factory=lambda: float(os.getenv("DESCRIPTION_MISMATCH_THRESHOLD", "0.35"))
+        default_factory=lambda: float(os.getenv("DESCRIPTION_MISMATCH_THRESHOLD", "0.42"))
     )
 
     # Request body limit for JSON uploads (bytes).
