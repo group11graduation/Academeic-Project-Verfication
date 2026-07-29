@@ -23,15 +23,16 @@ import NotificationBell from '../../../shared/components/NotificationBell';
 function buildNavItems(user) {
     if (!user) {
         return [
-            { label: 'Overview', path: '/', end: true },
-            { label: 'Platform Guide', path: '/about' },
+            { label: 'Home', path: '/', end: true },
+            { label: 'Guide', path: '/guide' },
+            { label: 'About', path: '/about' },
             { label: 'Verified Projects', path: '/gallery' },
         ];
     }
 
     if (user.role === 'student') {
         return [
-            { label: 'Overview', path: '/', end: true },
+            { label: 'Home', path: '/', end: true },
             { label: 'My Workspace', path: '/student' },
             { label: 'Assignments', path: '/student/assignments' },
             { label: 'My Projects', path: '/student/project' },
@@ -41,16 +42,18 @@ function buildNavItems(user) {
 
     if (user.role === 'teacher') {
         return [
-            { label: 'Overview', path: '/', end: true },
-            { label: 'Platform Guide', path: '/about' },
+            { label: 'Home', path: '/', end: true },
+            { label: 'Guide', path: '/guide' },
+            { label: 'About', path: '/about' },
             { label: 'Verified Projects', path: '/gallery' },
             { label: 'Teacher Dashboard', path: '/teacher' },
         ];
     }
 
     return [
-        { label: 'Overview', path: '/', end: true },
-        { label: 'Platform Guide', path: '/about' },
+        { label: 'Home', path: '/', end: true },
+        { label: 'Guide', path: '/guide' },
+        { label: 'About', path: '/about' },
         { label: 'Admin Panel', path: '/admin' },
     ];
 }
@@ -87,7 +90,8 @@ const StudentHeader = ({ forcePublic = false }) => {
 
     const mobileIcon = (path) => {
         if (path === '/') return LayoutDashboard;
-        if (path === '/about') return Info;
+        if (path === '/about') return Users;
+        if (path === '/guide') return Info;
         if (path === '/gallery') return GalleryHorizontal;
         if (path.includes('assignments')) return BookOpen;
         if (path.includes('project')) return Rocket;

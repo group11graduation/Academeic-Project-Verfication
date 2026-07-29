@@ -53,7 +53,7 @@ const systemModules = [
         title: 'Integrity engine',
         icon: BrainCircuit,
         points: ['Same-semester similarity detection', 'Legacy project cross-check', 'Keyword & technology requirement gates'],
-        link: '/about',
+        link: '/guide',
         linkLabel: 'Read platform guide',
         roles: ['guest', 'student', 'teacher', 'admin'],
     },
@@ -61,7 +61,7 @@ const systemModules = [
         title: 'Preview sandbox',
         icon: Container,
         points: ['React, Spring Boot, MERN, PHP stacks', 'Isolated Docker containers', 'Teacher-only live preview sessions'],
-        link: '/about',
+        link: '/guide',
         linkLabel: 'How previews work',
         roles: ['guest', 'student', 'teacher', 'admin'],
     },
@@ -69,7 +69,7 @@ const systemModules = [
         title: 'Collaborative teaching',
         icon: Layers,
         points: ['Dual-teacher assignments', 'Split frontend/backend requirements', 'Shared assignment on both dashboards'],
-        link: '/about',
+        link: '/guide',
         linkLabel: 'Collaboration workflow',
         roles: ['guest', 'teacher', 'admin'],
     },
@@ -147,7 +147,7 @@ const LandingPage = () => {
                                         Sign in to the platform <ArrowRight className="h-4 w-4" />
                                     </Link>
                                     <Link
-                                        to="/about"
+                                        to="/guide"
                                         className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:hover:bg-[#1f2937]"
                                     >
                                         Platform guide
@@ -285,7 +285,7 @@ const LandingPage = () => {
                         </p>
                         <div className="flex flex-wrap justify-center gap-3">
                             <Link
-                                to="/about"
+                                to="/guide"
                                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-[#2a3fa4] text-sm font-black hover:bg-blue-50 dark:hover:bg-blue-500/15 dark:bg-blue-500/15"
                             >
                                 Platform guide

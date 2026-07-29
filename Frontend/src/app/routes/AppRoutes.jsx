@@ -6,6 +6,7 @@ import ForgotPasswordPage from '../../features/Auth/pages/ForgotPasswordPage';
 import ResetPasswordPage from '../../features/Auth/pages/ResetPasswordPage';
 import LandingPage from '../../features/student/pages/LandingPage';
 import StudentAbout from '../../features/student/pages/StudentAbout';
+import StudentTeamAbout from '../../features/student/pages/StudentTeamAbout';
 import StudentGallery from '../../features/student/pages/StudentGallery';
 import VerifiedProjectDetail from '../../features/student/pages/VerifiedProjectDetail';
 import StudentAssignments from '../../features/student/pages/StudentAssignments';
@@ -57,7 +58,8 @@ const AppRoutes = () => {
     return (
         <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/about" element={<StudentAbout />} />
+            <Route path="/guide" element={<StudentAbout />} />
+            <Route path="/about" element={<StudentTeamAbout />} />
             <Route path="/gallery" element={<StudentGallery />} />
             <Route path="/gallery/:id" element={<VerifiedProjectDetail />} />
             <Route path="/assignments" element={<StudentAssignments />} />

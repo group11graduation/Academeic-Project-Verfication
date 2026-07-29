@@ -18,8 +18,10 @@ const PublicSiteFooter = () => (
                 <p className="mb-4 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Platform</p>
                 <ul className="space-y-2 text-sm font-semibold text-[var(--sv-muted)] dark:text-slate-300">
                     <li><Link to="/" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">System overview</Link></li>
-                    <li><Link to="/about" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Platform guide</Link></li>
-                    <li><Link to="/gallery" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Verified projects</Link></li>
+                    <li><Link to="/" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Home</Link></li>
+                    <li><Link to="/guide" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Guide</Link></li>
+                    <li><Link to="/about" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">About</Link></li>
+                    <li><Link to="/gallery" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Verified Projects</Link></li>
                     <li><Link to="/login" className="hover:text-[#2a3fa4] dark:hover:text-blue-300">Sign in</Link></li>
                 </ul>
             </div>
