@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { Z_SHELL, Z_SHELL_INNER, Z_CARD, Z_BTN_PRIMARY, Z_BTN_SECONDARY } from '../../../shared/ui/zendentaLayout';
 import { getApiOrigin } from '../../../lib/api';
-import { resolveProfilePhotoUrl } from '../../../shared/utils/profilePhoto';
+import { resolveProfilePhotoUrl, teacherInitials } from '../../../shared/utils/profilePhoto';
 
 const StudentProfile = () => {
     const [studentData, setStudentData] = useState(null);
@@ -81,11 +81,20 @@ const StudentProfile = () => {
                 <div className={`${Z_CARD} p-4 flex flex-col md:flex-row items-center justify-between gap-4`}>
                     <div className="flex flex-col md:flex-row items-center gap-4">
                         <div className="relative group">
-                            <img 
-                                src={profilePhotoUrl || 'https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?auto=format&fit=crop&q=80&w=400'}
-                                alt={studentData.name} 
-                                className="h-20 w-20 rounded-xl border-2 border-white object-cover shadow-md dark:border-white/10"
-                            />
+                            {profilePhotoUrl ? (
+                                <img
+                                    src={profilePhotoUrl}
+                                    alt={studentData.name}
+                                    className="h-20 w-20 rounded-xl border-2 border-white object-cover shadow-md dark:border-white/10"
+                                />
+                            ) : (
+                                <div
+                                    className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-white bg-slate-200 text-xl font-bold tracking-wide text-slate-600 shadow-md dark:border-white/10 dark:bg-slate-700 dark:text-slate-200"
+                                    aria-label={studentData.name}
+                                >
+                                    {teacherInitials(studentData.name)}
+                                </div>
+                            )}
                             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
                         </div>
                         <div className="text-center md:text-left">
