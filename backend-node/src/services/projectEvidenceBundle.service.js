@@ -52,7 +52,7 @@ const CODE_EXTS = new Set([
   '.rb',
 ]);
 
-async function walkFiles(root, { maxFiles = 120 } = {}) {
+async function walkFiles(root, { maxFiles = 80 } = {}) {
   const out = [];
   async function walk(dir) {
     if (out.length >= maxFiles) return;
@@ -219,19 +219,19 @@ export async function buildConsistencyEvidenceBundle(extractDir) {
   const routes = [];
   const models = [];
 
-  const files = await walkFiles(extractDir, { maxFiles: 100 });
+  const files = await walkFiles(extractDir, { maxFiles: 60 });
   for (const abs of files) {
     const ext = path.extname(abs).toLowerCase();
     if (!CODE_EXTS.has(ext)) continue;
     let raw = '';
     try {
       const st = await fs.stat(abs);
-      if (st.size > 80_000) continue;
+      if (st.size > 40_000) continue;
       raw = await fs.readFile(abs, 'utf8');
     } catch {
       continue;
     }
-    const sample = raw.slice(0, 40_000);
+    const sample = raw.slice(0, 20_000);
     for (const re of ROUTE_PATTERNS) {
       re.lastIndex = 0;
       let m;

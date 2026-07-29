@@ -25,7 +25,7 @@ import {
   buildConsistencyEvidenceBundle,
   buildEvidenceCompositeText,
 } from './projectEvidenceBundle.service.js';
-import { analyzeConsistencyPayload, analyzeProposalPayload } from './aiClient.service.js';
+import { analyzeConsistencyPayload } from './aiClient.service.js';
 import { PROJECT_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
 import { getUploadDir } from '../config/env.js';
 import { normalizeProjectStackHint } from '../constants/projectStackHints.js';
@@ -36,7 +36,10 @@ import {
 import { User } from '../models/User.js';
 import { logger } from '../config/logger.js';
 
-const LEGACY_ZIP_REJECT_THRESHOLD = Number(process.env.LEGACY_ZIP_REJECT_THRESHOLD || 0.72);
+/** Local token overlap vs legacy archive (no AI — keeps ZIP upload under proxy timeouts). */
+const LEGACY_ZIP_REJECT_THRESHOLD = Number(process.env.LEGACY_ZIP_REJECT_THRESHOLD || 0.55);
+/** Hard cap for ML consistency during upload (fail open if exceeded). */
+const CONSISTENCY_HARD_DEADLINE_MS = Number(process.env.AI_CONSISTENCY_HARD_DEADLINE_MS || 15000);
 
 export function isProjectDeadlineOpen(assignment) {
   if (!assignment?.projectDeadline) return true;
@@ -171,47 +174,89 @@ async function findExactDuplicateAcceptedZip({ contentHash, proposalId }) {
     .lean();
 }
 
-/** ZIP evidence looks like an archived legacy project (another student's past work). */
+function tokenizeForLegacy(text) {
+  return new Set(
+    String(text || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9+#.\s-]+/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length > 2)
+  );
+}
+
+function jaccardSets(a, b) {
+  if (!a.size || !b.size) return 0;
+  let inter = 0;
+  for (const t of a) {
+    if (b.has(t)) inter += 1;
+  }
+  return inter / (a.size + b.size - inter);
+}
+
+/**
+ * Fast legacy match (no AI): token Jaccard + title substring against archived projects.
+ * Keeps the upload request well under reverse-proxy timeouts.
+ */
 async function findLegacyProjectMatch({ assignment, evidence }) {
   const composite = buildEvidenceCompositeText(evidence);
-  if (!composite.trim() || composite.trim().length < 40) return null;
+  if (!composite.trim() || composite.trim().length < 24) return null;
   const subjectId = assignment?.subject?._id || assignment?.subject;
   if (!subjectId) return null;
 
   const legacyDocs = await LegacyProject.find({ subject: subjectId })
     .sort({ createdAt: -1 })
-    .limit(40)
+    .limit(50)
     .select('_id title proposalDescription features ownerLabel')
     .lean();
   if (!legacyDocs.length) return null;
 
-  const legacy = legacyDocs.map((l) => ({
-    id: `legacy:${l._id}`,
-    text: [l.title, l.proposalDescription || '', ...(Array.isArray(l.features) ? l.features : [])]
-      .filter(Boolean)
-      .join('\n')
-      .slice(0, 3500),
-  }));
+  const zipTokens = tokenizeForLegacy(composite);
+  const zipLower = composite.toLowerCase();
+  let best = null;
 
+  for (const l of legacyDocs) {
+    const title = String(l.title || '').trim();
+    const legacyText = [title, l.proposalDescription || '', ...(Array.isArray(l.features) ? l.features : [])]
+      .filter(Boolean)
+      .join('\n');
+    let score = jaccardSets(zipTokens, tokenizeForLegacy(legacyText));
+    const titleLower = title.toLowerCase();
+    if (titleLower.length >= 6 && zipLower.includes(titleLower)) {
+      score = Math.max(score, 0.85);
+    }
+    // package / folder style: "Building Management System" ↔ building-management-system
+    const titleSlug = titleLower.replace(/[^a-z0-9]+/g, '');
+    const zipSlug = zipLower.replace(/[^a-z0-9]+/g, '');
+    if (titleSlug.length >= 8 && zipSlug.includes(titleSlug)) {
+      score = Math.max(score, 0.88);
+    }
+    if (!best || score > best.score) {
+      best = {
+        score,
+        title: title || 'a previous project',
+        ownerLabel: l.ownerLabel || '',
+        matchedLegacyId: String(l._id),
+      };
+    }
+  }
+
+  if (!best || best.score < LEGACY_ZIP_REJECT_THRESHOLD) return null;
+  return best;
+}
+
+async function analyzeConsistencyWithDeadline(payload) {
+  let timer;
   try {
-    const ai = await analyzeProposalPayload({
-      text: composite.slice(0, 3500),
-      same_semester: [],
-      legacy,
-    });
-    const score = Number(ai?.legacy_max || 0);
-    if (score < LEGACY_ZIP_REJECT_THRESHOLD) return null;
-    const matchedId = String(ai?.matched_legacy_id || '').replace(/^legacy:/, '');
-    const matched = legacyDocs.find((l) => String(l._id) === matchedId) || null;
-    return {
-      score,
-      title: matched?.title || 'a previous project',
-      ownerLabel: matched?.ownerLabel || '',
-      matchedLegacyId: matchedId || null,
-    };
-  } catch (e) {
-    logger.warn(`[projectCodeSubmission] legacy ZIP check skipped: ${e.message}`);
-    return null;
+    return await Promise.race([
+      analyzeConsistencyPayload(payload),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`AI analysis timed out after ${Math.round(CONSISTENCY_HARD_DEADLINE_MS / 1000)}s`));
+        }, CONSISTENCY_HARD_DEADLINE_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -384,12 +429,13 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    // 3) ML consistency check (optional via env; fail-closed when enabled)
+    // 3) ML consistency check (optional via env; hard-capped so uploads never hang)
     const declaredTech = approvedTechnologiesForProposal(assignment, proposal);
     const consistencyEnabled =
       String(process.env.ENABLE_PROJECT_CONSISTENCY_CHECK || 'true').toLowerCase() !== 'false';
 
     let consistencyRaw = null;
+    let consistencyTimedOut = false;
     let detectedTech = [...(techMatch.zipTech || [])];
     let evidence = { detected_tech: [], readme_text: '', routes: [], models: [] };
 
@@ -397,7 +443,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       evidence = await buildConsistencyEvidenceBundle(auditDir);
       detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
       try {
-        consistencyRaw = await analyzeConsistencyPayload({
+        consistencyRaw = await analyzeConsistencyWithDeadline({
           proposal_description: [
             proposal.title || '',
             proposal.description || '',
@@ -412,54 +458,18 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
           models: evidence.models || [],
         });
       } catch (aiErr) {
-        logger.error(`[projectCodeSubmission] consistency AI unavailable: ${aiErr.message}`);
-        const reason =
-          'Consistency check unavailable, please try again. The AI analysis service did not respond.';
-        const consistencyCheck = normalizeConsistencyCheck(
-          {
-            tech_match_score: null,
-            description_match_score: null,
-            tech_verdict: 'unavailable',
-            description_verdict: 'unavailable',
-            overall_verdict: 'reject',
-          },
-          { needsReview: false }
+        // Fail-open on AI timeout/down so ZIP upload still completes; teacher gets a review flag.
+        // Rule-based tech + hash + local legacy checks still run below / above.
+        consistencyTimedOut = true;
+        logger.warn(
+          `[projectCodeSubmission] consistency AI skipped (upload continues): ${aiErr.message}`
         );
-        const saved = await upsertSubmissionRecord({
-          primary,
-          proposal,
-          submittedByUserId,
-          payload: {
-            ...baseMeta,
-            storedRelativePath: '',
-            sizeBytes: 0,
-            pipelineStatus: SUBMISSION_PIPELINE_STATUSES.TECH_MISMATCH_REJECTED,
-            pipelineUpdatedAt: new Date(),
-            pipelineError: reason,
-            pipelineFailures: [
-              {
-                rule: 'consistency_unavailable',
-                message: reason,
-                path: '',
-              },
-            ],
-            consistencyCheck,
-          },
-        });
-        return {
-          accepted: false,
-          reason,
-          isUpdate: Boolean(primary),
-          verdict: 'rejected',
-          consistencyCheck,
-          techMatch: {
-            ok: true,
-            detectedStack: techMatch.detectedStack || '',
-            approvedTech: techMatch.approvedTech || [],
-            zipTech: techMatch.zipTech || [],
-            message: techMatch.message || '',
-          },
-          submission: saved.toObject ? saved.toObject() : saved,
+        consistencyRaw = {
+          tech_match_score: null,
+          description_match_score: null,
+          tech_verdict: 'skipped',
+          description_verdict: 'skipped',
+          overall_verdict: 'needs_review',
         };
       }
     } else {
@@ -471,7 +481,12 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     const overall = String(consistencyRaw?.overall_verdict || '').toLowerCase();
 
     // 4) Reject when tech OR proposal description/functionality does not match the ZIP
-    if (consistencyEnabled && (techVerdict === 'mismatch' || descVerdict === 'mismatch' || overall === 'reject')) {
+    // (skip reject when AI timed out / skipped — that path is needs_review only)
+    if (
+      consistencyEnabled &&
+      !consistencyTimedOut &&
+      (techVerdict === 'mismatch' || descVerdict === 'mismatch' || overall === 'reject')
+    ) {
       const isDescReject =
         descVerdict === 'mismatch' ||
         (overall === 'reject' && techVerdict !== 'mismatch');
@@ -615,7 +630,11 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       };
     }
 
-    const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview: false });
+    const needsReview =
+      consistencyTimedOut ||
+      descVerdict === 'needs_review' ||
+      overall === 'needs_review';
+    const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview });
 
     // ACCEPT — rename staging → permanent project-code/
     const relDir = path.join('project-code', String(proposal._id));
@@ -717,7 +736,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       accepted: true,
       reason: '',
       isUpdate,
-      verdict: 'accepted',
+      verdict: needsReview ? 'needs_review' : 'accepted',
       consistencyCheck,
       techMatch: {
         ok: true,
@@ -726,9 +745,13 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
         zipTech: detectedTech,
         message:
           techMatch.message ||
-          (isUpdate
-            ? 'Project ZIP updated. Your teacher was notified.'
-            : 'Project ZIP matches your approved proposal (technology and description).'),
+          (needsReview
+            ? consistencyTimedOut
+              ? 'Project ZIP saved. Description AI check timed out — flagged for teacher review.'
+              : 'Project ZIP saved but flagged for teacher review.'
+            : isUpdate
+              ? 'Project ZIP updated. Your teacher was notified.'
+              : 'Project ZIP matches your approved proposal (technology and description).'),
       },
       submission,
     };

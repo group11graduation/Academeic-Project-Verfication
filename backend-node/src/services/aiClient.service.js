@@ -18,7 +18,7 @@ function aiTimeoutMs(path) {
   // Keep consistency short so the ZIP upload HTTP request always returns
   // before browser / reverse-proxy cutoffs (fail-closed if AI is slow).
   if (path === '/analyze/consistency') {
-    return Number(process.env.AI_CONSISTENCY_TIMEOUT_MS || 20000);
+    return Number(process.env.AI_CONSISTENCY_TIMEOUT_MS || 12000);
   }
   // Proposal / requirement analysis can be slow on first run (model download / warm-up).
   const perPath =

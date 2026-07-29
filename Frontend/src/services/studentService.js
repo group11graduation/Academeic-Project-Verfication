@@ -83,10 +83,10 @@ const studentService = {
         fd.append('codeArchive', file);
         if (projectStackHint) fd.append('projectStackHint', projectStackHint);
         if (screenshotFile) fd.append('projectScreenshot', screenshotFile);
-        // Must be explicit: consistency check + extract can exceed the default 12s API timeout.
+        // Explicit long client deadline so the UI never spins forever if a proxy dies.
+        // Server gates are capped (~15s AI); large ZIP transfer still needs headroom.
         const response = await api.post(`${base}/assignments/${assignmentId}/project-code`, fd, {
-            // 0 = no client abort; server/proxy own the deadline. Avoids false "timed out" on slow checks.
-            timeout: 0,
+            timeout: 180_000,
         });
         return response.data;
     },
