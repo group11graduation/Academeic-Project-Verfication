@@ -1,33 +1,41 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, ShieldCheck, ImageIcon } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Heart, Loader2, ShieldCheck, ImageIcon } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
 import ProjectScreenshotLightbox from '../components/ProjectScreenshotLightbox';
 import { BRAND } from '../../../shared/ui/brandTheme';
+import { useAuth } from '../../../context/authContext';
+import { appWarning } from '../../../lib/appDialog';
 
 const VerifiedProjectDetail = () => {
     const { id } = useParams();
+    const navigate = useNavigate();
+    const { user, token } = useAuth();
     const [project, setProject] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [lightboxIndex, setLightboxIndex] = useState(null);
+    const [reactBusy, setReactBusy] = useState(false);
+    const [reactors, setReactors] = useState([]);
 
     useEffect(() => {
         window.scrollTo(0, 0);
         (async () => {
             try {
                 const res = await galleryService.getVerifiedProject(id);
-                if (res.success) setProject(res.data);
-                else setError(res.message || 'Project not found');
+                if (res.success) {
+                    setProject(res.data);
+                    setReactors(res.data?.reactors || []);
+                } else setError(res.message || 'Project not found');
             } catch (e) {
                 setError(e.response?.data?.message || 'Project not found');
             } finally {
                 setLoading(false);
             }
         })();
-    }, [id]);
+    }, [id, token]);
 
     const screenshotUrls = useMemo(() => {
         if (!project) return [];
@@ -37,6 +45,39 @@ const VerifiedProjectDetail = () => {
 
     const resolvedUrls = screenshotUrls.map((u) => galleryService.resolveMediaUrl(u)).filter(Boolean);
     const heroSrc = resolvedUrls[0] || null;
+
+    const toggleLike = async () => {
+        if (!user || !token) {
+            await appWarning('Sign in to love a verified project.');
+            navigate('/login');
+            return;
+        }
+        setReactBusy(true);
+        try {
+            const res = await galleryService.toggleProjectReaction(id);
+            if (res.success && res.data) {
+                setProject((p) =>
+                    p
+                        ? {
+                              ...p,
+                              likeCount: res.data.likeCount,
+                              likedByMe: res.data.likedByMe,
+                          }
+                        : p
+                );
+                setReactors(res.data.reactors || []);
+            }
+        } catch (e) {
+            if (e.response?.status === 401) {
+                await appWarning('Sign in to love a verified project.');
+                navigate('/login');
+            } else {
+                await appWarning(e.response?.data?.message || 'Could not update reaction.');
+            }
+        } finally {
+            setReactBusy(false);
+        }
+    };
 
     return (
         <StudentPublicShell>
@@ -112,11 +153,53 @@ const VerifiedProjectDetail = () => {
                             </div>
 
                             <h1 className="mb-3 text-3xl font-black tracking-tight text-[var(--sv-text)] dark:text-slate-100 md:text-4xl">{project.title}</h1>
-                            <p className="mb-6 text-sm font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
+                            <p className="mb-4 text-sm font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
                                 By {project.author}
                                 {project.subject ? ` · ${project.subject}` : ''}
                                 {project.className ? ` · ${project.className}` : ''}
                             </p>
+
+                            <div className="mb-6 flex flex-wrap items-center gap-3">
+                                <button
+                                    type="button"
+                                    disabled={reactBusy}
+                                    onClick={toggleLike}
+                                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold shadow-sm transition disabled:opacity-60 ${
+                                        project.likedByMe
+                                            ? 'bg-rose-500 text-white'
+                                            : 'border border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-text)] hover:border-rose-300 dark:border-white/10 dark:bg-[#111827]'
+                                    }`}
+                                >
+                                    {reactBusy ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Heart className={`h-4 w-4 ${project.likedByMe ? 'fill-white' : ''}`} />
+                                    )}
+                                    {project.likedByMe ? 'Loved' : 'Love'} · {Number(project.likeCount) || 0}
+                                </button>
+                            </div>
+
+                            {reactors.length > 0 && (
+                                <div className="mb-6 rounded-[20px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-5 shadow-sm dark:border-white/10 dark:bg-[#111827]">
+                                    <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)]">
+                                        Loved by ({reactors.length}
+                                        {(Number(project.likeCount) || 0) > reactors.length ? '+' : ''})
+                                    </h2>
+                                    <ul className="flex flex-wrap gap-2">
+                                        {reactors.map((r) => (
+                                            <li
+                                                key={r.userId}
+                                                className="inline-flex items-center gap-2 rounded-full border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-1.5 text-xs font-bold text-[var(--sv-text)] dark:border-white/10"
+                                            >
+                                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-[10px] font-black text-rose-600">
+                                                    {(r.name || '?').slice(0, 1).toUpperCase()}
+                                                </span>
+                                                {r.name}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
 
                             <div className="mb-6 rounded-[20px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]">
                                 <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Description</h2>

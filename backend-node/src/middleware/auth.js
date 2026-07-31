@@ -33,6 +33,26 @@ export function requireAuth(req, res, next) {
   }
 }
 
+/** Sets req.userId when a valid Bearer token is present; otherwise continues anonymously. */
+export function optionalAuth(req, _res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  if (!token) return next();
+  try {
+    const payload = jwt.verify(token, getJwtSecret());
+    const primaryRole = String(payload.role || '').trim().toLowerCase();
+    const parsedRoles = Array.isArray(payload.roles)
+      ? payload.roles.map((role) => String(role || '').trim().toLowerCase()).filter(Boolean)
+      : [];
+    req.userId = payload.sub;
+    req.userRole = primaryRole;
+    req.roles = parsedRoles.length > 0 ? [...new Set(parsedRoles)] : primaryRole ? [primaryRole] : [];
+  } catch {
+    /* ignore invalid token for public pages */
+  }
+  return next();
+}
+
 export async function loadUser(req, res, next) {
   try {
     const user = await User.findById(req.userId).select('+passwordHash');

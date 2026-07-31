@@ -11,6 +11,16 @@ const galleryService = {
         return res.data;
     },
 
+    listProjectReactions: async (id, params = {}) => {
+        const res = await api.get(`/public/verified-projects/${id}/reactions`, { params });
+        return res.data;
+    },
+
+    toggleProjectReaction: async (id) => {
+        const res = await api.post(`/public/verified-projects/${id}/react`);
+        return res.data;
+    },
+
     resolveMediaUrl: (pathOrUrl) => {
         if (!pathOrUrl) return null;
         if (String(pathOrUrl).startsWith('http')) return pathOrUrl;

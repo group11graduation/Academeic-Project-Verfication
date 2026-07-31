@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, Loader2, Search, ShieldCheck, TrendingUp, ImageIcon } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Heart, Loader2, Search, ShieldCheck, TrendingUp, ImageIcon, X } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
@@ -8,6 +8,8 @@ import ProjectScreenshotLightbox from '../components/ProjectScreenshotLightbox';
 import { BRAND } from '../../../shared/ui/brandTheme';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import { useAuth } from '../../../context/authContext';
+import { appWarning } from '../../../lib/appDialog';
 
 const GALLERY_CATEGORIES = [
     'ALL CATEGORIES',
@@ -17,14 +19,6 @@ const GALLERY_CATEGORIES = [
     'HTML & CSS',
     'HTML & CSS WITH JAVASCRIPT',
 ];
-
-const getLikes = () => {
-    try {
-        return JSON.parse(localStorage.getItem('projectLikes') || '{}');
-    } catch {
-        return {};
-    }
-};
 
 const ProjectCover = ({ project, className = '' }) => {
     const src = galleryService.resolveMediaUrl(project.screenshotUrl);
@@ -50,14 +44,60 @@ const ProjectCover = ({ project, className = '' }) => {
     );
 };
 
+function ReactorsPopover({ open, onClose, title, reactors, loading, anchorRef }) {
+    if (!open) return null;
+    return (
+        <div
+            className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-xl dark:border-white/10"
+            ref={anchorRef}
+        >
+            <div className="flex items-center justify-between border-b border-[var(--sv-border)] px-3 py-2 dark:border-white/10">
+                <p className="truncate text-[11px] font-black uppercase tracking-wide text-[var(--sv-muted)]">
+                    Loved by · {title}
+                </p>
+                <button type="button" onClick={onClose} className="rounded p-1 text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]" aria-label="Close">
+                    <X className="h-3.5 w-3.5" />
+                </button>
+            </div>
+            <div className="max-h-56 overflow-y-auto p-2">
+                {loading ? (
+                    <div className="flex justify-center py-6">
+                        <Loader2 className="h-5 w-5 animate-spin text-[#1D68E3]" />
+                    </div>
+                ) : reactors.length === 0 ? (
+                    <p className="px-2 py-4 text-center text-xs font-semibold text-[var(--sv-muted)]">No reactions yet</p>
+                ) : (
+                    <ul className="space-y-1">
+                        {reactors.map((r) => (
+                            <li
+                                key={r.userId}
+                                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)]"
+                            >
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 text-[11px] font-black text-rose-600">
+                                    {(r.name || '?').slice(0, 1).toUpperCase()}
+                                </span>
+                                <span className="min-w-0 truncate">{r.name}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
+}
+
 const StudentGallery = () => {
+    const navigate = useNavigate();
+    const { user, token } = useAuth();
     const [activeCategory, setActiveCategory] = useState('ALL CATEGORIES');
     const [sortBest, setSortBest] = useState(true);
-    const [likesData, setLikesData] = useState(getLikes());
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [lightbox, setLightbox] = useState(null);
+    const [reactBusyId, setReactBusyId] = useState(null);
+    const [reactorsPanel, setReactorsPanel] = useState(null); // { id, title, reactors, loading }
+    const reactorsRef = useRef(null);
     const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search verified projects…');
 
     useEffect(() => {
@@ -85,22 +125,83 @@ const StudentGallery = () => {
                 setLoading(false);
             }
         })();
-    }, [activeCategory, sortBest]);
+    }, [activeCategory, sortBest, token]);
 
     useEffect(() => {
-        setLikesData(getLikes());
-    }, [projects]);
+        const onDoc = (e) => {
+            if (reactorsRef.current && !reactorsRef.current.contains(e.target)) {
+                setReactorsPanel(null);
+            }
+        };
+        document.addEventListener('mousedown', onDoc);
+        return () => document.removeEventListener('mousedown', onDoc);
+    }, []);
 
-    const toggleLike = (id) => {
-        const next = { ...likesData, [id]: !likesData[id] };
-        if (!next[id]) delete next[id];
-        localStorage.setItem('projectLikes', JSON.stringify(next));
-        setLikesData(next);
+    const toggleLike = async (proj) => {
+        if (!user || !token) {
+            await appWarning('Sign in to love a verified project.');
+            navigate('/login');
+            return;
+        }
+        setReactBusyId(proj.id);
+        try {
+            const res = await galleryService.toggleProjectReaction(proj.id);
+            if (res.success && res.data) {
+                setProjects((prev) =>
+                    prev.map((p) =>
+                        p.id === proj.id
+                            ? {
+                                  ...p,
+                                  likeCount: res.data.likeCount,
+                                  likedByMe: res.data.likedByMe,
+                              }
+                            : p
+                    )
+                );
+                if (reactorsPanel?.id === proj.id) {
+                    setReactorsPanel((cur) =>
+                        cur
+                            ? {
+                                  ...cur,
+                                  reactors: res.data.reactors || cur.reactors,
+                                  loading: false,
+                              }
+                            : cur
+                    );
+                }
+            }
+        } catch (e) {
+            const status = e.response?.status;
+            if (status === 401) {
+                await appWarning('Sign in to love a verified project.');
+                navigate('/login');
+            } else {
+                await appWarning(e.response?.data?.message || 'Could not update reaction.');
+            }
+        } finally {
+            setReactBusyId(null);
+        }
     };
 
-    const getProjectLikes = (proj) => {
-        const base = Math.round((proj.teacherScore ?? 50) / 5);
-        return base + (likesData[proj.id] ? 1 : 0);
+    const openReactors = async (proj, e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (reactorsPanel?.id === proj.id) {
+            setReactorsPanel(null);
+            return;
+        }
+        setReactorsPanel({ id: proj.id, title: proj.title, reactors: [], loading: true });
+        try {
+            const res = await galleryService.listProjectReactions(proj.id);
+            setReactorsPanel({
+                id: proj.id,
+                title: proj.title,
+                reactors: res.data?.reactors || [],
+                loading: false,
+            });
+        } catch {
+            setReactorsPanel({ id: proj.id, title: proj.title, reactors: [], loading: false });
+        }
     };
 
     const sortedProjects = useMemo(() => {
@@ -117,8 +218,13 @@ const StudentGallery = () => {
             )
         );
         if (!sortBest) return list;
-        return list.sort((a, b) => getProjectLikes(b) - getProjectLikes(a));
-    }, [projects, sortBest, likesData, searchQuery]);
+        return [...list].sort(
+            (a, b) =>
+                (b.likeCount || 0) - (a.likeCount || 0) ||
+                (b.featuredRank || 0) - (a.featuredRank || 0) ||
+                (b.teacherScore ?? 0) - (a.teacherScore ?? 0)
+        );
+    }, [projects, sortBest, searchQuery]);
 
     return (
         <StudentPublicShell>
@@ -131,8 +237,8 @@ const StudentGallery = () => {
                         Approved student <span className="text-[#1D68E3]">submissions</span>
                     </h1>
                     <p className="max-w-2xl text-lg font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                        Top teacher-approved capstone projects from the academic database. Open a project to read the
-                        full proposal and features, and view the UI screenshot when the student uploads one.
+                        Top teacher-approved capstone projects from the academic database. Love a project to support the
+                        team - counts and reactors are real signed-in users.
                     </p>
                 </div>
 
@@ -178,7 +284,7 @@ const StudentGallery = () => {
                         }`}
                     >
                         <TrendingUp className="h-3.5 w-3.5" />
-                        {sortBest ? 'Best approved' : 'Most recent'}
+                        {sortBest ? 'Most loved' : 'Most recent'}
                     </button>
                 </div>
 
@@ -205,8 +311,8 @@ const StudentGallery = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                         {sortedProjects.map((proj) => {
-                            const totalLikes = getProjectLikes(proj);
-                            const isLiked = !!likesData[proj.id];
+                            const totalLikes = Number(proj.likeCount) || 0;
+                            const isLiked = Boolean(proj.likedByMe);
                             const screenshotUrls =
                                 proj.screenshotUrls?.length > 0
                                     ? proj.screenshotUrls
@@ -239,19 +345,46 @@ const StudentGallery = () => {
                                                 Score {proj.teacherScore}%
                                             </div>
                                         )}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                toggleLike(proj.id);
-                                            }}
-                                            className={`absolute top-4 right-4 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] font-black shadow-sm flex items-center gap-1.5 transition-all ${
-                                                isLiked ? 'bg-rose-500 text-white' : 'bg-white/95 text-[var(--sv-muted)] dark:bg-[#0b1220]/95 dark:text-slate-200'
-                                            }`}
-                                        >
-                                            <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
-                                            {totalLikes}
-                                        </button>
+                                        <div className="absolute top-4 right-4" ref={reactorsPanel?.id === proj.id ? reactorsRef : undefined}>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    disabled={reactBusyId === proj.id}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        toggleLike(proj);
+                                                    }}
+                                                    className={`backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] font-black shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-60 ${
+                                                        isLiked ? 'bg-rose-500 text-white' : 'bg-white/95 text-[var(--sv-muted)] dark:bg-[#0b1220]/95 dark:text-slate-200'
+                                                    }`}
+                                                    title={isLiked ? 'Remove love' : 'Love this project'}
+                                                >
+                                                    {reactBusyId === proj.id ? (
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    ) : (
+                                                        <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
+                                                    )}
+                                                    {totalLikes}
+                                                </button>
+                                                {totalLikes > 0 ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => openReactors(proj, e)}
+                                                        className="rounded-full bg-white/95 px-2 py-1.5 text-[10px] font-bold text-[var(--sv-muted)] shadow-sm backdrop-blur-md hover:text-[#1D68E3] dark:bg-[#0b1220]/95 dark:text-slate-300"
+                                                        title="See who loved this"
+                                                    >
+                                                        Who
+                                                    </button>
+                                                ) : null}
+                                            </div>
+                                            <ReactorsPopover
+                                                open={reactorsPanel?.id === proj.id}
+                                                onClose={() => setReactorsPanel(null)}
+                                                title={`${totalLikes}`}
+                                                reactors={reactorsPanel?.reactors || []}
+                                                loading={Boolean(reactorsPanel?.loading)}
+                                            />
+                                        </div>
                                     </div>
                                     <div className="p-8 flex flex-col flex-grow">
                                         <h3 className="mb-2 text-2xl font-black text-[var(--sv-text)] dark:text-slate-100">{proj.title}</h3>
