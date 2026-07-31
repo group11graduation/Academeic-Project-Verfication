@@ -41,6 +41,12 @@ export function toProjectSubmissionClient(doc) {
   if (!doc) return null;
   const rel = String(doc.storedRelativePath || '').replace(/^\/+/, '');
   const scoreMax = doc.teacherScoreMax ?? 100;
+  const pathList = Array.isArray(doc.screenshotRelativePaths)
+    ? doc.screenshotRelativePaths.map((p) => String(p || '').replace(/^\/+/, '')).filter(Boolean)
+    : [];
+  const primaryShot = String(doc.screenshotRelativePath || '').replace(/^\/+/, '');
+  const shotRels = pathList.length ? pathList : primaryShot ? [primaryShot] : [];
+  const screenshotUrls = shotRels.map((p) => `/uploads/${p}`);
   return {
     _id: doc._id,
     originalFilename: doc.originalFilename || '',
@@ -50,6 +56,8 @@ export function toProjectSubmissionClient(doc) {
     version: doc.version ?? 1,
     projectStackHint: doc.projectStackHint || '',
     downloadPath: rel ? `/uploads/${rel}` : '',
+    screenshotUrl: screenshotUrls[0] || '',
+    screenshotUrls,
     teacherComment: doc.teacherComment || '',
     teacherScore: doc.teacherScore ?? null,
     teacherScoreMax: scoreMax,

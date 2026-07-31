@@ -1142,9 +1142,15 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
     const proposalText = buildProposalPlainText(proposal);
     const assignmentDoc = group.assignment?.toObject ? group.assignment.toObject() : group.assignment;
 
-    const screenshotUrl = submission?.screenshotRelativePath
-      ? `/uploads/${String(submission.screenshotRelativePath).replace(/^\/+/, '')}`
-      : '';
+    const screenshotUrl = projectClient?.screenshotUrl
+      || (submission?.screenshotRelativePath
+        ? `/uploads/${String(submission.screenshotRelativePath).replace(/^\/+/, '')}`
+        : '');
+    const screenshotUrls = Array.isArray(projectClient?.screenshotUrls) && projectClient.screenshotUrls.length
+      ? projectClient.screenshotUrls
+      : screenshotUrl
+        ? [screenshotUrl]
+        : [];
 
     return {
       _id: group._id,
@@ -1189,6 +1195,7 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
         projectFileName: projectClient?.originalFilename || submission?.originalFilename || '',
         projectDownloadPath: projectClient?.downloadPath || '',
         screenshotUrl,
+        screenshotUrls,
       },
       reviewChecklist: buildGroupReviewChecklist(proposal, submission),
       reviewerFeedback: submission?.teacherComment || proposal?.teacherComment || '',
@@ -1232,6 +1239,7 @@ export async function getGroupDetailsForTeacher(teacherId, groupId) {
         projectFileName: '',
         projectDownloadPath: '',
         screenshotUrl: '',
+        screenshotUrls: [],
       },
       reviewChecklist: [],
       reviewerFeedback: '',

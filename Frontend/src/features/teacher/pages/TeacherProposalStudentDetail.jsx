@@ -19,11 +19,13 @@ import {
     FileText,
     Download,
     Package,
+    Images,
 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import { useAuth } from '../../../context/authContext';
 import { getApiOrigin, getApiErrorMessage } from '../../../lib/api';
 import ExtractedSubmissionView from '../components/ExtractedSubmissionView';
+import ProjectScreenshotLightbox from '../../student/components/ProjectScreenshotLightbox';
 import { Z_PAGE, Z_INNER, Z_CARD, Z_LINK } from '../../../shared/ui/zendentaLayout';
 import { getProposalAiSimilarityContext } from '../../../shared/utils/proposalSimilarityUi';
 import { resolveAssignmentClassCrumb } from '../../../shared/utils/assignmentClassBreadcrumb';
@@ -287,6 +289,7 @@ const TeacherProposalStudentDetail = () => {
     const [previewBusyId, setPreviewBusyId] = useState(null);
     const [previewAdminEmail, setPreviewAdminEmail] = useState('');
     const [previewAdminPassword, setPreviewAdminPassword] = useState('');
+    const [screenshotLightboxOpen, setScreenshotLightboxOpen] = useState(false);
     const previewMapRef = useRef({});
 
     useEffect(() => {
@@ -704,6 +707,12 @@ const TeacherProposalStudentDetail = () => {
     const zipUploadedAt = zip?.createdAt
         ? new Date(zip.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
         : '-';
+    const screenshotUrls = (() => {
+        const fromList = Array.isArray(zip?.screenshotUrls) ? zip.screenshotUrls.filter(Boolean) : [];
+        if (fromList.length) return fromList;
+        if (zip?.screenshotUrl) return [zip.screenshotUrl];
+        return [];
+    })();
 
     return (
         <div className={Z_PAGE}>
@@ -981,6 +990,21 @@ const TeacherProposalStudentDetail = () => {
                                 <DetailRow
                                     label="Project ZIP"
                                     value={`${zip?.originalFilename || 'project.zip'} · ${zipSizeLabel} · ${zipUploadedAt}`}
+                                />
+                            ) : null}
+                            {screenshotUrls.length > 0 ? (
+                                <DetailRow
+                                    label="Project screenshots"
+                                    value={
+                                        <button
+                                            type="button"
+                                            onClick={() => setScreenshotLightboxOpen(true)}
+                                            className="inline-flex items-center gap-1.5 text-left font-semibold text-[#1e56e3] underline-offset-2 hover:underline"
+                                        >
+                                            <Images className="h-3.5 w-3.5 shrink-0" />
+                                            View student screens ({screenshotUrls.length})
+                                        </button>
+                                    }
                                 />
                             ) : null}
                         </div>
@@ -1365,6 +1389,16 @@ const TeacherProposalStudentDetail = () => {
                                             <ExternalLink className="h-4 w-4" />
                                             Open file
                                         </a>
+                                        {screenshotUrls.length > 0 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setScreenshotLightboxOpen(true)}
+                                                className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-2 text-sm font-bold text-[#1e56e3] transition hover:bg-[var(--sv-card-muted)]"
+                                            >
+                                                <Images className="h-4 w-4" />
+                                                View screens ({screenshotUrls.length})
+                                            </button>
+                                        ) : null}
                                     </div>
                                 </div>
                             </div>
@@ -1910,6 +1944,16 @@ const TeacherProposalStudentDetail = () => {
                                             >
                                                 <ExternalLink className="h-4 w-4" />
                                             </a>
+                                            {screenshotUrls.length > 0 ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setScreenshotLightboxOpen(true)}
+                                                    className="rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[#1e56e3]"
+                                                    title="View screenshots"
+                                                >
+                                                    <Images className="h-4 w-4" />
+                                                </button>
+                                            ) : null}
                                         </div>
                                     </li>
                                 ) : null}
@@ -1918,6 +1962,13 @@ const TeacherProposalStudentDetail = () => {
                     </div>
                 </div>
             </div>
+            {screenshotLightboxOpen && screenshotUrls.length > 0 ? (
+                <ProjectScreenshotLightbox
+                    urls={screenshotUrls}
+                    title={proposal.title || 'Project screenshots'}
+                    onClose={() => setScreenshotLightboxOpen(false)}
+                />
+            ) : null}
         </div>
     );
 };
