@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ArrowRight, Heart, Loader2, Search, ShieldCheck, TrendingUp, ImageIcon, X } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
@@ -87,8 +87,7 @@ function ReactorsPopover({ open, onClose, title, reactors, loading, anchorRef })
 }
 
 const StudentGallery = () => {
-    const navigate = useNavigate();
-    const { user, token } = useAuth();
+    const { token } = useAuth();
     const [activeCategory, setActiveCategory] = useState('ALL CATEGORIES');
     const [sortBest, setSortBest] = useState(true);
     const [projects, setProjects] = useState([]);
@@ -138,11 +137,6 @@ const StudentGallery = () => {
     }, []);
 
     const toggleLike = async (proj) => {
-        if (!user || !token) {
-            await appWarning('Sign in to love a verified project.');
-            navigate('/login');
-            return;
-        }
         setReactBusyId(proj.id);
         try {
             const res = await galleryService.toggleProjectReaction(proj.id);
@@ -171,13 +165,7 @@ const StudentGallery = () => {
                 }
             }
         } catch (e) {
-            const status = e.response?.status;
-            if (status === 401) {
-                await appWarning('Sign in to love a verified project.');
-                navigate('/login');
-            } else {
-                await appWarning(e.response?.data?.message || 'Could not update reaction.');
-            }
+            await appWarning(e.response?.data?.message || 'Could not update reaction.');
         } finally {
             setReactBusyId(null);
         }
@@ -237,8 +225,8 @@ const StudentGallery = () => {
                         Approved student <span className="text-[#1D68E3]">submissions</span>
                     </h1>
                     <p className="max-w-2xl text-lg font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                        Top teacher-approved capstone projects from the academic database. Love a project to support the
-                        team - counts and reactors are real signed-in users.
+                        Top teacher-approved capstone projects from the academic database. Anyone can love a project -
+                        counts show real reactions from visitors and signed-in users.
                     </p>
                 </div>
 

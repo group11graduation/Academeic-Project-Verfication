@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, Loader2, ShieldCheck, ImageIcon } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
@@ -11,8 +11,7 @@ import { appWarning } from '../../../lib/appDialog';
 
 const VerifiedProjectDetail = () => {
     const { id } = useParams();
-    const navigate = useNavigate();
-    const { user, token } = useAuth();
+    const { token } = useAuth();
     const [project, setProject] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -47,11 +46,6 @@ const VerifiedProjectDetail = () => {
     const heroSrc = resolvedUrls[0] || null;
 
     const toggleLike = async () => {
-        if (!user || !token) {
-            await appWarning('Sign in to love a verified project.');
-            navigate('/login');
-            return;
-        }
         setReactBusy(true);
         try {
             const res = await galleryService.toggleProjectReaction(id);
@@ -68,12 +62,7 @@ const VerifiedProjectDetail = () => {
                 setReactors(res.data.reactors || []);
             }
         } catch (e) {
-            if (e.response?.status === 401) {
-                await appWarning('Sign in to love a verified project.');
-                navigate('/login');
-            } else {
-                await appWarning(e.response?.data?.message || 'Could not update reaction.');
-            }
+            await appWarning(e.response?.data?.message || 'Could not update reaction.');
         } finally {
             setReactBusy(false);
         }
