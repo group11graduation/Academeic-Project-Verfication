@@ -424,9 +424,12 @@ const TeacherProposalStudentDetail = () => {
               : 'Approve';
     const canDecide =
         displayStatus === 'pending_teacher_approval' ||
+        displayStatus === 'ai_flagged_previous_semester' ||
+        displayStatus === 'requirements_review' ||
+        proposal?.status === 'pending_teacher_approval' ||
+        proposal?.status === 'ai_flagged_previous_semester' ||
         proposal?.status === 'revision_required' ||
-        proposal?.status === 'requirements_review' ||
-        displayStatus === 'requirements_review';
+        proposal?.status === 'requirements_review';
     const canApproveCollab = !isCollaborative || (myReviewRole && !mySlotApproved);
     const showCollabPanel = isCollaborative && (awaitingDual || displayStatus === 'pending_teacher_approval');
 
