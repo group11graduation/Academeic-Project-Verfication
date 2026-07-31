@@ -266,6 +266,32 @@ async function findExactDuplicateAcceptedZip({ contentHash, proposalId }) {
     .lean();
 }
 
+/**
+ * Proposal was flagged for previous-semester similarity, student added features, teacher accepted.
+ * ZIP upload should check technology + functionality only - not legacy title match
+ * (same idea / similar ZIP names are expected; teacher decides after preview).
+ */
+function isPreviousSemesterRecommendedProposal(proposal) {
+  if (!proposal) return false;
+  const legacyScore = Number(proposal.aiPreviousSemesterMaxScore || 0);
+  if (proposal.aiMatchedLegacyId || String(proposal.aiMatchedLegacyKey || '').trim()) {
+    return true;
+  }
+  // Cross-semester match stored as another proposal id + previous-semester score
+  if (proposal.aiMatchedProposalId && legacyScore > 0) {
+    return true;
+  }
+  if (legacyScore >= 0.35) return true;
+
+  const hist = Array.isArray(proposal.submissionHistory) ? proposal.submissionHistory : [];
+  return hist.some(
+    (h) =>
+      h?.outcome === 'ai_flagged_previous_semester' ||
+      h?.aiVerdict === 'warn_previous_semester' ||
+      String(h?.aiVerdict || '').includes('previous')
+  );
+}
+
 function editDistanceAtMost1(a, b) {
   if (a === b) return true;
   const la = a.length;
@@ -846,10 +872,15 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     // After teacher asked for project changes, allow the student to re-upload their updated ZIP
     // without being blocked by the legacy / prior-work title gate.
     const allowRevisionResubmit = String(primary?.teacherDecision || '') === 'revision_required';
+    // Previous-semester recommended work (add features → teacher accepted): skip legacy ZIP check.
+    // Teacher reviews the real project; tech + functionality gates still run.
+    const previousSemesterAcceptedPath = isPreviousSemesterRecommendedProposal(proposal);
+    const skipLegacyMatch = allowRevisionResubmit || previousSemesterAcceptedPath;
 
-    // LEGACY FIRST (before description/keyword check): reject known system / prior-student projects
+    // LEGACY FIRST (before description/keyword check): reject known system / prior-student projects.
+    // Skipped for revision re-uploads and for previous-semester similarity proposals.
     let legacyHit = null;
-    if (!allowRevisionResubmit) {
+    if (!skipLegacyMatch) {
       try {
         legacyHit = await withDeadline(
           findLegacyProjectMatch({
@@ -866,7 +897,9 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       }
     } else {
       logger.info(
-        `[projectCodeSubmission] legacy match skipped - teacher requested project changes for proposal ${proposal._id}`
+        `[projectCodeSubmission] legacy match skipped for proposal ${proposal._id} (${
+          allowRevisionResubmit ? 'teacher requested changes' : 'previous-semester recommended work'
+        })`
       );
     }
     if (legacyHit) {
@@ -974,7 +1007,8 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
 
     // Optional ML (only if explicitly enabled). Hard-capped; fail-open on timeout.
-    if (consistencyEnabled) {
+    // Previous-semester recommended proposals: technology + functionality only (teacher decides).
+    if (consistencyEnabled && !previousSemesterAcceptedPath) {
       try {
         consistencyRaw = await analyzeConsistencyWithDeadline({
           proposal_description: [
@@ -1233,7 +1267,9 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
               : 'Project ZIP saved but flagged for teacher review.'
             : isUpdate
               ? 'Project ZIP updated in place. Your previous archive was replaced and removed. Your teacher was notified.'
-              : 'Project ZIP matches your approved proposal (technology and description).'),
+              : previousSemesterAcceptedPath
+                ? 'Project ZIP accepted (technology + functionality checks). Previous-semester similarity is for your teacher to review - legacy archive check was skipped.'
+                : 'Project ZIP matches your approved proposal (technology and description).'),
       },
       submission,
     };
