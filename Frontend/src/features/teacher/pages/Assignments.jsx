@@ -179,14 +179,22 @@ const Assignments = () => {
 
     const handleDelete = async (id, e) => {
         e.stopPropagation();
+        const target = assignments.find((a) => String(a._id) === String(id));
+        if (target?.hasSubmissions || target?.canDelete === false) {
+            await appWarning(
+                'This assignment already has proposals or project submissions, so it cannot be deleted.'
+            );
+            return;
+        }
         if (!(await appConfirm({
-            message: 'Delete this assignment?',
+            message: 'Delete this assignment? Only empty assignments with no student submissions can be deleted.',
             danger: true,
             confirmLabel: 'Delete',
         }))) return;
         try {
             await teacherService.deleteAssignment(id);
             setAssignments((prev) => prev.filter((a) => a._id !== id));
+            await appSuccess('Assignment deleted.');
         } catch (err) {
             console.error(err);
             await appError(err.response?.data?.message || 'Delete not available.');
@@ -539,7 +547,7 @@ const Assignments = () => {
                                                 onOpen={() => navigate(`/teacher/assignments/${a._id}/proposals`)}
                                                 onEdit={() => navigate(`/teacher/assignments/${a._id}/edit`)}
                                                 onDelete={(e) => handleDelete(a._id, e)}
-                                                showDelete={a.collaborationRole !== 'co-teacher'}
+                                                showDelete={a.collaborationRole !== 'co-teacher' && a.canDelete !== false && !a.hasSubmissions}
                                             />
                                         ))}
                                     </div>
@@ -568,7 +576,7 @@ const Assignments = () => {
                                                 onOpen={() => navigate(`/teacher/assignments/${a._id}/normal-students`)}
                                                 onEdit={() => navigate(`/teacher/assignments/${a._id}/edit`)}
                                                 onDelete={(e) => handleDelete(a._id, e)}
-                                                showDelete
+                                                showDelete={a.collaborationRole !== 'co-teacher' && a.canDelete !== false && !a.hasSubmissions}
                                             />
                                         ))}
                                     </div>

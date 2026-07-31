@@ -1,94 +1,23 @@
 /**
  * Parse proposal file text into title, description, and feature list.
- * Supports explicit labels (Title:, Description:, Features:) and common academic layouts.
+ *
+ * Strict mode (default for student uploads): the file MUST include labeled
+ * Title, Description, and Features sections. Labels may appear in any order
+ * and anywhere in the document (other headings/meta lines are ignored).
+ *
+ * Supported shapes:
+ *   Title: My project
+ *   Description: ...
+ *   Features:
+ *   - Feature one
+ *   - Feature two
+ *
+ *   JSON: { "title": "...", "description": "...", "features": ["..."] }
+ *   CSV header: title,description,features
  */
 
 function normalizeLine(line) {
   return String(line || '').replace(/\r/g, '').trim();
-}
-
-function parseJsonProposal(text) {
-  try {
-    const data = JSON.parse(text);
-    if (!data || typeof data !== 'object') return null;
-    const title = String(data.title || data.projectTitle || '').trim();
-    const description = String(data.description || data.overview || '').trim();
-    const features = []
-      .concat(data.features || data.featureList || [])
-      .map((f) => (typeof f === 'string' ? f : f?.name || f?.title || ''))
-      .map((f) => String(f).trim())
-      .filter(Boolean);
-    if (!title && !description && !features.length) return null;
-    return { title, description, features };
-  } catch {
-    return null;
-  }
-}
-
-function isSkippableMetaLine(lower) {
-  return (
-    /^student\s+name\s*:/.test(lower) ||
-    /^course\s*:/.test(lower) ||
-    /^instructor\s*:/.test(lower) ||
-    /^date\s*:/.test(lower) ||
-    /^submitted\s*:/.test(lower)
-  );
-}
-
-function parseTitleFromLine(trimmed) {
-  const patterns = [
-    /^(?:project\s+title|proposal\s+title|project\s+name)\s*:\s*(.+)$/i,
-    /^title\s*:\s*(.+)$/i,
-  ];
-  for (const pattern of patterns) {
-    const match = trimmed.match(pattern);
-    if (match?.[1]?.trim()) return match[1].trim();
-  }
-  return '';
-}
-
-function parseSectionHeader(trimmed) {
-  const withoutNum = trimmed.replace(/^\d+\.\s*/, '').trim();
-  const lower = withoutNum.toLowerCase();
-
-  const titleInline = parseTitleFromLine(withoutNum);
-  if (titleInline) return { section: 'title', inline: titleInline };
-
-  const pick = (regex, section) => {
-    const match = withoutNum.match(regex);
-    if (!match) return null;
-    const inline = (match[1] || '').trim();
-    return { section, inline };
-  };
-
-  return (
-    pick(/^(?:project\s+)?overview\s*:?\s*(.*)$/i, 'description') ||
-    pick(/^description\s*:?\s*(.*)$/i, 'description') ||
-    pick(/^(?:project\s+)?summary\s*:?\s*(.*)$/i, 'description') ||
-    pick(/^(?:proposed\s+)?functionality\s*:?\s*(.*)$/i, 'features') ||
-    pick(/^features?\s*:?\s*(.*)$/i, 'features') ||
-    pick(/^key\s+features?\s*:?\s*(.*)$/i, 'features') ||
-    pick(/^(?:technical\s+)?(?:tech\s+)?stack\s*:?\s*(.*)$/i, 'technical') ||
-    pick(/^technologies?\s*:?\s*(.*)$/i, 'technical') ||
-    (lower === 'features' || lower === 'feature list' ? { section: 'features', inline: '' } : null)
-  );
-}
-
-function parseFeatureBullet(trimmed) {
-  const bullet = trimmed.match(/^(?:[*\-•]|\d+\.)\s+(.+)$/);
-  if (!bullet?.[1]) return '';
-  let content = bullet[1].trim();
-  content = content.replace(/^\*\s*/, '').trim();
-
-  const colonIdx = content.indexOf(':');
-  if (colonIdx > 0 && colonIdx < 80) {
-    const label = content.slice(0, colonIdx).trim();
-    const rest = content.slice(colonIdx + 1).trim();
-    if (label.length >= 3 && label.length <= 100) {
-      return rest.length > 140 ? label : content;
-    }
-  }
-  return content;
 }
 
 function uniqueFeatures(list) {
@@ -105,156 +34,350 @@ function uniqueFeatures(list) {
   return out;
 }
 
-export function parseStructuredProposalText(rawText) {
-  const text = String(rawText || '').replace(/\r/g, '').trim();
-  if (!text) {
-    return { title: '', description: '', features: [] };
+function parseJsonProposal(text) {
+  try {
+    const data = JSON.parse(text);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    const title = String(data.title || data.projectTitle || data.Title || '').trim();
+    const description = String(
+      data.description || data.Description || data.overview || data.Overview || ''
+    ).trim();
+    const features = []
+      .concat(data.features || data.Features || data.featureList || [])
+      .map((f) => (typeof f === 'string' ? f : f?.name || f?.title || ''))
+      .map((f) => String(f).trim())
+      .filter(Boolean);
+    if (!title && !description && !features.length) return null;
+    return { title, description, features: uniqueFeatures(features), format: 'json' };
+  } catch {
+    return null;
   }
+}
 
-  const jsonParsed = parseJsonProposal(text);
-  if (jsonParsed) return jsonParsed;
+function parseCsvProposal(text) {
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return null;
 
-  const lines = text.split('\n');
+  const splitCsv = (line) => {
+    const cells = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          cur += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+      if (ch === ',' && !inQuotes) {
+        cells.push(cur.trim());
+        cur = '';
+        continue;
+      }
+      cur += ch;
+    }
+    cells.push(cur.trim());
+    return cells;
+  };
+
+  const headers = splitCsv(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, ''));
+  const titleIdx = headers.findIndex((h) => h === 'title' || h === 'projecttitle');
+  const descIdx = headers.findIndex((h) => h === 'description' || h === 'overview');
+  const featIdx = headers.findIndex((h) => h === 'features' || h === 'featurelist');
+  if (titleIdx < 0 || descIdx < 0 || featIdx < 0) return null;
+
+  const row = splitCsv(lines[1]);
+  const title = String(row[titleIdx] || '').trim();
+  const description = String(row[descIdx] || '').trim();
+  const featuresRaw = String(row[featIdx] || '').trim();
+  const features = uniqueFeatures(
+    featuresRaw
+      .split(/[|;]+/)
+      .map((f) => f.trim())
+      .filter(Boolean)
+  );
+  if (!title && !description && !features.length) return null;
+  return { title, description, features, format: 'csv' };
+}
+
+/** Detect a section label line; returns { key, inline } or null. */
+function matchSectionLabel(trimmed) {
+  const cleaned = trimmed
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^\d+[\.)]\s*/, '')
+    .replace(/^\*\*?/, '')
+    .replace(/\*\*?$/, '')
+    .trim();
+
+  const patterns = [
+    {
+      key: 'title',
+      re: /^(?:project\s+)?title\s*:?\s*(.*)$/i,
+    },
+    {
+      key: 'title',
+      re: /^(?:proposal\s+title|project\s+name)\s*:?\s*(.*)$/i,
+    },
+    {
+      key: 'description',
+      re: /^(?:project\s+)?description\s*:?\s*(.*)$/i,
+    },
+    {
+      key: 'description',
+      re: /^(?:project\s+)?overview\s*:?\s*(.*)$/i,
+    },
+    {
+      key: 'description',
+      re: /^(?:project\s+)?summary\s*:?\s*(.*)$/i,
+    },
+    {
+      key: 'features',
+      re: /^(?:key\s+)?features?\s*:?\s*(.*)$/i,
+    },
+    {
+      key: 'features',
+      re: /^(?:feature\s+list|proposed\s+functionality|functionality)\s*:?\s*(.*)$/i,
+    },
+  ];
+
+  for (const { key, re } of patterns) {
+    const match = cleaned.match(re);
+    if (!match) continue;
+    // Bare word "Title" / "Features" without colon only counts if whole line is the label
+    const hasColon = /:/.test(cleaned);
+    const inline = String(match[1] || '').trim();
+    if (!hasColon && inline) {
+      // "Title My App" without colon — treat whole remainder as inline value
+      return { key, inline };
+    }
+    if (!hasColon && !inline) {
+      // Line is exactly "Title" / "Description" / "Features"
+      return { key, inline: '' };
+    }
+    if (hasColon) return { key, inline };
+  }
+  return null;
+}
+
+function isSkippableMetaLine(lower) {
+  return (
+    /^student\s+name\s*:/.test(lower) ||
+    /^course\s*:/.test(lower) ||
+    /^instructor\s*:/.test(lower) ||
+    /^date\s*:/.test(lower) ||
+    /^submitted\s*:/.test(lower) ||
+    /^class\s*:/.test(lower) ||
+    /^subject\s*:/.test(lower)
+  );
+}
+
+function parseFeatureBullet(trimmed) {
+  const bullet = trimmed.match(/^(?:[*\-•]|\d+[\.)])\s+(.+)$/);
+  if (!bullet?.[1]) return '';
+  return bullet[1].trim().replace(/^\*\s*/, '').trim();
+}
+
+function splitInlineFeatures(inline) {
+  if (!inline) return [];
+  // Prefer bullets already split; otherwise comma/semicolon lists
+  if (/[;|]/.test(inline)) {
+    return inline.split(/[;|]/).map((s) => s.trim()).filter(Boolean);
+  }
+  if (inline.includes(',') && inline.length < 300) {
+    const parts = inline.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length >= 2) return parts;
+  }
+  return [inline];
+}
+
+/**
+ * Label-first parse: find Title / Description / Features anywhere, in any order.
+ */
+function parseLabeledSections(text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n');
   let title = '';
-  let description = '';
   const descriptionParts = [];
-  const technicalParts = [];
   const features = [];
   let section = '';
-
-  const pushDescription = (part) => {
-    const v = String(part || '').trim();
-    if (v) descriptionParts.push(v);
-  };
+  let sawTitleLabel = false;
+  let sawDescriptionLabel = false;
+  let sawFeaturesLabel = false;
 
   for (const rawLine of lines) {
     const trimmed = normalizeLine(rawLine);
     if (!trimmed) continue;
-
     const lower = trimmed.toLowerCase();
     if (isSkippableMetaLine(lower)) continue;
 
-    if (/^title\s*:/i.test(trimmed) && !/^project\s+title/i.test(trimmed)) {
-      section = 'title';
-      title = trimmed.replace(/^title\s*:/i, '').trim();
-      continue;
-    }
-
-    const titleFromLine = parseTitleFromLine(trimmed);
-    if (titleFromLine) {
-      title = titleFromLine;
-      section = '';
-      continue;
-    }
-
-    if (lower.startsWith('description:')) {
-      section = 'description';
-      pushDescription(trimmed.replace(/^description\s*:/i, '').trim());
-      continue;
-    }
-
-    if (/^features?\s*:/i.test(trimmed)) {
-      section = 'features';
-      const inline = trimmed.replace(/^features?\s*:/i, '').trim();
-      if (inline) features.push(inline);
-      continue;
-    }
-
-    const header = parseSectionHeader(trimmed);
-    if (header) {
-      if (header.section === 'title' && header.inline) {
-        title = header.inline;
-        section = '';
-        continue;
+    const label = matchSectionLabel(trimmed);
+    if (label) {
+      section = label.key;
+      if (label.key === 'title') {
+        sawTitleLabel = true;
+        if (label.inline) title = label.inline;
+      } else if (label.key === 'description') {
+        sawDescriptionLabel = true;
+        if (label.inline) descriptionParts.push(label.inline);
+      } else if (label.key === 'features') {
+        sawFeaturesLabel = true;
+        for (const f of splitInlineFeatures(label.inline)) features.push(f);
       }
-      section = header.section;
-      if (header.section === 'description' && header.inline) pushDescription(header.inline);
-      if (header.section === 'features' && header.inline) features.push(header.inline);
-      if (header.section === 'technical' && header.inline) technicalParts.push(header.inline);
-      continue;
-    }
-
-    const featureText = parseFeatureBullet(trimmed);
-    if (featureText && (section === 'features' || /^(?:[*\-•]|\d+\.)\s+/.test(trimmed))) {
-      if (section !== 'technical') features.push(featureText);
-      continue;
-    }
-
-    if (section === 'features') {
-      const cleaned = trimmed.replace(/^[-*•]\s*/, '').trim();
-      if (!cleaned) continue;
-      const colonIdx = cleaned.indexOf(':');
-      if (colonIdx > 0 && colonIdx < 80) {
-        const label = cleaned.slice(0, colonIdx).trim();
-        const rest = cleaned.slice(colonIdx + 1).trim();
-        if (label.length >= 3 && label.length <= 100) {
-          features.push(rest.length > 140 ? label : cleaned);
-          continue;
-        }
-      }
-      features.push(cleaned);
-      continue;
-    }
-
-    if (section === 'technical') {
-      technicalParts.push(trimmed);
-      continue;
-    }
-
-    if (section === 'description' || section === '') {
-      if (!title && section === '') {
-        const maybeTitle = parseTitleFromLine(trimmed);
-        if (maybeTitle) {
-          title = maybeTitle;
-          continue;
-        }
-        if (
-          trimmed.length <= 120 &&
-          !trimmed.endsWith('.') &&
-          !/^\d+\./.test(trimmed) &&
-          !isSkippableMetaLine(lower)
-        ) {
-          title = trimmed;
-          section = 'description';
-          continue;
-        }
-      }
-      pushDescription(trimmed);
       continue;
     }
 
     if (section === 'title') {
       title = title ? `${title} ${trimmed}` : trimmed;
+      continue;
     }
-  }
-
-  if (technicalParts.length) {
-    pushDescription(`Technical stack: ${technicalParts.join(' ')}`);
-  }
-
-  description = descriptionParts.join('\n\n').trim();
-
-  if (!title && descriptionParts.length) {
-    const firstLine = descriptionParts[0].split('\n')[0].trim();
-    if (firstLine.length <= 120) {
-      title = firstLine;
-      description = descriptionParts.slice(1).join('\n\n').trim() || description;
+    if (section === 'description') {
+      descriptionParts.push(trimmed);
+      continue;
     }
-  }
-
-  const parsedFeatures = uniqueFeatures(features);
-
-  if (!parsedFeatures.length) {
-    for (const rawLine of lines) {
-      const trimmed = normalizeLine(rawLine);
-      const featureText = parseFeatureBullet(trimmed);
-      if (featureText) parsedFeatures.push(featureText);
+    if (section === 'features') {
+      const bullet = parseFeatureBullet(trimmed);
+      const cleaned = (bullet || trimmed.replace(/^[-*•]\s*/, '')).trim();
+      if (cleaned) features.push(cleaned);
     }
   }
 
   return {
     title: title.trim(),
-    description: description.trim(),
-    features: uniqueFeatures(parsedFeatures),
+    description: descriptionParts.join('\n\n').trim(),
+    features: uniqueFeatures(features),
+    sawTitleLabel,
+    sawDescriptionLabel,
+    sawFeaturesLabel,
+    format: 'labeled',
   };
+}
+
+export const STRUCTURED_PROPOSAL_TEMPLATE = `Title: Your project title here
+
+Description: Write a clear overview of what the project does, who it is for, and the main problem it solves.
+
+Features:
+- Feature one
+- Feature two
+- Feature three
+`;
+
+export const STRUCTURED_PROPOSAL_HELP =
+  'Your file must include labeled sections Title, Description, and Features (in any order). Example:\n\n' +
+  STRUCTURED_PROPOSAL_TEMPLATE.trim();
+
+/**
+ * Validate that parsed fields are present and non-empty.
+ * @throws Error with status 400
+ */
+export function assertStructuredProposalFields(parsed, { requireLabels = false } = {}) {
+  const title = String(parsed?.title || '').trim();
+  const description = String(parsed?.description || '').trim();
+  const features = uniqueFeatures(parsed?.features || []);
+
+  const missing = [];
+  if (!title) missing.push('Title');
+  if (!description) missing.push('Description');
+  if (!features.length) missing.push('Features');
+
+  if (requireLabels) {
+    const labelMissing = [];
+    if (!parsed?.sawTitleLabel && parsed?.format === 'labeled') labelMissing.push('Title:');
+    if (!parsed?.sawDescriptionLabel && parsed?.format === 'labeled') labelMissing.push('Description:');
+    if (!parsed?.sawFeaturesLabel && parsed?.format === 'labeled') labelMissing.push('Features:');
+    if (labelMissing.length) {
+      const err = new Error(
+        `Proposal file is missing required labels: ${labelMissing.join(', ')}. ${STRUCTURED_PROPOSAL_HELP}`
+      );
+      err.status = 400;
+      err.code = 'PROPOSAL_FILE_MISSING_LABELS';
+      throw err;
+    }
+  }
+
+  if (missing.length) {
+    const err = new Error(
+      `Could not extract ${missing.join(', ')} from the file. ${STRUCTURED_PROPOSAL_HELP}`
+    );
+    err.status = 400;
+    err.code = 'PROPOSAL_FILE_INCOMPLETE';
+    throw err;
+  }
+
+  if (title.length < 3) {
+    const err = new Error('Title must be at least 3 characters.');
+    err.status = 400;
+    throw err;
+  }
+  if (description.length < 20) {
+    const err = new Error('Description must be at least 20 characters.');
+    err.status = 400;
+    throw err;
+  }
+
+  return { title, description, features };
+}
+
+/**
+ * @param {string} rawText
+ * @param {{ strict?: boolean }} [options] - strict=true requires labeled Title/Description/Features
+ */
+export function parseStructuredProposalText(rawText, options = {}) {
+  const strict = options.strict !== false;
+  const text = String(rawText || '').replace(/\r/g, '').trim();
+  if (!text) {
+    return {
+      title: '',
+      description: '',
+      features: [],
+      sawTitleLabel: false,
+      sawDescriptionLabel: false,
+      sawFeaturesLabel: false,
+      format: 'empty',
+    };
+  }
+
+  const jsonParsed = parseJsonProposal(text);
+  if (jsonParsed) {
+    return {
+      ...jsonParsed,
+      sawTitleLabel: Boolean(jsonParsed.title),
+      sawDescriptionLabel: Boolean(jsonParsed.description),
+      sawFeaturesLabel: Boolean(jsonParsed.features.length),
+    };
+  }
+
+  const csvParsed = parseCsvProposal(text);
+  if (csvParsed) {
+    return {
+      ...csvParsed,
+      sawTitleLabel: Boolean(csvParsed.title),
+      sawDescriptionLabel: Boolean(csvParsed.description),
+      sawFeaturesLabel: Boolean(csvParsed.features.length),
+    };
+  }
+
+  const labeled = parseLabeledSections(text);
+
+  if (strict) {
+    return labeled;
+  }
+
+  // Lenient fallback (legacy): only used when strict=false
+  if (!labeled.title || !labeled.description || !labeled.features.length) {
+    const lines = text.split('\n').map(normalizeLine).filter(Boolean);
+    if (!labeled.title && lines[0] && lines[0].length <= 120) {
+      labeled.title = lines[0];
+    }
+    if (!labeled.description && lines.length > 1) {
+      labeled.description = lines.slice(1).join('\n\n');
+    }
+  }
+  return labeled;
 }

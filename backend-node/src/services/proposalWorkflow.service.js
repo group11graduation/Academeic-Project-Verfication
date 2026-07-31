@@ -26,7 +26,7 @@ import {
 } from './requirementCheck.service.js';
 import { assertAssignmentAcceptsStudentSubmissions, assignmentAcceptsStudentSubmissions, STUDENT_SUBMISSION_BLOCKED_MESSAGE } from './assignmentRequirements.service.js';
 import { PROPOSAL_DEADLINE_PASSED_MESSAGE } from './assignmentDeadline.service.js';
-import { parseStructuredProposalText } from '../utils/proposalFileParser.js';
+import { parseStructuredProposalText, assertStructuredProposalFields, STRUCTURED_PROPOSAL_HELP } from '../utils/proposalFileParser.js';
 import {
   buildCollaborativeApprovalMeta,
   getCollaborativeReviewState,
@@ -565,7 +565,7 @@ async function readProposalFileText(file) {
   return data || '';
 }
 
-export async function parseUploadedProposalFile(file, { cleanup = false } = {}) {
+export async function parseUploadedProposalFile(file, { cleanup = false, strict = true } = {}) {
   if (!file?.path) {
     const err = new Error('Proposal file is required');
     err.status = 400;
@@ -573,7 +573,22 @@ export async function parseUploadedProposalFile(file, { cleanup = false } = {}) 
   }
   try {
     const rawText = await readProposalFileText(file);
-    return parseStructuredProposalText(rawText);
+    if (!String(rawText || '').trim()) {
+      const err = new Error(
+        `The uploaded file is empty. ${STRUCTURED_PROPOSAL_HELP}`
+      );
+      err.status = 400;
+      throw err;
+    }
+    const parsed = parseStructuredProposalText(rawText, { strict });
+    const validated = assertStructuredProposalFields(parsed, {
+      requireLabels: strict && parsed.format === 'labeled',
+    });
+    return {
+      ...validated,
+      format: parsed.format || 'labeled',
+      rawPreview: String(rawText).slice(0, 400),
+    };
   } finally {
     if (cleanup) {
       try {
@@ -696,16 +711,36 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   const useUploadedFile = Boolean(proposalFile) && contentSource === 'file';
   if (useUploadedFile) {
     const extractedText = await readProposalFileText(proposalFile);
-    const parsed = parseStructuredProposalText(extractedText);
-    parsedFromFile = parsed;
-    title = String(parsed.title || '').trim();
-    description = String(parsed.description || '').trim();
-    features = coerceFeatureList(parsed.features);
+    if (!String(extractedText || '').trim()) {
+      const err = new Error(`The uploaded file is empty. ${STRUCTURED_PROPOSAL_HELP}`);
+      err.status = 400;
+      throw err;
+    }
+    const parsed = parseStructuredProposalText(extractedText, { strict: true });
+    const validated = assertStructuredProposalFields(parsed, {
+      requireLabels: parsed.format === 'labeled',
+    });
+    parsedFromFile = validated;
+    title = validated.title;
+    description = validated.description;
+    features = validated.features;
   }
   if (!title?.trim()) {
-    const err = new Error('Title is required (or upload a structured proposal file).');
+    const err = new Error('Title is required.');
     err.status = 400;
     throw err;
+  }
+  if (useUploadedFile) {
+    if (!String(description || '').trim()) {
+      const err = new Error(`Description is required in the uploaded file. ${STRUCTURED_PROPOSAL_HELP}`);
+      err.status = 400;
+      throw err;
+    }
+    if (!Array.isArray(features) || !features.length) {
+      const err = new Error(`At least one feature is required in the uploaded file. ${STRUCTURED_PROPOSAL_HELP}`);
+      err.status = 400;
+      throw err;
+    }
   }
 
   const assignment = await Assignment.findById(assignmentId)

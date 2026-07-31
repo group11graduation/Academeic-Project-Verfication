@@ -7,6 +7,7 @@ import { Semester } from '../models/Semester.js';
 import { Subject } from '../models/Subject.js';
 import { Proposal } from '../models/Proposal.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import { NormalAssignmentSubmission } from '../models/NormalAssignmentSubmission.js';
 import { LegacyProject } from '../models/LegacyProject.js';
 import { User } from '../models/User.js';
 import { TeacherProfile } from '../models/TeacherProfile.js';
@@ -334,7 +335,40 @@ export async function listAssignmentsForTeacher(teacherId, { semesterId: semeste
     .populate('backendTeacherId', 'name email')
     .sort({ createdAt: -1 })
     .lean();
-  return rows.map((row) => normalizeAssignmentClasses(row, teacherId));
+
+  const ids = rows.map((r) => r._id);
+  const submissionCountByAssignment = new Map();
+  if (ids.length) {
+    const [proposalCounts, projectCounts, normalCounts] = await Promise.all([
+      Proposal.aggregate([
+        { $match: { assignment: { $in: ids } } },
+        { $group: { _id: '$assignment', n: { $sum: 1 } } },
+      ]),
+      ProjectSubmission.aggregate([
+        { $match: { assignment: { $in: ids } } },
+        { $group: { _id: '$assignment', n: { $sum: 1 } } },
+      ]),
+      NormalAssignmentSubmission.aggregate([
+        { $match: { assignment: { $in: ids } } },
+        { $group: { _id: '$assignment', n: { $sum: 1 } } },
+      ]),
+    ]);
+    for (const row of [...proposalCounts, ...projectCounts, ...normalCounts]) {
+      const key = String(row._id);
+      submissionCountByAssignment.set(key, (submissionCountByAssignment.get(key) || 0) + Number(row.n || 0));
+    }
+  }
+
+  return rows.map((row) => {
+    const normalized = normalizeAssignmentClasses(row, teacherId);
+    const submissionCount = submissionCountByAssignment.get(String(row._id)) || 0;
+    return {
+      ...normalized,
+      submissionCount,
+      hasSubmissions: submissionCount > 0,
+      canDelete: submissionCount === 0 && normalized.collaborationRole !== 'co-teacher',
+    };
+  });
 }
 
 export async function getAssignmentForTeacher(teacherId, assignmentId) {
@@ -839,6 +873,25 @@ export async function softDeleteAssignmentForTeacher(teacherId, assignmentId) {
     err.status = 404;
     throw err;
   }
+
+  const [proposalCount, projectCount, normalCount] = await Promise.all([
+    Proposal.countDocuments({ assignment: assignment._id }),
+    ProjectSubmission.countDocuments({ assignment: assignment._id }),
+    NormalAssignmentSubmission.countDocuments({ assignment: assignment._id }),
+  ]);
+  const total = proposalCount + projectCount + normalCount;
+  if (total > 0) {
+    const parts = [];
+    if (proposalCount) parts.push(`${proposalCount} proposal${proposalCount === 1 ? '' : 's'}`);
+    if (projectCount) parts.push(`${projectCount} project submission${projectCount === 1 ? '' : 's'}`);
+    if (normalCount) parts.push(`${normalCount} normal submission${normalCount === 1 ? '' : 's'}`);
+    const err = new Error(
+      `Cannot delete this assignment because it already has ${parts.join(', ')}. Delete is only allowed when there are no student submissions.`
+    );
+    err.status = 409;
+    throw err;
+  }
+
   assignment.isActive = false;
   await assignment.save();
   return { _id: assignment._id, isActive: assignment.isActive };

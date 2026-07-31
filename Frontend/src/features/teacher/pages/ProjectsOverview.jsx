@@ -6,7 +6,6 @@ import {
     ArrowRight,
     BookOpen,
     Loader2,
-    ChevronDown,
     Layout,
     Download,
     FileUp,
@@ -26,8 +25,6 @@ const ProjectsOverview = () => {
     const [groupedData, setGroupedData] = useState([]);
     const [loading, setLoading] = useState(true);
     const { query: searchTerm, setQuery: setSearchTerm } = usePageSearch('Search projects…');
-    const [activeTab, setActiveTab] = useState('group'); // 'individual' or 'group'
-    const [expandedClasses, setExpandedClasses] = useState({});
     const [myClasses, setMyClasses] = useState([]);
     const [creating, setCreating] = useState(false);
     const [createForm, setCreateForm] = useState({
@@ -437,15 +434,15 @@ const ProjectsOverview = () => {
     const filteredData = groupedData.map(cls => ({
         ...cls,
         projects: cls.projects.filter(p => {
-            // Default to 'group' if type is missing (older data)
+            // Student Projects page shows group teams only
             const projectType = p.type || 'group';
-            const matchesTab = projectType === activeTab;
+            const matchesGroup = projectType === 'group';
             const matchesSearch = matchesSearchQuery(
                 searchTerm,
                 p.title,
                 ...(p.members || []).flatMap((m) => [m.name, m.studentId])
             );
-            return matchesTab && matchesSearch;
+            return matchesGroup && matchesSearch;
         })
     })).filter(cls => cls.projects.length > 0);
 
@@ -481,25 +478,6 @@ const ProjectsOverview = () => {
                     </button>
                 </div>
             </header>
-
-            <div className="flex items-center gap-6 border-b border-slate-100 dark:border-white/5">
-                {[
-                    { id: 'individual', label: 'Individual', icon: Users },
-                    { id: 'group', label: 'Group', icon: Layout }
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-1.5 px-1 py-2 relative transition-all ${activeTab === tab.id ? 'text-[#1D68E3]' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
-                    >
-                        <tab.icon className={`h-3.5 w-3.5 ${activeTab === tab.id ? 'opacity-100' : 'opacity-50'}`} />
-                        <span className="text-[11px] font-black tracking-wide uppercase">{tab.label}</span>
-                        {activeTab === tab.id && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1D68E3] rounded-full" />
-                        )}
-                    </button>
-                ))}
-            </div>
 
             <section
                 id="teacher-create-groups"
@@ -760,7 +738,7 @@ const ProjectsOverview = () => {
                     <div className="w-12 h-12 bg-slate-50 dark:bg-[#0B1120] rounded-full flex items-center justify-center mx-auto mb-3">
                         <Layout className="h-6 w-6 text-slate-300 dark:text-slate-700" />
                     </div>
-                    <h2 className="text-base font-black text-slate-800 dark:text-slate-100 mb-1">No {activeTab} projects found</h2>
+                    <h2 className="text-base font-black text-slate-800 dark:text-slate-100 mb-1">No group projects found</h2>
                     <p className="text-[12px] text-slate-500 mb-4 max-w-md mx-auto">Try adjusting your search or create a new student group assignment.</p>
                     <button
                         type="button"
@@ -784,65 +762,7 @@ const ProjectsOverview = () => {
                                 </div>
                             </div>
 
-                            {activeTab === 'individual' ? (
-                                <div className="app-table-shell">
-                                    <div className="app-table-wrap">
-                                        <table className="app-table">
-                                            <thead>
-                                                <tr className="app-table-headrow">
-                                                    <th className="app-table-th">Student</th>
-                                                    <th className="app-table-th text-center">Student ID</th>
-                                                    <th className="app-table-th">Project Title</th>
-                                                    <th className="app-table-th text-right">Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="app-table-body">
-                                                {(expandedClasses[cls.code] ? cls.projects : cls.projects.slice(0, 5)).map((project, idx) => {
-                                                    const student = project.members[0] || {};
-                                                    return (
-                                                        <tr key={project._id} className="app-table-row group">
-                                                            <td className="app-table-td">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 flex items-center justify-center overflow-hidden">
-                                                                        {student.photo && student.photo !== 'default-student.jpg' ? (
-                                                                            <img src={assetUrl(student.photo.startsWith('http') ? student.photo : `/uploads/${student.photo}`)} className="w-full h-full object-cover" alt="" />
-                                                                        ) : <span className="text-sm font-black text-slate-400 uppercase">{student.name?.[0]}</span>}
-                                                                    </div>
-                                                                    <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">{student.name || 'Unknown Student'}</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="app-table-td text-center">
-                                                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">ID: {student.studentId || 'N/A'}</span>
-                                                            </td>
-                                                            <td className="app-table-td">
-                                                                <span className="text-[12px] font-bold text-[#1D68E3] dark:text-blue-400 hover:underline cursor-pointer">{project.title}</span>
-                                                            </td>
-                                                            <td className="app-table-td text-right">
-                                                                <button 
-                                                                    onClick={() => navigate(`/teacher/groups/${project._id}`)}
-                                                                    className="text-xs font-black text-[#1D68E3] dark:text-blue-400 uppercase tracking-widest hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
-                                                                >
-                                                                    View Progress
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {cls.projects.length > 5 && (
-                                        <button 
-                                            onClick={() => toggleClassExpansion(cls.code)}
-                                            className="w-full py-3 border-t border-slate-50 dark:border-white/5 flex items-center justify-center gap-1.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-all hover:bg-slate-50/50 dark:hover:bg-white/[0.02]"
-                                        >
-                                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expandedClasses[cls.code] ? 'rotate-180' : ''}`} />
-                                            {expandedClasses[cls.code] ? 'See Less' : `See More Students (${cls.projects.length - 5})`}
-                                        </button>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                                     {cls.projects.map((group) => (
                                         <div key={group._id} className="bg-white dark:bg-[#0F172A] rounded-xl border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden flex flex-col group hover:border-blue-500/30 transition-all">
                                             <div className="p-3 pb-2">
@@ -908,7 +828,6 @@ const ProjectsOverview = () => {
                                         </div>
                                     ))}
                                 </div>
-                            )}
                         </section>
                     ))}
                 </div>

@@ -513,13 +513,28 @@ const StudentProposalSubmit = () => {
                             </p>
                         )}
                         {fileParseError && (
-                            <p className="mt-2 text-sm font-semibold text-rose-600">{fileParseError}</p>
+                            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-rose-600">{fileParseError}</p>
                         )}
+                        <p className="mt-2 text-xs font-semibold text-[var(--sv-muted)]">
+                            Required labels (any order, anywhere in the file):
+                        </p>
+                        <pre className="mt-1 overflow-x-auto rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-2 text-[11px] leading-relaxed text-[var(--sv-text)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">{`Title: Your project title
+
+Description: What the project does and who it is for.
+
+Features:
+- Feature one
+- Feature two
+- Feature three`}</pre>
                         <p className="mt-2 text-xs text-[var(--sv-muted)]">
-                            Uploading replaces the form below with the new file content. If you edit and save the same filename, choose the file again to reload it.
+                            Free-form essays without these labels are rejected. JSON with{' '}
+                            <code className="text-[10px]">title</code>, <code className="text-[10px]">description</code>,{' '}
+                            <code className="text-[10px]">features</code> is also accepted. After upload, review the
+                            extracted fields below before submitting.
                         </p>
                         <p className="mt-1 text-xs text-[var(--sv-muted)]">
-                            Supports structured labels (Title:, Description:, Features:) or sections like Project Overview and Proposed Functionality with bullet points. `.docx` supported.
+                            Uploading replaces the form below. If you edit and save the same filename, choose the file
+                            again to reload it.
                         </p>
                     </div>
                 )}
