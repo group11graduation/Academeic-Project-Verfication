@@ -1584,10 +1584,15 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
       const requirementReview = p.assignment
         ? await evaluateProposalAgainstAssignmentRequirements(p.assignment, p)
         : null;
+      const hasPreviousMatch = Boolean(
+        p.aiMatchedProposalId || p.aiMatchedLegacyId || String(p.aiMatchedLegacyKey || '').trim()
+      );
+      const matchedSimilarProject = hasPreviousMatch ? await resolveSimilarMatchedProject(p) : null;
       const row = {
         ...p,
         hasProjectSubmission: Boolean(latestProjectSubmission),
         latestProjectSubmission,
+        matchedSimilarProject,
         group: enrichGroupForClient(p.group),
         submittedBy: p.submittedBy
           ? {

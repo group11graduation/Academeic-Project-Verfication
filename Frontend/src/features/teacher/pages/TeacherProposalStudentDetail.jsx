@@ -290,6 +290,7 @@ const TeacherProposalStudentDetail = () => {
     const [previewAdminEmail, setPreviewAdminEmail] = useState('');
     const [previewAdminPassword, setPreviewAdminPassword] = useState('');
     const [screenshotLightboxOpen, setScreenshotLightboxOpen] = useState(false);
+    const [previousScreenshotLightboxOpen, setPreviousScreenshotLightboxOpen] = useState(false);
     const previewMapRef = useRef({});
 
     useEffect(() => {
@@ -713,6 +714,16 @@ const TeacherProposalStudentDetail = () => {
         if (zip?.screenshotUrl) return [zip.screenshotUrl];
         return [];
     })();
+    const previousMatch = proposal.matchedSimilarProject || null;
+    const previousScreenshotUrls = (() => {
+        if (!previousMatch) return [];
+        const fromList = Array.isArray(previousMatch.screenshotUrls)
+            ? previousMatch.screenshotUrls.filter(Boolean)
+            : [];
+        if (fromList.length) return fromList;
+        if (previousMatch.screenshotUrl) return [previousMatch.screenshotUrl];
+        return [];
+    })();
 
     return (
         <div className={Z_PAGE}>
@@ -1004,6 +1015,40 @@ const TeacherProposalStudentDetail = () => {
                                             <Images className="h-3.5 w-3.5 shrink-0" />
                                             View student screens ({screenshotUrls.length})
                                         </button>
+                                    }
+                                />
+                            ) : null}
+                            {previousMatch?.title ? (
+                                <DetailRow
+                                    label="Previous similar work"
+                                    value={
+                                        <div className="space-y-1.5">
+                                            <p className="text-sm font-semibold text-[var(--sv-text)]">
+                                                {previousMatch.title}
+                                                {previousMatch.similarityPercent != null
+                                                    ? ` · ${previousMatch.similarityPercent}% overlap`
+                                                    : ''}
+                                            </p>
+                                            {previousMatch.author ? (
+                                                <p className="text-xs font-medium text-[var(--sv-muted)]">
+                                                    By {previousMatch.author}
+                                                </p>
+                                            ) : null}
+                                            {previousScreenshotUrls.length > 0 ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPreviousScreenshotLightboxOpen(true)}
+                                                    className="inline-flex items-center gap-1.5 text-left font-semibold text-amber-700 underline-offset-2 hover:underline dark:text-amber-300"
+                                                >
+                                                    <Images className="h-3.5 w-3.5 shrink-0" />
+                                                    View previous screens ({previousScreenshotUrls.length})
+                                                </button>
+                                            ) : (
+                                                <p className="text-xs font-medium text-[var(--sv-muted)]">
+                                                    No screenshots on the previous project archive.
+                                                </p>
+                                            )}
+                                        </div>
                                     }
                                 />
                             ) : null}
@@ -1397,6 +1442,16 @@ const TeacherProposalStudentDetail = () => {
                                             >
                                                 <Images className="h-4 w-4" />
                                                 View screens ({screenshotUrls.length})
+                                            </button>
+                                        ) : null}
+                                        {previousScreenshotUrls.length > 0 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreviousScreenshotLightboxOpen(true)}
+                                                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                                            >
+                                                <Images className="h-4 w-4" />
+                                                Previous screens ({previousScreenshotUrls.length})
                                             </button>
                                         ) : null}
                                     </div>
@@ -1954,6 +2009,16 @@ const TeacherProposalStudentDetail = () => {
                                                     <Images className="h-4 w-4" />
                                                 </button>
                                             ) : null}
+                                            {previousScreenshotUrls.length > 0 ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPreviousScreenshotLightboxOpen(true)}
+                                                    className="rounded-lg p-2 text-amber-700 transition hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                                                    title="View previous project screenshots"
+                                                >
+                                                    <Images className="h-4 w-4" />
+                                                </button>
+                                            ) : null}
                                         </div>
                                     </li>
                                 ) : null}
@@ -1967,6 +2032,13 @@ const TeacherProposalStudentDetail = () => {
                     urls={screenshotUrls}
                     title={proposal.title || 'Project screenshots'}
                     onClose={() => setScreenshotLightboxOpen(false)}
+                />
+            ) : null}
+            {previousScreenshotLightboxOpen && previousScreenshotUrls.length > 0 ? (
+                <ProjectScreenshotLightbox
+                    urls={previousScreenshotUrls}
+                    title={previousMatch?.title || 'Previous project screenshots'}
+                    onClose={() => setPreviousScreenshotLightboxOpen(false)}
                 />
             ) : null}
         </div>

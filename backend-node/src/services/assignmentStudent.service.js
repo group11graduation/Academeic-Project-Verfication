@@ -364,17 +364,25 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
       : null;
 
     let proposalOut = proposal || null;
-    if (proposalOut?.status === 'ai_flagged_previous_semester') {
-      const [rec, matchedSimilarProject] = await Promise.all([
-        resolveStoredProposalRecommendation(proposalOut),
-        resolveSimilarMatchedProject(proposalOut),
-      ]);
-      proposalOut = {
-        ...proposalOut,
-        recommendation: rec.recommendation,
-        suggestedFeatures: rec.suggestedFeatures,
-        matchedSimilarProject,
-      };
+    if (proposalOut) {
+      const hasPreviousMatch = Boolean(
+        proposalOut.aiMatchedProposalId ||
+          proposalOut.aiMatchedLegacyId ||
+          String(proposalOut.aiMatchedLegacyKey || '').trim()
+      );
+      const flaggedPrevious = proposalOut.status === 'ai_flagged_previous_semester';
+      if (flaggedPrevious || hasPreviousMatch) {
+        const [rec, matchedSimilarProject] = await Promise.all([
+          resolveStoredProposalRecommendation(proposalOut),
+          resolveSimilarMatchedProject(proposalOut),
+        ]);
+        proposalOut = {
+          ...proposalOut,
+          recommendation: rec.recommendation,
+          suggestedFeatures: rec.suggestedFeatures,
+          matchedSimilarProject,
+        };
+      }
     }
 
     out.push({

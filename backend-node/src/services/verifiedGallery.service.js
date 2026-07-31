@@ -430,7 +430,17 @@ async function findFallbackSimilarProject(proposal, similarityPercent) {
 }
 
 export async function resolveSimilarMatchedProject(proposal) {
-  if (!proposal || proposal.status !== 'ai_flagged_previous_semester') return null;
+  if (!proposal) return null;
+
+  const hasExplicitMatch = Boolean(
+    proposal.aiMatchedProposalId ||
+      proposal.aiMatchedLegacyId ||
+      String(proposal.aiMatchedLegacyKey || '').trim()
+  );
+  const flaggedPrevious = proposal.status === 'ai_flagged_previous_semester';
+  // Keep match available after the student adds features and the teacher accepts
+  // (status leaves ai_flagged_previous_semester but match ids remain on the proposal).
+  if (!flaggedPrevious && !hasExplicitMatch) return null;
 
   const similarityPercent = Math.round(Number(proposal.aiPreviousSemesterMaxScore || 0) * 100);
 
@@ -496,7 +506,11 @@ export async function resolveSimilarMatchedProject(proposal) {
     if (fromKey) return fromKey;
   }
 
-  return findFallbackSimilarProject(proposal, similarityPercent);
+  if (flaggedPrevious) {
+    return findFallbackSimilarProject(proposal, similarityPercent);
+  }
+
+  return null;
 }
 
 export function listGalleryCategories() {
