@@ -12,13 +12,24 @@ const PROJECT_ZIP_MAX_MB = Math.round(
   Number(process.env.MAX_PROJECT_ZIP_BYTES || 262_144_000) / (1024 * 1024)
 );
 
-function mapMulterError(err, { projectZip = false } = {}) {
+const SCREENSHOT_MAX_MB = Math.round(
+  Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 10_485_760) / (1024 * 1024)
+);
+
+function mapMulterError(err, { projectZip = false, screenshot = false } = {}) {
   if (!err) return err;
   if (err.code === 'LIMIT_FILE_SIZE') {
     err.status = 413;
     err.message = projectZip
       ? `Project ZIP is too large. Maximum allowed size is ${PROJECT_ZIP_MAX_MB} MB. Exclude node_modules, target, dist, and .git before zipping.`
-      : 'Uploaded file is too large for this endpoint.';
+      : screenshot
+        ? `Each screenshot must be ${SCREENSHOT_MAX_MB} MB or smaller. Compress large phone screenshots (PNG/JPG) and try again.`
+        : 'Uploaded file is too large for this endpoint.';
+  } else if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+    err.status = 400;
+    err.message = screenshot
+      ? `Too many screenshots. Upload at most ${Number(process.env.MAX_PROJECT_SCREENSHOTS || 10)} images.`
+      : err.message || 'Unexpected upload field or too many files.';
   } else {
     err.status = err.status || 400;
   }
@@ -66,7 +77,7 @@ router.post(
   '/assignments/:assignmentId/project-screenshot',
   (req, res, next) => {
     uploadProjectScreenshotOnly(req, res, (err) => {
-      if (err) return next(mapMulterError(err));
+      if (err) return next(mapMulterError(err, { screenshot: true }));
       next();
     });
   },

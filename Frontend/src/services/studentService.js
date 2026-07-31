@@ -140,7 +140,9 @@ const studentService = {
             if (img) fd.append('projectScreenshot', img);
         });
         const response = await api.post(`${base}/assignments/${assignmentId}/project-screenshot`, fd, {
-            timeout: 0,
+            timeout: UPLOAD_TIMEOUT_MS,
+            maxBodyLength: Infinity,
+            maxContentLength: Infinity,
         });
         return response.data;
     },

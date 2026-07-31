@@ -11,9 +11,11 @@ if (!fs.existsSync(staging)) {
 
 /** Default 250 MB - full student MERN/Spring ZIPs often exceed the old 50 MB cap. */
 const maxZipBytes = Number(process.env.MAX_PROJECT_ZIP_BYTES || 262_144_000);
-const maxImageBytes = Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 5_242_880);
+/** Default 10 MB each - phone PNG screenshots often exceed the old 5 MB cap. */
+const maxImageBytes = Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 10_485_760);
 export const MIN_PROJECT_SCREENSHOTS = Number(process.env.MIN_PROJECT_SCREENSHOTS || 4);
 export const MAX_PROJECT_SCREENSHOTS = Number(process.env.MAX_PROJECT_SCREENSHOTS || 10);
+export const MAX_PROJECT_SCREENSHOT_BYTES = maxImageBytes;
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, staging),
@@ -45,7 +47,11 @@ export const uploadProjectArtifacts = multer({
         return cb(new Error('Project screenshot must be an image (PNG, JPG, or WebP).'));
       }
       if (file.size && file.size > maxImageBytes) {
-        return cb(new Error('Screenshot is too large (max 5 MB each).'));
+        return cb(
+          new Error(
+            `Screenshot is too large (max ${Math.round(maxImageBytes / (1024 * 1024))} MB each).`
+          )
+        );
       }
       return cb(null, true);
     }
@@ -58,8 +64,15 @@ export const uploadProjectArtifacts = multer({
 
 export const uploadProjectScreenshotOnly = multer({
   storage,
-  limits: { fileSize: maxImageBytes },
+  limits: {
+    fileSize: maxImageBytes,
+    files: MAX_PROJECT_SCREENSHOTS,
+    fields: 20,
+  },
   fileFilter: (_req, file, cb) => {
+    if (file.fieldname !== 'projectScreenshot') {
+      return cb(new Error(`Unexpected upload field: ${file.fieldname}`));
+    }
     if (!isScreenshotFile(file)) {
       return cb(new Error('Project screenshot must be an image (PNG, JPG, or WebP).'));
     }

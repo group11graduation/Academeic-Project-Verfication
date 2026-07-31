@@ -52,7 +52,11 @@ const port = getPort();
 
 connectDb()
   .then(() => {
-    app.listen(port, () => logger.info(`API listening on port ${port}`));
+    const server = app.listen(port, () => logger.info(`API listening on port ${port}`));
+    // Multi-screenshot / large ZIP uploads can take several minutes through the Vite proxy.
+    server.headersTimeout = Math.max(server.headersTimeout || 0, 650_000);
+    server.requestTimeout = Math.max(server.requestTimeout || 0, 650_000);
+    server.keepAliveTimeout = Math.max(server.keepAliveTimeout || 0, 75_000);
     if (process.env.DOCKER_PREVIEW_ENABLED !== 'false') {
       import('./services/previewWorkspaceCache.service.js')
         .then(({ ensurePreviewDependencyCacheDirs }) =>

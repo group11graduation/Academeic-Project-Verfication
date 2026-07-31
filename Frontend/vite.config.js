@@ -12,6 +12,31 @@ const longProxy = {
   secure: false,
   timeout: 600_000,
   proxyTimeout: 600_000,
+  /** Avoid buffering entire multipart bodies in the proxy (large screenshot batches). */
+  configure: (proxy) => {
+    proxy.on('proxyReq', (proxyReq, req) => {
+      // Ensure long-lived upload sockets are not cut early by Node defaults.
+      if (req.socket) {
+        req.socket.setTimeout(600_000);
+      }
+      if (proxyReq.socket) {
+        proxyReq.socket.setTimeout(600_000);
+      }
+    });
+    proxy.on('error', (err, _req, res) => {
+      if (res && !res.headersSent && typeof res.writeHead === 'function') {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            message:
+              'Upload proxy lost connection to the API. Wait a few seconds and try again with smaller screenshot files (under 10 MB each).',
+          })
+        );
+      }
+      console.error('[vite proxy]', err?.message || err);
+    });
+  },
 }
 
 // https://vite.dev/config/

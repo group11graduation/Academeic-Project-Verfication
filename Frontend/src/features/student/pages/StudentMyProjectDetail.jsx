@@ -31,6 +31,34 @@ import {
     humanizeModelOrServerError,
 } from '../../../shared/utils/humanizeErrors';
 
+/** Keep in sync with backend MAX_PROJECT_SCREENSHOT_BYTES (default 10 MB). */
+const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
+const MAX_SCREENSHOT_MB = Math.round(MAX_SCREENSHOT_BYTES / (1024 * 1024));
+
+function validateScreenshotFiles(files) {
+    const list = Array.isArray(files) ? files.filter(Boolean) : [];
+    const oversized = list.filter((f) => Number(f.size) > MAX_SCREENSHOT_BYTES);
+    if (oversized.length) {
+        const names = oversized
+            .slice(0, 3)
+            .map((f) => `${f.name} (${(f.size / (1024 * 1024)).toFixed(1)} MB)`)
+            .join(', ');
+        return `Each screenshot must be ${MAX_SCREENSHOT_MB} MB or smaller. Too large: ${names}${
+            oversized.length > 3 ? ` (+${oversized.length - 3} more)` : ''
+        }. Compress or export as JPG, then try again.`;
+    }
+    const notImage = list.filter((f) => f.type && !String(f.type).startsWith('image/'));
+    if (notImage.length) {
+        return 'Screenshots must be image files (PNG, JPG, or WebP).';
+    }
+    return '';
+}
+
+function screenshotNetworkHint(error) {
+    if (error?.response) return '';
+    return ` If an image is over ${MAX_SCREENSHOT_MB} MB, the browser may show a network error - compress screenshots and retry.`;
+}
+
 function formatProjectUploadFeedback(payload = {}, fallback = '') {
     const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
     const rawMessage =
@@ -249,6 +277,13 @@ const StudentMyProjectDetail = () => {
             await appError(msg, { title: 'Screenshots required' });
             return;
         }
+        const shotErr = validateScreenshotFiles(selectedScreenshotFiles);
+        if (shotErr) {
+            setCodeZipTone('error');
+            setCodeZipMessage(shotErr);
+            await appError(shotErr, { title: 'Screenshots too large' });
+            return;
+        }
         setCodeZipBusy(true);
         setCodeZipMessage('');
         setCodeZipTone('');
@@ -342,6 +377,12 @@ const StudentMyProjectDetail = () => {
             );
             return;
         }
+        const shotErr = validateScreenshotFiles(selectedScreenshotFiles);
+        if (shotErr) {
+            setCodeZipTone('error');
+            setCodeZipMessage(shotErr);
+            return;
+        }
         if (row?.projectDeadlinePassed) {
             setCodeZipMessage(DEADLINE_DUE_STUDENT_MESSAGE);
             return;
@@ -364,7 +405,9 @@ const StudentMyProjectDetail = () => {
             }
         } catch (e) {
             setCodeZipTone('error');
-            setCodeZipMessage(e.response?.data?.message || e.message || 'Screenshot upload failed.');
+            const msg =
+                getApiErrorMessage(e, 'Screenshot upload failed.') + screenshotNetworkHint(e);
+            setCodeZipMessage(msg);
         } finally {
             setScreenshotBusy(false);
             if (screenshotInputRef.current) screenshotInputRef.current.value = '';
@@ -653,7 +696,8 @@ const StudentMyProjectDetail = () => {
                                     </p>
                                     <p className="mb-3 text-xs font-medium text-[var(--sv-muted)]">
                                         Required: upload {MIN_SCREENSHOTS}–{MAX_SCREENSHOTS} PNG/JPG images showing your
-                                        app (homepage, key screens). ZIP upload will not be accepted without them.
+                                        app (homepage, key screens). Max {MAX_SCREENSHOT_MB} MB each. ZIP upload will not
+                                        be accepted without them.
                                     </p>
                                     <input
                                         type="file"
@@ -663,7 +707,15 @@ const StudentMyProjectDetail = () => {
                                         disabled={codeZipBusy || screenshotBusy}
                                         onChange={(e) => {
                                             const files = Array.from(e.target.files || []).slice(0, MAX_SCREENSHOTS);
+                                            const err = validateScreenshotFiles(files);
                                             setSelectedScreenshotFiles(files);
+                                            if (err) {
+                                                setCodeZipTone('error');
+                                                setCodeZipMessage(err);
+                                            } else {
+                                                setCodeZipTone('');
+                                                setCodeZipMessage('');
+                                            }
                                         }}
                                         className="mb-3 w-full rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-2 text-sm text-[var(--sv-text)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--sv-card)] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[var(--sv-text)]"
                                     />
@@ -671,6 +723,13 @@ const StudentMyProjectDetail = () => {
                                         <p className="mb-3 text-sm font-semibold text-[var(--sv-text)]">
                                             Selected: {selectedScreenshotFiles.length} image
                                             {selectedScreenshotFiles.length === 1 ? '' : 's'}
+                                            {(() => {
+                                                const totalMb = (
+                                                    selectedScreenshotFiles.reduce((s, f) => s + (f.size || 0), 0) /
+                                                    (1024 * 1024)
+                                                ).toFixed(1);
+                                                return ` · ${totalMb} MB total`;
+                                            })()}
                                             {selectedScreenshotFiles.length < MIN_SCREENSHOTS
                                                 ? ` (need at least ${MIN_SCREENSHOTS})`
                                                 : ''}
@@ -685,7 +744,8 @@ const StudentMyProjectDetail = () => {
                                         disabled={
                                             screenshotBusy ||
                                             selectedScreenshotFiles.length < MIN_SCREENSHOTS ||
-                                            !row?.latestProjectSubmission
+                                            !row?.latestProjectSubmission ||
+                                            Boolean(validateScreenshotFiles(selectedScreenshotFiles))
                                         }
                                         onClick={handleScreenshotUpload}
                                         className="inline-flex items-center gap-2 rounded-xl border border-[#2a3fa4] bg-[var(--sv-card)] px-6 py-3 text-sm font-black uppercase tracking-widest text-[#2a3fa4] hover:bg-blue-50 disabled:opacity-50 dark:border-sky-400 dark:text-sky-300 dark:hover:bg-blue-500/15"

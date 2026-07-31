@@ -36,6 +36,7 @@ import {
 } from './notification.service.js';
 import { User } from '../models/User.js';
 import { logger } from '../config/logger.js';
+import { toProjectSubmissionClient } from './projectSubmissionSummary.service.js';
 import {
   MIN_PROJECT_SCREENSHOTS,
   MAX_PROJECT_SCREENSHOTS,
@@ -1151,7 +1152,7 @@ export async function submitProjectScreenshotOnly(userId, assignmentId, screensh
   primary.screenshotRelativePath = screenshotRelativePaths[0] || '';
   await primary.save();
 
-  return { submission: primary.toObject ? primary.toObject() : primary };
+  return { submission: toProjectSubmissionClient(primary) };
 }
 export async function getLatestSubmissionForProposal(proposalId) {
   return ProjectSubmission.findOne({ proposal: proposalId }).sort({ createdAt: -1 }).lean();
