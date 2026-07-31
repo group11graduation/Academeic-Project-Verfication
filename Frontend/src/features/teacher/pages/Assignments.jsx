@@ -207,6 +207,43 @@ const Assignments = () => {
         return Array.from(m.entries());
     }, [assignments]);
 
+    const classesGroupedByTerm = useMemo(() => {
+        const groups = new Map();
+        for (const cls of classes) {
+            const yearId = String(cls.academicYear?._id || cls.academicYear || 'none');
+            const semId = String(cls.semester?._id || cls.semester || 'none');
+            const key = `${yearId}|${semId}`;
+            if (!groups.has(key)) {
+                const yearLabel = cls.academicYearLabel || cls.academicYear?.label || '';
+                const semesterLabel = cls.semesterLabel || cls.semester?.name || '';
+                const semesterOrder = Number(cls.semester?.order) || 0;
+                const yearStart = cls.academicYear?.startDate
+                    ? new Date(cls.academicYear.startDate).getTime()
+                    : 0;
+                groups.set(key, {
+                    key,
+                    yearLabel,
+                    semesterLabel,
+                    semesterOrder,
+                    yearStart,
+                    heading:
+                        yearLabel && semesterLabel
+                            ? `${yearLabel} · ${semesterLabel}`
+                            : yearLabel || semesterLabel || 'Unassigned term',
+                    classes: [],
+                });
+            }
+            groups.get(key).classes.push(cls);
+        }
+        return Array.from(groups.values()).sort((a, b) => {
+            if (a.yearStart !== b.yearStart) return b.yearStart - a.yearStart;
+            const yearCmp = String(b.yearLabel || '').localeCompare(String(a.yearLabel || ''));
+            if (yearCmp) return yearCmp;
+            if (a.semesterOrder !== b.semesterOrder) return a.semesterOrder - b.semesterOrder;
+            return String(a.semesterLabel || '').localeCompare(String(b.semesterLabel || ''));
+        });
+    }, [classes]);
+
     const groupedAssignmentsByClass = useMemo(() => {
         const map = new Map();
         for (const cls of classes) map.set(String(cls._id), []);
@@ -316,34 +353,41 @@ const Assignments = () => {
                 </div>
             ) : (
                 <>
-                    <div className="mb-3">
-                        <p className="mb-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="mb-3 space-y-3">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
                             My classes
                         </p>
-                        <div className="flex flex-wrap gap-1.5">
-                            {classes.map((cls) => {
-                                const cid = String(cls._id || '');
-                                const count = (groupedAssignmentsByClass.get(cid) || []).length;
-                                const active = activeClassId === cid;
-                                return (
-                                    <button
-                                        key={cid}
-                                        type="button"
-                                        onClick={() => selectClassTab(cid)}
-                                        className={`rounded-lg border px-2.5 py-1.5 text-left transition-all ${
-                                            active
-                                                ? 'border-[#1D68E3] bg-blue-50 text-[#1D68E3] dark:bg-blue-500/10'
-                                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
-                                        }`}
-                                    >
-                                        <span className="block text-[11px] font-black leading-none">{cls.code}</span>
-                                        <span className="mt-0.5 block max-w-[140px] truncate text-[9px] font-medium opacity-80">
-                                            {count} assignment{count === 1 ? '' : 's'}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        {classesGroupedByTerm.map((group) => (
+                            <div key={group.key}>
+                                <p className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                    {group.heading}
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {group.classes.map((cls) => {
+                                        const cid = String(cls._id || '');
+                                        const count = (groupedAssignmentsByClass.get(cid) || []).length;
+                                        const active = activeClassId === cid;
+                                        return (
+                                            <button
+                                                key={cid}
+                                                type="button"
+                                                onClick={() => selectClassTab(cid)}
+                                                className={`rounded-lg border px-2.5 py-1.5 text-left transition-all ${
+                                                    active
+                                                        ? 'border-[#1D68E3] bg-blue-50 text-[#1D68E3] dark:bg-blue-500/10'
+                                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                <span className="block text-[11px] font-black leading-none">{cls.code}</span>
+                                                <span className="mt-0.5 block max-w-[140px] truncate text-[9px] font-medium opacity-80">
+                                                    {count} assignment{count === 1 ? '' : 's'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
                     {activeClass && (

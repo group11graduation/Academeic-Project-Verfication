@@ -190,20 +190,57 @@ async function listClassReviewAlerts(assignmentIds) {
 
 export async function listClassesForTeacher(teacherId) {
   const tid = new mongoose.Types.ObjectId(teacherId);
-  const classes = await Class.find({ 'teacherAssignments.teacher': tid }).lean();
+  const classes = await Class.find({ 'teacherAssignments.teacher': tid })
+    .populate('semester', 'name order')
+    .populate('academicYear', 'label startDate endDate isCurrent')
+    .lean();
 
   const rows = await Promise.all(
     classes.map(async (c) => {
       const students = await countClassRosterStudents(c);
+      const semesterLabel = c.semester?.name ? String(c.semester.name) : '';
+      const academicYearLabel = c.academicYear?.label ? String(c.academicYear.label) : '';
       return {
         _id: c._id,
         code: c.code,
         title: c.name,
         section: 'A',
         students,
+        semester: c.semester
+          ? {
+              _id: c.semester._id,
+              name: c.semester.name,
+              order: Number(c.semester.order) || 0,
+            }
+          : null,
+        academicYear: c.academicYear
+          ? {
+              _id: c.academicYear._id,
+              label: c.academicYear.label,
+              startDate: c.academicYear.startDate || null,
+              endDate: c.academicYear.endDate || null,
+              isCurrent: Boolean(c.academicYear.isCurrent),
+            }
+          : null,
+        semesterLabel,
+        academicYearLabel,
       };
     })
   );
+
+  rows.sort((a, b) => {
+    const aYear = a.academicYear?.startDate ? new Date(a.academicYear.startDate).getTime() : 0;
+    const bYear = b.academicYear?.startDate ? new Date(b.academicYear.startDate).getTime() : 0;
+    if (aYear !== bYear) return bYear - aYear;
+    const aLabel = String(a.academicYearLabel || '');
+    const bLabel = String(b.academicYearLabel || '');
+    if (aLabel !== bLabel) return bLabel.localeCompare(aLabel);
+    const aOrder = Number(a.semester?.order) || 0;
+    const bOrder = Number(b.semester?.order) || 0;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return String(a.code || '').localeCompare(String(b.code || ''));
+  });
+
   return rows;
 }
 

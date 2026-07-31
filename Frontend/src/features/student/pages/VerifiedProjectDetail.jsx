@@ -17,7 +17,6 @@ const VerifiedProjectDetail = () => {
     const [error, setError] = useState(null);
     const [lightboxIndex, setLightboxIndex] = useState(null);
     const [reactBusy, setReactBusy] = useState(false);
-    const [reactors, setReactors] = useState([]);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -26,7 +25,6 @@ const VerifiedProjectDetail = () => {
                 const res = await galleryService.getVerifiedProject(id);
                 if (res.success) {
                     setProject(res.data);
-                    setReactors(res.data?.reactors || []);
                 } else setError(res.message || 'Project not found');
             } catch (e) {
                 setError(e.response?.data?.message || 'Project not found');
@@ -59,7 +57,6 @@ const VerifiedProjectDetail = () => {
                           }
                         : p
                 );
-                setReactors(res.data.reactors || []);
             }
         } catch (e) {
             await appWarning(e.response?.data?.message || 'Could not update reaction.');
@@ -167,28 +164,6 @@ const VerifiedProjectDetail = () => {
                                     {project.likedByMe ? 'Loved' : 'Love'} · {Number(project.likeCount) || 0}
                                 </button>
                             </div>
-
-                            {reactors.length > 0 && (
-                                <div className="mb-6 rounded-[20px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-5 shadow-sm dark:border-white/10 dark:bg-[#111827]">
-                                    <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)]">
-                                        Loved by ({reactors.length}
-                                        {(Number(project.likeCount) || 0) > reactors.length ? '+' : ''})
-                                    </h2>
-                                    <ul className="flex flex-wrap gap-2">
-                                        {reactors.map((r) => (
-                                            <li
-                                                key={r.userId}
-                                                className="inline-flex items-center gap-2 rounded-full border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-1.5 text-xs font-bold text-[var(--sv-text)] dark:border-white/10"
-                                            >
-                                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-[10px] font-black text-rose-600">
-                                                    {(r.name || '?').slice(0, 1).toUpperCase()}
-                                                </span>
-                                                {r.name}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
 
                             <div className="mb-6 rounded-[20px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]">
                                 <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Description</h2>

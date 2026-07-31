@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, Loader2, Search, ShieldCheck, TrendingUp, ImageIcon, X } from 'lucide-react';
+import { ArrowRight, Heart, Loader2, Search, ShieldCheck, TrendingUp, ImageIcon } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
@@ -44,48 +44,6 @@ const ProjectCover = ({ project, className = '' }) => {
     );
 };
 
-function ReactorsPopover({ open, onClose, title, reactors, loading, anchorRef }) {
-    if (!open) return null;
-    return (
-        <div
-            className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-xl dark:border-white/10"
-            ref={anchorRef}
-        >
-            <div className="flex items-center justify-between border-b border-[var(--sv-border)] px-3 py-2 dark:border-white/10">
-                <p className="truncate text-[11px] font-black uppercase tracking-wide text-[var(--sv-muted)]">
-                    Loved by · {title}
-                </p>
-                <button type="button" onClick={onClose} className="rounded p-1 text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]" aria-label="Close">
-                    <X className="h-3.5 w-3.5" />
-                </button>
-            </div>
-            <div className="max-h-56 overflow-y-auto p-2">
-                {loading ? (
-                    <div className="flex justify-center py-6">
-                        <Loader2 className="h-5 w-5 animate-spin text-[#1D68E3]" />
-                    </div>
-                ) : reactors.length === 0 ? (
-                    <p className="px-2 py-4 text-center text-xs font-semibold text-[var(--sv-muted)]">No reactions yet</p>
-                ) : (
-                    <ul className="space-y-1">
-                        {reactors.map((r) => (
-                            <li
-                                key={r.userId}
-                                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)]"
-                            >
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 text-[11px] font-black text-rose-600">
-                                    {(r.name || '?').slice(0, 1).toUpperCase()}
-                                </span>
-                                <span className="min-w-0 truncate">{r.name}</span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-        </div>
-    );
-}
-
 const StudentGallery = () => {
     const { token } = useAuth();
     const [activeCategory, setActiveCategory] = useState('ALL CATEGORIES');
@@ -95,8 +53,6 @@ const StudentGallery = () => {
     const [error, setError] = useState(null);
     const [lightbox, setLightbox] = useState(null);
     const [reactBusyId, setReactBusyId] = useState(null);
-    const [reactorsPanel, setReactorsPanel] = useState(null); // { id, title, reactors, loading }
-    const reactorsRef = useRef(null);
     const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search verified projects…');
 
     useEffect(() => {
@@ -126,16 +82,6 @@ const StudentGallery = () => {
         })();
     }, [activeCategory, sortBest, token]);
 
-    useEffect(() => {
-        const onDoc = (e) => {
-            if (reactorsRef.current && !reactorsRef.current.contains(e.target)) {
-                setReactorsPanel(null);
-            }
-        };
-        document.addEventListener('mousedown', onDoc);
-        return () => document.removeEventListener('mousedown', onDoc);
-    }, []);
-
     const toggleLike = async (proj) => {
         setReactBusyId(proj.id);
         try {
@@ -152,43 +98,11 @@ const StudentGallery = () => {
                             : p
                     )
                 );
-                if (reactorsPanel?.id === proj.id) {
-                    setReactorsPanel((cur) =>
-                        cur
-                            ? {
-                                  ...cur,
-                                  reactors: res.data.reactors || cur.reactors,
-                                  loading: false,
-                              }
-                            : cur
-                    );
-                }
             }
         } catch (e) {
             await appWarning(e.response?.data?.message || 'Could not update reaction.');
         } finally {
             setReactBusyId(null);
-        }
-    };
-
-    const openReactors = async (proj, e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (reactorsPanel?.id === proj.id) {
-            setReactorsPanel(null);
-            return;
-        }
-        setReactorsPanel({ id: proj.id, title: proj.title, reactors: [], loading: true });
-        try {
-            const res = await galleryService.listProjectReactions(proj.id);
-            setReactorsPanel({
-                id: proj.id,
-                title: proj.title,
-                reactors: res.data?.reactors || [],
-                loading: false,
-            });
-        } catch {
-            setReactorsPanel({ id: proj.id, title: proj.title, reactors: [], loading: false });
         }
     };
 
@@ -333,46 +247,25 @@ const StudentGallery = () => {
                                                 Score {proj.teacherScore}%
                                             </div>
                                         )}
-                                        <div className="absolute top-4 right-4" ref={reactorsPanel?.id === proj.id ? reactorsRef : undefined}>
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    type="button"
-                                                    disabled={reactBusyId === proj.id}
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        toggleLike(proj);
-                                                    }}
-                                                    className={`backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] font-black shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-60 ${
-                                                        isLiked ? 'bg-rose-500 text-white' : 'bg-white/95 text-[var(--sv-muted)] dark:bg-[#0b1220]/95 dark:text-slate-200'
-                                                    }`}
-                                                    title={isLiked ? 'Remove love' : 'Love this project'}
-                                                >
-                                                    {reactBusyId === proj.id ? (
-                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                    ) : (
-                                                        <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
-                                                    )}
-                                                    {totalLikes}
-                                                </button>
-                                                {totalLikes > 0 ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => openReactors(proj, e)}
-                                                        className="rounded-full bg-white/95 px-2 py-1.5 text-[10px] font-bold text-[var(--sv-muted)] shadow-sm backdrop-blur-md hover:text-[#1D68E3] dark:bg-[#0b1220]/95 dark:text-slate-300"
-                                                        title="See who loved this"
-                                                    >
-                                                        Who
-                                                    </button>
-                                                ) : null}
-                                            </div>
-                                            <ReactorsPopover
-                                                open={reactorsPanel?.id === proj.id}
-                                                onClose={() => setReactorsPanel(null)}
-                                                title={`${totalLikes}`}
-                                                reactors={reactorsPanel?.reactors || []}
-                                                loading={Boolean(reactorsPanel?.loading)}
-                                            />
-                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={reactBusyId === proj.id}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                toggleLike(proj);
+                                            }}
+                                            className={`absolute top-4 right-4 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] font-black shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-60 ${
+                                                isLiked ? 'bg-rose-500 text-white' : 'bg-white/95 text-[var(--sv-muted)] dark:bg-[#0b1220]/95 dark:text-slate-200'
+                                            }`}
+                                            title={isLiked ? 'Remove love' : 'Love this project'}
+                                        >
+                                            {reactBusyId === proj.id ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
+                                            )}
+                                            {totalLikes}
+                                        </button>
                                     </div>
                                     <div className="p-8 flex flex-col flex-grow">
                                         <h3 className="mb-2 text-2xl font-black text-[var(--sv-text)] dark:text-slate-100">{proj.title}</h3>
