@@ -133,6 +133,7 @@ const Assignments = () => {
     const [classes, setClasses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeClassId, setActiveClassId] = useState('');
+    const [yearFilter, setYearFilter] = useState('');
     const [semesterFilter, setSemesterFilter] = useState('');
     const [collabPendingCount, setCollabPendingCount] = useState(0);
     const searchQuery = useShellSearchFilter('Search assignments by title or subject…');
@@ -192,24 +193,103 @@ const Assignments = () => {
         }
     };
 
-    const assignmentsFilteredBySemester = useMemo(() => {
-        if (!semesterFilter) return assignments;
-        return assignments.filter((a) => String(a.semester?._id || a.semester) === String(semesterFilter));
-    }, [assignments, semesterFilter]);
+    const yearOptions = useMemo(() => {
+        const m = new Map();
+        for (const cls of classes) {
+            const id = cls.academicYear?._id || cls.academicYear;
+            const label = cls.academicYearLabel || cls.academicYear?.label;
+            if (!id || !label) continue;
+            const start = cls.academicYear?.startDate
+                ? new Date(cls.academicYear.startDate).getTime()
+                : 0;
+            m.set(String(id), { label: String(label), start });
+        }
+        for (const a of assignments) {
+            const id = a.academicYear?._id || a.academicYear;
+            const label = a.academicYear?.label;
+            if (!id || !label || m.has(String(id))) continue;
+            m.set(String(id), { label: String(label), start: 0 });
+        }
+        return Array.from(m.entries())
+            .sort((a, b) => {
+                if (a[1].start !== b[1].start) return b[1].start - a[1].start;
+                return String(b[1].label).localeCompare(String(a[1].label));
+            })
+            .map(([id, meta]) => [id, meta.label]);
+    }, [classes, assignments]);
+
+    const filteredClasses = useMemo(() => {
+        if (!yearFilter) return classes;
+        return classes.filter(
+            (cls) => String(cls.academicYear?._id || cls.academicYear || '') === String(yearFilter)
+        );
+    }, [classes, yearFilter]);
+
+    const assignmentsFilteredByTerm = useMemo(() => {
+        return assignments.filter((a) => {
+            if (yearFilter) {
+                const yearId = String(a.academicYear?._id || a.academicYear || '');
+                if (yearId !== String(yearFilter)) return false;
+            }
+            if (semesterFilter) {
+                const semId = String(a.semester?._id || a.semester || '');
+                if (semId !== String(semesterFilter)) return false;
+            }
+            return true;
+        });
+    }, [assignments, yearFilter, semesterFilter]);
 
     const semesterOptions = useMemo(() => {
         const m = new Map();
-        for (const a of assignments) {
+        const source = yearFilter
+            ? assignments.filter(
+                  (a) => String(a.academicYear?._id || a.academicYear || '') === String(yearFilter)
+              )
+            : assignments;
+        for (const a of source) {
             const id = a.semester?._id || a.semester;
             const name = a.semester?.name;
             if (id) m.set(String(id), name || 'Semester');
         }
+        for (const cls of filteredClasses) {
+            const id = cls.semester?._id || cls.semester;
+            const name = cls.semesterLabel || cls.semester?.name;
+            if (id && !m.has(String(id))) m.set(String(id), name || 'Semester');
+        }
         return Array.from(m.entries());
-    }, [assignments]);
+    }, [assignments, yearFilter, filteredClasses]);
+
+    // Drop invalid semester selection when year changes
+    useEffect(() => {
+        if (!semesterFilter) return;
+        if (!semesterOptions.some(([id]) => id === String(semesterFilter))) {
+            setSemesterFilter('');
+        }
+    }, [semesterOptions, semesterFilter]);
+
+    // Keep active class inside the filtered year set
+    useEffect(() => {
+        if (!filteredClasses.length) {
+            if (activeClassId) setActiveClassId('');
+            return;
+        }
+        const stillVisible = filteredClasses.some((c) => String(c._id) === String(activeClassId));
+        if (!stillVisible) {
+            const nextId = String(filteredClasses[0]._id || '');
+            setActiveClassId(nextId);
+            const next = new URLSearchParams(searchParams);
+            if (nextId) next.set('classId', nextId);
+            else next.delete('classId');
+            navigate(
+                { pathname: '/teacher/assignments', search: next.toString() ? `?${next}` : '' },
+                { replace: true }
+            );
+        }
+    }, [filteredClasses, activeClassId, navigate, searchParams]);
 
     const classesGroupedByTerm = useMemo(() => {
         const groups = new Map();
-        for (const cls of classes) {
+        for (const cls of filteredClasses) {
             const yearId = String(cls.academicYear?._id || cls.academicYear || 'none');
             const semId = String(cls.semester?._id || cls.semester || 'none');
             const key = `${yearId}|${semId}`;
@@ -242,12 +322,12 @@ const Assignments = () => {
             if (a.semesterOrder !== b.semesterOrder) return a.semesterOrder - b.semesterOrder;
             return String(a.semesterLabel || '').localeCompare(String(b.semesterLabel || ''));
         });
-    }, [classes]);
+    }, [filteredClasses]);
 
     const groupedAssignmentsByClass = useMemo(() => {
         const map = new Map();
-        for (const cls of classes) map.set(String(cls._id), []);
-        for (const a of assignmentsFilteredBySemester) {
+        for (const cls of filteredClasses) map.set(String(cls._id), []);
+        for (const a of assignmentsFilteredByTerm) {
             const classIds = Array.isArray(a.classes) && a.classes.length
                 ? a.classes.map((c) => String(c?._id || c))
                 : a.class?._id
@@ -258,9 +338,9 @@ const Assignments = () => {
             }
         }
         return map;
-    }, [assignmentsFilteredBySemester, classes]);
+    }, [assignmentsFilteredByTerm, filteredClasses]);
 
-    const activeClass = classes.find((c) => String(c._id) === String(activeClassId));
+    const activeClass = filteredClasses.find((c) => String(c._id) === String(activeClassId));
 
     const selectClassTab = (cid) => {
         const id = String(cid || '');
@@ -306,6 +386,23 @@ const Assignments = () => {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    {yearOptions.length > 0 && (
+                        <select
+                            value={yearFilter}
+                            onChange={(e) => {
+                                setYearFilter(e.target.value);
+                                setSemesterFilter('');
+                            }}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                        >
+                            <option value="">All years</option>
+                            {yearOptions.map(([id, label]) => (
+                                <option key={id} value={id}>
+                                    {label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
                     {semesterOptions.length > 0 && (
                         <select
                             value={semesterFilter}
@@ -350,6 +447,12 @@ const Assignments = () => {
                     <ClipboardList className="mb-2 h-8 w-8 text-blue-400" />
                     <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">No classes assigned yet</h3>
                     <p className="mt-1 text-[11px] text-slate-500">Ask admin to assign classes and subjects first.</p>
+                </div>
+            ) : filteredClasses.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
+                    <ClipboardList className="mb-2 h-8 w-8 text-slate-300" />
+                    <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">No classes in this year</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">Try another year or clear the year filter.</p>
                 </div>
             ) : (
                 <>
