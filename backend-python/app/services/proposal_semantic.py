@@ -35,6 +35,10 @@ PREVIOUS_SEMESTER_WARN = float(os.getenv("AI_PREVIOUS_SEMESTER_WARN", "0.50"))
 PREVIOUS_SEMESTER_SBERT_FLOOR = float(
     os.getenv("AI_PREVIOUS_SEMESTER_SBERT_FLOOR", "0.48")
 )
+# Meaningful title-token overlap required for previous-semester warnings.
+# Without this, MiniLM often pairs unrelated CRUD apps (Finance Org vs Building Mgmt)
+# at 0.80+ because both say "management system / admin / login".
+LEGACY_DOMAIN_TITLE_MIN = float(os.getenv("AI_LEGACY_DOMAIN_TITLE_MIN", "0.15"))
 USE_TFIDF_FALLBACK = os.getenv("USE_TFIDF_FALLBACK", "false").lower() in ("1", "true", "yes")
 # Always blend TF-IDF / lexical with embeddings so near-copy proposals are caught
 # (MiniLM alone often scored ~0.50–0.55 on near-identical TaskFlow texts).
@@ -52,9 +56,22 @@ _GENERIC_WEBAPP_NOISE = re.compile(
     r"administrator|standard\s+user|crud(?:\s+operations?)?|"
     r"create,?\s*read,?\s*update(?:,?\s*and\s*delete)?|"
     r"access[-\s]?denied|spring\s+security|responsive(?:\s+user)?\s+interface|"
-    r"database[-\s]?driven|web\s+application|layered\s+architecture|"
+    r"database[-\s]?driven|web(?:\s*[- ]?\s*based)?\s+application|layered\s+architecture|"
     r"controller,?\s*service,?\s*repository|maven\s+dependency|"
-    r"password\s+encryption|session\s+invalidation"
+    r"password\s+encryption|session\s+invalidation|"
+    r"centralized\s+platform|information\s+system"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Tech stack lists pollute embeddings when every MERN project lists the same stack.
+_TECH_STACK_NOISE = re.compile(
+    r"\b("
+    r"node\.?js|nodejs|express(?:\.?js)?|mongodb|mongo\s*db|mongoose|react(?:\.?js)?|"
+    r"next\.?js|vue(?:\.?js)?|angular|laravel|django|flask|fastapi|spring\s*boot|"
+    r"hibernate|mysql|mariadb|postgres(?:ql)?|sqlite|redis|docker|kubernetes|"
+    r"tailwind|bootstrap|material\s*ui|helmet|cors|jwt|oauth|rest(?:ful)?\s*api|"
+    r"graphql|typescript|javascript|html5?|css3?|php|python|java\b"
     r")\b",
     re.IGNORECASE,
 )
@@ -74,22 +91,41 @@ _STOP_TITLE = {
     "based",
     "using",
     "system",
+    "systems",
     "application",
+    "applications",
     "platform",
     "project",
     "secure",
     "web",
     "management",
+    "managing",
+    "information",
+    "comprehensive",
+    "complete",
+    "advanced",
+    "simple",
+    "api",
+    "app",
+    "apps",
+    "software",
+    "tool",
+    "tools",
+    "service",
+    "services",
+    "portal",
+    "dashboard",
 }
 
 _st_model = None
 
 
 def _strip_generic_webapp_noise(text: str) -> str:
-    """Remove shared CRUD/auth boilerplate so TF-IDF/lexical focus on domain words."""
+    """Remove shared CRUD/auth/tech boilerplate so scoring focuses on domain words."""
     if not text:
         return ""
     cleaned = _GENERIC_WEBAPP_NOISE.sub(" ", text)
+    cleaned = _TECH_STACK_NOISE.sub(" ", cleaned)
     return " ".join(cleaned.split())
 
 
@@ -106,6 +142,54 @@ def _domain_title_overlap(query: str, doc: str) -> float:
     if not a or not b:
         return 0.0
     return len(a & b) / float(max(len(a), len(b)))
+
+
+def _pick_legacy_with_domain(
+    query: str,
+    leg_texts: list[str],
+    leg_sims: np.ndarray,
+    *,
+    domain_min: float,
+    score_floor: float,
+) -> tuple[float, int | None]:
+    """
+    Prefer a legacy peer that is both semantically close AND shares domain title tokens.
+    If the SBERT top hit is an unrelated domain (Finance vs Building), skip it.
+    """
+    if leg_sims.size == 0:
+        return 0.0, None
+
+    order = list(np.argsort(-leg_sims))
+    # First pass: peers that clear domain + floor
+    for idx in order:
+        score = float(leg_sims[idx])
+        if score < score_floor:
+            break
+        domain = _domain_title_overlap(query, leg_texts[int(idx)])
+        if domain >= domain_min:
+            return score, int(idx)
+
+    # Second pass: slightly softer domain if SBERT is very high (near-copy titles with filler words)
+    soft_min = max(0.08, domain_min * 0.55)
+    for idx in order[:8]:
+        score = float(leg_sims[idx])
+        if score < max(score_floor, PREVIOUS_SEMESTER_WARN):
+            continue
+        domain = _domain_title_overlap(query, leg_texts[int(idx)])
+        if domain >= soft_min:
+            return score, int(idx)
+
+    # No domain-aligned peer — suppress false previous-semester warnings
+    top_i = int(order[0])
+    top_score = float(leg_sims[top_i])
+    top_domain = _domain_title_overlap(query, leg_texts[top_i])
+    logger.info(
+        "legacy domain_reject top_score=%.3f top_domain=%.3f (min=%.3f) — unrelated topic",
+        top_score,
+        top_domain,
+        domain_min,
+    )
+    return min(top_score, PREVIOUS_SEMESTER_WARN - 0.02), None
 
 
 def _get_sentence_transformer():
@@ -213,10 +297,11 @@ def _neighbor_scores_dot(query_vec: np.ndarray, corpus: np.ndarray) -> np.ndarra
 
 def _max_cosine_semantic_dual(
     query: str, same_docs: list[str], legacy_docs: list[str]
-) -> tuple[float, int | None, float, int | None]:
+) -> tuple[float, int | None, float, int | None, np.ndarray]:
     all_docs = [*same_docs, *legacy_docs]
+    empty = np.zeros((0,), dtype=np.float64)
     if not all_docs:
-        return 0.0, None, 0.0, None
+        return 0.0, None, 0.0, None, empty
 
     normalized = [query] + all_docs
     t_embed = time.perf_counter()
@@ -239,7 +324,7 @@ def _max_cosine_semantic_dual(
 
     same_len = len(same_docs)
     same_slice = sims[:same_len]
-    legacy_slice = sims[same_len:]
+    legacy_slice = np.asarray(sims[same_len:], dtype=np.float64)
 
     if same_len:
         same_i = int(np.argmax(same_slice))
@@ -248,14 +333,14 @@ def _max_cosine_semantic_dual(
         same_i = None
         same_max = 0.0
 
-    if len(legacy_slice):
+    if legacy_slice.size:
         leg_i = int(np.argmax(legacy_slice))
         leg_max = float(legacy_slice[leg_i])
     else:
         leg_i = None
         leg_max = 0.0
 
-    return same_max, same_i, leg_max, leg_i
+    return same_max, same_i, leg_max, leg_i, legacy_slice
 
 
 def _max_lexical_ratio_dual(
@@ -320,24 +405,34 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
     same_texts = [_clip_text(s.text) for s in same_items]
     leg_texts = [_clip_text(s.text) for s in leg_items]
 
-    # Lexical/TF-IDF on noise-stripped text so shared "login/admin/CRUD" does not dominate.
+    # Lexical/TF-IDF + SBERT on noise-stripped text so shared login/admin/CRUD/tech
+    # stack wording does not dominate unrelated domains.
     text_lex = _strip_generic_webapp_noise(text)
     same_lex = [_strip_generic_webapp_noise(t) for t in same_texts]
     leg_lex = [_strip_generic_webapp_noise(t) for t in leg_texts]
+    # Keep a bit of original title signal for embeddings (title is first line).
+    text_embed = text_lex or text
+    same_embed = [t or orig for t, orig in zip(same_lex, same_texts)]
+    leg_embed = [t or orig for t, orig in zip(leg_lex, leg_texts)]
 
     backend = "sentence_transformers"
     use_tfidf_only = USE_TFIDF_FALLBACK
     sbert_row: tuple[float, int | None, float, int | None] | None = None
     tfidf_row: tuple[float, int | None, float, int | None] | None = None
     lex_row: tuple[float, int | None, float, int | None] | None = None
+    legacy_sims: np.ndarray | None = None
 
     if not use_tfidf_only:
         try:
-            sbert_row = _max_cosine_semantic_dual(text, same_texts, leg_texts)
+            same_max_s, same_i_s, leg_max_s, leg_i_s, legacy_sims = _max_cosine_semantic_dual(
+                text_embed, same_embed, leg_embed
+            )
+            sbert_row = (same_max_s, same_i_s, leg_max_s, leg_i_s)
         except Exception as e:
             logger.warning("sentence-transformers failed (%s); using TF-IDF fallback", e)
             use_tfidf_only = True
             backend = "tfidf"
+            legacy_sims = None
 
     if use_tfidf_only or USE_HYBRID_OVERLAP:
         t_tf = time.perf_counter()
@@ -356,47 +451,58 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
         # Same-semester: keep max across scorers (catch near-copies).
         same_max, same_i, _, _ = _pick_best_dual(score_rows)
 
-        # Previous-semester: prefer the peer MiniLM picks; do not let TF-IDF/lexical alone
-        # flag unrelated domains that only share generic web-app wording.
-        if sbert_row is not None:
+        # Previous-semester: require domain title overlap so Finance ≠ Building Mgmt.
+        if legacy_sims is not None and legacy_sims.size:
+            leg_max, leg_i = _pick_legacy_with_domain(
+                text,
+                leg_texts,
+                legacy_sims,
+                domain_min=LEGACY_DOMAIN_TITLE_MIN,
+                score_floor=PREVIOUS_SEMESTER_SBERT_FLOOR * 0.85,
+            )
+            if leg_i is not None and tfidf_row is not None:
+                # Small hybrid lift only for the domain-aligned peer
+                tfidf_leg = float(tfidf_row[2]) if tfidf_row[3] == leg_i else 0.0
+                lex_leg = float(lex_row[2]) if lex_row and lex_row[3] == leg_i else 0.0
+                if leg_max >= PREVIOUS_SEMESTER_SBERT_FLOOR * 0.9:
+                    hybrid_leg = max(leg_max, tfidf_leg, lex_leg)
+                    leg_max = min(hybrid_leg, max(leg_max, leg_max * 0.5 + hybrid_leg * 0.5))
+        elif sbert_row is not None:
             _, _, sbert_leg, sbert_leg_i = sbert_row
             leg_i = sbert_leg_i
             leg_max = float(sbert_leg)
-            # Allow a small hybrid lift only when embeddings already see real similarity.
-            if sbert_leg >= PREVIOUS_SEMESTER_SBERT_FLOOR * 0.9:
-                hybrid_leg = max(
-                    sbert_leg,
-                    (tfidf_row[2] if tfidf_row else 0.0),
-                    (lex_row[2] if lex_row else 0.0),
-                )
-                # Blend toward hybrid, but never far above SBERT for unrelated topics.
-                leg_max = min(hybrid_leg, max(sbert_leg, sbert_leg * 0.5 + hybrid_leg * 0.5))
+            if leg_i is not None and leg_i < len(leg_texts):
+                domain = _domain_title_overlap(text, leg_texts[leg_i])
+                if domain < LEGACY_DOMAIN_TITLE_MIN:
+                    logger.info(
+                        "legacy domain_gate overlap=%.3f suppressed legacy_max %.3f",
+                        domain,
+                        leg_max,
+                    )
+                    leg_max = min(leg_max, PREVIOUS_SEMESTER_WARN - 0.02)
+                    leg_i = None
         else:
             _, _, leg_max, leg_i = _pick_best_dual(score_rows)
-
-        # Domain gate: Employee Management vs HAS GAS / LPG should not warn.
-        if leg_i is not None and leg_i < len(leg_texts):
-            domain = _domain_title_overlap(text, leg_texts[leg_i])
-            if domain < 0.12 and leg_max < (PREVIOUS_SEMESTER_WARN + 0.12):
-                reasons_cap = min(leg_max, PREVIOUS_SEMESTER_WARN - 0.02)
-                logger.info(
-                    "legacy domain_gate overlap=%.3f capped legacy_max %.3f→%.3f",
-                    domain,
-                    leg_max,
-                    reasons_cap,
-                )
-                leg_max = reasons_cap
+            if leg_i is not None and leg_i < len(leg_texts):
+                domain = _domain_title_overlap(text, leg_texts[leg_i])
+                if domain < LEGACY_DOMAIN_TITLE_MIN:
+                    leg_max = min(leg_max, PREVIOUS_SEMESTER_WARN - 0.02)
+                    leg_i = None
 
     matched_proposal_id = (
         same_items[same_i].id if same_i is not None and same_i < len(same_items) else None
     )
     matched_legacy_id = leg_items[leg_i].id if leg_i is not None and leg_i < len(leg_items) else None
 
+    sbert_leg_floor_ok = True
+    if sbert_row is not None and leg_i is not None and legacy_sims is not None and leg_i < legacy_sims.size:
+        sbert_leg_floor_ok = float(legacy_sims[leg_i]) >= PREVIOUS_SEMESTER_SBERT_FLOOR
+    elif sbert_row is not None:
+        sbert_leg_floor_ok = float(sbert_row[2]) >= PREVIOUS_SEMESTER_SBERT_FLOOR
+
     if same_max >= SAME_SEMESTER_REJECT:
         verdict = "reject_same_semester"
-    elif leg_max >= PREVIOUS_SEMESTER_WARN and (
-        sbert_row is None or float(sbert_row[2]) >= PREVIOUS_SEMESTER_SBERT_FLOOR
-    ):
+    elif leg_max >= PREVIOUS_SEMESTER_WARN and (sbert_row is None or sbert_leg_floor_ok) and leg_i is not None:
         verdict = "warn_previous_semester"
     else:
         verdict = "ok"
@@ -422,7 +528,7 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
         "summary": (
             f"backend={backend}, same_semester={same_max:.3f}, legacy={leg_max:.3f}, "
             f"reject_at={SAME_SEMESTER_REJECT:.2f}, warn_at={PREVIOUS_SEMESTER_WARN:.2f}, "
-            f"sbert_floor={PREVIOUS_SEMESTER_SBERT_FLOOR:.2f}"
+            f"sbert_floor={PREVIOUS_SEMESTER_SBERT_FLOOR:.2f}, domain_min={LEGACY_DOMAIN_TITLE_MIN:.2f}"
         ),
         "backend": backend,
     }

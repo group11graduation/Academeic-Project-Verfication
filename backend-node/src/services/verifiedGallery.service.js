@@ -299,20 +299,52 @@ export async function getVerifiedProjectById(proposalId) {
 
 /**
  * Linked verified / legacy project shown when AI flags previous-semester similarity.
+ * Ignore filler title words so "Management System" alone cannot pair Finance with Building Mgmt.
  */
+const TITLE_STOP_WORDS = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'based',
+  'using',
+  'system',
+  'systems',
+  'application',
+  'applications',
+  'platform',
+  'project',
+  'secure',
+  'web',
+  'management',
+  'managing',
+  'information',
+  'comprehensive',
+  'complete',
+  'advanced',
+  'simple',
+  'api',
+  'app',
+  'apps',
+  'software',
+  'service',
+  'services',
+  'portal',
+  'dashboard',
+]);
+
+function titleDomainTokens(title = '') {
+  return new Set(
+    String(title)
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 2 && !TITLE_STOP_WORDS.has(w))
+  );
+}
+
 function titleOverlapScore(a = '', b = '') {
-  const wordsA = new Set(
-    String(a)
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((w) => w.length > 2)
-  );
-  const wordsB = new Set(
-    String(b)
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((w) => w.length > 2)
-  );
+  const wordsA = titleDomainTokens(a);
+  const wordsB = titleDomainTokens(b);
   if (!wordsA.size || !wordsB.size) return 0;
   let shared = 0;
   for (const w of wordsA) {
@@ -320,6 +352,9 @@ function titleOverlapScore(a = '', b = '') {
   }
   return shared / Math.max(wordsA.size, wordsB.size);
 }
+
+/** Meaningful domain overlap required before showing a linked previous project. */
+const DISPLAY_DOMAIN_MIN = 0.15;
 
 async function resolveFromMatchedKey(matchedKey, similarityPercent) {
   const key = String(matchedKey || '').trim();
@@ -406,13 +441,13 @@ async function findFallbackSimilarProject(proposal, similarityPercent) {
         best = row;
       }
     }
-    if (best && bestScore >= 0.25) {
+    if (best && bestScore >= DISPLAY_DOMAIN_MIN) {
       const fromKey = await resolveFromMatchedKey(`proposal:${best._id}`, similarityPercent);
       if (fromKey) return fromKey;
     }
   }
 
-  const legacyRows = await LegacyProject.find({ subject: assignment.subject }).select('_id title').limit(20).lean();
+  const legacyRows = await LegacyProject.find({ subject: assignment.subject }).select('_id title').limit(40).lean();
   let bestLegacy = null;
   let bestLegacyScore = 0;
   for (const row of legacyRows) {
@@ -422,11 +457,15 @@ async function findFallbackSimilarProject(proposal, similarityPercent) {
       bestLegacy = row;
     }
   }
-  if (bestLegacy && bestLegacyScore >= 0.2) {
+  if (bestLegacy && bestLegacyScore >= DISPLAY_DOMAIN_MIN) {
     return resolveFromMatchedKey(`legacy:${bestLegacy._id}`, similarityPercent);
   }
 
   return null;
+}
+
+function matchPassesDomainGate(proposalTitle, matchTitle) {
+  return titleOverlapScore(proposalTitle || '', matchTitle || '') >= DISPLAY_DOMAIN_MIN;
 }
 
 export async function resolveSimilarMatchedProject(proposal) {
@@ -443,15 +482,22 @@ export async function resolveSimilarMatchedProject(proposal) {
   if (!flaggedPrevious && !hasExplicitMatch) return null;
 
   const similarityPercent = Math.round(Number(proposal.aiPreviousSemesterMaxScore || 0) * 100);
+  const proposalTitle = proposal.title || '';
 
+  const acceptOrFallback = async (candidate) => {
+    if (!candidate?.title) return null;
+    if (matchPassesDomainGate(proposalTitle, candidate.title)) return candidate;
+    // Stored AI match pointed at an unrelated domain (e.g. Finance vs Building Mgmt).
+    return findFallbackSimilarProject(proposal, similarityPercent);
+  };
   if (proposal.aiMatchedProposalId) {
     const gallery = await getVerifiedProjectById(String(proposal.aiMatchedProposalId));
     if (gallery) {
-      return {
+      return acceptOrFallback({
         ...gallery,
         similarityPercent,
         galleryPath: `/gallery/${gallery.id}`,
-      };
+      });
     }
 
     const prev = await Proposal.findById(proposal.aiMatchedProposalId)
@@ -471,7 +517,7 @@ export async function resolveSimilarMatchedProject(proposal) {
           ? [toPublicUrl(submission.screenshotRelativePath)]
           : [];
 
-      return {
+      return acceptOrFallback({
         id: String(prev._id),
         kind: 'proposal',
         inVerifiedGallery: prev.status === 'teacher_approved',
@@ -485,7 +531,7 @@ export async function resolveSimilarMatchedProject(proposal) {
         screenshotUrls,
         similarityPercent,
         galleryPath: prev.status === 'teacher_approved' ? `/gallery/${prev._id}` : null,
-      };
+      });
     }
   }
 
@@ -493,17 +539,17 @@ export async function resolveSimilarMatchedProject(proposal) {
     const legacy = await LegacyProject.findById(proposal.aiMatchedLegacyId).lean();
     if (legacy) {
       const gallery = mapLegacyGalleryRow(legacy);
-      return {
+      return acceptOrFallback({
         ...gallery,
         similarityPercent,
         galleryPath: `/gallery/${gallery.id}`,
-      };
+      });
     }
   }
 
   if (proposal.aiMatchedLegacyKey) {
     const fromKey = await resolveFromMatchedKey(proposal.aiMatchedLegacyKey, similarityPercent);
-    if (fromKey) return fromKey;
+    if (fromKey) return acceptOrFallback(fromKey);
   }
 
   if (flaggedPrevious) {
