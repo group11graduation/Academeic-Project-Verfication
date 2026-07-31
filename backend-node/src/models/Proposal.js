@@ -103,6 +103,20 @@ const proposalSchema = new mongoose.Schema(
       frontend: { type: collaborativeReviewSchema, default: () => ({}) },
       backend: { type: collaborativeReviewSchema, default: () => ({}) },
     },
+    /**
+     * Last teacher decision on the project ZIP (kept after a hard reject deletes the submission).
+     */
+    lastProjectReview: {
+      decision: {
+        type: String,
+        enum: ['', 'approved', 'rejected', 'revision_required'],
+        default: '',
+      },
+      comment: { type: String, default: '' },
+      score: { type: Number, min: 0, default: null },
+      scoreMax: { type: Number, min: 1, default: 100 },
+      reviewedAt: { type: Date },
+    },
     submittedAt: { type: Date },
   },
   { timestamps: true }

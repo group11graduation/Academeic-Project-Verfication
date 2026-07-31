@@ -5,6 +5,7 @@ export const NOTIFICATION_TYPES = [
   'proposal_reviewed',
   'proposal_ai_result',
   'project_uploaded',
+  'project_reviewed',
   'message_received',
   'message_replied',
   'assignment_created',

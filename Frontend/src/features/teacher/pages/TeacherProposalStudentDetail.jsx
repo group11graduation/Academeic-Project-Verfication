@@ -505,13 +505,43 @@ const TeacherProposalStudentDetail = () => {
 
     const runReview = async (action) => {
         if (!proposal) return;
+        const reviewingProjectZip = Boolean(proposal.latestProjectSubmission);
+        if (reviewingProjectZip && (action === 'reject' || action === 'revision') && !comment.trim()) {
+            await appWarning(
+                action === 'reject'
+                    ? 'Add written feedback explaining why you are rejecting this project ZIP.'
+                    : 'Add written feedback explaining what the student must change.'
+            );
+            return;
+        }
         setActionId(proposal._id + action);
         try {
             const res = await teacherService.reviewProposal(proposal._id, { action, ...reviewPayload() });
             if (res.success) {
                 setComment('');
                 await load();
-                if (
+                if (reviewingProjectZip) {
+                    if (action === 'approve') {
+                        if (
+                            isCollaborative &&
+                            res.data?.latestProjectSubmission?.teacherDecision !== 'approved'
+                        ) {
+                            await appWarning(
+                                'Your project approval was saved. Waiting for your co-teacher before the project is fully approved.'
+                            );
+                        } else {
+                            await appSuccess('Project ZIP approved. The student was notified.');
+                        }
+                    } else if (action === 'reject') {
+                        await appSuccess(
+                          'Project ZIP rejected. It was removed from the database (and matching legacy archive). The student was notified.'
+                        );
+                    } else if (action === 'revision') {
+                        await appSuccess(
+                          'Requested project changes. The student can re-upload an update without legacy “already exists” rejection.'
+                        );
+                    }
+                } else if (
                     action === 'approve' &&
                     res.data?.collaborativeApproval?.awaitingDualApproval
                 ) {
@@ -688,6 +718,11 @@ const TeacherProposalStudentDetail = () => {
     const projectFeedbackComment = myProjectReviewSlot?.comment || zip?.teacherComment || '';
     const projectFeedbackScore = myProjectReviewSlot?.score ?? zip?.teacherScore ?? null;
     const projectFeedbackScoreMax = myProjectReviewSlot?.scoreMax ?? zip?.teacherScoreMax ?? 100;
+    const projectDecision =
+        myProjectReviewSlot?.decision || zip?.teacherDecision || proposal.lastProjectReview?.decision || '';
+    const canDecideProject = Boolean(isFullyApproved && isProjectReviewPhase);
+    const rejectedProjectNotice =
+        !zip && proposal.lastProjectReview?.decision === 'rejected' ? proposal.lastProjectReview : null;
     const otherCollabProjectSlot =
         isProjectReviewPhase && isCollaborative && myReviewRole
             ? zip?.collaborativeProjectReviews?.[myReviewRole === 'frontend' ? 'backend' : 'frontend']
@@ -1198,7 +1233,7 @@ const TeacherProposalStudentDetail = () => {
                             </h2>
                             <p className="mb-4 text-xs text-[var(--sv-muted)]">
                                 {isProjectReviewPhase
-                                    ? 'Score and written feedback on the student project ZIP. The student sees this after submission.'
+                                    ? 'Score and written feedback on the student project ZIP, then approve or reject below after you review screenshots / preview.'
                                     : 'Score, AI comparison, and written feedback on the proposal.'}
                             </p>
                             {isProjectReviewPhase && isCollaborative && myReviewRole ? (
@@ -1224,17 +1259,39 @@ const TeacherProposalStudentDetail = () => {
                                     ) : null}
                                 </div>
                             ) : null}
-                            {isProjectReviewPhase && (projectFeedbackComment || projectFeedbackScore != null) ? (
+                            {isProjectReviewPhase && (projectFeedbackComment || projectFeedbackScore != null || projectDecision) ? (
                                 <div className="mb-4 rounded-xl border border-violet-100 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2 text-xs text-violet-900">
                                     <p className="font-bold uppercase tracking-wide text-violet-700">
                                         {isCollaborative && myReviewRole ? 'Your saved project feedback' : 'Current project feedback'}
                                     </p>
+                                    {projectDecision ? (
+                                        <p className="mt-1 font-bold">
+                                            Decision:{' '}
+                                            {projectDecision === 'approved'
+                                                ? 'Approved'
+                                                : projectDecision === 'rejected'
+                                                  ? 'Rejected'
+                                                  : 'Changes requested'}
+                                        </p>
+                                    ) : null}
                                     {projectFeedbackScore != null ? (
                                         <p className="mt-1 font-bold">
                                             Score: {projectFeedbackScore}/{projectFeedbackScoreMax}
                                         </p>
                                     ) : null}
                                     {projectFeedbackComment ? <p className="mt-1">{projectFeedbackComment}</p> : null}
+                                </div>
+                            ) : null}
+                            {rejectedProjectNotice ? (
+                                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                                    <p className="font-bold uppercase tracking-wide text-rose-700">Project ZIP rejected & removed</p>
+                                    <p className="mt-1 font-semibold">
+                                        The submission was deleted from the database
+                                        {rejectedProjectNotice.comment ? ' with this feedback:' : '.'}
+                                    </p>
+                                    {rejectedProjectNotice.comment ? (
+                                        <p className="mt-1 whitespace-pre-wrap">{rejectedProjectNotice.comment}</p>
+                                    ) : null}
                                 </div>
                             ) : null}
                             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1376,6 +1433,80 @@ const TeacherProposalStudentDetail = () => {
                                     >
                                         <XCircle className="h-4 w-4" />
                                         Reject
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {canDecideProject && (
+                            <div className={`${Z_CARD} p-5`}>
+                                <h2 className="mb-1 text-sm font-bold text-[var(--sv-text)]">Project ZIP decision</h2>
+                                <p className="mb-3 text-xs text-[var(--sv-muted)]">
+                                    Review the ZIP, screenshots, and sandbox preview above, write feedback, then decide:
+                                    approve, request changes (student may re-upload), or reject (deletes this project ZIP
+                                    and matching legacy archive entry).
+                                </p>
+                                {projectDecision ? (
+                                    <p
+                                        className={`mb-3 rounded-lg border px-3 py-2 text-xs font-bold ${
+                                            projectDecision === 'approved'
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                                : projectDecision === 'rejected'
+                                                  ? 'border-rose-200 bg-rose-50 text-rose-900'
+                                                  : 'border-amber-200 bg-amber-50 text-amber-900'
+                                        }`}
+                                    >
+                                        Current decision:{' '}
+                                        {projectDecision === 'approved'
+                                            ? 'Approved'
+                                            : projectDecision === 'rejected'
+                                              ? 'Rejected'
+                                              : 'Changes requested'}
+                                        {zip?.teacherDecision &&
+                                        isCollaborative &&
+                                        myProjectReviewSlot?.decision &&
+                                        zip.teacherDecision !== myProjectReviewSlot.decision
+                                            ? ` (overall: ${
+                                                  zip.teacherDecision === 'approved'
+                                                      ? 'Approved'
+                                                      : zip.teacherDecision === 'rejected'
+                                                        ? 'Rejected'
+                                                        : zip.teacherDecision === 'revision_required'
+                                                          ? 'Changes requested'
+                                                          : 'Pending co-teacher'
+                                              })`
+                                            : ''}
+                                    </p>
+                                ) : null}
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={!!actionId}
+                                        onClick={() => runReview('approve')}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                    >
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        {isCollaborative && myReviewRole
+                                            ? `Approve project (${myReviewRole})`
+                                            : 'Approve project'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!!actionId}
+                                        onClick={() => runReview('revision')}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-600 disabled:opacity-50"
+                                    >
+                                        <AlertTriangle className="h-4 w-4" />
+                                        Request project changes
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!!actionId}
+                                        onClick={() => runReview('reject')}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                                    >
+                                        <XCircle className="h-4 w-4" />
+                                        Reject project
                                     </button>
                                 </div>
                             </div>

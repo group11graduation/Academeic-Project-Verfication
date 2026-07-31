@@ -7,6 +7,11 @@ const collaborativeProjectReviewSchema = new mongoose.Schema(
     score: { type: Number, min: 0, default: null },
     scoreMax: { type: Number, min: 1, default: 100 },
     reviewedAt: { type: Date },
+    decision: {
+      type: String,
+      enum: ['', 'approved', 'rejected', 'revision_required'],
+      default: '',
+    },
   },
   { _id: false }
 );
@@ -86,6 +91,15 @@ const projectSubmissionSchema = new mongoose.Schema(
     teacherScore: { type: Number, min: 0, default: null },
     teacherScoreMax: { type: Number, min: 1, default: 100 },
     teacherReviewedAt: { type: Date },
+    /**
+     * Teacher decision on the uploaded project ZIP (after preview / screenshots).
+     * Cleared when the student uploads a replacement ZIP.
+     */
+    teacherDecision: {
+      type: String,
+      enum: ['', 'approved', 'rejected', 'revision_required'],
+      default: '',
+    },
     /** Set when teacher successfully opens a live preview of this ZIP */
     teacherPreviewedAt: { type: Date },
     /** Dual-teacher project feedback (frontend + backend teachers) */

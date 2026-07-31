@@ -10,6 +10,7 @@ import { ProjectSubmission } from '../models/ProjectSubmission.js';
 import {
   applyProjectTeacherEvalFields,
   applyCollaborativeProjectReviewSlot,
+  syncOverallProjectDecision,
   toProjectSubmissionClient,
 } from './projectSubmissionSummary.service.js';
 import { Enrollment } from '../models/Enrollment.js';
@@ -100,6 +101,39 @@ function notifyStudentOfProposalOutcome(proposal, assignment, actionLabel, body)
         assignmentId: String(assignment?._id || proposal.assignment || ''),
         proposalId: String(proposal._id),
         status: proposal.status,
+      },
+    })
+  );
+}
+
+function notifyStudentOfProjectOutcome(proposal, assignment, decision, feedbackComment = '') {
+  if (!proposal?.submittedBy) return;
+  const labels = {
+    approved: 'approved',
+    rejected: 'rejected',
+    revision_required: 'sent back for changes',
+  };
+  const actionLabel = labels[decision] || decision;
+  const title =
+    decision === 'approved'
+      ? 'Project ZIP approved'
+      : decision === 'rejected'
+        ? 'Project ZIP rejected'
+        : 'Project ZIP needs changes';
+  const feedback = String(feedbackComment || '').trim();
+  notifySafe(() =>
+    createNotification({
+      userId: proposal.submittedBy,
+      type: 'project_reviewed',
+      title,
+      body:
+        feedback ||
+        `Your project ZIP for "${proposal.title || 'Untitled'}" (${assignment?.title || 'the assignment'}) was ${actionLabel}.`,
+      link: studentProposalLink(assignment?._id || proposal.assignment),
+      meta: {
+        assignmentId: String(assignment?._id || proposal.assignment || ''),
+        proposalId: String(proposal._id),
+        teacherDecision: decision,
       },
     })
   );
@@ -1324,6 +1358,103 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       enriched.hasProjectSubmission = true;
     }
     return enriched;
+  }
+
+  // Project ZIP review (after proposal is fully approved and student uploaded ZIP)
+  if (['approve', 'reject', 'revision'].includes(String(action))) {
+    const latestProject = await ProjectSubmission.findOne({ proposal: proposal._id }).sort({ createdAt: -1 });
+    const proposalFullyApproved = isProposalFullyApprovedForProject(proposal, assignmentDoc);
+    if (latestProject && proposalFullyApproved) {
+      const decision =
+        action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'revision_required';
+      const trimmedComment = evalBody?.comment == null ? '' : String(evalBody.comment).trim();
+      if ((decision === 'rejected' || decision === 'revision_required') && !trimmedComment) {
+        const err = new Error(
+          decision === 'rejected'
+            ? 'Write feedback explaining why the project ZIP is rejected.'
+            : 'Write feedback explaining what the student must change in the project ZIP.'
+        );
+        err.status = 400;
+        throw err;
+      }
+
+      const projectEvalBody = { ...evalBody, teacherDecision: decision };
+      if (collaborativeRole) {
+        applyCollaborativeProjectReviewSlot(latestProject, collaborativeRole, teacherId, projectEvalBody);
+        syncOverallProjectDecision(latestProject);
+      } else {
+        applyProjectTeacherEvalFields(latestProject, projectEvalBody);
+        latestProject.teacherDecision = decision;
+        latestProject.teacherReviewedAt = new Date();
+      }
+
+      // Hard reject: delete ZIP + screenshots from DB/disk and remove matching legacy archive rows.
+      // Request-changes keeps the submission so the student can update without legacy reject.
+      if (decision === 'rejected' && (!collaborativeRole || latestProject.teacherDecision === 'rejected')) {
+        const { purgeProjectSubmissionForProposal } = await import('./projectCodeSubmission.service.js');
+        await purgeProjectSubmissionForProposal(proposal, assignmentDoc, {
+          decision: 'rejected',
+          comment: trimmedComment,
+          score: latestProject.teacherScore ?? null,
+          scoreMax: latestProject.teacherScoreMax ?? 100,
+          reviewedAt: new Date(),
+          ownerLabel:
+            typeof proposal.submittedBy === 'object' ? proposal.submittedBy?.name || '' : '',
+        });
+        notifyStudentOfProjectOutcome(proposal, assignmentDoc, 'rejected', trimmedComment);
+        const enriched = enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+        enriched.latestProjectSubmission = null;
+        enriched.hasProjectSubmission = false;
+        enriched.lastProjectReview = {
+          decision: 'rejected',
+          comment: trimmedComment,
+          score: latestProject.teacherScore ?? null,
+          scoreMax: latestProject.teacherScoreMax ?? 100,
+          reviewedAt: new Date(),
+        };
+        return enriched;
+      }
+
+      await latestProject.save();
+
+      const overall = latestProject.teacherDecision || decision;
+      if (overall === 'approved' || overall === 'rejected' || overall === 'revision_required') {
+        notifyStudentOfProjectOutcome(proposal, assignmentDoc, overall, trimmedComment);
+      } else if (collaborativeRole && decision === 'approved') {
+        notifySafe(() =>
+          createNotification({
+            userId: proposal.submittedBy,
+            type: 'project_reviewed',
+            title: 'Project review update',
+            body: `One teacher approved your project ZIP for "${proposal.title || 'Untitled'}". Waiting for the co-teacher.`,
+            link: studentProposalLink(assignmentDoc?._id || proposal.assignment),
+            meta: {
+              assignmentId: String(assignmentDoc?._id || proposal.assignment || ''),
+              proposalId: String(proposal._id),
+              teacherDecision: decision,
+            },
+          })
+        );
+      }
+
+      // Persist request-changes / approve on proposal too (student status + teacher UI).
+      if (overall === 'revision_required' || overall === 'approved') {
+        proposal.lastProjectReview = {
+          decision: overall,
+          comment: trimmedComment || latestProject.teacherComment || '',
+          score: latestProject.teacherScore ?? null,
+          scoreMax: latestProject.teacherScoreMax ?? 100,
+          reviewedAt: new Date(),
+        };
+        await proposal.save();
+      }
+
+      const enriched = enrichProposalCollaborativeMeta(proposal, assignmentDoc);
+      enriched.latestProjectSubmission = toProjectSubmissionClient(latestProject);
+      enriched.hasProjectSubmission = true;
+      enriched.lastProjectReview = proposal.lastProjectReview || null;
+      return enriched;
+    }
   }
 
   const reviewable = ['pending_teacher_approval', 'requirements_review', 'ai_flagged_previous_semester'];

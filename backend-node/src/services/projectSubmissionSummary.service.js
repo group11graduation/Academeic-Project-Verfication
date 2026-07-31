@@ -6,6 +6,7 @@ const projectReviewSlotSchema = {
   score: null,
   scoreMax: 100,
   reviewedAt: null,
+  decision: '',
 };
 
 function normalizeReviewSlot(raw) {
@@ -13,13 +14,17 @@ function normalizeReviewSlot(raw) {
   const comment = String(raw.comment || '').trim();
   const score = raw.score ?? raw.teacherScore ?? null;
   const scoreMax = raw.scoreMax ?? raw.teacherScoreMax ?? 100;
-  if (!comment && score == null) return null;
+  const decision = ['approved', 'rejected', 'revision_required'].includes(String(raw.decision || ''))
+    ? String(raw.decision)
+    : '';
+  if (!comment && score == null && !decision) return null;
   return {
     teacherId: raw.teacherId || null,
     comment,
     score: score != null ? Number(score) : null,
     scoreMax: Number(scoreMax) > 0 ? Number(scoreMax) : 100,
     reviewedAt: raw.reviewedAt || null,
+    decision,
   };
 }
 
@@ -62,6 +67,9 @@ export function toProjectSubmissionClient(doc) {
     teacherScore: doc.teacherScore ?? null,
     teacherScoreMax: scoreMax,
     teacherReviewedAt: doc.teacherReviewedAt || null,
+    teacherDecision: ['approved', 'rejected', 'revision_required'].includes(String(doc.teacherDecision || ''))
+      ? String(doc.teacherDecision)
+      : '',
     teacherPreviewedAt: doc.teacherPreviewedAt || null,
     collaborativeProjectReviews: normalizeCollaborativeProjectReviews(doc),
   };
@@ -108,6 +116,12 @@ export function applyProjectTeacherEvalFields(submission, body) {
       submission.teacherReviewedAt = new Date();
     }
   }
+
+  if (Object.prototype.hasOwnProperty.call(body || {}, 'teacherDecision')) {
+    const d = String(body.teacherDecision || '');
+    submission.teacherDecision = ['approved', 'rejected', 'revision_required'].includes(d) ? d : '';
+    submission.teacherReviewedAt = new Date();
+  }
 }
 
 export function ensureCollaborativeProjectReviews(submission) {
@@ -146,6 +160,40 @@ export function applyCollaborativeProjectReviewSlot(submission, role, teacherId,
       slot.scoreMax = scoreMax;
     }
   }
+
+  if (Object.prototype.hasOwnProperty.call(body || {}, 'teacherDecision')) {
+    const d = String(body.teacherDecision || '');
+    slot.decision = ['approved', 'rejected', 'revision_required'].includes(d) ? d : '';
+  }
+}
+
+/** Derive overall teacherDecision from dual-teacher project slots (or single field). */
+export function syncOverallProjectDecision(submission) {
+  const fe = submission?.collaborativeProjectReviews?.frontend?.decision || '';
+  const be = submission?.collaborativeProjectReviews?.backend?.decision || '';
+  if (fe === 'rejected' || be === 'rejected') {
+    submission.teacherDecision = 'rejected';
+    return submission.teacherDecision;
+  }
+  if (fe === 'revision_required' || be === 'revision_required') {
+    submission.teacherDecision = 'revision_required';
+    return submission.teacherDecision;
+  }
+  if (fe === 'approved' && be === 'approved') {
+    submission.teacherDecision = 'approved';
+    return submission.teacherDecision;
+  }
+  if (fe === 'approved' || be === 'approved') {
+    // One side approved; wait for the other unless only one role exists.
+    if (fe && be) {
+      // keep previous overall or leave pending
+      if (submission.teacherDecision === 'approved') submission.teacherDecision = '';
+      return submission.teacherDecision || '';
+    }
+    submission.teacherDecision = fe || be;
+    return submission.teacherDecision;
+  }
+  return submission.teacherDecision || '';
 }
 
 /** Build student-facing feedback entries from a submission row */
@@ -165,7 +213,7 @@ export function buildProjectFeedbackEntries(submission, proposal, assignment) {
     for (const role of ['frontend', 'backend']) {
       const slot = client.collaborativeProjectReviews[role];
       if (!slot) continue;
-      if (!slot.comment && slot.score == null) continue;
+      if (!slot.comment && slot.score == null && !slot.decision) continue;
       entries.push({
         role,
         roleLabel: roleLabels[role],
@@ -174,6 +222,7 @@ export function buildProjectFeedbackEntries(submission, proposal, assignment) {
         scoreMax: slot.scoreMax ?? 100,
         scoreDisplay: formatTeacherScoreDisplay(slot.score, slot.scoreMax),
         reviewedAt: slot.reviewedAt || null,
+        decision: slot.decision || '',
       });
     }
     if (entries.length) return entries;
@@ -186,8 +235,9 @@ export function buildProjectFeedbackEntries(submission, proposal, assignment) {
   const comment = uniqueComments.join('\n\n');
   const score = client.teacherScore ?? proposal?.teacherProposalScore ?? null;
   const scoreMax = client.teacherScoreMax ?? proposal?.teacherProposalScoreMax ?? 100;
+  const decision = client.teacherDecision || '';
 
-  if (comment || score != null) {
+  if (comment || score != null || decision) {
     entries.push({
       role: 'primary',
       roleLabel: 'Teacher',
@@ -196,6 +246,7 @@ export function buildProjectFeedbackEntries(submission, proposal, assignment) {
       scoreMax,
       scoreDisplay: formatTeacherScoreDisplay(score, scoreMax),
       reviewedAt: client.teacherReviewedAt || null,
+      decision,
     });
   }
 

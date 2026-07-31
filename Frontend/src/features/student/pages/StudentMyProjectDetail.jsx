@@ -308,10 +308,10 @@ const StudentMyProjectDetail = () => {
             }
             if (res.success && data?.accepted !== false) {
                 const v = data?.version;
-                const updated = data?.isUpdate;
+                const updated = data?.isUpdate || data?.replacedPrevious;
                 const techLine = formatProjectUploadFeedback(res, '');
                 const base = updated
-                    ? `Accepted (v${v}): ${data?.originalFilename || selectedZipFile.name}.`
+                    ? `Updated in place (v${v}): ${data?.originalFilename || selectedZipFile.name}. Previous ZIP and old screenshots were replaced/removed.`
                     : `Accepted: ${data?.originalFilename || selectedZipFile.name}.`;
                 const full = [base, techLine].filter(Boolean).join('\n\n');
                 setCodeZipTone('success');

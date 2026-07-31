@@ -26,6 +26,7 @@ export function getProjectTeacherFeedbackEntries(row) {
   const assignment = row?.assignment;
   const isCollab = Boolean(assignment?.isCollaborative && assignment?.coTeacherId);
   const entries = [];
+  const lastReview = proposal?.lastProjectReview || row?.lastProjectReview || null;
 
   if (isCollab && sub?.collaborativeProjectReviews) {
     const roleLabels = { frontend: 'Frontend teacher', backend: 'Backend teacher' };
@@ -35,7 +36,8 @@ export function getProjectTeacherFeedbackEntries(row) {
       const comment = String(slot.comment || '').trim();
       const score = slot.score ?? null;
       const scoreMax = slot.scoreMax ?? 100;
-      if (!comment && score == null) continue;
+      const decision = slot.decision || '';
+      if (!comment && score == null && !decision) continue;
       entries.push({
         role,
         roleLabel: roleLabels[role],
@@ -44,6 +46,7 @@ export function getProjectTeacherFeedbackEntries(row) {
         scoreMax,
         scoreDisplay: formatTeacherScoreDisplay(score, scoreMax),
         reviewedAt: slot.reviewedAt || null,
+        decision,
       });
     }
     if (entries.length) return entries;
@@ -52,6 +55,7 @@ export function getProjectTeacherFeedbackEntries(row) {
   const commentParts = [
     sub?.teacherComment,
     ...(sub ? [] : [proposal?.teacherComment]),
+    !sub && lastReview?.comment ? lastReview.comment : '',
     ...collectCollaborativeProposalComments(proposal),
   ]
     .filter((c) => c && String(c).trim())
@@ -59,10 +63,11 @@ export function getProjectTeacherFeedbackEntries(row) {
   const uniqueComments = [...new Set(commentParts)];
   const comment = uniqueComments.join('\n\n');
 
-  const score = sub?.teacherScore ?? proposal?.teacherProposalScore ?? null;
-  const scoreMax = sub?.teacherScoreMax ?? proposal?.teacherProposalScoreMax ?? 100;
+  const score = sub?.teacherScore ?? lastReview?.score ?? proposal?.teacherProposalScore ?? null;
+  const scoreMax = sub?.teacherScoreMax ?? lastReview?.scoreMax ?? proposal?.teacherProposalScoreMax ?? 100;
+  const decision = sub?.teacherDecision || lastReview?.decision || '';
 
-  if (comment || score != null) {
+  if (comment || score != null || decision) {
     entries.push({
       role: 'primary',
       roleLabel: 'Teacher',
@@ -70,7 +75,8 @@ export function getProjectTeacherFeedbackEntries(row) {
       score,
       scoreMax,
       scoreDisplay: formatTeacherScoreDisplay(score, scoreMax),
-      reviewedAt: sub?.teacherReviewedAt || null,
+      reviewedAt: sub?.teacherReviewedAt || lastReview?.reviewedAt || null,
+      decision,
     });
   }
 
@@ -102,6 +108,35 @@ export function getProjectWorkflowStatus(row) {
   const proposalStatus = row?.proposal?.status || 'not_submitted';
   const entries = getProjectTeacherFeedbackEntries(row);
   const hasFeedback = entries.length > 0;
+  const lastReview = row?.proposal?.lastProjectReview || row?.lastProjectReview || null;
+  const decision = String(sub?.teacherDecision || lastReview?.decision || '').trim();
+
+  if (decision === 'approved') {
+    return {
+      stage: 'project_approved',
+      label: 'Project approved',
+      tone: 'emerald',
+      description: entries[0]?.comment || 'Your teacher approved the project ZIP.',
+    };
+  }
+  if (decision === 'rejected') {
+    return {
+      stage: 'project_rejected',
+      label: 'Project rejected',
+      tone: 'rose',
+      description:
+        entries[0]?.comment ||
+        'Your teacher rejected the project ZIP and removed it. Upload a new project if the deadline is still open.',
+    };
+  }
+  if (decision === 'revision_required') {
+    return {
+      stage: 'project_revision',
+      label: 'Project changes requested',
+      tone: 'amber',
+      description: entries[0]?.comment || 'Your teacher asked for project ZIP changes.',
+    };
+  }
 
   if (hasFeedback) {
     const first = entries[0];

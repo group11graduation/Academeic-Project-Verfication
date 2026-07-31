@@ -91,11 +91,14 @@ export const submitProjectCode = asyncHandler(async (req, res) => {
       consistencyCheck: result.consistencyCheck || null,
       ...result.submission,
       isUpdate: result.isUpdate,
+      replacedPrevious: Boolean(result.replacedPrevious || result.isUpdate),
       verdict: result.verdict || 'accepted',
       techMatch: result.techMatch || null,
       message:
         result.techMatch?.message ||
-        (result.isUpdate ? 'Project ZIP updated and accepted.' : 'Project ZIP uploaded and accepted.'),
+        (result.isUpdate
+          ? 'Project ZIP updated in place. Previous archive was replaced and removed.'
+          : 'Project ZIP uploaded and accepted.'),
     },
     status
   );

@@ -487,28 +487,115 @@ async function analyzeConsistencyWithDeadline(payload) {
   );
 }
 
+/** True when this proposal already has an accepted ZIP we should keep until a new upload succeeds. */
+function hasReplaceableAcceptedZip(primary) {
+  return Boolean(
+    primary?.storedRelativePath &&
+      (primary.pipelineStatus === SUBMISSION_PIPELINE_STATUSES.ACCEPTED ||
+        primary.pipelineStatus === '' ||
+        primary.teacherDecision === 'revision_required')
+  );
+}
+
+/**
+ * On failed gates during an update/revision, keep the previous ZIP + screenshots in place.
+ * Only the new staging upload is discarded.
+ */
+function rejectionPayloadPreservingPrevious(primary, payload) {
+  if (!hasReplaceableAcceptedZip(primary)) return payload;
+  return {
+    ...payload,
+    storedRelativePath: primary.storedRelativePath,
+    sizeBytes: primary.sizeBytes ?? payload.sizeBytes ?? 0,
+    contentHash: primary.contentHash || payload.contentHash || '',
+    screenshotRelativePath: primary.screenshotRelativePath || '',
+    screenshotRelativePaths: Array.isArray(primary.screenshotRelativePaths)
+      ? [...primary.screenshotRelativePaths]
+      : primary.screenshotRelativePath
+        ? [primary.screenshotRelativePath]
+        : [],
+    // Keep revision state so the next attempt still skips legacy matching.
+    teacherDecision: primary.teacherDecision || '',
+    teacherComment: primary.teacherComment || '',
+    teacherScore: primary.teacherScore ?? null,
+    teacherScoreMax: primary.teacherScoreMax ?? 100,
+    teacherReviewedAt: primary.teacherReviewedAt || null,
+    collaborativeProjectReviews: primary.collaborativeProjectReviews || payload.collaborativeProjectReviews,
+  };
+}
+
 async function upsertSubmissionRecord({
   primary,
   proposal,
   submittedByUserId,
   payload,
 }) {
+  let nextPayload = payload;
+  // Failed gates on an update must not erase the previous accepted ZIP until a new one succeeds.
+  if (
+    primary &&
+    Object.prototype.hasOwnProperty.call(payload || {}, 'storedRelativePath') &&
+    !payload.storedRelativePath &&
+    hasReplaceableAcceptedZip(primary)
+  ) {
+    nextPayload = rejectionPayloadPreservingPrevious(primary, payload);
+  }
+
   if (primary) {
-    primary.set(payload);
+    primary.set(nextPayload);
     primary.version = (primary.version || 1) + 1;
     await primary.save();
     return primary;
   }
   return ProjectSubmission.create({
     proposal: proposal._id,
-    ...payload,
+    ...nextPayload,
     version: 1,
   });
+}
+
+async function invalidatePreviewArtifactsAfterZipReplace(proposalId, submissionId) {
+  try {
+    const { getSubmissionWorkspaceDir } = await import('./previewWorkspaceCache.service.js');
+    const workspaceDir = getSubmissionWorkspaceDir(String(submissionId));
+    await fs.rm(workspaceDir, { recursive: true, force: true }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+  try {
+    const { PreviewSession } = await import('../models/PreviewSession.js');
+    const sessions = await PreviewSession.find({
+      proposal: proposalId,
+      status: { $in: ['starting', 'running', 'runtime_error'] },
+    });
+    for (const session of sessions) {
+      try {
+        const docker = await import('./dockerOrchestrator.service.js');
+        await docker
+          .stopProjectPreview(String(session._id), {
+            hostPort: Number(session.hostPort) || null,
+            apiHostPort: Number(session.previewApiHostPort) || null,
+            imageKey: session.submission?.toString?.() || String(session._id),
+            stack: session.previewStack || 'node-js',
+          })
+          .catch(() => {});
+      } catch {
+        /* ignore */
+      }
+      session.status = 'stopped';
+      session.errorMessage = 'Stopped because the student uploaded a replacement project ZIP.';
+      session.endedAt = new Date();
+      await session.save().catch(() => {});
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
  * One submission record per proposal.
  * ZIP stays on staging until the full gate accepts; only then rename to project-code/.
+ * Updates replace the previous ZIP in the same place and remove the old file after success.
  */
 async function upsertProjectZipForProposal(proposal, submittedByUserId, file, projectStackHint = '', screenshotFiles = null) {
   if (!file?.path) {
@@ -756,21 +843,31 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
     detectedTech = [...new Set([...(evidence.detected_tech || []), ...(techMatch.zipTech || [])])];
 
+    // After teacher asked for project changes, allow the student to re-upload their updated ZIP
+    // without being blocked by the legacy / prior-work title gate.
+    const allowRevisionResubmit = String(primary?.teacherDecision || '') === 'revision_required';
+
     // LEGACY FIRST (before description/keyword check): reject known system / prior-student projects
     let legacyHit = null;
-    try {
-      legacyHit = await withDeadline(
-        findLegacyProjectMatch({
-          assignment,
-          evidence,
-          originalFilename: file.originalname || baseMeta.originalFilename || '',
-          currentProposalId: proposal._id,
-        }),
-        Number(process.env.LEGACY_MATCH_DEADLINE_MS || 4000),
-        'legacy match'
+    if (!allowRevisionResubmit) {
+      try {
+        legacyHit = await withDeadline(
+          findLegacyProjectMatch({
+            assignment,
+            evidence,
+            originalFilename: file.originalname || baseMeta.originalFilename || '',
+            currentProposalId: proposal._id,
+          }),
+          Number(process.env.LEGACY_MATCH_DEADLINE_MS || 4000),
+          'legacy match'
+        );
+      } catch (legErr) {
+        logger.warn(`[projectCodeSubmission] legacy match skipped: ${legErr.message}`);
+      }
+    } else {
+      logger.info(
+        `[projectCodeSubmission] legacy match skipped - teacher requested project changes for proposal ${proposal._id}`
       );
-    } catch (legErr) {
-      logger.warn(`[projectCodeSubmission] legacy match skipped: ${legErr.message}`);
     }
     if (legacyHit) {
       const ownerBit = legacyHit.ownerLabel ? ` (${legacyHit.ownerLabel})` : '';
@@ -967,7 +1064,17 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       String(consistencyRaw?.overall_verdict || '').toLowerCase() === 'needs_review';
     const consistencyCheck = normalizeConsistencyCheck(consistencyRaw, { needsReview });
 
-    // ACCEPT - rename staging → permanent project-code/
+    // ACCEPT - replace previous ZIP in the same project-code/<proposalId>/ place.
+    const previousZipRel = primary?.storedRelativePath
+      ? String(primary.storedRelativePath).replace(/^\/+/, '')
+      : '';
+    const previousShotRels = Array.isArray(primary?.screenshotRelativePaths)
+      ? primary.screenshotRelativePaths.map((p) => String(p || '').replace(/^\/+/, '')).filter(Boolean)
+      : primary?.screenshotRelativePath
+        ? [String(primary.screenshotRelativePath).replace(/^\/+/, '')]
+        : [];
+    const isInPlaceUpdate = Boolean(previousZipRel || primary);
+
     const relDir = path.join('project-code', String(proposal._id));
     const destDir = path.join(uploadsRoot, relDir);
     await fs.mkdir(destDir, { recursive: true });
@@ -976,22 +1083,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     const storedRelativePath = path.join(relDir, `project${ext}`).replace(/\\/g, '/');
     const destPath = path.join(uploadsRoot, storedRelativePath);
 
-    if (primary?.storedRelativePath) {
-      const oldAbs = path.join(uploadsRoot, primary.storedRelativePath);
-      if (oldAbs !== destPath) await unlinkQuiet(oldAbs);
-    }
-
-    try {
-      const dirFiles = await fs.readdir(destDir);
-      for (const name of dirFiles) {
-        if (name !== path.basename(storedRelativePath)) {
-          await unlinkQuiet(path.join(destDir, name));
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-
+    // Write the new ZIP first (same place as before), then remove leftover older files.
     try {
       await fs.rename(stagingZipPath, destPath);
     } catch {
@@ -1000,8 +1092,34 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     }
     renamedToPermanent = true;
 
+    try {
+      const dirFiles = await fs.readdir(destDir);
+      const keepName = path.basename(storedRelativePath);
+      for (const name of dirFiles) {
+        if (name !== keepName) {
+          await unlinkQuiet(path.join(destDir, name));
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (previousZipRel) {
+      const oldAbs = path.join(uploadsRoot, previousZipRel);
+      if (oldAbs !== destPath) await unlinkQuiet(oldAbs);
+    }
+
+    // New screenshots replace previous gallery images for this proposal.
     if (pendingScreenshots.length) {
       screenshotRelativePaths = await persistProjectScreenshots(proposal._id, pendingScreenshots);
+    }
+
+    // Delete any leftover previous screenshot files not in the new set.
+    const keepShot = new Set(screenshotRelativePaths.map((p) => String(p).replace(/^\/+/, '')));
+    for (const oldRel of previousShotRels) {
+      if (!keepShot.has(oldRel)) {
+        await unlinkQuiet(path.join(uploadsRoot, oldRel));
+      }
     }
 
     const stat = await fs.stat(destPath);
@@ -1021,10 +1139,40 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
         pipelineError: '',
         pipelineFailures: [],
         consistencyCheck,
+        teacherDecision: '',
+        teacherComment: '',
+        teacherScore: null,
+        teacherReviewedAt: null,
+        teacherPreviewedAt: null,
+        collaborativeProjectReviews: {
+          frontend: { teacherId: null, comment: '', score: null, scoreMax: 100, reviewedAt: null, decision: '' },
+          backend: { teacherId: null, comment: '', score: null, scoreMax: 100, reviewedAt: null, decision: '' },
+        },
       },
     });
 
+    // Clear any prior hard-reject / revision notice so the student UI shows the new upload.
+    await Proposal.updateOne(
+      { _id: proposal._id },
+      {
+        $set: {
+          lastProjectReview: {
+            decision: '',
+            comment: '',
+            score: null,
+            scoreMax: 100,
+            reviewedAt: null,
+          },
+        },
+      }
+    ).catch(() => {});
+
     const submissionId = saved._id;
+
+    // Drop cached preview workspace / running containers so teachers open the updated ZIP.
+    if (isInPlaceUpdate) {
+      await invalidatePreviewArtifactsAfterZipReplace(proposal._id, submissionId);
+    }
 
     // Skip heavy tech-audit on the upload request (preview runs its own audit later).
     // This keeps ZIP upload fast and prevents request timeouts / crashes.
@@ -1049,9 +1197,9 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
     notifySafe(() =>
       notifyAssignmentTeachers(assignment, {
         type: 'project_uploaded',
-        title: isUpdate ? 'Student updated project ZIP' : 'Project ZIP uploaded',
+        title: isUpdate ? 'Student replaced project ZIP' : 'Project ZIP uploaded',
         body: isUpdate
-          ? `${studentName} updated their project ZIP for "${assignment.title || 'assignment'}" (v${nextVersion}). Review the latest upload.`
+          ? `${studentName} replaced their previous project ZIP for "${assignment.title || 'assignment'}" (v${nextVersion}). The old archive was removed.`
           : `${studentName} uploaded a project for "${assignment.title || 'assignment'}".`,
         link: `/teacher/assignments/${assignment._id}/proposals/${proposal._id}`,
         meta: {
@@ -1060,6 +1208,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
           submissionId: String(submissionId),
           version: nextVersion,
           isUpdate,
+          replacedPrevious: isInPlaceUpdate,
         },
       })
     );
@@ -1068,6 +1217,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
       accepted: true,
       reason: '',
       isUpdate,
+      replacedPrevious: isInPlaceUpdate,
       verdict: needsReview ? 'needs_review' : 'accepted',
       consistencyCheck,
       techMatch: {
@@ -1082,7 +1232,7 @@ async function upsertProjectZipForProposal(proposal, submittedByUserId, file, pr
               ? 'Project ZIP saved. Description AI check timed out - flagged for teacher review.'
               : 'Project ZIP saved but flagged for teacher review.'
             : isUpdate
-              ? 'Project ZIP updated. Your teacher was notified.'
+              ? 'Project ZIP updated in place. Your previous archive was replaced and removed. Your teacher was notified.'
               : 'Project ZIP matches your approved proposal (technology and description).'),
       },
       submission,
@@ -1156,4 +1306,77 @@ export async function submitProjectScreenshotOnly(userId, assignmentId, screensh
 }
 export async function getLatestSubmissionForProposal(proposalId) {
   return ProjectSubmission.findOne({ proposal: proposalId }).sort({ createdAt: -1 }).lean();
+}
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Hard-delete project ZIP + screenshots for a proposal, and remove matching LegacyProject rows.
+ * Used when a teacher rejects the project (not when they only request changes).
+ */
+export async function purgeProjectSubmissionForProposal(proposal, assignment = null, reviewMeta = {}) {
+  const proposalId = proposal?._id || proposal;
+  if (!proposalId) return { deletedSubmissions: 0, deletedLegacy: 0 };
+
+  const uploadsRoot = getUploadDir();
+  const rows = await ProjectSubmission.find({ proposal: proposalId });
+  for (const row of rows) {
+    if (row.storedRelativePath) {
+      await unlinkQuiet(path.join(uploadsRoot, String(row.storedRelativePath).replace(/^\/+/, '')));
+    }
+    const shotPaths = Array.isArray(row.screenshotRelativePaths)
+      ? row.screenshotRelativePaths
+      : row.screenshotRelativePath
+        ? [row.screenshotRelativePath]
+        : [];
+    for (const rel of shotPaths) {
+      if (!rel) continue;
+      await unlinkQuiet(path.join(uploadsRoot, String(rel).replace(/^\/+/, '')));
+    }
+  }
+  await clearProjectScreenshotDir(proposalId);
+
+  const delSubs = await ProjectSubmission.deleteMany({ proposal: proposalId });
+
+  const title = String(proposal?.title || '').trim();
+  let deletedLegacy = 0;
+  if (title) {
+    const subjectId =
+      assignment?.subject?._id || assignment?.subject || proposal?.assignment?.subject || null;
+    const filter = { title: { $regex: `^${escapeRegex(title)}$`, $options: 'i' } };
+    if (subjectId) filter.subject = subjectId;
+    const legacyResult = await LegacyProject.deleteMany(filter);
+    deletedLegacy = legacyResult.deletedCount || 0;
+
+    // If subject filter found nothing, still remove exact-title legacy rows for this owner label.
+    if (!deletedLegacy) {
+      const ownerLabel = String(reviewMeta.ownerLabel || proposal?.submittedBy?.name || '').trim();
+      const broad = { title: { $regex: `^${escapeRegex(title)}$`, $options: 'i' } };
+      if (ownerLabel) broad.ownerLabel = { $regex: escapeRegex(ownerLabel), $options: 'i' };
+      const broadResult = await LegacyProject.deleteMany(broad);
+      deletedLegacy = broadResult.deletedCount || 0;
+    }
+  }
+
+  await Proposal.updateOne(
+    { _id: proposalId },
+    {
+      $set: {
+        lastProjectReview: {
+          decision: reviewMeta.decision || 'rejected',
+          comment: String(reviewMeta.comment || '').trim(),
+          score: reviewMeta.score ?? null,
+          scoreMax: reviewMeta.scoreMax ?? 100,
+          reviewedAt: reviewMeta.reviewedAt || new Date(),
+        },
+      },
+    }
+  );
+
+  return {
+    deletedSubmissions: delSubs.deletedCount || 0,
+    deletedLegacy,
+  };
 }
