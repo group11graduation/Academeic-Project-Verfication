@@ -45,6 +45,7 @@ import {
   notifyAssignmentTeachers,
   createNotification,
 } from './notification.service.js';
+import { User } from '../models/User.js';
 
 const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_CANDIDATES || 40);
 const AI_LEGACY_MAX_CANDIDATES = Number(process.env.AI_LEGACY_MAX_CANDIDATES || 40);
@@ -86,7 +87,11 @@ function notifyTeachersOfPendingProposal(assignment, proposal) {
   );
 }
 
-function notifyStudentOfProposalOutcome(proposal, assignment, actionLabel, body) {
+/**
+ * Dual notification when a teacher approves / rejects / requests revision:
+ * in-app + email for the student (via createNotification).
+ */
+function notifyStudentOfProposalOutcome(proposal, assignment, actionLabel, body, teacherUser = null) {
   if (!proposal?.submittedBy) return;
   notifySafe(() =>
     createNotification({
@@ -101,7 +106,10 @@ function notifyStudentOfProposalOutcome(proposal, assignment, actionLabel, body)
         assignmentId: String(assignment?._id || proposal.assignment || ''),
         proposalId: String(proposal._id),
         status: proposal.status,
+        event: 'proposal_reviewed',
       },
+      senderName: teacherUser?.name || teacherUser?.email || process.env.APP_NAME || 'ScholarVerify',
+      senderEmail: teacherUser?.email || process.env.EMAIL_USER || process.env.SMTP_USER,
     })
   );
 }
@@ -1362,6 +1370,8 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
   const assignmentDoc = proposal.assignment;
   await reconcileCollaborativeProposalStatus(proposal, assignmentDoc);
 
+  const teacherUser = await User.findById(teacherId).select('name email').lean();
+
   const isDualTeacherCollab = Boolean(assignmentDoc?.isCollaborative && assignmentDoc?.coTeacherId);
   let collaborativeRole = null;
 
@@ -1511,7 +1521,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       applyCollaborativeReviewSlot(proposal, collaborativeRole, teacherId, evalBody, 'reject');
       proposal.status = 'teacher_rejected';
       await proposal.save();
-      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
+      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected', undefined, teacherUser);
       return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
     }
     if (action === 'revision') {
@@ -1519,7 +1529,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       proposal.status = 'revision_required';
       proposal.collaborativeTeacherReviews = emptyCollaborativeReviews();
       await proposal.save();
-      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'sent back for revision');
+      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'sent back for revision', undefined, teacherUser);
       return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
     }
     if (action === 'approve') {
@@ -1541,7 +1551,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
         const prev = proposal.teacherComment || '';
         proposal.teacherComment = [prev, requirementCheck.summary].filter(Boolean).join(' | ');
         await proposal.save();
-        notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
+        notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected', undefined, teacherUser);
         return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
       }
 
@@ -1559,7 +1569,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
           const prev = proposal.teacherComment || '';
           proposal.teacherComment = [prev, fullCheck.summary].filter(Boolean).join(' | ');
           await proposal.save();
-          notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
+          notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected', undefined, teacherUser);
           return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
         }
 
@@ -1575,13 +1585,14 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
 
       await proposal.save();
       if (proposal.status === 'teacher_approved') {
-        notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'approved');
+        notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'approved', undefined, teacherUser);
       } else if (proposal.status === 'pending_teacher_approval') {
         notifyStudentOfProposalOutcome(
           proposal,
           assignmentDoc,
           'partially approved',
-          `One teacher approved "${proposal.title || 'Untitled'}". Waiting for the other teacher.`
+          `One teacher approved "${proposal.title || 'Untitled'}". Waiting for the other teacher.`,
+          teacherUser
         );
       }
       return enrichProposalCollaborativeMeta(proposal, assignmentDoc);
@@ -1606,7 +1617,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       const prev = proposal.teacherComment || '';
       proposal.teacherComment = [prev, requirementCheck.summary].filter(Boolean).join(' | ');
       await proposal.save();
-      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected');
+      notifyStudentOfProposalOutcome(proposal, assignmentDoc, 'rejected', undefined, teacherUser);
       return proposal;
     }
 
@@ -1633,7 +1644,7 @@ export async function teacherReviewProposal(teacherId, proposalId, body) {
       : proposal.status === 'revision_required'
         ? 'sent back for revision'
         : 'rejected';
-  notifyStudentOfProposalOutcome(proposal, assignmentDoc, label);
+  notifyStudentOfProposalOutcome(proposal, assignmentDoc, label, undefined, teacherUser);
   return proposal;
 }
 

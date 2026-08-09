@@ -155,7 +155,13 @@ services:
       # CORS_ORIGINS + FRONTEND_URL come from backend-node/runtime.env (env_file).
       # Do not re-declare them here — compose ${VAR} interpolation from the project
       # root .env can override VPS values with localhost-only defaults.
-      APP_NAME: ${APP_NAME:-Project Verify}
+      APP_NAME: ${APP_NAME:-ScholarVerify}
+      # Prefer EMAIL_* (utils/notify.js). SMTP_* kept for password-reset / legacy.
+      # Values come from project-root .env and/or backend-node/runtime.env env_file.
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
