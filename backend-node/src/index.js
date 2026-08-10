@@ -18,8 +18,10 @@ import publicRoutes from './routes/public.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import { getPort, getUploadDir } from './config/env.js';
 import { validateAuthSecretsAtStartup } from './config/auth.js';
+import { logEmailConfigStatus, verifyEmailTransport } from './utils/notify.js';
 
 validateAuthSecretsAtStartup();
+logEmailConfigStatus();
 
 const app = express();
 
@@ -51,7 +53,17 @@ app.use(errorHandler);
 const port = getPort();
 
 connectDb()
-  .then(() => {
+  .then(async () => {
+    // Optional SMTP probe (does not block boot if Gmail is down).
+    if (process.env.EMAIL_VERIFY_ON_START !== 'false') {
+      verifyEmailTransport()
+        .then((r) => {
+          if (r.ok) logger.info('[email] SMTP verify OK — Gmail login succeeded');
+          else logger.warn(`[email] SMTP verify failed: ${r.error}`);
+        })
+        .catch((err) => logger.warn(`[email] SMTP verify error: ${err?.message || err}`));
+    }
+
     const server = app.listen(port, () => logger.info(`API listening on port ${port}`));
     // Multi-screenshot / large ZIP uploads can take several minutes through the Vite proxy.
     server.headersTimeout = Math.max(server.headersTimeout || 0, 650_000);

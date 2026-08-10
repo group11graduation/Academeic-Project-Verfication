@@ -3,40 +3,94 @@ import { Notification, NOTIFICATION_TYPES } from '../models/Notification.js';
 import { logger } from '../config/logger.js';
 
 let cachedTransporter = null;
+let cachedConfigKey = '';
+
+function envTrim(name) {
+  return String(process.env[name] || '').trim();
+}
 
 /**
  * Resolve SMTP settings from EMAIL_* (preferred) or legacy SMTP_* env vars.
  */
 export function resolveSmtpConfig() {
-  const host = process.env.EMAIL_HOST || process.env.SMTP_HOST || '';
-  const user = process.env.EMAIL_USER || process.env.SMTP_USER || '';
-  const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS || '';
-  const port = Number(process.env.EMAIL_PORT || process.env.SMTP_PORT || 587);
-  const secure =
-    String(process.env.EMAIL_SECURE || process.env.SMTP_SECURE || '').toLowerCase() === 'true' ||
-    port === 465;
+  const host = envTrim('EMAIL_HOST') || envTrim('SMTP_HOST');
+  // Strip spaces from app passwords (Gmail often displays them as 4×4 blocks).
+  const user = (envTrim('EMAIL_USER') || envTrim('SMTP_USER')).replace(/\s+/g, '');
+  const pass = (envTrim('EMAIL_PASS') || envTrim('SMTP_PASS')).replace(/\s+/g, '');
+  const port = Number(envTrim('EMAIL_PORT') || envTrim('SMTP_PORT') || 587);
+  const secureRaw = envTrim('EMAIL_SECURE') || envTrim('SMTP_SECURE');
+  const secure = secureRaw.toLowerCase() === 'true' || port === 465;
 
-  if (!host || !user || !pass) return null;
+  if (!host || !user || !pass) {
+    return null;
+  }
 
   return { host, port, secure, user, pass };
 }
 
+function configKey(cfg) {
+  return `${cfg.host}|${cfg.port}|${cfg.secure}|${cfg.user}|${cfg.pass.length}`;
+}
+
 function getTransporter() {
   const cfg = resolveSmtpConfig();
-  if (!cfg) return null;
-  if (cachedTransporter) return cachedTransporter;
+  if (!cfg) {
+    cachedTransporter = null;
+    cachedConfigKey = '';
+    return null;
+  }
+
+  const key = configKey(cfg);
+  if (cachedTransporter && cachedConfigKey === key) return cachedTransporter;
 
   cachedTransporter = nodemailer.createTransport({
     host: cfg.host,
     port: cfg.port,
     secure: cfg.secure,
+    requireTLS: !cfg.secure && cfg.port === 587,
     auth: {
       user: cfg.user,
       pass: cfg.pass,
     },
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
+    socketTimeout: 30_000,
+    tls: {
+      // Accept standard Gmail certs; some VPS openssl stacks are picky with minVersion.
+      minVersion: 'TLSv1.2',
+    },
   });
-
+  cachedConfigKey = key;
   return cachedTransporter;
+}
+
+/** Log SMTP readiness once at startup (never logs the password). */
+export function logEmailConfigStatus() {
+  const cfg = resolveSmtpConfig();
+  if (!cfg) {
+    logger.warn(
+      '[email] DISABLED — set EMAIL_HOST, EMAIL_USER, EMAIL_PASS (or SMTP_*) in backend-node/runtime.env and restart'
+    );
+    return false;
+  }
+  logger.info(
+    `[email] ENABLED host=${cfg.host} port=${cfg.port} user=${cfg.user} secure=${cfg.secure}`
+  );
+  return true;
+}
+
+/** Verify SMTP login (used by diagnostic endpoint / startup optional check). */
+export async function verifyEmailTransport() {
+  const transporter = getTransporter();
+  if (!transporter) {
+    return { ok: false, error: 'SMTP not configured' };
+  }
+  try {
+    await transporter.verify();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
 }
 
 /** Map free-form type labels onto allowed Notification enum values. */
@@ -64,6 +118,13 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function sanitizeFromName(name) {
+  return String(name || 'ScholarVerify')
+    .replace(/[\r\n"]/g, '')
+    .trim()
+    .slice(0, 80) || 'ScholarVerify';
+}
+
 function buildNotificationEmailHtml({ title, message, senderName, link }) {
   const appName = process.env.APP_NAME || 'ScholarVerify';
   const frontend =
@@ -78,7 +139,9 @@ function buildNotificationEmailHtml({ title, message, senderName, link }) {
   let actionUrl = '';
   if (rawLink) {
     if (/^https?:\/\//i.test(rawLink)) actionUrl = rawLink;
-    else if (frontend) actionUrl = `${String(frontend).replace(/\/$/, '')}${rawLink.startsWith('/') ? '' : '/'}${rawLink}`;
+    else if (frontend) {
+      actionUrl = `${String(frontend).replace(/\/$/, '')}${rawLink.startsWith('/') ? '' : '/'}${rawLink}`;
+    }
   }
 
   const cta = actionUrl
@@ -114,7 +177,7 @@ function buildNotificationEmailHtml({ title, message, senderName, link }) {
                 ${cta}
                 <p style="margin:24px 0 0;font-size:13px;color:#64748b;">
                   This alert was sent by <strong style="color:#0f172a;">${safeSender}</strong>.
-                  You can also review it in your ${escapeHtml(appName)} notification center (admin, teacher, or student dashboard).
+                  You can also review it in your ${escapeHtml(appName)} notification center.
                 </p>
               </td>
             </tr>
@@ -150,24 +213,26 @@ export async function sendNotificationEmail({
   if (!recipientEmail) return false;
 
   const appName = process.env.APP_NAME || 'ScholarVerify';
-  const displaySender = String(senderName || appName).trim() || appName;
-  const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER || '';
+  const displaySender = sanitizeFromName(senderName || appName);
+  const cfg = resolveSmtpConfig();
   const trimmedTitle = String(title || '').trim() || 'Notification';
   const bodyText = String(message || '').trim() || trimmedTitle;
 
   const transporter = getTransporter();
-  if (!transporter || !smtpUser) {
+  if (!transporter || !cfg) {
     logger.warn(
       `[notify] Email skipped for ${recipientEmail}${notificationId ? ` (notification ${notificationId})` : ''}: SMTP not configured`
     );
     return false;
   }
 
+  const replyTo = String(senderEmail || cfg.user).trim() || cfg.user;
+
   try {
-    await transporter.sendMail({
-      from: `"${displaySender}" <${smtpUser}>`,
+    const info = await transporter.sendMail({
+      from: `"${displaySender}" <${cfg.user}>`,
       to: recipientEmail,
-      replyTo: senderEmail || smtpUser,
+      replyTo,
       subject: `${appName}: ${trimmedTitle}`.slice(0, 200),
       text: bodyText,
       html: buildNotificationEmailHtml({
@@ -178,12 +243,17 @@ export async function sendNotificationEmail({
       }),
     });
     logger.info(
-      `[notify] Email sent to ${recipientEmail}${notificationId ? ` for notification ${notificationId}` : ''}`
+      `[notify] Email sent to ${recipientEmail}${notificationId ? ` for notification ${notificationId}` : ''} id=${info?.messageId || 'n/a'}`
     );
     return true;
   } catch (err) {
+    // Invalidate cache so next attempt re-creates transport (auth changes etc.)
+    cachedTransporter = null;
+    cachedConfigKey = '';
     logger.error(
-      `[notify] Email failed for ${recipientEmail}${notificationId ? ` (notification ${notificationId})` : ''}: ${err?.message || err}`
+      `[notify] Email failed for ${recipientEmail}${notificationId ? ` (notification ${notificationId})` : ''}: ${err?.message || err}` +
+        (err?.response ? ` | smtp=${err.response}` : '') +
+        (err?.code ? ` | code=${err.code}` : '')
     );
     return false;
   }
@@ -191,7 +261,6 @@ export async function sendNotificationEmail({
 
 /**
  * Dual notification: persist in-app record, then email the recipient.
- * Email failures are logged only — never thrown — so API handlers stay stable.
  */
 export async function sendNotification({
   recipientUser,

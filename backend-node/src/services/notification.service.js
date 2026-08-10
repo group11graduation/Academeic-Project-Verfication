@@ -67,8 +67,8 @@ async function deliverEmailsForNotificationDocs(docs, { senderName, senderEmail 
 
   let users = [];
   try {
-    users = await User.find({ _id: { $in: userIds }, isActive: { $ne: false } })
-      .select('_id email name')
+    users = await User.find({ _id: { $in: userIds } })
+      .select('_id email name isActive')
       .lean();
   } catch (err) {
     logger.error(`[notifications] Failed to load recipients for email: ${err?.message || err}`);
@@ -78,18 +78,28 @@ async function deliverEmailsForNotificationDocs(docs, { senderName, senderEmail 
   const byId = new Map(users.map((u) => [String(u._id), u]));
   const jobs = [];
   let skippedNoEmail = 0;
+  let skippedInactive = 0;
 
   for (const doc of docs) {
     const plain = doc?.toObject ? doc.toObject() : doc;
     const uid = String(plain.user);
     const recipient = byId.get(uid);
-    if (!recipient?.email) {
+    if (!recipient) {
+      skippedNoEmail += 1;
+      continue;
+    }
+    if (recipient.isActive === false) {
+      skippedInactive += 1;
+      continue;
+    }
+    const email = String(recipient.email || '').trim().toLowerCase();
+    if (!email) {
       skippedNoEmail += 1;
       continue;
     }
 
     jobs.push({
-      to: recipient.email,
+      to: email,
       title: plain.title,
       message: plain.body || plain.title,
       link: plain.link || '',
@@ -102,14 +112,16 @@ async function deliverEmailsForNotificationDocs(docs, { senderName, senderEmail 
   if (!jobs.length) {
     logger.warn(
       `[notifications] ${docs.length} notification(s) created, 0 emails queued ` +
-        `(${skippedNoEmail} recipient(s) missing email on User account)`
+        `(no-email=${skippedNoEmail}, inactive=${skippedInactive})`
     );
     return;
   }
 
   logger.info(
     `[notifications] Queueing ${jobs.length} email(s) for ${docs.length} notification(s)` +
-      (skippedNoEmail ? ` (${skippedNoEmail} skipped, no email)` : '')
+      (skippedNoEmail || skippedInactive
+        ? ` (no-email=${skippedNoEmail}, inactive=${skippedInactive})`
+        : '')
   );
 
   for (let i = 0; i < jobs.length; i += EMAIL_BATCH_SIZE) {

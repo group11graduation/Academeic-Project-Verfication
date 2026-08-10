@@ -1,46 +1,8 @@
 import nodemailer from 'nodemailer';
 import { logger } from '../config/logger.js';
+import { resolveSmtpConfig, sendNotificationEmail } from '../utils/notify.js';
 
-let cachedTransporter = null;
-
-/**
- * Resolve SMTP from EMAIL_* (primary) or legacy SMTP_* env vars.
- * Supports Gmail app passwords via EMAIL_HOST=smtp.gmail.com, EMAIL_PORT=587, etc.
- */
-function resolveSmtpConfig() {
-  const host = process.env.EMAIL_HOST || process.env.SMTP_HOST || '';
-  const user = process.env.EMAIL_USER || process.env.SMTP_USER || '';
-  const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS || '';
-  const port = Number(process.env.EMAIL_PORT || process.env.SMTP_PORT || 587);
-  const secure =
-    String(process.env.EMAIL_SECURE || process.env.SMTP_SECURE || '').toLowerCase() === 'true' ||
-    port === 465;
-
-  if (!host || !user || !pass) return null;
-  return { host, port, secure, user, pass };
-}
-
-function smtpConfigured() {
-  return Boolean(resolveSmtpConfig());
-}
-
-function getTransporter() {
-  const cfg = resolveSmtpConfig();
-  if (!cfg) return null;
-  if (cachedTransporter) return cachedTransporter;
-
-  cachedTransporter = nodemailer.createTransport({
-    host: cfg.host,
-    port: cfg.port,
-    secure: cfg.secure,
-    auth: {
-      user: cfg.user,
-      pass: cfg.pass,
-    },
-  });
-
-  return cachedTransporter;
-}
+export { resolveSmtpConfig };
 
 export function getFrontendBaseUrl() {
   const raw =
@@ -60,15 +22,16 @@ export function buildPasswordResetUrl(rawToken) {
  * Send password reset email. Returns true if sent, false if SMTP unavailable or send failed.
  */
 export async function sendPasswordResetEmail({ to, name, resetUrl }) {
-  const transporter = getTransporter();
-  if (!transporter || !to) return false;
+  if (!to) return false;
 
   const cfg = resolveSmtpConfig();
+  if (!cfg) {
+    logger.warn('[email] Password reset skipped: SMTP not configured');
+    return false;
+  }
+
   const appName = process.env.APP_NAME || 'ScholarVerify';
-  const from =
-    process.env.SMTP_FROM ||
-    (cfg?.user ? `"${appName}" <${cfg.user}>` : null) ||
-    `noreply@localhost`;
+  const from = process.env.SMTP_FROM || `"${appName}" <${cfg.user}>`;
   const greeting = name ? `Hi ${name},` : 'Hi,';
 
   const html = `
@@ -90,6 +53,16 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }) {
   const text = `${greeting}\n\nReset your ${appName} password (expires in 30 minutes):\n${resetUrl}\n\nIf you did not request this, ignore this email.`;
 
   try {
+    const transporter = nodemailer.createTransport({
+      host: cfg.host,
+      port: cfg.port,
+      secure: cfg.secure,
+      requireTLS: !cfg.secure && cfg.port === 587,
+      auth: { user: cfg.user, pass: cfg.pass },
+      connectionTimeout: 20_000,
+      tls: { minVersion: 'TLSv1.2' },
+    });
+
     await transporter.sendMail({
       from,
       to,
@@ -106,5 +79,8 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }) {
 }
 
 export function isEmailDeliveryEnabled() {
-  return smtpConfigured();
+  return Boolean(resolveSmtpConfig());
 }
+
+/** Convenience re-export for notification mail. */
+export { sendNotificationEmail };
