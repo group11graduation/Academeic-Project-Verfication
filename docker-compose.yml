@@ -156,18 +156,9 @@ services:
       # Do not re-declare them here — compose ${VAR} interpolation from the project
       # root .env can override VPS values with localhost-only defaults.
       APP_NAME: ${APP_NAME:-ScholarVerify}
-      # Prefer EMAIL_* (utils/notify.js). SMTP_* kept for password-reset / legacy.
-      # Values come from project-root .env and/or backend-node/runtime.env env_file.
-      EMAIL_HOST: ${EMAIL_HOST:-}
-      EMAIL_PORT: ${EMAIL_PORT:-587}
-      EMAIL_USER: ${EMAIL_USER:-}
-      EMAIL_PASS: ${EMAIL_PASS:-}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      SMTP_FROM: ${SMTP_FROM:-}
+      # EMAIL_* and SMTP_* must come ONLY from env_file (runtime.env).
+      # Do NOT set them here with ${VAR:-} — empty root .env values wipe Gmail credentials
+      # and silently disable all student/teacher/admin notification emails.
       AUTH_RETURN_RESET_TOKEN: ${AUTH_RETURN_RESET_TOKEN:-false}
 
       # Student project ZIP upload limit (default 250 MB)

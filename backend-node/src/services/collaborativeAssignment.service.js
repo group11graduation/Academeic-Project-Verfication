@@ -10,6 +10,7 @@ import {
   teacherCanUseSubject,
 } from './assignmentTeacher.service.js';
 import { syncAssignmentGroupsFromClassTemplatesByAssignmentId } from './teacherClassGroups.service.js';
+import { notifySafe, notifyStudentUsersInClasses } from './notification.service.js';
 
 function parseList(value) {
   if (Array.isArray(value)) return value.map((x) => String(x || '').trim()).filter(Boolean);
@@ -223,5 +224,20 @@ export async function createCollaborativeAssignment(primaryTeacherId, payload) {
       /* non-fatal: assignment still published */
     }
   }
+
+  notifySafe(() =>
+    notifyStudentUsersInClasses(classDocs.map((c) => c._id), {
+      type: 'assignment_created',
+      title: 'New collaborative assignment published',
+      body: `"${doc.title}" is now available.`,
+      link: `/student/assignments/${doc._id}`,
+      meta: {
+        assignmentId: String(doc._id),
+        assignmentType: doc.assignmentType,
+        isCollaborative: true,
+      },
+    })
+  );
+
   return getAssignmentForTeacher(primaryTeacherId, doc._id);
 }

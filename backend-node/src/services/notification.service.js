@@ -48,7 +48,15 @@ function defaultSender() {
  * Never throws — safe for every admin / teacher / student workflow.
  */
 async function deliverEmailsForNotificationDocs(docs, { senderName, senderEmail } = {}) {
-  if (!docs?.length || !isNotificationEmailEnabled()) return;
+  if (!docs?.length) return;
+
+  if (!isNotificationEmailEnabled()) {
+    logger.warn(
+      `[notifications] ${docs.length} in-app notification(s) saved but email disabled ` +
+        `(set EMAIL_HOST / EMAIL_USER / EMAIL_PASS in backend-node/runtime.env and restart the container)`
+    );
+    return;
+  }
 
   const defaults = defaultSender();
   const fromName = senderName || defaults.senderName;
@@ -69,12 +77,16 @@ async function deliverEmailsForNotificationDocs(docs, { senderName, senderEmail 
 
   const byId = new Map(users.map((u) => [String(u._id), u]));
   const jobs = [];
+  let skippedNoEmail = 0;
 
   for (const doc of docs) {
     const plain = doc?.toObject ? doc.toObject() : doc;
     const uid = String(plain.user);
     const recipient = byId.get(uid);
-    if (!recipient?.email) continue;
+    if (!recipient?.email) {
+      skippedNoEmail += 1;
+      continue;
+    }
 
     jobs.push({
       to: recipient.email,
@@ -86,6 +98,19 @@ async function deliverEmailsForNotificationDocs(docs, { senderName, senderEmail 
       senderEmail: replyTo,
     });
   }
+
+  if (!jobs.length) {
+    logger.warn(
+      `[notifications] ${docs.length} notification(s) created, 0 emails queued ` +
+        `(${skippedNoEmail} recipient(s) missing email on User account)`
+    );
+    return;
+  }
+
+  logger.info(
+    `[notifications] Queueing ${jobs.length} email(s) for ${docs.length} notification(s)` +
+      (skippedNoEmail ? ` (${skippedNoEmail} skipped, no email)` : '')
+  );
 
   for (let i = 0; i < jobs.length; i += EMAIL_BATCH_SIZE) {
     const batch = jobs.slice(i, i + EMAIL_BATCH_SIZE);
@@ -208,15 +233,38 @@ export async function notifyAssignmentTeachers(assignment, payload) {
 /** Students enrolled / profile-linked to the given classes (in-app + email). */
 export async function notifyStudentUsersInClasses(classIds, payload) {
   const ids = uniqueIds(classIds);
-  if (!ids.length) return [];
+  if (!ids.length) {
+    logger.warn('[notifications] notifyStudentUsersInClasses: no class ids — nothing to notify');
+    return [];
+  }
 
-  const classes = await Class.find({ _id: { $in: ids } }).select('code').lean();
+  const classes = await Class.find({ _id: { $in: ids } }).select('code name').lean();
   const codes = classes.map((c) => String(c.code || '').trim().toUpperCase()).filter(Boolean);
 
+  // Match assignment visibility: Enrollment docs and/or StudentProfile.classCode.
+  // classCode compare is case/space-insensitive ($expr) because imports vary.
   const [enrollments, profiles] = await Promise.all([
-    Enrollment.find({ class: { $in: ids } }).select('student').lean(),
+    Enrollment.find({
+      class: { $in: ids },
+      status: { $ne: 'withdrawn' },
+    })
+      .select('student')
+      .lean(),
     codes.length
-      ? StudentProfile.find({ classCode: { $in: codes } }).select('user').lean()
+      ? StudentProfile.find({
+          $expr: {
+            $in: [
+              {
+                $toUpper: {
+                  $trim: { input: { $ifNull: ['$classCode', ''] } },
+                },
+              },
+              codes,
+            ],
+          },
+        })
+          .select('user classCode')
+          .lean()
       : Promise.resolve([]),
   ]);
 
@@ -224,6 +272,20 @@ export async function notifyStudentUsersInClasses(classIds, payload) {
     ...enrollments.map((e) => e.student),
     ...profiles.map((p) => p.user),
   ]);
+
+  if (!studentUserIds.length) {
+    logger.warn(
+      `[notifications] No students found for classes [${codes.join(', ') || ids.join(', ')}] ` +
+        `(enrollments=${enrollments.length}, profiles=${profiles.length}). ` +
+        'Ensure students have Enrollment or StudentProfile.classCode matching the class.'
+    );
+    return [];
+  }
+
+  logger.info(
+    `[notifications] Notifying ${studentUserIds.length} student(s) for classes [${codes.join(', ')}] ` +
+      `(enrollments=${enrollments.length}, profiles=${profiles.length}) — ${payload?.title || 'notification'}`
+  );
 
   return createNotificationsForUsers(studentUserIds, payload);
 }
