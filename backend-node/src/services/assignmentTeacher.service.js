@@ -595,6 +595,11 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
     throw err;
   }
 
+  const previousClassIds = [
+    ...(Array.isArray(assignment.classes) ? assignment.classes : []),
+    assignment.class,
+  ].filter(Boolean);
+
   const prevSubmissionMode = assignment.submissionMode;
 
   const nextClassIds = [...new Set(parseObjectIdList(payload.classIds).concat(payload.classId ? [String(payload.classId)] : []))];
@@ -721,6 +726,26 @@ export async function updateAssignment(teacherId, assignmentId, payload) {
       /* non-fatal */
     }
   }
+
+  // Dual notify (in-app + email) all students in previous and new classes
+  const notifyClassIds = [
+    ...previousClassIds,
+    ...classDocs.map((c) => c._id),
+  ];
+  notifySafe(() =>
+    notifyStudentUsersInClasses(notifyClassIds, {
+      type: 'assignment_created',
+      title: 'Assignment updated',
+      body: `"${assignment.title || 'Assignment'}" was updated by your teacher. Open it to review the latest details and deadlines.`,
+      link: `/student/assignments/${assignment._id}`,
+      meta: {
+        assignmentId: String(assignment._id),
+        assignmentType: assignment.assignmentType,
+        event: 'assignment_updated',
+      },
+    })
+  );
+
   return getAssignmentForTeacher(teacherId, assignment._id);
 }
 
@@ -739,6 +764,24 @@ export async function attachRequirementsFile(teacherId, assignmentId, file) {
   a.assignmentFile = `/uploads/assignment-requirements/${file.filename}`;
   a.originalFileName = file.originalname || file.filename;
   await a.save();
+
+  const classIds = [
+    ...(Array.isArray(a.classes) ? a.classes : []),
+    a.class,
+  ].filter(Boolean);
+  notifySafe(() =>
+    notifyStudentUsersInClasses(classIds, {
+      type: 'assignment_created',
+      title: 'Assignment requirements updated',
+      body: `"${a.title || 'Assignment'}" has a new requirements file. Open the assignment to review it.`,
+      link: `/student/assignments/${a._id}`,
+      meta: {
+        assignmentId: String(a._id),
+        event: 'assignment_requirements_updated',
+      },
+    })
+  );
+
   return getAssignmentForTeacher(teacherId, assignmentId);
 }
 
