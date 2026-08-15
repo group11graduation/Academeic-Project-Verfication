@@ -13,7 +13,7 @@ const PROJECT_ZIP_MAX_MB = Math.round(
 );
 
 const SCREENSHOT_MAX_MB = Math.round(
-  Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 10_485_760) / (1024 * 1024)
+  Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 52_428_800) / (1024 * 1024)
 );
 
 function mapMulterError(err, { projectZip = false, screenshot = false } = {}) {

@@ -47,6 +47,7 @@ const projectSubmissionSchema = new mongoose.Schema(
         'java-spring-react',
         'java-spring-thymeleaf',
         'php-apache',
+        'laravel-react-mysql',
       ],
       default: '',
     },

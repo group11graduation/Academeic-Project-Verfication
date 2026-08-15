@@ -7,6 +7,7 @@ export const PROJECT_STACK_OPTIONS = [
   { value: 'java-spring-react', label: 'React + Spring Boot' },
   { value: 'java-spring-thymeleaf', label: 'Spring Boot + Thymeleaf' },
   { value: 'php-apache', label: 'PHP and MySQL' },
+  { value: 'laravel-react-mysql', label: 'React + Laravel + MySQL' },
 ];
 
 export const PROJECT_STACK_HINT_HELP = {
@@ -24,4 +25,6 @@ export const PROJECT_STACK_HINT_HELP = {
     'Spring Boot + Thymeleaf (no React). Include pom.xml (or Gradle), Java sources, and HTML templates under src/main/resources/templates. Preview runs the app on port 8080.',
   'php-apache':
     'Include index.php and PHP source files. MySQL scripts or config are optional but recommended for database projects.',
+  'laravel-react-mysql':
+    'Laravel backend (artisan + composer.json) with React/Vite frontend and MySQL. ZIP may be one Laravel app with Vite, or backend/ + frontend/ folders. Preview uses Apache DocumentRoot=public, Composer, npm build, and a MySQL sidecar.',
 };

@@ -30,7 +30,7 @@ const longProxy = {
           JSON.stringify({
             success: false,
             message:
-              'Upload proxy lost connection to the API. Wait a few seconds and try again with smaller screenshot files (under 10 MB each).',
+              'Upload proxy lost connection to the API. Wait a few seconds and try again with smaller screenshot files (under 50 MB each).',
           })
         );
       }

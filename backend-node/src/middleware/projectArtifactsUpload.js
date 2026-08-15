@@ -11,8 +11,8 @@ if (!fs.existsSync(staging)) {
 
 /** Default 250 MB - full student MERN/Spring ZIPs often exceed the old 50 MB cap. */
 const maxZipBytes = Number(process.env.MAX_PROJECT_ZIP_BYTES || 262_144_000);
-/** Default 10 MB each - phone PNG screenshots often exceed the old 5 MB cap. */
-const maxImageBytes = Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 10_485_760);
+/** Default 50 MB each - high-res / stock PNGs often exceed the old 10 MB cap. */
+const maxImageBytes = Number(process.env.MAX_PROJECT_SCREENSHOT_BYTES || 52_428_800);
 export const MIN_PROJECT_SCREENSHOTS = Number(process.env.MIN_PROJECT_SCREENSHOTS || 4);
 export const MAX_PROJECT_SCREENSHOTS = Number(process.env.MAX_PROJECT_SCREENSHOTS || 10);
 export const MAX_PROJECT_SCREENSHOT_BYTES = maxImageBytes;

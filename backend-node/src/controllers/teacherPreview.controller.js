@@ -2,7 +2,17 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { success } from '../utils/apiResponse.js';
 import * as previewSandbox from '../services/previewSandbox.service.js';
 
-const ALLOWED_PREVIEW_STACKS = new Set(['node-js', 'php-apache', 'jupyter', 'static-html', 'static-html-js']);
+const ALLOWED_PREVIEW_STACKS = new Set([
+  'node-js',
+  'node-js-mysql',
+  'php-apache',
+  'laravel-react-mysql',
+  'jupyter',
+  'static-html',
+  'static-html-js',
+  'java-spring-react',
+  'java-spring-thymeleaf',
+]);
 
 export const startPreview = asyncHandler(async (req, res) => {
   const rawStack = req.body?.stack || req.query?.stack;

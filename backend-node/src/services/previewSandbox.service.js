@@ -293,7 +293,9 @@ async function cleanupSessionResources(session, docker, finalStatus, logMessage)
 }
 
 async function refreshPhpPreviewLoginHint(session, deployResult = {}) {
-  if (!session || session.previewStack !== 'php-apache') return;
+  if (!session || (session.previewStack !== 'php-apache' && session.previewStack !== 'laravel-react-mysql')) {
+    return;
+  }
 
   const containerName =
     deployResult.containerName || dockerOrchestrator.containerNameFor(session._id.toString());
@@ -518,7 +520,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (wait.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
-      if (deployResult.stack === 'php-apache') {
+      if (deployResult.stack === 'php-apache' || deployResult.stack === 'laravel-react-mysql') {
         await refreshPhpPreviewLoginHint(session, deployResult);
       }
       if (deployResult.apiHostPort) {
@@ -794,7 +796,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
       session.previewAppReady = true;
       session.previewAppReadyReason = lastProbe.reason || logReady?.reason || 'ready';
       session.previewApiReady = lastProbe.apiReady === true || logReady?.apiReady === true;
-      if (deployResult.stack === 'php-apache') {
+      if (deployResult.stack === 'php-apache' || deployResult.stack === 'laravel-react-mysql') {
         await refreshPhpPreviewLoginHint(session, deployResult);
       }
       const reason = lastProbe.reason || logReady?.reason || 'ready';
@@ -828,7 +830,7 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (!diagnosis.failed && diagnosis.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
-      if (deployResult.stack === 'php-apache') {
+      if (deployResult.stack === 'php-apache' || deployResult.stack === 'laravel-react-mysql') {
         await refreshPhpPreviewLoginHint(session, deployResult);
       }
       appendLog(session, 'info', `Preview ready (${diagnosis.reason || 'log'}) at ${session.previewUrl}.`);
@@ -1140,8 +1142,8 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   session.previewUrl = deployResult.previewUrl;
   session.previewApiUrl = deployResult.previewApiUrl || '';
   const loginPath =
-    deployResult.stack === 'php-apache'
-      ? deployResult.phpLoginPath || '/auth/login.php'
+    deployResult.stack === 'php-apache' || deployResult.stack === 'laravel-react-mysql'
+      ? deployResult.phpLoginPath || (deployResult.stack === 'laravel-react-mysql' ? '/login' : '/auth/login.php')
       : '/login';
   session.previewLoginUrl = previewCredentials.buildPreviewLoginUrl(deployResult.previewUrl, loginPath);
 
@@ -1157,7 +1159,7 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
   });
   previewCredentials.applyResolvedLoginCredentials(session, resolvedLogin);
 
-  if (deployResult.stack === 'php-apache') {
+  if (deployResult.stack === 'php-apache' || deployResult.stack === 'laravel-react-mysql') {
     session.previewLoginHint = buildPhpPreviewLoginHint({
       previewLoginUrl: session.previewLoginUrl,
       hostPort: deployResult.hostPort,
@@ -1600,7 +1602,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
       }
     }
 
-    if (session.previewStack === 'php-apache') {
+    if (session.previewStack === 'php-apache' || session.previewStack === 'laravel-react-mysql') {
       await refreshPhpPreviewLoginHint(session, {
         hostPort: session.hostPort,
       });

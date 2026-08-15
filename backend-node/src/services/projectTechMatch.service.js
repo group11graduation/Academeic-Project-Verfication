@@ -15,6 +15,7 @@ import {
 /** Map preview stack ids → canonical tech families the ZIP represents. */
 const STACK_TO_TECH = {
   'php-apache': ['php', 'mysql', 'laravel'],
+  'laravel-react-mysql': ['laravel', 'php', 'mysql', 'react', 'vite'],
   'node-js': ['node.js', 'react'],
   'java-spring-react': ['java', 'spring boot', 'react'],
   'java-spring-thymeleaf': ['java', 'spring boot', 'thymeleaf'],

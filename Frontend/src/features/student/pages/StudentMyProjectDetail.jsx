@@ -31,8 +31,8 @@ import {
     humanizeModelOrServerError,
 } from '../../../shared/utils/humanizeErrors';
 
-/** Keep in sync with backend MAX_PROJECT_SCREENSHOT_BYTES (default 10 MB). */
-const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
+/** Keep in sync with backend MAX_PROJECT_SCREENSHOT_BYTES (default 50 MB). */
+const MAX_SCREENSHOT_BYTES = 50 * 1024 * 1024;
 const MAX_SCREENSHOT_MB = Math.round(MAX_SCREENSHOT_BYTES / (1024 * 1024));
 
 function validateScreenshotFiles(files) {

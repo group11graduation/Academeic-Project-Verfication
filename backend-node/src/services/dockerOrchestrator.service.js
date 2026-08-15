@@ -54,6 +54,13 @@ const PREVIEW_JAVA_BASE_IMAGE = process.env.PREVIEW_JAVA_BASE_IMAGE || 'eclipse-
 const PREVIEW_JAVA_PULL_TIMEOUT_MS = Number(process.env.PREVIEW_JAVA_PULL_TIMEOUT_MS || 600_000);
 const PREVIEW_NODE_BASE_IMAGE = process.env.PREVIEW_NODE_BASE_IMAGE || 'scholarverify-preview-node:latest';
 const PREVIEW_PHP_BASE_IMAGE = process.env.PREVIEW_PHP_BASE_IMAGE || 'scholarverify-preview-php:latest';
+const PREVIEW_LARAVEL_REACT_BASE_IMAGE =
+  process.env.PREVIEW_LARAVEL_REACT_BASE_IMAGE || 'scholarverify-preview-laravel-react:latest';
+
+/** Classic PHP/XAMPP and Laravel+React both use Apache :80 + MySQL sidecar. */
+function isPhpFamilyPreviewStack(stack) {
+  return stack === 'php-apache' || stack === 'laravel-react-mysql';
+}
 const PREVIEW_NODE_FLUTTER_BASE_IMAGE =
   process.env.PREVIEW_NODE_FLUTTER_BASE_IMAGE || 'scholarverify-preview-node-flutter:latest';
 const PREVIEW_SPRING_REACT_BASE_IMAGE =
@@ -73,6 +80,12 @@ export const STACK_BLUEPRINTS = {
     templateDir: 'php-apache',
     internalPort: 80,
     imagePrefix: 'sv-project-php',
+  },
+  /** Laravel (+ optional React/Vite) with MySQL — separate from classic php-apache. */
+  'laravel-react-mysql': {
+    templateDir: 'laravel-react-mysql',
+    internalPort: 80,
+    imagePrefix: 'sv-project-laravel-react',
   },
   'node-js': {
     templateDir: 'node-js',
@@ -347,7 +360,7 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     await fs.cp(fallbackSrc, path.join(stageDir, 'preview-fallback'), { recursive: true });
   }
 
-  if (templateDirName === 'php-apache') {
+  if (templateDirName === 'php-apache' || templateDirName === 'laravel-react-mysql') {
     const bootstrapSrc = path.join(templateDir, 'preview-bootstrap.php');
     if (fsSync.existsSync(bootstrapSrc)) {
       await fs.copyFile(bootstrapSrc, path.join(stageDir, 'preview-bootstrap.php'));
@@ -364,6 +377,7 @@ async function stagePreviewBaseBuildDir(templateDirName) {
 function previewBaseImageFailureMessage(stack) {
   const messages = {
     'php-apache': 'PHP preview is temporarily unavailable',
+    'laravel-react-mysql': 'React + Laravel + MySQL preview is temporarily unavailable',
     jupyter: 'Jupyter preview is temporarily unavailable',
     'java-spring-react': 'React + Spring Boot preview is temporarily unavailable',
     'java-spring-thymeleaf': 'Spring Boot + Thymeleaf preview is temporarily unavailable',
@@ -801,20 +815,29 @@ export async function resolveAppSubdir(buildContext, stack) {
     return '.';
   }
 
-  if (stack === 'php-apache') {
+  if (stack === 'php-apache' || stack === 'laravel-react-mysql') {
     // Classic public/ + src/ (or app/) layout: keep project root; Apache DocumentRoot
     // is set to public/ in entrypoint. Never copy public/ into html or ../src breaks.
     const hasPublicIndex = await pathExists(path.join(buildContext, 'public', 'index.php'));
     const hasSiblingCode =
       (await pathExists(path.join(buildContext, 'src'))) ||
       (await pathExists(path.join(buildContext, 'app'))) ||
-      (await pathExists(path.join(buildContext, 'includes')));
+      (await pathExists(path.join(buildContext, 'includes'))) ||
+      (await pathExists(path.join(buildContext, 'artisan')));
     if (hasPublicIndex && hasSiblingCode) return '.';
+    if (await pathExists(path.join(buildContext, 'artisan'))) return '.';
     if (await pathExists(path.join(buildContext, 'index.php'))) return '.';
+    // Nested Laravel (backend/, api/, laravel/)
+    for (const name of ['backend', 'api', 'laravel', 'server']) {
+      if (await pathExists(path.join(buildContext, name, 'artisan'))) return name;
+      if (await pathExists(path.join(buildContext, name, 'public', 'index.php'))) return name;
+    }
     const entries = await fs.readdir(buildContext, { withFileTypes: true });
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const sub = path.join(buildContext, entry.name);
+      // eslint-disable-next-line no-await-in-loop
+      if (await pathExists(path.join(sub, 'artisan'))) return entry.name;
       // eslint-disable-next-line no-await-in-loop
       if (await pathExists(path.join(sub, 'index.php'))) return entry.name;
     }
@@ -833,6 +856,7 @@ function usesVolumePreviewStack(stack) {
     stack === 'static-html' ||
     stack === 'static-html-js' ||
     stack === 'php-apache' ||
+    stack === 'laravel-react-mysql' ||
     stack === 'jupyter' ||
     stack === 'java-spring-react' ||
     stack === 'java-spring-thymeleaf'
@@ -840,7 +864,7 @@ function usesVolumePreviewStack(stack) {
 }
 
 function previewProjectMountPath(stack) {
-  if (stack === 'php-apache') return '/var/www/html';
+  if (stack === 'php-apache' || stack === 'laravel-react-mysql') return '/var/www/html';
   if (stack === 'jupyter') return '/workspace';
   return '/app';
 }
@@ -872,6 +896,7 @@ export function previewStackDisplayName(stack, splitPair = null) {
     'node-js': 'React + Express',
     'node-js-mysql': 'React + Express + MySQL',
     'php-apache': 'PHP / Apache',
+    'laravel-react-mysql': 'React + Laravel + MySQL',
     jupyter: 'Jupyter notebook',
     'static-html': 'HTML + CSS',
     'static-html-js': 'HTML + CSS + JavaScript',
@@ -911,6 +936,39 @@ async function ensurePreviewPhpBaseImage({ forceRebuild = false } = {}) {
     hadExistingImage,
     buildResult,
     label: 'php-apache',
+  });
+}
+
+async function ensurePreviewLaravelReactBaseImage({ forceRebuild = false } = {}) {
+  const imageTag = PREVIEW_LARAVEL_REACT_BASE_IMAGE;
+  const templateDir = path.join(TEMPLATES_ROOT, 'laravel-react-mysql');
+  const contentHash = await previewTemplateContentHash('laravel-react-mysql', [
+    path.join(templateDir, 'preview-bootstrap.php'),
+    path.join(templateDir, 'preview-seed-admin.php'),
+  ]);
+  const hadExistingImage = await dockerImageExists(imageTag);
+  if (!forceRebuild && hadExistingImage) {
+    const existingHash = await dockerImageLabel(imageTag, 'sv.preview.hash');
+    const hasMysqli = await dockerImageHasPhpExtension(imageTag, 'mysqli');
+    const hasComposer = await dockerImageHasPath(imageTag, '/usr/local/bin/composer');
+    if (existingHash && existingHash === contentHash && hasMysqli && hasComposer) {
+      return { imageTag, reused: true };
+    }
+  }
+
+  const stageDir = await stagePreviewBaseBuildDir('laravel-react-mysql');
+  const buildResult = await runPreviewBaseImageBuild({
+    imageTag,
+    stageDir,
+    timeoutMs: Math.max(BUILD_TIMEOUT_MS, 900_000),
+    label: 'laravel-react-mysql',
+    contentHash,
+  });
+  return finishBaseImageBuildOrFallback({
+    imageTag,
+    hadExistingImage,
+    buildResult,
+    label: 'laravel-react-mysql',
   });
 }
 
@@ -1000,6 +1058,9 @@ async function ensurePreviewBaseImage(stack, { flutterPair = null, forceRebuild 
   if (stack === 'php-apache') {
     return ensurePreviewPhpBaseImage({ forceRebuild });
   }
+  if (stack === 'laravel-react-mysql') {
+    return ensurePreviewLaravelReactBaseImage({ forceRebuild });
+  }
   if (stack === 'jupyter') {
     return ensurePreviewJupyterBaseImage({ forceRebuild });
   }
@@ -1043,6 +1104,9 @@ export function inferStackHintFromAssignment(assignment) {
   }
   if (/react\s*\+\s*express\s*\+\s*mysql|express\s*\+\s*mysql|node.*mysql/.test(text)) {
     return 'node-js-mysql';
+  }
+  if (/laravel\s*\+?\s*react|react\s*\+?\s*laravel|inertia|laravel.*vite|vite.*laravel/.test(text)) {
+    return 'laravel-react-mysql';
   }
   if (/react|vite|next\.?js|vue|angular|frontend/.test(text)) {
     return 'node-js';
@@ -1216,6 +1280,7 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     packageJsonPaths: [],
     pubspecYaml: false,
     composerJson: false,
+    laravelComposer: false,
     artisanPhp: false,
     viteConfig: false,
     phpFiles: 0,
@@ -1284,7 +1349,17 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
         }
       }
       if (lower === 'pubspec.yaml') signals.pubspecYaml = true;
-      if (lower === 'composer.json') signals.composerJson = true;
+      if (lower === 'composer.json') {
+        signals.composerJson = true;
+        try {
+          const snippet = (await fs.readFile(full, 'utf8')).slice(0, 16_000);
+          if (/laravel\/framework|"laravel\//i.test(snippet)) {
+            signals.laravelComposer = true;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
       if (lower === 'artisan') signals.artisanPhp = true;
       if (lower.startsWith('vite.config.')) signals.viteConfig = true;
       if (lower.endsWith('.php')) signals.phpFiles += 1;
@@ -1447,15 +1522,25 @@ export async function detectProjectStackWithMeta(projectPath, options = {}) {
     if (signals.vueSvelteFiles) reasons.push(`${signals.vueSvelteFiles} Vue/Svelte file(s)`);
     if (reactStatic.reactStatic) reasons.push(reactStatic.reason);
   } else if (hasPhp && !hasNode) {
-    stack = 'php-apache';
-    if (signals.composerJson) reasons.push('composer.json');
-    if (signals.indexPhp) reasons.push('index.php');
-    reasons.push(`${signals.phpFiles} PHP file(s)`);
-  } else if (hasNode && hasPhp) {
-    // Laravel / mixed: composer + package.json → PHP; otherwise Node (MERN + stray .php)
-    if (signals.composerJson || signals.artisanPhp) {
+    if (signals.artisanPhp || signals.laravelComposer) {
+      stack = 'laravel-react-mysql';
+      reasons.push('Laravel (artisan/composer) + MySQL preview');
+    } else {
       stack = 'php-apache';
-      reasons.push('PHP framework (composer/artisan) with npm assets');
+      if (signals.composerJson) reasons.push('composer.json');
+      if (signals.indexPhp) reasons.push('index.php');
+      reasons.push(`${signals.phpFiles} PHP file(s)`);
+    }
+  } else if (hasNode && hasPhp) {
+    // Laravel + React/npm assets → dedicated template (not classic php-apache)
+    if (signals.artisanPhp || signals.laravelComposer) {
+      stack = 'laravel-react-mysql';
+      reasons.push('Laravel (artisan/composer) with React/npm assets + MySQL');
+      if (signals.viteConfig) reasons.push('vite config');
+      if (signals.jsxTsxFiles) reasons.push(`${signals.jsxTsxFiles} JSX/TSX file(s)`);
+    } else if (signals.composerJson) {
+      stack = 'php-apache';
+      reasons.push('PHP framework (composer) with npm assets');
     } else if (hasStrongSpring) {
       stack = 'java-spring-react';
       reasons.push('Spring Boot preferred over stray PHP beside React/Node frontend');
@@ -1725,8 +1810,11 @@ async function runPreviewContainer({
     }
   }
 
-  if (stack === 'php-apache') {
-    const sharedPhpDir = path.join(TEMPLATES_ROOT, 'php-apache');
+  if (stack === 'php-apache' || stack === 'laravel-react-mysql') {
+    const sharedPhpDir = path.join(
+      TEMPLATES_ROOT,
+      stack === 'laravel-react-mysql' ? 'laravel-react-mysql' : 'php-apache'
+    );
     const phpOverlayFiles = [
       ['preview-bootstrap.php', '/preview-bootstrap.php'],
       ['preview-seed-admin.php', '/preview-seed-admin.php'],
@@ -1769,6 +1857,7 @@ async function runPreviewContainer({
     stack === 'java-spring-thymeleaf' ||
     stack === 'node-js' ||
     stack === 'node-js-mysql' ||
+    stack === 'laravel-react-mysql' ||
     Boolean(mernPair) ||
     Boolean(flutterPair);
   if (useDepCaches && process.env.PREVIEW_DEPENDENCY_CACHE !== 'false') {
@@ -1841,7 +1930,7 @@ async function runPreviewContainer({
     if (stack === 'node-js-mysql') {
       args.push('-e', 'PREVIEW_DB_ENGINE=mysql');
     }
-  } else if (stack === 'php-apache') {
+  } else if (stack === 'php-apache' || stack === 'laravel-react-mysql') {
     args.push('-e', `APP_SUBDIR=${appSubdir}`);
     args.push('-e', 'PREVIEW_SANDBOX=1');
     const previewBaseUrl = `${getPublicPreviewBase()}:${hostPort}/`;
@@ -1849,7 +1938,10 @@ async function runPreviewContainer({
     const dbHost = previewCredentialEnv?.DB_HOST;
     if (dbHost) {
       args.push('-e', `DB_HOST=${dbHost}`);
-      args.push('-e', `DB_NAME=${previewCredentialEnv.DB_NAME || PREVIEW_MYSQL_DATABASE}`);
+      args.push(
+        '-e',
+        `DB_NAME=${previewCredentialEnv.DB_NAME || (stack === 'laravel-react-mysql' ? 'laravel' : PREVIEW_MYSQL_DATABASE)}`
+      );
       args.push('-e', `DB_USER=${previewCredentialEnv.DB_USER || 'root'}`);
       args.push('-e', `DB_PASS=${previewCredentialEnv.DB_PASS || PREVIEW_MYSQL_ROOT_PASSWORD}`);
     }
@@ -1939,13 +2031,14 @@ export async function warmPreviewBaseImages() {
     process.env.PREVIEW_WARM_FLUTTER_BASE === 'true'
       ? await toStatus(ensurePreviewNodeBaseImage(true, warmOpts))
       : 'skipped';
-  const [php, jupyter, springReact] = await Promise.all([
+  const [php, laravelReact, jupyter, springReact] = await Promise.all([
     toStatus(ensurePreviewPhpBaseImage(warmOpts)),
+    toStatus(ensurePreviewLaravelReactBaseImage(warmOpts)),
     toStatus(ensurePreviewJupyterBaseImage(warmOpts)),
     toStatus(ensurePreviewSpringReactBaseImage(warmOpts)),
   ]);
 
-  return { node, flutter, php, jupyter, springReact };
+  return { node, flutter, php, laravelReact, jupyter, springReact };
 }
 
 export async function ensurePreviewMongoImage() {
@@ -2329,7 +2422,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   let phpPatchMeta = null;
   let springPatchMeta = null;
   const previewBaseUrl =
-    stack === 'php-apache' ? `${getPublicPreviewBase()}:${hostPort}/` : null;
+    isPhpFamilyPreviewStack(stack) ? `${getPublicPreviewBase()}:${hostPort}/` : null;
 
   const baseMetaPromise = ensurePreviewBaseImage(stack, {
     flutterPair,
@@ -2337,8 +2430,10 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   });
 
   let sidecarPromise = null;
-  if (stack === 'php-apache' && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
-    sidecarPromise = startPreviewMysqlSidecar(projectId);
+  if (isPhpFamilyPreviewStack(stack) && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
+    sidecarPromise = startPreviewMysqlSidecar(projectId, {
+      database: stack === 'laravel-react-mysql' ? 'laravel' : undefined,
+    });
   }
 
   const splitStackPair = flutterPair || mernPair || springPair;
@@ -2413,7 +2508,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   if (sidecarPromise) {
     const sidecar = await sidecarPromise;
     previewDockerNetwork = sidecar.networkName;
-    if (stack === 'php-apache' || stack === 'node-js-mysql') {
+    if (isPhpFamilyPreviewStack(stack) || stack === 'node-js-mysql') {
       const previewDbName =
         stack === 'node-js-mysql'
           ? String(
@@ -2422,9 +2517,11 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
                 PREVIEW_NODE_MYSQL_DATABASE ||
                 'preview'
             ).replace(/[^a-zA-Z0-9_]/g, '') || 'preview'
-          : await resolvePreviewDatabaseName(
-              path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
-            );
+          : stack === 'laravel-react-mysql'
+            ? String(sidecar.database || 'laravel').replace(/[^a-zA-Z0-9_]/g, '') || 'laravel'
+            : await resolvePreviewDatabaseName(
+                path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
+              );
       mergedCredentialEnv = {
         ...mergedCredentialEnv,
         PREVIEW_DB_ENGINE: 'mysql',
@@ -2462,11 +2559,13 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     }
   }
 
-  if (stack === 'php-apache') {
+  if (isPhpFamilyPreviewStack(stack)) {
+    const defaultDb =
+      stack === 'laravel-react-mysql' ? 'laravel' : PREVIEW_MYSQL_DATABASE;
     const patched = await patchPhpForPreview(buildContext, appSubdir, {
       baseUrl: previewBaseUrl,
       dbHost: mergedCredentialEnv.DB_HOST || 'host.docker.internal',
-      dbName: mergedCredentialEnv.DB_NAME || PREVIEW_MYSQL_DATABASE,
+      dbName: mergedCredentialEnv.DB_NAME || defaultDb,
       dbUser: mergedCredentialEnv.DB_USER || 'root',
       dbPass: mergedCredentialEnv.DB_PASS || PREVIEW_MYSQL_ROOT_PASSWORD,
     });
@@ -2487,7 +2586,10 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
         }
       }
     }
-    phpLoginPath = patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));
+    phpLoginPath =
+      stack === 'laravel-react-mysql'
+        ? patched.loginPath || '/login'
+        : patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));
     phpPatchMeta = {
       dbName: patched.dbName,
       bootstrapScripts: patched.bootstrapScripts || [],
@@ -2875,8 +2977,8 @@ export async function checkPreviewAppHttpReady({
 
   const base = normalizeProbeUrl(previewUrl).replace(/\/$/, '');
   const urlsToTry = [normalizeProbeUrl(previewUrl), `${base}/`];
-  if (stack === 'php-apache') {
-    urlsToTry.push(`${base}/index.php`);
+  if (isPhpFamilyPreviewStack(stack)) {
+    urlsToTry.push(`${base}/index.php`, `${base}/login`);
   }
   if (stack === 'node-js' || stack === 'node-js-mysql' || stack === 'static-html' || stack === 'static-html-js' || stack === 'java-spring-react') {
     urlsToTry.push(`${base}/index.html`);
@@ -3208,6 +3310,13 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
       /\[preview\]\s*.*listening on :5050/i.test(logText) ||
       /\[preview-login\]\s*OK/i.test(logText);
     return { ready: true, reason: 'log_serve_static', apiReady: apiUp };
+  }
+
+  if (
+    (stack === 'php-apache' || stack === 'laravel-react-mysql') &&
+    /\[preview\]\s*Apache listening/i.test(logText)
+  ) {
+    return { ready: true, reason: 'log_apache_listening', apiReady: true };
   }
 
   return null;

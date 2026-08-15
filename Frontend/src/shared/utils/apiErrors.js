@@ -42,7 +42,7 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
     }
 
     if (error.message === 'Network Error' || !error.response) {
-        return 'Cannot reach the server (connection closed during upload). Usually an image is too large - compress each screenshot under 10 MB and try again. If it still fails, hard-refresh or ask admin to restart the backend.';
+        return 'Cannot reach the server (connection closed during upload). Usually an image is too large - compress each screenshot under 50 MB and try again. If it still fails, hard-refresh or ask admin to restart the backend.';
     }
 
     const status = error.response?.status;

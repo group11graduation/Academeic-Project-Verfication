@@ -202,7 +202,7 @@ export async function runPreviewStructureAudit(extractDir, { stackHint = '', sta
         );
       }
     }
-  } else if (stack === 'php-apache') {
+  } else if (stack === 'php-apache' || stack === 'laravel-react-mysql') {
     let hasPhpEntry = false;
     let phpEntryPath = '';
     async function findPhpEntry(dir, relPrefix, depth) {
@@ -216,7 +216,7 @@ export async function runPreviewStructureAudit(extractDir, { stackHint = '', sta
       for (const entry of entries) {
         if (hasPhpEntry) return;
         const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-        if (entry.isFile() && /^index\.php$/i.test(entry.name)) {
+        if (entry.isFile() && (/^index\.php$/i.test(entry.name) || /^artisan$/i.test(entry.name))) {
           hasPhpEntry = true;
           phpEntryPath = rel;
           return;
@@ -236,7 +236,9 @@ export async function runPreviewStructureAudit(extractDir, { stackHint = '', sta
       fail(
         failures,
         'missing_php_entry',
-        'PHP project is missing index.php (or a clear web entry point). The student should include the folder that Apache would serve, with index.php at the root of that site.',
+        stack === 'laravel-react-mysql'
+          ? 'Laravel project is missing artisan or public/index.php. Include the Laravel app root (with artisan) in the ZIP.'
+          : 'PHP project is missing index.php (or a clear web entry point). The student should include the folder that Apache would serve, with index.php at the root of that site.',
         'index.php'
       );
     }

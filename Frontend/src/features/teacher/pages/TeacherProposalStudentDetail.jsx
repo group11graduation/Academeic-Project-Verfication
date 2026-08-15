@@ -44,6 +44,7 @@ const PREVIEW_STACK_LABELS = {
     'java-spring-react': 'React + Spring Boot',
     'java-spring-thymeleaf': 'Spring Boot + Thymeleaf',
     'php-apache': 'PHP / Apache',
+    'laravel-react-mysql': 'React + Laravel + MySQL',
     jupyter: 'Jupyter notebook',
 };
 
@@ -1538,17 +1539,19 @@ const TeacherProposalStudentDetail = () => {
                                     This is the archive the student uploaded after approval. Download it to open locally, or use the
                                     sandbox below to run it in the browser.
                                 </p>
-                                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
-                                        <Package className="h-5 w-5 text-[#1e56e3]" />
+                                <div className="space-y-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
+                                            <Package className="h-5 w-5 text-[#1e56e3]" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate text-sm font-bold text-[var(--sv-text)]">{zip?.originalFilename || 'project.zip'}</p>
+                                            <p className="text-xs font-medium text-[var(--sv-muted)]">
+                                                {zipSizeLabel} · {zipUploadedAt}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-bold text-[var(--sv-text)]">{zip?.originalFilename || 'project.zip'}</p>
-                                        <p className="text-xs font-medium text-[var(--sv-muted)]">
-                                            {zipSizeLabel} · {zipUploadedAt}
-                                        </p>
-                                    </div>
-                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-2">
                                         <a
                                             href={zipUrl}
                                             download
@@ -1985,6 +1988,8 @@ const TeacherProposalStudentDetail = () => {
                                                                 ? 'Starting static site…'
                                                                 : sess.previewStack === 'php-apache'
                                                                   ? 'Starting Apache…'
+                                                                  : sess.previewStack === 'laravel-react-mysql'
+                                                                    ? 'Starting Laravel + React (Composer/npm may take a few minutes)…'
                                                                   : sess.previewStack === 'jupyter'
                                                                     ? 'Starting Jupyter…'
                                                                     : sess.previewWorkspaceCached

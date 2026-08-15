@@ -3,9 +3,11 @@ export const PROJECT_STACK_HINT_VALUES = [
   'static-html',
   'static-html-js',
   'node-js',
+  'node-js-mysql',
   'java-spring-react',
   'java-spring-thymeleaf',
   'php-apache',
+  'laravel-react-mysql',
 ];
 
 export function normalizeProjectStackHint(value) {
