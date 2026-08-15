@@ -2029,11 +2029,20 @@ const TeacherProposalStudentDetail = () => {
                                                         )}
                                                     {previewOpenReady ? (
                                                         <a
-                                                            href={safePreviewUrl(sess.previewUrl)}
+                                                            href={safePreviewUrl(
+                                                                sess.previewStack === 'laravel-react-mysql'
+                                                                    ? sess.previewLoginUrl ||
+                                                                          `${String(sess.previewUrl || '').replace(/\/$/, '')}/login`
+                                                                    : sess.previewUrl
+                                                            )}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="inline-flex items-center gap-2 rounded-xl bg-[#1e56e3] px-4 py-2 text-sm font-bold text-white hover:bg-[#1a4dcc]"
-                                                            title="Preview is ready"
+                                                            title={
+                                                                sess.previewStack === 'laravel-react-mysql'
+                                                                    ? 'Opens the Laravel login page'
+                                                                    : 'Preview is ready'
+                                                            }
                                                         >
                                                             <ExternalLink className="h-4 w-4" />
                                                             Open preview

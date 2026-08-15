@@ -2588,7 +2588,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     }
     phpLoginPath =
       stack === 'laravel-react-mysql'
-        ? patched.loginPath || '/login'
+        ? '/login'
         : patched.loginPath || (await discoverPhpLoginPath(buildContext, appSubdir));
     phpPatchMeta = {
       dbName: patched.dbName,

@@ -1146,6 +1146,10 @@ export async function startPreviewForProposal(teacherId, proposalId, options = {
       ? deployResult.phpLoginPath || (deployResult.stack === 'laravel-react-mysql' ? '/login' : '/auth/login.php')
       : '/login';
   session.previewLoginUrl = previewCredentials.buildPreviewLoginUrl(deployResult.previewUrl, loginPath);
+  // Laravel default `/` is the welcome splash — open login for teachers.
+  if (deployResult.stack === 'laravel-react-mysql' && session.previewLoginUrl) {
+    session.previewUrl = session.previewLoginUrl;
+  }
 
   const phpMeta = deployResult.phpPatchMeta || {};
   const springMeta = deployResult.springPatchMeta || {};
