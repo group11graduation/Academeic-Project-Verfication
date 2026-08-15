@@ -407,41 +407,16 @@ build_frontend_assets() {
 seed_laravel_preview_user() {
   [ -f "$LARAVEL_ROOT/artisan" ] || return 0
   [ -f "$LARAVEL_ROOT/vendor/autoload.php" ] || return 0
-  echo "[preview] seeding Laravel preview login user"
-  cd "$LARAVEL_ROOT"
-  php <<'PHP' || true
-<?php
-try {
-    require 'vendor/autoload.php';
-    $app = require 'bootstrap/app.php';
-    $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-    if (!class_exists(App\Models\User::class)) {
-        echo "[preview] no App\\Models\\User — skip seed\n";
-        exit(0);
-    }
-    $u = getenv('PREVIEW_SEED_USERNAME') ?: getenv('ADMIN_USERNAME') ?: 'previewadmin';
-    $p = getenv('PREVIEW_SEED_PASSWORD') ?: getenv('ADMIN_PASSWORD') ?: 'Preview123!';
-    $email = str_contains($u, '@') ? $u : ($u . '@preview.local');
-    $row = ['password' => bcrypt($p)];
-    $has = static function (string $col): bool {
-        try {
-            return Illuminate\Support\Facades\Schema::hasColumn('users', $col);
-        } catch (Throwable $e) {
-            return false;
-        }
-    };
-    if ($has('name')) $row['name'] = $u;
-    if ($has('username')) $row['username'] = $u;
-    if ($has('email')) $row['email'] = $email;
-    if ($has('role')) $row['role'] = 'admin';
-    if ($has('is_admin')) $row['is_admin'] = 1;
-    $lookup = $has('username') ? ['username' => $u] : ['email' => $email];
-    App\Models\User::updateOrCreate($lookup, $row);
-    echo "[preview] seeded Laravel user {$u}\n";
-} catch (Throwable $ex) {
-    fwrite(STDERR, '[preview] Laravel user seed skipped: ' . $ex->getMessage() . PHP_EOL);
-}
-PHP
+  if [ ! -f /preview-seed-laravel.php ]; then
+    echo "[preview] preview-seed-laravel.php missing — skip user seed"
+    return 0
+  fi
+  echo "[preview] seeding Laravel preview login via preview-seed-laravel.php"
+  (
+    cd "$LARAVEL_ROOT"
+    export LARAVEL_ROOT="$LARAVEL_ROOT"
+    php /preview-seed-laravel.php 2>&1 || true
+  )
 }
 
 run_artisan_bootstrap() {
@@ -494,6 +469,9 @@ if [ -n "$DB_HOST" ] && [ -f /preview-seed-admin.php ]; then
   echo "[preview] running preview-seed-admin.php (best-effort)"
   php /preview-seed-admin.php >> /tmp/preview-mysql.log 2>&1 || true
 fi
+
+# Re-run Laravel seed after classic PHP seed (ensures previewadmin exists even if db:seed wiped rows)
+seed_laravel_preview_user
 
 chown -R www-data:www-data "$LARAVEL_ROOT" 2>/dev/null || true
 echo "[preview] Apache listening on :80 (DocumentRoot=${APACHE_DOCROOT})"

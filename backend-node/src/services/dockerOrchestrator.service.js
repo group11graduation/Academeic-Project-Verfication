@@ -369,6 +369,10 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     if (fsSync.existsSync(phpSeedSrc)) {
       await fs.copyFile(phpSeedSrc, path.join(stageDir, 'preview-seed-admin.php'));
     }
+    const laravelSeedSrc = path.join(templateDir, 'preview-seed-laravel.php');
+    if (fsSync.existsSync(laravelSeedSrc)) {
+      await fs.copyFile(laravelSeedSrc, path.join(stageDir, 'preview-seed-laravel.php'));
+    }
   }
 
   return stageDir;
@@ -974,6 +978,7 @@ async function ensurePreviewLaravelReactBaseImage({ forceRebuild = false } = {})
   const contentHash = await previewTemplateContentHash('laravel-react-mysql', [
     path.join(templateDir, 'preview-bootstrap.php'),
     path.join(templateDir, 'preview-seed-admin.php'),
+    path.join(templateDir, 'preview-seed-laravel.php'),
   ]);
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
@@ -1847,6 +1852,7 @@ async function runPreviewContainer({
     const phpOverlayFiles = [
       ['preview-bootstrap.php', '/preview-bootstrap.php'],
       ['preview-seed-admin.php', '/preview-seed-admin.php'],
+      ['preview-seed-laravel.php', '/preview-seed-laravel.php'],
     ];
     for (const [name, dest] of phpOverlayFiles) {
       const src = path.join(sharedPhpDir, name);
