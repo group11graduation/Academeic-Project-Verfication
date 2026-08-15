@@ -4,9 +4,9 @@ set -e
 DOCROOT="/var/www/html"
 LARAVEL_ROOT="$DOCROOT"
 APACHE_DOCROOT="$DOCROOT"
+FRONTEND_ROOT=""
 
 find_laravel_root() {
-  # Prefer APP_SUBDIR when it contains artisan / public/index.php
   if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ]; then
     if [ -f "$DOCROOT/$APP_SUBDIR/artisan" ] || [ -f "$DOCROOT/$APP_SUBDIR/public/index.php" ]; then
       echo "$DOCROOT/$APP_SUBDIR"
@@ -17,14 +17,12 @@ find_laravel_root() {
     echo "$DOCROOT"
     return 0
   fi
-  # Nested backend/api/laravel folders (common React + Laravel ZIPs)
   for cand in backend api laravel server app; do
     if [ -f "$DOCROOT/$cand/artisan" ] || [ -f "$DOCROOT/$cand/public/index.php" ]; then
       echo "$DOCROOT/$cand"
       return 0
     fi
   done
-  # One-level scan for artisan
   for d in "$DOCROOT"/*; do
     [ -d "$d" ] || continue
     if [ -f "$d/artisan" ]; then
@@ -35,6 +33,25 @@ find_laravel_root() {
   echo "$DOCROOT"
 }
 
+find_frontend_root() {
+  if [ -n "$FRONTEND_SUBDIR" ] && [ -f "$DOCROOT/$FRONTEND_SUBDIR/package.json" ]; then
+    echo "$DOCROOT/$FRONTEND_SUBDIR"
+    return 0
+  fi
+  for cand in frontend client web ui react-app Frontend Client; do
+    if [ -f "$DOCROOT/$cand/package.json" ] && [ "$DOCROOT/$cand" != "$LARAVEL_ROOT" ]; then
+      echo "$DOCROOT/$cand"
+      return 0
+    fi
+  done
+  echo ""
+}
+
+preview_origin() {
+  # http://host:port  (no trailing slash)
+  echo "${PREVIEW_BASE_URL:-http://localhost}" | sed 's|/$||'
+}
+
 configure_laravel_docroot() {
   LARAVEL_ROOT="$(find_laravel_root)"
   if [ -f "$LARAVEL_ROOT/public/index.php" ]; then
@@ -42,15 +59,19 @@ configure_laravel_docroot() {
   elif [ -f "$LARAVEL_ROOT/index.php" ]; then
     APACHE_DOCROOT="$LARAVEL_ROOT"
   else
-    # Last resort: avoid empty ZIP root 403 — prefer any public/index.php
     if [ -f "$DOCROOT/public/index.php" ]; then
       APACHE_DOCROOT="$DOCROOT/public"
       LARAVEL_ROOT="$DOCROOT"
     fi
   fi
 
+  FRONTEND_ROOT="$(find_frontend_root)"
+
   echo "[preview] Laravel root → $LARAVEL_ROOT"
   echo "[preview] Apache DocumentRoot → $APACHE_DOCROOT"
+  if [ -n "$FRONTEND_ROOT" ]; then
+    echo "[preview] React frontend → $FRONTEND_ROOT"
+  fi
 
   cat > /etc/apache2/sites-available/000-default.conf <<EOF
 <VirtualHost *:80>
@@ -61,7 +82,6 @@ configure_laravel_docroot() {
     AllowOverride All
     Require all granted
   </Directory>
-  # Allow reading project files outside public/ (vendor, storage, etc.)
   <Directory ${LARAVEL_ROOT}>
     Options FollowSymLinks
     AllowOverride All
@@ -71,26 +91,51 @@ configure_laravel_docroot() {
   CustomLog \${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
 EOF
+}
 
-  # Ensure Front Controller rewrite works even without .htaccess
-  if [ ! -f "$APACHE_DOCROOT/.htaccess" ] && [ -f "$LARAVEL_ROOT/public/index.php" ]; then
-    cat > "$APACHE_DOCROOT/.htaccess" <<'HTACCESS'
+# SPA (React) + Laravel API on the same origin:
+# - /api, /sanctum, /broadcasting, /storage → Laravel index.php
+# - real files → as-is
+# - everything else → index.html (React Router)
+write_spa_htaccess() {
+  [ -d "$APACHE_DOCROOT" ] || return 0
+  cat > "$APACHE_DOCROOT/.htaccess" <<'HTACCESS'
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
     </IfModule>
+
     RewriteEngine On
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_FILENAME} !-f
+
+    # Pass Authorization header to PHP (Sanctum / Bearer tokens)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Laravel API + auth endpoints
+    RewriteRule ^(api|sanctum|broadcasting|storage)(/|$) index.php [L]
+
+    # Serve existing files/dirs (built JS/CSS, favicon, etc.)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # React SPA fallback (fixes blank page after /login → /dashboard)
+    RewriteCond %{DOCUMENT_ROOT}/index.html -f
+    RewriteRule ^ index.html [L]
+
+    # Fallback to Laravel if no SPA index.html
     RewriteRule ^ index.php [L]
 </IfModule>
 HTACCESS
-  fi
+  echo "[preview] wrote SPA+API .htaccess (React Router + /api → Laravel)"
 }
 
 write_laravel_env() {
   envfile="$LARAVEL_ROOT/.env"
   example="$LARAVEL_ROOT/.env.example"
+  origin="$(preview_origin)"
+  host_only=$(echo "$origin" | sed -E 's|^https?://||')
+
   if [ ! -f "$envfile" ] && [ -f "$example" ]; then
     cp "$example" "$envfile"
     echo "[preview] created .env from .env.example"
@@ -101,7 +146,7 @@ APP_NAME=ScholarVerifyPreview
 APP_ENV=local
 APP_KEY=
 APP_DEBUG=true
-APP_URL=${PREVIEW_BASE_URL:-http://localhost}
+APP_URL=${origin}
 LOG_CHANNEL=stack
 DB_CONNECTION=mysql
 DB_HOST=${DB_HOST:-127.0.0.1}
@@ -116,7 +161,6 @@ EOF
     echo "[preview] wrote fresh Laravel .env"
   fi
 
-  # Patch common Laravel DB / URL keys in place
   set_env_key() {
     key="$1"
     val="$2"
@@ -133,16 +177,17 @@ EOF
   [ -n "$DB_PASS" ] && set_env_key DB_PASSWORD "$DB_PASS"
   set_env_key DB_CONNECTION mysql
   set_env_key DB_PORT 3306
-  if [ -n "$PREVIEW_BASE_URL" ]; then
-    # Strip trailing slash for APP_URL
-    app_url=$(echo "$PREVIEW_BASE_URL" | sed 's|/$||')
-    set_env_key APP_URL "$app_url"
-  fi
+  set_env_key APP_URL "$origin"
   set_env_key APP_ENV local
   set_env_key APP_DEBUG true
   set_env_key SESSION_DRIVER file
   set_env_key CACHE_STORE file
   set_env_key QUEUE_CONNECTION sync
+  set_env_key SANCTUM_STATEFUL_DOMAINS "$host_only,localhost,127.0.0.1"
+  set_env_key SESSION_DOMAIN ""
+  set_env_key FRONTEND_URL "$origin"
+  # Wide-open CORS for teacher preview sandbox
+  set_env_key CORS_ALLOWED_ORIGINS "*"
 }
 
 wait_for_mysql_server() {
@@ -262,40 +307,141 @@ run_composer_install() {
     (cd "$LARAVEL_ROOT" && composer install --no-interaction --ignore-platform-reqs 2>&1) || true
 }
 
+# Point Vite/React at the preview public URL before build (same origin as Laravel).
+prepare_frontend_env() {
+  fe="$1"
+  [ -n "$fe" ] && [ -d "$fe" ] || return 0
+  origin="$(preview_origin)"
+  echo "[preview] frontend API URL → $origin"
+  cat > "$fe/.env.production" <<EOF
+VITE_API_URL=${origin}
+VITE_API_BASE_URL=${origin}
+REACT_APP_API_URL=${origin}
+NEXT_PUBLIC_API_URL=${origin}
+VITE_BACKEND_URL=${origin}
+VITE_APP_API_URL=${origin}
+EOF
+  cat > "$fe/.env.local" <<EOF
+VITE_API_URL=${origin}
+VITE_API_BASE_URL=${origin}
+REACT_APP_API_URL=${origin}
+NEXT_PUBLIC_API_URL=${origin}
+VITE_BACKEND_URL=${origin}
+VITE_APP_API_URL=${origin}
+EOF
+  # Soft-replace common localhost API defaults in source (best-effort)
+  find "$fe/src" "$fe" -maxdepth 3 -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.env*' \) 2>/dev/null \
+    | head -120 \
+    | while read -r f; do
+        sed -i \
+          -e "s|http://localhost:8000|${origin}|g" \
+          -e "s|http://127.0.0.1:8000|${origin}|g" \
+          -e "s|https://localhost:8000|${origin}|g" \
+          -e "s|http://localhost:8080|${origin}|g" \
+          -e "s|http://localhost:3001|${origin}|g" \
+          "$f" 2>/dev/null || true
+      done
+}
+
+# After Vite build, rewrite baked localhost URLs inside dist JS.
+patch_built_assets() {
+  dir="$1"
+  [ -d "$dir" ] || return 0
+  origin="$(preview_origin)"
+  echo "[preview] patching built assets API host → $origin"
+  find "$dir" -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.html' \) 2>/dev/null \
+    | while read -r f; do
+        sed -i \
+          -e "s|http://localhost:8000|${origin}|g" \
+          -e "s|http://127.0.0.1:8000|${origin}|g" \
+          -e "s|https://localhost:8000|${origin}|g" \
+          -e "s|http://localhost:8080|${origin}|g" \
+          -e "s|http://localhost:5173|${origin}|g" \
+          -e "s|http://127.0.0.1:5173|${origin}|g" \
+          "$f" 2>/dev/null || true
+      done
+}
+
 build_frontend_assets() {
-  # 1) Vite/React inside Laravel (resources/js + package.json)
+  origin="$(preview_origin)"
+
+  # 1) Vite assets inside Laravel
   if [ -f "$LARAVEL_ROOT/package.json" ]; then
+    prepare_frontend_env "$LARAVEL_ROOT"
     echo "[preview] npm install + build (Laravel Vite assets)"
     (cd "$LARAVEL_ROOT" && npm install --no-audit --no-fund 2>&1) || true
     (cd "$LARAVEL_ROOT" && (npm run build || npm run production || true) 2>&1) || true
+    patch_built_assets "$LARAVEL_ROOT/public/build"
+    patch_built_assets "$LARAVEL_ROOT/public/dist"
   fi
 
-  # 2) Sibling React frontend (FRONTEND_SUBDIR or common folder names)
-  fe=""
-  if [ -n "$FRONTEND_SUBDIR" ] && [ -f "$DOCROOT/$FRONTEND_SUBDIR/package.json" ]; then
-    fe="$DOCROOT/$FRONTEND_SUBDIR"
-  else
-    for cand in frontend client web ui react-app; do
-      if [ -f "$DOCROOT/$cand/package.json" ] && [ "$DOCROOT/$cand" != "$LARAVEL_ROOT" ]; then
-        fe="$DOCROOT/$cand"
-        break
-      fi
-    done
+  # 2) Sibling React SPA
+  fe="$FRONTEND_ROOT"
+  if [ -z "$fe" ]; then
+    fe="$(find_frontend_root)"
   fi
 
   if [ -n "$fe" ] && [ -f "$fe/package.json" ]; then
+    prepare_frontend_env "$fe"
     echo "[preview] npm install + build (React frontend: $fe)"
     (cd "$fe" && npm install --no-audit --no-fund 2>&1) || true
     (cd "$fe" && (npm run build || npm run production || true) 2>&1) || true
-    # Copy built SPA into Laravel public so Apache serves it
     for out in dist build out; do
       if [ -d "$fe/$out" ] && [ -d "$APACHE_DOCROOT" ]; then
         echo "[preview] copying $fe/$out → $APACHE_DOCROOT/"
+        # Keep Laravel index.php; overlay SPA files
         cp -a "$fe/$out/." "$APACHE_DOCROOT/" 2>/dev/null || true
+        # Never let SPA wipe the Laravel front controller
+        if [ ! -f "$APACHE_DOCROOT/index.php" ] && [ -f "$LARAVEL_ROOT/public/index.php" ]; then
+          cp "$LARAVEL_ROOT/public/index.php" "$APACHE_DOCROOT/index.php" 2>/dev/null || true
+        fi
+        patch_built_assets "$APACHE_DOCROOT"
         break
       fi
     done
   fi
+
+  write_spa_htaccess
+}
+
+seed_laravel_preview_user() {
+  [ -f "$LARAVEL_ROOT/artisan" ] || return 0
+  [ -f "$LARAVEL_ROOT/vendor/autoload.php" ] || return 0
+  echo "[preview] seeding Laravel preview login user"
+  cd "$LARAVEL_ROOT"
+  php <<'PHP' || true
+<?php
+try {
+    require 'vendor/autoload.php';
+    $app = require 'bootstrap/app.php';
+    $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+    if (!class_exists(App\Models\User::class)) {
+        echo "[preview] no App\\Models\\User — skip seed\n";
+        exit(0);
+    }
+    $u = getenv('PREVIEW_SEED_USERNAME') ?: getenv('ADMIN_USERNAME') ?: 'previewadmin';
+    $p = getenv('PREVIEW_SEED_PASSWORD') ?: getenv('ADMIN_PASSWORD') ?: 'Preview123!';
+    $email = str_contains($u, '@') ? $u : ($u . '@preview.local');
+    $row = ['password' => bcrypt($p)];
+    $has = static function (string $col): bool {
+        try {
+            return Illuminate\Support\Facades\Schema::hasColumn('users', $col);
+        } catch (Throwable $e) {
+            return false;
+        }
+    };
+    if ($has('name')) $row['name'] = $u;
+    if ($has('username')) $row['username'] = $u;
+    if ($has('email')) $row['email'] = $email;
+    if ($has('role')) $row['role'] = 'admin';
+    if ($has('is_admin')) $row['is_admin'] = 1;
+    $lookup = $has('username') ? ['username' => $u] : ['email' => $email];
+    App\Models\User::updateOrCreate($lookup, $row);
+    echo "[preview] seeded Laravel user {$u}\n";
+} catch (Throwable $ex) {
+    fwrite(STDERR, '[preview] Laravel user seed skipped: ' . $ex->getMessage() . PHP_EOL);
+}
+PHP
 }
 
 run_artisan_bootstrap() {
@@ -318,6 +464,8 @@ run_artisan_bootstrap() {
     echo "[preview] php artisan db:seed --force"
     php artisan db:seed --force 2>&1 || true
   fi
+
+  seed_laravel_preview_user
 }
 
 # --- main ---
@@ -340,6 +488,7 @@ fi
 
 build_frontend_assets
 run_artisan_bootstrap
+write_spa_htaccess
 
 if [ -n "$DB_HOST" ] && [ -f /preview-seed-admin.php ]; then
   echo "[preview] running preview-seed-admin.php (best-effort)"

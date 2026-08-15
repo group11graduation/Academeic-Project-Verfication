@@ -869,6 +869,35 @@ function previewProjectMountPath(stack) {
   return '/app';
 }
 
+/** Sibling React folder for Laravel + React ZIPs (backend/ + frontend/). */
+async function resolveLaravelFrontendSubdir(buildContext, laravelSubdir = '.') {
+  const skip = new Set(
+    ['.', laravelSubdir, 'backend', 'api', 'laravel', 'server', 'vendor', 'node_modules', 'storage'].map((s) =>
+      String(s).replace(/\\/g, '/').toLowerCase()
+    )
+  );
+  const preferred = ['frontend', 'Frontend', 'client', 'Client', 'web', 'ui', 'react-app'];
+  for (const name of preferred) {
+    const pkg = path.join(buildContext, name, 'package.json');
+    // eslint-disable-next-line no-await-in-loop
+    if (await pathExists(pkg)) return name;
+  }
+  try {
+    const entries = await fs.readdir(buildContext, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (skip.has(entry.name.toLowerCase())) continue;
+      // eslint-disable-next-line no-await-in-loop
+      if (await pathExists(path.join(buildContext, entry.name, 'package.json'))) {
+        return entry.name;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return '';
+}
+
 /** Human-readable label for logs and teacher UI */
 export function previewStackDisplayName(stack, splitPair = null) {
   if (stack === 'java-spring-thymeleaf') {
@@ -1935,6 +1964,13 @@ async function runPreviewContainer({
     args.push('-e', 'PREVIEW_SANDBOX=1');
     const previewBaseUrl = `${getPublicPreviewBase()}:${hostPort}/`;
     args.push('-e', `PREVIEW_BASE_URL=${previewBaseUrl}`);
+    const publicOrigin = previewBaseUrl.replace(/\/$/, '');
+    args.push('-e', `VITE_API_URL=${publicOrigin}`);
+    args.push('-e', `REACT_APP_API_URL=${publicOrigin}`);
+    args.push('-e', `VITE_API_BASE_URL=${publicOrigin}`);
+    if (previewCredentialEnv?.FRONTEND_SUBDIR) {
+      args.push('-e', `FRONTEND_SUBDIR=${previewCredentialEnv.FRONTEND_SUBDIR}`);
+    }
     const dbHost = previewCredentialEnv?.DB_HOST;
     if (dbHost) {
       args.push('-e', `DB_HOST=${dbHost}`);
@@ -2596,6 +2632,32 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       adminCredentials: patched.adminCredentials || {},
       patchedFiles: patched.files || 0,
     };
+
+    if (stack === 'laravel-react-mysql' && previewBaseUrl) {
+      const publicOrigin = String(previewBaseUrl).replace(/\/$/, '');
+      const feSub = await resolveLaravelFrontendSubdir(buildContext, appSubdir);
+      if (feSub) {
+        mergedCredentialEnv.FRONTEND_SUBDIR = feSub;
+        const fePatched = await patchFrontendApiPort(buildContext, feSub, hostPort, {
+          publicApiUrl: publicOrigin,
+        }).catch((err) => {
+          logger.warn(`Laravel frontend API patch skipped: ${err.message || err}`);
+          return { files: 0 };
+        });
+        logger.info(
+          `Laravel+React preview: patched frontend "${feSub}" API → ${publicOrigin} (${fePatched.files || 0} file(s))`
+        );
+      } else {
+        // Monorepo: Vite lives inside Laravel root
+        const laravelPkg = path.join(buildContext, appSubdir === '.' ? '' : appSubdir, 'package.json');
+        if (await pathExists(laravelPkg)) {
+          const rel = appSubdir === '.' ? '.' : appSubdir;
+          await patchFrontendApiPort(buildContext, rel, hostPort, {
+            publicApiUrl: publicOrigin,
+          }).catch(() => null);
+        }
+      }
+    }
     const phpUser = String(patched.adminCredentials?.username || '').trim();
     const phpPassRaw = String(patched.adminCredentials?.password || '').trim();
     const phpPass = phpPassRaw.replace(/\\n$/i, '').trim();
