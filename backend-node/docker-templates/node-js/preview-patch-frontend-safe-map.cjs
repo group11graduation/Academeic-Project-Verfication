@@ -72,7 +72,7 @@ function patchContent(content) {
   );
 
   next = next.replace(
-    /\b(users|items|rows|results|list|products|orders|posts|comments|notifications|appointments|patients|doctors|bookings|services|categories|projects|tasks|tickets|messages|invoices|payments|transactions|stats)\.map\s*\(/g,
+    /\b(users|items|rows|results|list|products|orders|posts|comments|notifications|appointments|patients|doctors|bookings|services|categories|projects|tasks|tickets|messages|invoices|payments|transactions|stats|books|bookList|allBooks|bookData)\.map\s*\(/g,
     (_, name) => `${ensureSafeArrayExpr(name)}.map(`
   );
 
@@ -117,7 +117,7 @@ function injectRuntimeHelper(frontendRoot) {
 export function svSafeArray(v) {
   if (Array.isArray(v)) return v;
   if (!v || typeof v !== 'object') return [];
-  for (const k of ['data', 'items', 'users', 'results', 'rows', 'list', 'records', 'docs']) {
+  for (const k of ['data', 'items', 'users', 'results', 'rows', 'list', 'records', 'docs', 'books', 'products', 'orders']) {
     if (Array.isArray(v[k])) return v[k];
   }
   if (v.data && typeof v.data === 'object') {

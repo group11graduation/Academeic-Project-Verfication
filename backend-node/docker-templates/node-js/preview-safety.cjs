@@ -25,6 +25,22 @@ function requireFromCwd(name) {
   }
 }
 
+/** Student ZIPs often omit bcryptjs/jsonwebtoken — use image-baked /preview-tools. */
+function requireOptional(name) {
+  const fromCwd = requireFromCwd(name);
+  if (fromCwd) return fromCwd;
+  try {
+    return createRequire('/preview-tools/package.json')(name);
+  } catch (_e) {
+    /* continue */
+  }
+  try {
+    return require(`/preview-tools/node_modules/${name}`);
+  } catch (_e2) {
+    return null;
+  }
+}
+
 function isLoginPath(reqPath) {
   const p = String(reqPath || '').split('?')[0];
   return /\/(api\/)?(auth|users|user|v1\/auth)?\/?login\/?$/i.test(p) || LOGIN_PATHS.includes(p);
@@ -236,12 +252,15 @@ function pickCredentials(body) {
     {};
   const email = String(
     root.email ||
+      root.Email ||
       root.username ||
+      root.Username ||
       root.identifier ||
       root.login ||
       root.userEmail ||
       root.mail ||
       nested.email ||
+      nested.Email ||
       nested.username ||
       ''
   )
@@ -249,10 +268,12 @@ function pickCredentials(body) {
     .toLowerCase();
   const password = String(
     root.password ||
+      root.Password ||
       root.passcode ||
       root.pwd ||
       root.pass ||
       nested.password ||
+      nested.Password ||
       nested.passcode ||
       ''
   );
@@ -301,8 +322,11 @@ async function verifyPassword(user, password) {
   }
   if (!ok) {
     const hash = String(pickPasswordHash(user) || '');
-    const bcrypt = requireFromCwd('bcryptjs') || requireFromCwd('bcrypt');
-    if (!bcrypt || !hash || hash.length < 10) return false;
+    const bcrypt = requireOptional('bcryptjs') || requireOptional('bcrypt');
+    if (!bcrypt || !hash) return false;
+    // Plain-text seed (rare) or already matching
+    if (hash === password) return true;
+    if (hash.length < 10) return false;
     try {
       ok = !!(await bcrypt.compare(password, hash));
     } catch (_e) {
@@ -312,15 +336,17 @@ async function verifyPassword(user, password) {
   return ok;
 }
 
-async function previewUniversalLogin(req, res, next) {
+async function previewUniversalLogin(req, res, next, options = {}) {
+  const softFail = Boolean(options.softFail);
   const { email, password } = pickCredentials(req.body);
   // Do not return 400 here — empty body usually means our route ran before a parser
   // the client expects; fall through so the student handler can respond.
   if (!email || !password) return next();
 
-  const mongoose = requireFromCwd('mongoose');
+  const mongoose = requireOptional('mongoose') || requireFromCwd('mongoose');
   if (!mongoose) return next();
   if (mongoose.connection.readyState !== 1) {
+    if (softFail) return next();
     return res.status(503).json({
       message: 'Database is still starting — wait a few seconds and try again',
       error: 'mongo_not_ready',
@@ -345,16 +371,21 @@ async function previewUniversalLogin(req, res, next) {
       user = await findUserRawMongo(mongoose, email);
     }
     if (!user) {
+      if (softFail) return next();
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     const ok = await verifyPassword(user, password);
     if (!ok) {
+      if (softFail) return next();
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    const jwt = requireFromCwd('jsonwebtoken');
-    if (!jwt) return next();
+    const jwt = requireOptional('jsonwebtoken');
+    if (!jwt) {
+      console.log('[preview] universal login: jsonwebtoken missing — fall through');
+      return next();
+    }
     const safe = sanitizeUser(user);
     const token = jwt.sign(
       { id: user._id, _id: user._id, role: safe.role, email: user.email },
@@ -375,6 +406,7 @@ async function previewUniversalLogin(req, res, next) {
     );
   } catch (err) {
     console.error('[preview] universal login failed:', err && err.message ? err.message : err);
+    if (softFail) return next();
     return res.status(500).json({
       message: 'Server error during login',
       detail: String((err && err.message) || err),
@@ -383,9 +415,91 @@ async function previewUniversalLogin(req, res, next) {
   }
 }
 
+function isPreviewAdminAttempt(email, password) {
+  const pe = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@preview.demo')
+    .toLowerCase()
+    .trim();
+  const pp = String(process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!');
+  const e = String(email || '')
+    .toLowerCase()
+    .trim();
+  const p = String(password || '');
+  if (!e || !p) return false;
+  if (p !== pp) return false;
+  if (e === pe) return true;
+  if (pe.includes('@') && e === pe.split('@')[0]) return true;
+  if (e === 'admin@preview.demo' || e === 'previewadmin') return true;
+  return false;
+}
+
+function wrapLoginResponseForRecovery(req, res) {
+  if (!req || !res || typeof res.json !== 'function') return;
+  if (String(req.method || '').toUpperCase() !== 'POST') return;
+  const p = String(req.path || req.url || '').split('?')[0];
+  if (!isLoginPath(p)) return;
+  if (res.__svLoginWrapped) return;
+  res.__svLoginWrapped = true;
+
+  let statusCode = 200;
+  const origStatus = res.status.bind(res);
+  const origJson = res.json.bind(res);
+  res.status = function patchedStatus(code) {
+    statusCode = Number(code) || statusCode;
+    return origStatus(code);
+  };
+  res.json = function patchedJson(body) {
+    // Only recover preview-admin sandbox logins — never rewrite other users' 401s.
+    const creds = pickCredentials(req.body);
+    if (
+      (statusCode === 401 || statusCode === 403) &&
+      !res.__svLoginRecovered &&
+      isPreviewAdminAttempt(creds.email, creds.password)
+    ) {
+      res.__svLoginRecovered = true;
+      const recoverRes = {
+        statusCode: 200,
+        status(code) {
+          this.statusCode = Number(code) || 200;
+          return this;
+        },
+        json(okBody) {
+          try {
+            origStatus(200);
+          } catch (_e) {
+            /* ignore */
+          }
+          return origJson(okBody);
+        },
+      };
+      return Promise.resolve(
+        previewUniversalLogin(req, recoverRes, function softNext() {
+          return origJson(body);
+        }, { softFail: false })
+      ).catch(function () {
+        return origJson(body);
+      });
+    }
+    return origJson(body);
+  };
+}
+
 function installPreviewCorsFix(app) {
   if (!app || typeof app.use !== 'function') return;
   installPreviewRuntimeGuards();
+
+  // Catch student login 401s regardless of route registration order.
+  if (!app.__svHandlePatch && typeof app.handle === 'function') {
+    app.__svHandlePatch = true;
+    const origHandle = app.handle.bind(app);
+    app.handle = function svHandle(req, res, out) {
+      try {
+        wrapLoginResponseForRecovery(req, res);
+      } catch (_e) {
+        /* ignore */
+      }
+      return origHandle(req, res, out);
+    };
+  }
 
   // Ensure every login 200 body includes success+flattened token/user so student
   // frontends that check `res.data.success` leave the spinner and store the JWT.
@@ -470,7 +584,7 @@ function installPreviewCorsFix(app) {
 
   const handlers = [];
   try {
-    const express = requireFromCwd('express');
+    const express = requireOptional('express') || requireFromCwd('express');
     if (express && typeof express.json === 'function') {
       handlers.push(express.json({ limit: '2mb' }));
     }
@@ -481,7 +595,7 @@ function installPreviewCorsFix(app) {
     /* optional */
   }
   handlers.push(function (req, res, next) {
-    Promise.resolve(previewUniversalLogin(req, res, next)).catch(next);
+    Promise.resolve(previewUniversalLogin(req, res, next, { softFail: true })).catch(next);
   });
 
   for (const loginPath of LOGIN_PATHS) {

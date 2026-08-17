@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V19:
+ * Marker V20:
+ * - Safe list hardening for ALL future ZIPs (no project-specific unwrap of books/products).
+ * - Only unwrap generic { data|items|results|…: [...] } envelopes; keep named list objects.
+ * - Keep bare arrays as arrays (V19).
+ * V19:
  * - Do NOT wrap bare JSON arrays as objects (fixes dashboard "a.map is not a function").
  * - Still coerce missing list fields on object payloads to [].
  * V18:
@@ -17,10 +21,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V19__) {
-    console.log('[DEBUG-SHIM] already installed V19 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V20__) {
+    console.log('[DEBUG-SHIM] already installed V20 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V20__ = true;
   window.__SV_LOGIN_FALLBACK_V19__ = true;
   window.__SV_LOGIN_FALLBACK_V18__ = true;
   window.__SV_LOGIN_FALLBACK_V17__ = true;
@@ -35,7 +40,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v19', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v20', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -157,15 +162,27 @@
   }
 
   /**
-   * Student UIs often do `setLoans(res.data.loans)` then `loans.length`.
-   * Empty DBs / alternate response shapes omit the array → blank-page TypeError.
-   * Coerce common list fields to [] on OBJECT responses only.
+   * Universal (all ZIPs) list-response hardening — safe for existing + future projects.
    *
-   * CRITICAL: never wrap a bare JSON array as `{ data: [...] }` — many dashboards do
-   * `const a = await res.json(); a.map(...)` and crash with "a.map is not a function".
+   * Rules (do not break other apps):
+   * 1) Never wrap a bare JSON array as an object (breaks `a.map`).
+   * 2) Never strip named lists (`books`, `products`, …) into a bare array
+   *    (breaks `res.data.books.map` apps).
+   * 3) Only unwrap generic envelopes `{ data|items|results|rows|list|docs: [...] }`
+   *    when other keys are harmless meta (success/message/count/…).
+   * 4) On objects, coerce missing/invalid list fields to [].
+   * 5) Null body on catalog-style GET paths → [] .
    */
   function normalizeApiListBody(body, url) {
-    if (body == null) return body;
+    if (body == null) {
+      try {
+        var nullPath = new URL(String(url || ''), window.location.href).pathname || '';
+        if (/\/(books|products|users|orders|items|loans|notifications|categories)(\/)?$/i.test(nullPath)) {
+          return [];
+        }
+      } catch (_n) {}
+      return body;
+    }
     var path = '';
     try {
       path = new URL(String(url || ''), window.location.href).pathname || '';
@@ -175,6 +192,11 @@
     // Keep bare arrays as arrays (do not wrap).
     if (Array.isArray(body)) return body;
     if (typeof body !== 'object') return body;
+
+    // Safe envelope unwrap only — never rename books/products into a bare array.
+    var unwrapped = unwrapGenericListEnvelope(body);
+    if (unwrapped !== body) return unwrapped;
+
     var out = body;
     try {
       out = {};
@@ -190,6 +212,8 @@
       'users',
       'items',
       'products',
+      'books',
+      'bookList',
       'notifications',
       'orders',
       'members',
@@ -217,7 +241,6 @@
     for (var i = 0; i < listKeys.length; i++) {
       var key = listKeys[i];
       if (Object.prototype.hasOwnProperty.call(out, key) && !Array.isArray(out[key])) {
-        // If nested object holds an array under data/items, promote it.
         var v = out[key];
         if (v && typeof v === 'object') {
           if (Array.isArray(v.data)) out[key] = v.data;
@@ -237,6 +260,7 @@
         else if (Array.isArray(out.data.results)) out.data = out.data.results;
         else if (Array.isArray(out.data.list)) out.data = out.data.list;
         else if (Array.isArray(out.data.rows)) out.data = out.data.rows;
+        else if (Array.isArray(out.data.books)) out.data = out.data.books;
       }
     }
     if (/\/admin\/loans\/?$/i.test(path) || /\/loans(\/my)?\/?$/i.test(path)) {
@@ -250,7 +274,53 @@
     if (/\/products/i.test(path) && !Array.isArray(out.products) && !Array.isArray(out.categories)) {
       if ('products' in out || /products/i.test(path)) out.products = Array.isArray(out.products) ? out.products : [];
     }
+    if (/\/books/i.test(path) && 'books' in out && !Array.isArray(out.books)) {
+      out.books = [];
+    }
     return out;
+  }
+
+  /** Unwrap { data: [...] , success?, message? } only — keeps { books: [...] } intact. */
+  function unwrapGenericListEnvelope(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+    // Login / auth payloads must never be unwrapped.
+    if (body.token || body.accessToken || body.access_token || body.user) return body;
+    if (body.data && typeof body.data === 'object' && !Array.isArray(body.data) && (body.data.token || body.data.user)) {
+      return body;
+    }
+    var meta = {
+      success: 1,
+      message: 1,
+      msg: 1,
+      status: 1,
+      count: 1,
+      total: 1,
+      page: 1,
+      limit: 1,
+      error: 1,
+      errors: 1,
+    };
+    var genericListKeys = { data: 1, items: 1, results: 1, rows: 1, list: 1, docs: 1, records: 1 };
+    var keys = Object.keys(body);
+    var listKey = null;
+    var listCount = 0;
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (meta[k]) continue;
+      if (Array.isArray(body[k])) {
+        listCount += 1;
+        listKey = k;
+      } else if (body[k] != null && typeof body[k] === 'object') {
+        return body;
+      } else if (typeof body[k] === 'string' || typeof body[k] === 'number' || typeof body[k] === 'boolean') {
+        // non-meta scalar → treat as domain field, do not unwrap
+        if (!meta[k]) return body;
+      }
+    }
+    if (listCount === 1 && listKey && genericListKeys[listKey] && Array.isArray(body[listKey])) {
+      return body[listKey];
+    }
+    return body;
   }
 
   function rewriteJsonApiResponse(res, url) {
@@ -260,7 +330,7 @@
       ct = String(res.headers && res.headers.get ? res.headers.get('content-type') : '') || '';
     } catch (_e) {}
     // Many student APIs omit Content-Type; still try JSON for API-ish URLs.
-    var looksApi = /\/api\/|\/admin\/|\/loans|\/products|\/users/i.test(String(url || ''));
+    var looksApi = /\/api\/|\/admin\/|\/loans|\/products|\/users|\/books/i.test(String(url || ''));
     if (ct && ct.indexOf('json') < 0 && !looksApi) return Promise.resolve(res);
     return res
       .clone()
