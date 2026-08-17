@@ -24,8 +24,9 @@ COPY preview-ensure-inject.cjs /preview-ensure-inject.cjs
 COPY preview-gateway.cjs /preview-gateway.cjs
 # Canonical copy — entrypoint refreshes /preview-gateway.cjs from here (avoids stale embedded heredoc).
 COPY preview-gateway.cjs /usr/local/share/sv-preview-gateway.cjs
+COPY preview-patch-frontend-safe-map.cjs /preview-patch-frontend-safe-map.cjs
 COPY preview-fallback /preview-fallback
-RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh /preview-seed-admin.js /preview-seed-mysql.js /preview-mysql-bootstrap.js /preview-verify-login.js /preview-login-fallback.js /preview-safety.cjs /preview-ensure-inject.cjs /preview-gateway.cjs /usr/local/share/sv-preview-gateway.cjs
+RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh /preview-seed-admin.js /preview-seed-mysql.js /preview-mysql-bootstrap.js /preview-verify-login.js /preview-login-fallback.js /preview-safety.cjs /preview-ensure-inject.cjs /preview-gateway.cjs /usr/local/share/sv-preview-gateway.cjs /preview-patch-frontend-safe-map.cjs
 
 EXPOSE 3000
 ENTRYPOINT ["/preview-entrypoint.sh"]

@@ -771,6 +771,12 @@ run_frontend_preview() {
 
   patch_source_api_urls
 
+  # Harden .map() against non-array API payloads BEFORE cache hash — so rebuilds pick up the fix.
+  if [ -f /preview-patch-frontend-safe-map.cjs ]; then
+    echo "[preview] patching frontend .map() safety (dashboard list responses)"
+    node /preview-patch-frontend-safe-map.cjs "$(pwd)" 2>&1 | tee -a /tmp/preview-frontend-build.log || true
+  fi
+
   src_hash="$(compute_frontend_src_hash)"
   build_cache_ok=0
   if frontend_build_cache_hit; then
@@ -815,7 +821,6 @@ run_frontend_preview() {
   fi
   if is_vite_project; then
     echo "[preview] Vite build + static serve (API=${VITE_API_URL:-n/a})"
-    : > /tmp/preview-frontend-build.log
     build_ok=0
     if npm run build >> /tmp/preview-frontend-build.log 2>&1; then
       build_ok=1
