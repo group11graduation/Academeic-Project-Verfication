@@ -213,7 +213,16 @@ serve_fallback_forever() {
 }
 
 node_modules_incomplete() {
-  [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null)" ] || [ ! -d node_modules/.bin ]
+  if [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null)" ] || [ ! -d node_modules/.bin ]; then
+    return 0
+  fi
+  # Vite apps that cached an install without devDeps look "complete" but cannot build.
+  if [ -f package.json ] && grep -q '"vite"' package.json 2>/dev/null; then
+    if [ ! -e node_modules/.bin/vite ] && [ ! -d node_modules/vite ]; then
+      return 0
+    fi
+  fi
+  return 1
 }
 
 preview_cache_dir() {
@@ -323,27 +332,52 @@ ensure_node_modules() {
     else
       echo "[preview] cache miss, rebuilding node_modules (package manifests changed)"
     fi
-    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+    # Always include devDependencies — Vite/Tailwind/PostCSS live there in most student ZIPs.
+    # NODE_ENV=production would otherwise omit them and break `npm run build`.
+    npm_install_with_dev || npm_install_with_dev || true
     write_cache_hash node_modules "$deps_hash"
   else
     echo "[preview] cache hit, reusing node_modules"
   fi
 }
 
+npm_install_with_dev() {
+  NODE_ENV=development npm install --include=dev --no-audit --no-fund --legacy-peer-deps 2>&1 \
+    || NODE_ENV=development npm install --include=dev --no-audit --no-fund 2>&1
+}
+
+vite_bin_present() {
+  [ -e node_modules/.bin/vite ] || [ -e node_modules/vite/bin/vite.js ] || [ -d node_modules/vite ]
+}
+
 is_vite_project() {
-  [ -f vite.config.js ] || [ -f vite.config.ts ] || grep -q '"vite"' package.json 2>/dev/null
+  [ -f vite.config.js ] || [ -f vite.config.ts ] || [ -f vite.config.mjs ] \
+    || grep -q '"vite"' package.json 2>/dev/null
 }
 
 ensure_vite_binary() {
   if ! is_vite_project; then
     return 0
   fi
-  if [ ! -x node_modules/.bin/vite ]; then
-    echo "[preview] vite binary missing after install — forcing clean reinstall"
+  if vite_bin_present; then
+    return 0
+  fi
+  echo "[preview] vite missing after install — installing vite explicitly"
+  NODE_ENV=development npm install --include=dev --no-audit --no-fund --legacy-peer-deps vite@5.4.11 2>&1 \
+    || NODE_ENV=development npm install --no-audit --no-fund vite@5.4.11 2>&1 \
+    || true
+  if ! vite_bin_present; then
+    echo "[preview] vite still missing — forcing clean reinstall of frontend deps"
     rm -rf node_modules
-    npm install --no-audit --no-fund --legacy-peer-deps 2>&1 || npm install --no-audit --no-fund 2>&1 || true
+    npm_install_with_dev || true
     write_cache_hash node_modules "$(compute_deps_hash)"
   fi
+  if vite_bin_present; then
+    echo "[preview] vite is available"
+    return 0
+  fi
+  echo "[preview] WARN: vite binary still not found after reinstall"
+  return 1
 }
 
 log_build_tail() {
@@ -871,26 +905,48 @@ run_frontend_preview() {
     return 1
   fi
   ensure_node_modules "npm"
-  ensure_vite_binary
+  ensure_vite_binary || true
   if grep -q '"seed"' package.json 2>/dev/null; then
     echo "[preview] npm run seed…"
     npm run seed 2>&1 || true
   fi
   if is_vite_project; then
     echo "[preview] Vite build + static serve (API=${VITE_API_URL:-n/a})"
+    : > /tmp/preview-frontend-build.log
     build_ok=0
-    if npm run build >> /tmp/preview-frontend-build.log 2>&1; then
-      build_ok=1
+    # Prefer local vite binary; fall back to npx. Never require -x (bind mounts often drop exec bit).
+    if [ -e node_modules/.bin/vite ]; then
+      if NODE_ENV=production ./node_modules/.bin/vite build >> /tmp/preview-frontend-build.log 2>&1; then
+        build_ok=1
+      fi
     fi
-    if [ "$build_ok" != "1" ] || [ ! -x node_modules/.bin/vite ]; then
-      echo "[preview] ERROR: Vite build failed (vite binary missing or build error) — serving raw unbuilt source as last resort. Check /tmp/preview-frontend-build.log. This will likely produce a blank page / MIME-type errors in the browser."
-      log_build_tail /tmp/preview-frontend-build.log 50
-    else
+    if [ "$build_ok" != "1" ]; then
+      if npm run build >> /tmp/preview-frontend-build.log 2>&1; then
+        build_ok=1
+      fi
+    fi
+    if [ "$build_ok" != "1" ] && command -v npx >/dev/null 2>&1; then
+      echo "[preview] npm run build failed — retrying with npx vite build"
+      if NODE_ENV=production npx --yes vite build >> /tmp/preview-frontend-build.log 2>&1; then
+        build_ok=1
+      fi
+    fi
+
+    if [ -d dist ] && [ -f dist/index.html ]; then
+      echo "[preview] Vite dist ready"
       patch_built_bundle_urls
       src_hash="$(compute_frontend_src_hash)"
       write_cache_hash dist "$src_hash"
-      if [ -d dist ] && [ -f dist/index.html ]; then
-        serve_dir "$(pwd)/dist"
+      serve_dir "$(pwd)/dist"
+    fi
+
+    if [ "$build_ok" != "1" ]; then
+      # Soft warning only — do NOT use "[preview] ERROR:" (that fails the whole teacher session).
+      echo "[preview] WARN: Vite build did not produce dist/ — see /tmp/preview-frontend-build.log"
+      log_build_tail /tmp/preview-frontend-build.log 80
+      # Last resort: vite preview / dev still needs deps; prefer holding a clear page over blank MIME errors.
+      if [ -f index.html ] && [ -d src ]; then
+        echo "[preview] WARN: serving unbuilt source is last resort (styles/JS may break)"
       fi
     fi
   fi
