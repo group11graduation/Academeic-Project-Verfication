@@ -148,12 +148,22 @@ const LandingPage = () => {
 
     return (
         <StudentPublicShell forcePublic>
-            <div className="min-h-screen bg-[#f4f5f7] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
-                <main>
+            <div className="relative min-h-screen overflow-x-clip bg-[#f0f1f3] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
+                {/* Soft page gradient wash */}
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 h-[720px] opacity-90"
+                    style={{
+                        background:
+                            'radial-gradient(ellipse 70% 50% at 50% -10%, rgba(42,63,164,0.18), transparent 60%), radial-gradient(ellipse 45% 40% at 15% 20%, rgba(29,104,227,0.14), transparent 55%), radial-gradient(ellipse 40% 35% at 85% 15%, rgba(99,102,241,0.12), transparent 50%)',
+                    }}
+                />
+
+                <main className="relative">
                     {/* Signed-in banner */}
                     {user && (
                         <div className="mx-auto max-w-[1200px] px-4 pt-6 sm:px-6 lg:px-8">
-                            <div className="flex flex-col gap-4 rounded-3xl border border-[#dbe3f5] bg-white px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-4 rounded-3xl border border-[#dbe3f5] bg-white/90 px-5 py-4 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#2a3fa4]">
                                         Already signed in
@@ -183,9 +193,23 @@ const LandingPage = () => {
                     )}
 
                     {/* Hero */}
-                    <section className="mx-auto max-w-[1200px] px-4 pb-10 pt-8 sm:px-6 sm:pt-12 lg:px-8 lg:pb-16">
-                        <div className="overflow-hidden rounded-[28px] border border-white bg-white px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:rounded-[36px] sm:px-10 sm:py-14 lg:px-14">
-                            <div className="mx-auto max-w-3xl text-center">
+                    <section className="mx-auto max-w-[1200px] px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pb-16">
+                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-white/80 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
+                            {/* Soft gradient blobs inside hero */}
+                            <div
+                                aria-hidden
+                                className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-[#c7d2fe]/55 blur-3xl"
+                            />
+                            <div
+                                aria-hidden
+                                className="pointer-events-none absolute -right-16 top-10 h-64 w-64 rounded-full bg-[#bfdbfe]/50 blur-3xl"
+                            />
+                            <div
+                                aria-hidden
+                                className="pointer-events-none absolute bottom-24 left-1/3 h-56 w-56 rounded-full bg-[#a5b4fc]/35 blur-3xl"
+                            />
+
+                            <div className="relative mx-auto max-w-3xl text-center">
                                 <p className="mb-4 text-sm font-bold tracking-tight text-[#2a3fa4] sm:text-base">
                                     {PROJECT_NAME}
                                 </p>
@@ -215,7 +239,7 @@ const LandingPage = () => {
                             </div>
 
                             {/* Dashboard preview mock */}
-                            <div className="relative mx-auto max-w-4xl">
+                            <div className="relative z-[1] mx-auto max-w-4xl">
                                 <div className="pointer-events-none absolute -left-2 top-8 hidden h-12 w-12 items-center justify-center rounded-2xl bg-[#eef2ff] text-[#2a3fa4] shadow-sm sm:flex lg:-left-6">
                                     <ShieldCheck className="h-5 w-5" />
                                 </div>

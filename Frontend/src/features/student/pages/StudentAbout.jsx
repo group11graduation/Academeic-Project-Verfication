@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import {
+    ArrowUpRight,
     BookOpen,
     BrainCircuit,
     CheckCircle2,
     Container,
     FileArchive,
+    GraduationCap,
     Layers,
     Search,
     ShieldCheck,
@@ -14,7 +16,7 @@ import {
 } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
-import { PROJECT_NAME } from '../../../shared/ui/brandTheme';
+import { BRAND, BRAND_GRADIENT, PROJECT_NAME } from '../../../shared/ui/brandTheme';
 
 const roles = [
     {
@@ -36,6 +38,7 @@ const roles = [
             'Approve or request changes; score and leave feedback',
             'Start Docker sandbox previews of student project ZIPs',
         ],
+        highlight: true,
     },
     {
         title: 'Admins',
@@ -103,63 +106,97 @@ const integrity = [
 const StudentAbout = () => {
     return (
         <StudentPublicShell>
-            <div className="min-h-screen overflow-x-hidden bg-[#f8faff] font-sans text-[var(--sv-text)] selection:bg-blue-100 selection:text-blue-900 dark:bg-[#020617] dark:text-slate-100">
-                <section className="px-6 pb-12 pt-24">
-                    <div className="mx-auto max-w-[1400px]">
-                        <p className="mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-[#2a3fa4]">
-                            Platform guide
-                        </p>
-                        <h1 className="mb-4 max-w-3xl text-4xl font-black leading-tight text-[var(--sv-text)] dark:text-slate-100 md:text-5xl">
-                            How {PROJECT_NAME} works
-                        </h1>
-                        <p className="mb-8 max-w-2xl text-lg font-medium text-[var(--sv-muted)] dark:text-slate-300">
-                            {PROJECT_NAME} helps universities verify student project originality - from proposal review
-                            to ZIP upload and live Docker preview - for students, teachers, and admins.
-                        </p>
-                        <div className="flex flex-wrap gap-3">
-                            <Link
-                                to="/login"
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#2a3fa4] px-5 py-3 text-sm font-bold text-white hover:bg-[#223688]"
-                            >
-                                Access platform
-                            </Link>
-                            <Link
-                                to="/about"
-                                className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-5 py-3 text-sm font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:border-white/10 dark:bg-[#111827]"
-                            >
-                                Meet the team
-                            </Link>
+            <div className="relative min-h-screen overflow-x-clip bg-[#f0f1f3] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 h-[520px]"
+                    style={{
+                        background:
+                            'radial-gradient(ellipse 70% 50% at 50% -10%, rgba(42,63,164,0.16), transparent 60%), radial-gradient(ellipse 40% 35% at 85% 20%, rgba(29,104,227,0.12), transparent 50%)',
+                    }}
+                />
+                <main className="relative">
+                    {/* Hero */}
+                    <section className="mx-auto max-w-[1200px] px-4 pb-8 pt-6 sm:px-6 sm:pt-8 lg:px-8">
+                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-white/80 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
+                            <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/50 blur-3xl" />
+                            <div aria-hidden className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#bfdbfe]/45 blur-3xl" />
+                            <div className="relative mx-auto max-w-3xl text-center">
+                                <p className="mb-4 text-sm font-bold tracking-tight text-[#2a3fa4]">Platform guide</p>
+                                <h1 className="mb-5 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
+                                    How {PROJECT_NAME} works
+                                </h1>
+                                <p className="mx-auto mb-8 max-w-xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                                    {PROJECT_NAME} helps universities verify student project originality — from proposal
+                                    review to ZIP upload and live Docker preview — for students, teachers, and admins.
+                                </p>
+                                <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+                                    <Link
+                                        to="/login"
+                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-7 py-3 text-sm font-bold text-white shadow-lg shadow-[#2a3fa4]/25"
+                                        style={{ background: BRAND_GRADIENT }}
+                                    >
+                                        <GraduationCap className="h-4 w-4" />
+                                        Access platform
+                                    </Link>
+                                    <Link
+                                        to="/about"
+                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-white px-7 py-3 text-sm font-bold text-slate-900 hover:bg-slate-50"
+                                    >
+                                        Meet the team
+                                    </Link>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
 
-                <section className="bg-[var(--sv-card-muted)] px-6 py-16 dark:bg-[#0b1220]">
-                    <div className="mx-auto max-w-[1400px]">
-                        <h2 className="mb-3 text-3xl font-black text-[var(--sv-text)] dark:text-slate-100">
-                            Who uses the platform
-                        </h2>
-                        <p className="mb-10 max-w-2xl text-base font-medium text-[var(--sv-muted)] dark:text-slate-300">
-                            Three roles share one workflow: publish work, verify originality, and review real code.
-                        </p>
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                    {/* Roles */}
+                    <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+                        <div className="mb-8 grid gap-4 lg:grid-cols-2 lg:items-end lg:gap-10">
+                            <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
+                                Who uses the platform
+                            </h2>
+                            <p className="text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                                Three roles share one workflow: publish work, verify originality, and review real code.
+                            </p>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-3">
                             {roles.map((role) => (
                                 <div
                                     key={role.title}
-                                    className="rounded-2xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 shadow-sm dark:border-white/10 dark:bg-[#111827]"
+                                    className={`rounded-3xl p-6 sm:p-7 ${
+                                        role.highlight
+                                            ? 'bg-slate-950 text-white'
+                                            : 'border border-slate-200 bg-white'
+                                    }`}
                                 >
-                                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-[#1D68E3] dark:bg-blue-500/15 dark:text-sky-300">
+                                    <div
+                                        className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${
+                                            role.highlight ? 'bg-white/15 text-white' : 'bg-[#eef2ff] text-[#2a3fa4]'
+                                        }`}
+                                    >
                                         <role.icon className="h-5 w-5" />
                                     </div>
-                                    <h3 className="mb-3 text-xl font-black text-[var(--sv-text)] dark:text-slate-100">
+                                    <h3
+                                        className={`mb-3 text-lg font-extrabold ${
+                                            role.highlight ? 'text-white' : 'text-slate-950'
+                                        }`}
+                                    >
                                         {role.title}
                                     </h3>
                                     <ul className="space-y-2.5">
                                         {role.points.map((point) => (
                                             <li
                                                 key={point}
-                                                className="flex gap-2 text-sm font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300"
+                                                className={`flex gap-2 text-sm font-medium leading-relaxed ${
+                                                    role.highlight ? 'text-slate-300' : 'text-slate-500'
+                                                }`}
                                             >
-                                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#1D68E3]" />
+                                                <CheckCircle2
+                                                    className={`mt-0.5 h-4 w-4 shrink-0 ${
+                                                        role.highlight ? 'text-blue-300' : 'text-[#1D68E3]'
+                                                    }`}
+                                                />
                                                 <span>{point}</span>
                                             </li>
                                         ))}
@@ -167,105 +204,129 @@ const StudentAbout = () => {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </section>
+                    </section>
 
-                <section className="px-6 py-16">
-                    <div className="mx-auto max-w-[1400px]">
-                        <div className="mb-10 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                            <div>
-                                <h2 className="text-3xl font-black text-[var(--sv-text)] dark:text-slate-100">
-                                    End-to-end workflow
-                                </h2>
-                                <p className="mt-2 max-w-2xl text-base font-medium text-[var(--sv-muted)] dark:text-slate-300">
-                                    From assignment creation to live preview of the student project.
-                                </p>
-                            </div>
-                            <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-widest text-[#1D68E3] dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-sky-300">
-                                <UploadCloud className="h-3.5 w-3.5" />
-                                Proposal → ZIP → Preview
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-                            {workflow.map((item) => (
-                                <div
-                                    key={item.step}
-                                    className="rounded-2xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-5 dark:border-white/10 dark:bg-[#111827]"
-                                >
-                                    <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-[#2a3fa4] text-sm font-black text-white">
-                                        {item.step}
-                                    </div>
-                                    <h3 className="mb-2 text-sm font-black text-[var(--sv-text)] dark:text-slate-100">
-                                        {item.title}
-                                    </h3>
-                                    <p className="text-[13px] font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                                        {item.detail}
+                    {/* Workflow */}
+                    <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8">
+                        <div className="rounded-[28px] bg-[#f0f1f3] p-5 sm:rounded-[36px] sm:p-8 lg:p-10">
+                            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="max-w-xl">
+                                    <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                                        End-to-end workflow
+                                    </h2>
+                                    <p className="text-sm font-medium leading-relaxed text-slate-500">
+                                        From assignment creation to live preview of the student project.
                                     </p>
                                 </div>
-                            ))}
+                                <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-2xl bg-white px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-[#2a3fa4] ring-1 ring-slate-200">
+                                    <UploadCloud className="h-3.5 w-3.5" />
+                                    Proposal → ZIP → Preview
+                                </span>
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                                {workflow.map((item) => (
+                                    <div key={item.step} className="rounded-3xl border border-slate-200/80 bg-white p-5">
+                                        <span
+                                            className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-extrabold text-white"
+                                            style={{ backgroundColor: BRAND.primary }}
+                                        >
+                                            {item.step}
+                                        </span>
+                                        <h3 className="mb-2 text-sm font-extrabold text-slate-950">{item.title}</h3>
+                                        <p className="text-sm font-medium leading-relaxed text-slate-500">{item.detail}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
 
-                <section className="bg-[var(--sv-card-muted)] px-6 py-16 dark:bg-[#0b1220]">
-                    <div className="mx-auto max-w-[1400px]">
-                        <h2 className="mb-3 text-3xl font-black text-[var(--sv-text)] dark:text-slate-100">
-                            Integrity & verification
-                        </h2>
-                        <p className="mb-10 max-w-2xl text-base font-medium text-[var(--sv-muted)] dark:text-slate-300">
-                            Built-in checks keep submissions honest before and after teacher review.
-                        </p>
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+                    {/* Integrity */}
+                    <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+                        <div className="mb-8 text-center">
+                            <h2 className="mb-3 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                                Integrity & verification
+                            </h2>
+                            <p className="mx-auto max-w-2xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                                Built-in checks keep submissions honest before and after teacher review.
+                            </p>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             {integrity.map((item) => (
                                 <div
                                     key={item.title}
-                                    className="rounded-2xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 dark:border-white/10 dark:bg-[#111827]"
+                                    className="rounded-3xl border border-slate-200 bg-white p-6 transition hover:border-[#c5d0f0] hover:shadow-md"
                                 >
-                                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+                                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef2ff] text-[#2a3fa4]">
                                         <item.icon className="h-5 w-5" />
                                     </div>
-                                    <h3 className="mb-2 text-lg font-black text-[var(--sv-text)] dark:text-slate-100">
-                                        {item.title}
-                                    </h3>
-                                    <p className="text-sm font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                                        {item.desc}
-                                    </p>
+                                    <h3 className="mb-2 text-base font-extrabold text-slate-950">{item.title}</h3>
+                                    <p className="text-sm font-medium leading-relaxed text-slate-500">{item.desc}</p>
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </section>
+                    </section>
 
-                <section className="px-6 py-16">
-                    <div className="mx-auto max-w-[1400px] grid grid-cols-1 gap-6 lg:grid-cols-2">
-                        <div className="rounded-2xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-8 dark:border-white/10 dark:bg-[#111827]">
-                            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
-                                <Layers className="h-5 w-5" />
+                    {/* Collab + Docker */}
+                    <section className="mx-auto max-w-[1200px] px-4 pb-10 sm:px-6 lg:px-8">
+                        <div className="grid gap-4 lg:grid-cols-2">
+                            <div className="rounded-[28px] border border-slate-200 bg-white p-6 sm:rounded-[36px] sm:p-8">
+                                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef2ff] text-[#2a3fa4]">
+                                    <Layers className="h-5 w-5" />
+                                </div>
+                                <h2 className="mb-3 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                    Collaborative assignments
+                                </h2>
+                                <p className="text-sm font-medium leading-relaxed text-slate-500">
+                                    Final projects can pair a frontend teacher and a backend teacher on the same class.
+                                    Each side uploads requirements; both must approve the proposal before students can
+                                    submit project code.
+                                </p>
                             </div>
-                            <h2 className="mb-3 text-2xl font-black text-[var(--sv-text)] dark:text-slate-100">
-                                Collaborative assignments
-                            </h2>
-                            <p className="text-sm font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                                Final projects can pair a frontend teacher and a backend teacher on the same class.
-                                Each side uploads requirements; both must approve the proposal before students can
-                                submit project code.
-                            </p>
-                        </div>
-                        <div className="rounded-2xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-8 dark:border-white/10 dark:bg-[#111827]">
-                            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-[#1D68E3] dark:bg-blue-500/15 dark:text-sky-300">
-                                <Container className="h-5 w-5" />
+                            <div
+                                className="rounded-[28px] p-6 text-white sm:rounded-[36px] sm:p-8"
+                                style={{ background: BRAND_GRADIENT }}
+                            >
+                                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15">
+                                    <Container className="h-5 w-5" />
+                                </div>
+                                <h2 className="mb-3 text-xl font-extrabold tracking-tight sm:text-2xl">
+                                    Docker sandbox preview
+                                </h2>
+                                <p className="text-sm font-medium leading-relaxed text-blue-100">
+                                    Teachers start a temporary container for the uploaded ZIP (Node/React, Spring Boot,
+                                    PHP/Apache, and related stacks). Preview credentials are shown so teachers can sign
+                                    in to the student app without local setup.
+                                </p>
                             </div>
-                            <h2 className="mb-3 text-2xl font-black text-[var(--sv-text)] dark:text-slate-100">
-                                Docker sandbox preview
-                            </h2>
-                            <p className="text-sm font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                                Teachers start a temporary container for the uploaded ZIP (Node/React, Spring Boot,
-                                PHP/Apache, and related stacks). Preview credentials are shown so teachers can sign in
-                                to the student app without local setup.
-                            </p>
                         </div>
-                    </div>
-                </section>
+                    </section>
+
+                    {/* CTA */}
+                    <section className="mx-auto max-w-[1200px] px-4 pb-16 sm:px-6 lg:px-8">
+                        <div className="rounded-[28px] bg-slate-950 px-6 py-12 text-center sm:rounded-[36px] sm:px-10 sm:py-14">
+                            <h2 className="mb-3 text-2xl font-extrabold text-white sm:text-3xl">
+                                Ready to explore further?
+                            </h2>
+                            <p className="mx-auto mb-8 max-w-xl text-sm font-medium text-slate-400">
+                                Browse verified student work or meet the graduation team behind {PROJECT_NAME}.
+                            </p>
+                            <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+                                <Link
+                                    to="/gallery"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold text-slate-950"
+                                >
+                                    Verified projects <ArrowUpRight className="h-4 w-4" />
+                                </Link>
+                                <Link
+                                    to="/about"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/25 px-6 py-3 text-sm font-bold text-white hover:bg-white/5"
+                                >
+                                    About the team
+                                </Link>
+                            </div>
+                        </div>
+                    </section>
+                </main>
 
                 <PublicSiteFooter />
             </div>

@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, Loader2, Search, ShieldCheck, TrendingUp, ImageIcon } from 'lucide-react';
+import { ArrowRight, Heart, ImageIcon, Loader2, Search, ShieldCheck, TrendingUp } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
 import ProjectScreenshotLightbox from '../components/ProjectScreenshotLightbox';
-import { BRAND } from '../../../shared/ui/brandTheme';
+import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import { useAuth } from '../../../context/authContext';
@@ -27,18 +27,18 @@ const ProjectCover = ({ project, className = '' }) => {
             <img
                 src={src}
                 alt={`${project.title} screenshot`}
-                className={`w-full h-full object-cover object-top ${className}`}
+                className={`h-full w-full object-cover object-top ${className}`}
                 loading="lazy"
             />
         );
     }
     return (
         <div
-            className={`w-full h-full flex flex-col items-center justify-center gap-3 px-6 text-center ${className}`}
-            style={{ background: `linear-gradient(135deg, ${BRAND.railFrom} 0%, ${BRAND.railTo} 100%)` }}
+            className={`flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center ${className}`}
+            style={{ background: BRAND_GRADIENT }}
         >
             <ImageIcon className="h-10 w-10 text-white/50" />
-            <p className="text-sm font-bold text-white/90 line-clamp-2">{project.title}</p>
+            <p className="line-clamp-2 text-sm font-bold text-white/90">{project.title}</p>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">Screenshot pending</p>
         </div>
     );
@@ -130,183 +130,207 @@ const StudentGallery = () => {
 
     return (
         <StudentPublicShell>
-        <div className="min-h-screen overflow-x-hidden bg-[#f8faff] font-sans text-[var(--sv-text)] selection:bg-blue-100 selection:text-blue-900 dark:bg-[#020617] dark:text-slate-100">
-
-            <main className="pt-24 pb-12 px-4 sm:pt-28 sm:px-6 max-w-[1536px] mx-auto safe-area-px safe-area-pb">
-                <div className="mb-16">
-                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#2a3fa4] mb-3">Verified projects</p>
-                    <h1 className="mb-6 text-3xl font-black leading-[1.1] tracking-tight text-[var(--sv-text)] dark:text-slate-100 sm:text-4xl md:text-5xl">
-                        Approved student <span className="text-[#1D68E3]">submissions</span>
-                    </h1>
-                    <p className="max-w-2xl text-lg font-medium leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
-                        Top teacher-approved capstone projects from the academic database. Anyone can love a project -
-                        counts show real reactions from visitors and signed-in users.
-                    </p>
-                </div>
-
-                <div className="mb-6 flex flex-col gap-4">
-                    <div className="app-chip-scroll -mx-1 px-1">
-                        {GALLERY_CATEGORIES.map((cat) => (
-                            <button
-                                key={cat}
-                                type="button"
-                                onClick={() => setActiveCategory(cat)}
-                                className={`shrink-0 px-4 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 sm:px-5 ${
-                                    activeCategory === cat
-                                        ? 'bg-[#1D68E3] text-white shadow-md shadow-blue-200'
-                                        : 'bg-slate-100/80 text-[var(--sv-muted)] hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15'
-                                }`}
-                            >
-                                {cat}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="relative w-full lg:max-w-md">
-                        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sv-muted)]" />
-                        <input
-                            type="search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search projects by title, author, description…"
-                            className="w-full rounded-full border border-[var(--sv-border)] bg-[var(--sv-card)] py-3 pl-11 pr-4 text-sm font-medium text-[var(--sv-text)] shadow-sm outline-none transition focus:border-[#1D68E3] focus:ring-2 focus:ring-blue-100 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100 dark:focus:ring-blue-500/20"
-                            aria-label="Search verified projects"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex gap-3 mb-12">
-                    <button
-                        type="button"
-                        onClick={() => setSortBest((v) => !v)}
-                        className={`px-5 py-2.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center gap-2 ${
-                            sortBest
-                                ? 'bg-gradient-to-r from-[#2a3fa4] to-[#1D68E3] text-white shadow-md shadow-blue-200'
-                                : 'border border-blue-200 bg-blue-50 dark:bg-blue-500/15 text-[#2a3fa4] hover:bg-blue-100 dark:border-blue-400/20 dark:bg-[#111827] dark:text-blue-300 dark:hover:bg-[#1f2937]'
-                        }`}
-                    >
-                        <TrendingUp className="h-3.5 w-3.5" />
-                        {sortBest ? 'Most loved' : 'Most recent'}
-                    </button>
-                </div>
-
-                {loading ? (
-                    <div className="flex justify-center py-24">
-                        <Loader2 className="h-10 w-10 animate-spin text-[#2a3fa4]" />
-                    </div>
-                ) : error ? (
-                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-8 text-center font-semibold text-rose-700 dark:border-rose-400/20 dark:bg-rose-950/30 dark:text-rose-200">
-                        {error}
-                    </div>
-                ) : sortedProjects.length === 0 ? (
-                    <div className="mx-auto max-w-xl rounded-[24px] border border-[var(--sv-border)] bg-[var(--sv-card)] px-8 py-16 text-center dark:border-white/10 dark:bg-[#111827]">
-                        <ShieldCheck className="h-12 w-12 text-[#2a3fa4] mx-auto mb-4" />
-                        <h2 className="mb-2 text-xl font-black text-[var(--sv-text)] dark:text-slate-100">
-                            {searchQuery.trim() ? 'No matching projects' : 'No verified projects yet'}
-                        </h2>
-                        <p className="text-sm font-medium text-[var(--sv-muted)] dark:text-slate-300">
-                            {searchQuery.trim()
-                                ? 'Try a different search term or switch back to All Categories.'
-                                : 'When teachers approve final projects and students upload a UI screenshot, they appear here automatically.'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                        {sortedProjects.map((proj) => {
-                            const totalLikes = Number(proj.likeCount) || 0;
-                            const isLiked = Boolean(proj.likedByMe);
-                            const screenshotUrls =
-                                proj.screenshotUrls?.length > 0
-                                    ? proj.screenshotUrls
-                                    : proj.screenshotUrl
-                                      ? [proj.screenshotUrl]
-                                      : [];
-                            return (
-                                <article
-                                    key={proj.id}
-                                    className="group flex h-full flex-col overflow-hidden rounded-[24px] border border-[var(--sv-border)] bg-[var(--sv-card)] transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/50 dark:border-white/10 dark:bg-[#111827] dark:hover:shadow-none"
-                                >
-                                    <div className="relative h-[240px] overflow-hidden bg-[var(--sv-card-muted)] dark:bg-[#0f172a]">
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                screenshotUrls.length
-                                                    ? setLightbox({ title: proj.title, urls: screenshotUrls })
-                                                    : undefined
-                                            }
-                                            className={`block h-full w-full text-left ${screenshotUrls.length ? 'cursor-zoom-in' : 'cursor-default'}`}
-                                            title={screenshotUrls.length ? 'View screenshots' : undefined}
-                                        >
-                                            <ProjectCover project={proj} className="group-hover:scale-[1.02] transition-transform duration-700 ease-out" />
-                                        </button>
-                                        <div className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--sv-text)] shadow-sm backdrop-blur-md dark:bg-[#0b1220]/95 dark:text-slate-100">
-                                            {proj.category}
-                                        </div>
-                                        {proj.teacherScore != null && (
-                                            <div className="absolute bottom-4 left-4 bg-[#2a3fa4] text-white px-3 py-1 rounded-full text-[10px] font-black shadow-sm">
-                                                Score {proj.teacherScore}%
-                                            </div>
-                                        )}
-                                        <button
-                                            type="button"
-                                            disabled={reactBusyId === proj.id}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                toggleLike(proj);
-                                            }}
-                                            className={`absolute top-4 right-4 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] font-black shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-60 ${
-                                                isLiked ? 'bg-rose-500 text-white' : 'bg-white/95 text-[var(--sv-muted)] dark:bg-[#0b1220]/95 dark:text-slate-200'
-                                            }`}
-                                            title={isLiked ? 'Remove love' : 'Love this project'}
-                                        >
-                                            {reactBusyId === proj.id ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            ) : (
-                                                <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
-                                            )}
-                                            {totalLikes}
-                                        </button>
-                                    </div>
-                                    <div className="p-8 flex flex-col flex-grow">
-                                        <h3 className="mb-2 text-2xl font-black text-[var(--sv-text)] dark:text-slate-100">{proj.title}</h3>
-                                        <p className="mb-6 text-sm font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
-                                            By <span className="text-[var(--sv-text)] dark:text-slate-200">{proj.author}</span>
-                                            {proj.subject ? (
-                                                <span className="text-[var(--sv-muted)] dark:text-[var(--sv-muted)]"> - {proj.subject}</span>
-                                            ) : null}
-                                        </p>
-                                        <Link
-                                            to={`/gallery/${proj.id}`}
-                                            className="inline-flex items-center gap-2 text-sm font-bold text-[#1D68E3] group-hover:gap-3 transition-all w-fit mt-auto"
-                                        >
-                                            View project <ArrowRight className="h-4 w-4" />
-                                        </Link>
-                                    </div>
-                                </article>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {!loading && sortedProjects.length > 0 && (
-                    <div className="py-24 text-center">
-                        <p className="text-xs font-black uppercase tracking-[0.25em] text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
-                            Showing {sortedProjects.length} verified project{sortedProjects.length === 1 ? '' : 's'}
-                        </p>
-                    </div>
-                )}
-            </main>
-
-            <PublicSiteFooter />
-
-            {lightbox ? (
-                <ProjectScreenshotLightbox
-                    urls={lightbox.urls}
-                    title={lightbox.title}
-                    onClose={() => setLightbox(null)}
+            <div className="relative min-h-screen overflow-x-clip bg-[#f0f1f3] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 top-0 h-[520px]"
+                    style={{
+                        background:
+                            'radial-gradient(ellipse 70% 50% at 50% -10%, rgba(42,63,164,0.16), transparent 60%), radial-gradient(ellipse 40% 35% at 85% 20%, rgba(29,104,227,0.12), transparent 50%)',
+                    }}
                 />
-            ) : null}
-        </div>
+                <main className="relative mx-auto max-w-[1200px] px-4 pb-12 pt-6 sm:px-6 sm:pt-8 lg:px-8">
+                    {/* Hero */}
+                    <div className="relative mb-8 overflow-hidden rounded-[28px] border border-white/80 bg-white/80 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-12">
+                        <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/50 blur-3xl" />
+                        <div aria-hidden className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#bfdbfe]/45 blur-3xl" />
+                        <div className="relative mx-auto max-w-3xl text-center">
+                            <p className="mb-4 text-sm font-bold tracking-tight text-[#2a3fa4]">Verified projects</p>
+                            <h1 className="mb-4 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
+                                Approved student submissions
+                            </h1>
+                            <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                                Top teacher-approved capstone projects from the academic database. Anyone can love a
+                                project — counts show real reactions from visitors and signed-in users.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="mb-8 rounded-[28px] border border-slate-200 bg-white p-4 sm:rounded-[32px] sm:p-6">
+                        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {GALLERY_CATEGORIES.map((cat) => (
+                                <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => setActiveCategory(cat)}
+                                    className={`shrink-0 rounded-2xl px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest transition sm:text-xs ${
+                                        activeCategory === cat
+                                            ? 'bg-[#2a3fa4] text-white shadow-md shadow-[#2a3fa4]/20'
+                                            : 'bg-[#f4f5f7] text-slate-500 hover:bg-slate-200/80'
+                                    }`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <div className="relative min-w-0 flex-1">
+                                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="search"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search projects by title, author, description…"
+                                    className="w-full rounded-2xl border border-slate-200 bg-[#f8faff] py-3 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15"
+                                    aria-label="Search verified projects"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSortBest((v) => !v)}
+                                className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-widest transition sm:text-xs ${
+                                    sortBest
+                                        ? 'text-white shadow-md shadow-[#2a3fa4]/20'
+                                        : 'border border-slate-200 bg-white text-[#2a3fa4] hover:bg-[#eef2ff]'
+                                }`}
+                                style={sortBest ? { background: BRAND_GRADIENT } : undefined}
+                            >
+                                <TrendingUp className="h-3.5 w-3.5" />
+                                {sortBest ? 'Most loved' : 'Most recent'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {loading ? (
+                        <div className="flex justify-center py-24">
+                            <Loader2 className="h-10 w-10 animate-spin text-[#2a3fa4]" />
+                        </div>
+                    ) : error ? (
+                        <div className="rounded-3xl border border-rose-200 bg-rose-50 px-6 py-8 text-center font-semibold text-rose-700">
+                            {error}
+                        </div>
+                    ) : sortedProjects.length === 0 ? (
+                        <div className="mx-auto max-w-xl rounded-[28px] border border-slate-200 bg-white px-8 py-16 text-center">
+                            <ShieldCheck className="mx-auto mb-4 h-12 w-12 text-[#2a3fa4]" />
+                            <h2 className="mb-2 text-xl font-extrabold text-slate-950">
+                                {searchQuery.trim() ? 'No matching projects' : 'No verified projects yet'}
+                            </h2>
+                            <p className="text-sm font-medium text-slate-500">
+                                {searchQuery.trim()
+                                    ? 'Try a different search term or switch back to All Categories.'
+                                    : 'When teachers approve final projects and students upload a UI screenshot, they appear here automatically.'}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                            {sortedProjects.map((proj) => {
+                                const totalLikes = Number(proj.likeCount) || 0;
+                                const isLiked = Boolean(proj.likedByMe);
+                                const screenshotUrls =
+                                    proj.screenshotUrls?.length > 0
+                                        ? proj.screenshotUrls
+                                        : proj.screenshotUrl
+                                          ? [proj.screenshotUrl]
+                                          : [];
+                                return (
+                                    <article
+                                        key={proj.id}
+                                        className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg"
+                                    >
+                                        <div className="relative h-[220px] overflow-hidden bg-[#f8faff] sm:h-[240px]">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    screenshotUrls.length
+                                                        ? setLightbox({ title: proj.title, urls: screenshotUrls })
+                                                        : undefined
+                                                }
+                                                className={`block h-full w-full text-left ${
+                                                    screenshotUrls.length ? 'cursor-zoom-in' : 'cursor-default'
+                                                }`}
+                                                title={screenshotUrls.length ? 'View screenshots' : undefined}
+                                            >
+                                                <ProjectCover
+                                                    project={proj}
+                                                    className="transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                                                />
+                                            </button>
+                                            <div className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-widest text-slate-800 shadow-sm backdrop-blur-md">
+                                                {proj.category}
+                                            </div>
+                                            {proj.teacherScore != null && (
+                                                <div
+                                                    className="absolute bottom-4 left-4 rounded-full px-3 py-1 text-[10px] font-extrabold text-white shadow-sm"
+                                                    style={{ backgroundColor: BRAND.primary }}
+                                                >
+                                                    Score {proj.teacherScore}%
+                                                </div>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={reactBusyId === proj.id}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    toggleLike(proj);
+                                                }}
+                                                className={`absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm backdrop-blur-md transition disabled:opacity-60 ${
+                                                    isLiked
+                                                        ? 'bg-rose-500 text-white'
+                                                        : 'bg-white/95 text-slate-500'
+                                                }`}
+                                                title={isLiked ? 'Remove love' : 'Love this project'}
+                                            >
+                                                {reactBusyId === proj.id ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
+                                                )}
+                                                {totalLikes}
+                                            </button>
+                                        </div>
+                                        <div className="flex flex-grow flex-col p-6 sm:p-7">
+                                            <h3 className="mb-2 text-xl font-extrabold text-slate-950 sm:text-2xl">
+                                                {proj.title}
+                                            </h3>
+                                            <p className="mb-6 text-sm font-semibold text-slate-500">
+                                                By <span className="text-slate-900">{proj.author}</span>
+                                                {proj.subject ? <span> — {proj.subject}</span> : null}
+                                            </p>
+                                            <Link
+                                                to={`/gallery/${proj.id}`}
+                                                className="mt-auto inline-flex w-fit items-center gap-2 text-sm font-bold text-[#2a3fa4] transition-all group-hover:gap-3"
+                                            >
+                                                View project <ArrowRight className="h-4 w-4" />
+                                            </Link>
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {!loading && sortedProjects.length > 0 && (
+                        <div className="py-16 text-center">
+                            <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-slate-400">
+                                Showing {sortedProjects.length} verified project
+                                {sortedProjects.length === 1 ? '' : 's'}
+                            </p>
+                        </div>
+                    )}
+                </main>
+
+                <PublicSiteFooter />
+
+                {lightbox ? (
+                    <ProjectScreenshotLightbox
+                        urls={lightbox.urls}
+                        title={lightbox.title}
+                        onClose={() => setLightbox(null)}
+                    />
+                ) : null}
+            </div>
         </StudentPublicShell>
     );
 };

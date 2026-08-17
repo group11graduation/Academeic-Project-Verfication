@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     GalleryHorizontal,
+    GraduationCap,
     LogOut,
     UserRound,
     Menu,
@@ -13,7 +14,7 @@ import {
     Users,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
+import { BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 import NotificationBell from '../../../shared/components/NotificationBell';
@@ -62,7 +63,15 @@ const StudentHeader = ({ forcePublic = false }) => {
     const [profileOpen, setProfileOpen] = useState(false);
 
     const showPublicShell = forcePublic || location.pathname === '/';
+    const isPublicMarketing =
+        showPublicShell ||
+        ['/', '/guide', '/about', '/gallery'].includes(location.pathname) ||
+        location.pathname.startsWith('/gallery/');
+
     const navItems = useMemo(() => buildNavItems(showPublicShell ? null : user), [showPublicShell, user]);
+
+    const workspacePath =
+        user?.role === 'student' ? '/student' : user?.role === 'teacher' ? '/teacher' : user?.role === 'admin' ? '/admin' : '/login';
 
     const handleLogout = () => {
         setProfileOpen(false);
@@ -71,10 +80,10 @@ const StudentHeader = ({ forcePublic = false }) => {
     };
 
     const desktopNavClass = ({ isActive }) =>
-        `relative px-1 py-4 text-sm font-semibold transition-colors ${
-            isActive ? 'text-[#2a3fa4] dark:text-blue-300' : 'text-[var(--sv-muted)] hover:text-[var(--sv-text)] dark:text-slate-300 dark:hover:text-white'
-        } after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:rounded-full after:transition-opacity ${
-            isActive ? 'after:opacity-100 after:bg-[#2a3fa4]' : 'after:opacity-0 hover:after:opacity-40 after:bg-slate-300 dark:after:bg-slate-600'
+        `rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+            isActive
+                ? 'bg-[#f0f1f3] text-slate-950'
+                : 'text-slate-600 hover:bg-[#f5f5f7] hover:text-slate-950'
         }`;
 
     const mobileIcon = (path) => {
@@ -88,17 +97,139 @@ const StudentHeader = ({ forcePublic = false }) => {
         return null;
     };
 
+    if (isPublicMarketing) {
+        return (
+            <header className="sticky top-0 z-50 [font-family:var(--sv-font-sans)]">
+                <div className="border-b border-white/40 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1220]/85">
+                    <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+                        <div className="flex h-[72px] items-center justify-between gap-3">
+                            <Link to="/" className="group shrink-0" onClick={() => setMobileOpen(false)}>
+                                <ProjectVerifyLogo
+                                    size="md"
+                                    hideTextOnMobile
+                                    className="transition-opacity hover:opacity-95"
+                                    tagline=""
+                                />
+                            </Link>
+
+                            <nav className="hidden items-center gap-1 lg:flex">
+                                {navItems.map((item) => (
+                                    <NavLink
+                                        key={`${item.path}-${item.label}`}
+                                        to={item.path}
+                                        end={item.end}
+                                        className={desktopNavClass}
+                                    >
+                                        {item.label}
+                                    </NavLink>
+                                ))}
+                            </nav>
+
+                            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                                {user ? (
+                                    <Link
+                                        to={workspacePath}
+                                        className="hidden text-sm font-semibold text-slate-700 hover:text-slate-950 sm:inline-flex"
+                                    >
+                                        Student portal
+                                    </Link>
+                                ) : (
+                                    <Link
+                                        to="/login"
+                                        className="hidden text-sm font-semibold text-slate-700 hover:text-slate-950 sm:inline-flex"
+                                    >
+                                        Student portal
+                                    </Link>
+                                )}
+
+                                <ThemeToggle compact className="hidden sm:inline-flex" />
+
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(user ? workspacePath : '/login')}
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-slate-950 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-slate-800 sm:px-4 sm:text-sm"
+                                >
+                                    <GraduationCap className="h-4 w-4 shrink-0" />
+                                    <span className="sm:hidden">{user ? 'Portal' : 'Apply'}</span>
+                                    <span className="hidden sm:inline">{user ? 'Open portal' : 'Apply'}</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="lg:hidden flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
+                                    onClick={() => setMobileOpen((v) => !v)}
+                                    aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+                                >
+                                    {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {mobileOpen && (
+                        <div className="border-t border-slate-200/80 bg-white/95 backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1220] lg:hidden safe-area-px">
+                            <nav className="mx-auto max-w-[1200px] space-y-1 px-4 py-4">
+                                <ThemeToggle className="mb-2 w-full justify-center" />
+                                {navItems.map((item) => {
+                                    const Icon = mobileIcon(item.path) || LayoutDashboard;
+                                    return (
+                                        <NavLink
+                                            key={`${item.path}-${item.label}`}
+                                            to={item.path}
+                                            end={item.end}
+                                            onClick={() => setMobileOpen(false)}
+                                            className={({ isActive }) =>
+                                                `flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${
+                                                    isActive
+                                                        ? 'bg-[#f0f1f3] text-slate-950'
+                                                        : 'text-slate-700 hover:bg-[#f5f5f7]'
+                                                }`
+                                            }
+                                        >
+                                            <Icon className="h-4 w-4 opacity-60" />
+                                            {item.label}
+                                        </NavLink>
+                                    );
+                                })}
+                                <Link
+                                    to={user ? workspacePath : '/login'}
+                                    onClick={() => setMobileOpen(false)}
+                                    className="mt-2 flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-bold text-white"
+                                >
+                                    <GraduationCap className="h-4 w-4" />
+                                    {user ? 'Open portal' : 'Apply'}
+                                </Link>
+                                {user && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setMobileOpen(false);
+                                            handleLogout();
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                                    >
+                                        <LogOut className="h-4 w-4" /> Sign out
+                                    </button>
+                                )}
+                            </nav>
+                        </div>
+                    )}
+                </div>
+            </header>
+        );
+    }
+
     return (
         <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-[var(--sv-card)] shadow-[0_1px_0_rgba(42,63,164,0.04)] dark:border-white/10 dark:bg-[#0b1220]">
             <div className="h-[3px] w-full" style={{ background: BRAND_GRADIENT }} />
 
-            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
                 <div className="flex h-16 items-center justify-between gap-4">
                     <Link to="/" className="group shrink-0">
                         <ProjectVerifyLogo size="lg" hideTextOnMobile className="transition-transform hover:opacity-95" tagline="" />
                     </Link>
 
-                    <nav className="hidden lg:flex items-center gap-6 xl:gap-8 flex-1 justify-center max-w-3xl">
+                    <nav className="hidden max-w-3xl flex-1 items-center justify-center gap-2 lg:flex">
                         {navItems.map((item) => (
                             <NavLink key={`${item.path}-${item.label}`} to={item.path} end={item.end} className={desktopNavClass}>
                                 {item.label}
@@ -106,136 +237,88 @@ const StudentHeader = ({ forcePublic = false }) => {
                         ))}
                     </nav>
 
-                    {user && !showPublicShell ? (
-                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                            <ThemeToggle compact className="hidden sm:inline-flex" />
+                    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                        <ThemeToggle compact className="hidden sm:inline-flex" />
+                        <NotificationBell variant="student" />
 
-                            <NotificationBell variant="student" />
-
-                            <div className="relative hidden sm:block">
-                                <button
-                                    type="button"
-                                    onClick={() => setProfileOpen((v) => !v)}
-                                    className="flex items-center gap-2 rounded-full border border-[var(--sv-border)] bg-slate-50/60 pl-1 pr-3 py-1 hover:bg-[var(--sv-card-muted)] dark:border-white/10 dark:bg-[#111827] dark:hover:bg-[#1f2937]"
+                        <div className="relative hidden sm:block">
+                            <button
+                                type="button"
+                                onClick={() => setProfileOpen((v) => !v)}
+                                className="flex items-center gap-2 rounded-full border border-[var(--sv-border)] bg-slate-50/60 py-1 pl-1 pr-3 hover:bg-[var(--sv-card-muted)] dark:border-white/10 dark:bg-[#111827] dark:hover:bg-[#1f2937]"
+                            >
+                                <div
+                                    className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-black text-white ring-2 ring-white"
+                                    style={{ background: BRAND_GRADIENT }}
                                 >
-                                    <div
-                                        className="h-8 w-8 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-black ring-2 ring-white"
-                                        style={{ background: BRAND_GRADIENT }}
-                                    >
-                                        {user.photo ? (
-                                            <img src={user.photo} alt="" className="h-full w-full object-cover" />
-                                        ) : (
-                                            (user.name || 'U').charAt(0).toUpperCase()
-                                        )}
-                                    </div>
-                                    <span className="hidden lg:block max-w-[120px] truncate text-xs font-bold text-[var(--sv-text)] dark:text-slate-100">
-                                        {user.name || user.role}
-                                    </span>
-                                    <ChevronDown className={`h-3.5 w-3.5 text-[var(--sv-muted)] transition-transform dark:text-[var(--sv-muted)] ${profileOpen ? 'rotate-180' : ''}`} />
-                                </button>
+                                    {user?.photo ? (
+                                        <img src={user.photo} alt="" className="h-full w-full object-cover" />
+                                    ) : (
+                                        (user?.name || 'U').charAt(0).toUpperCase()
+                                    )}
+                                </div>
+                                <span className="hidden max-w-[120px] truncate text-xs font-bold text-[var(--sv-text)] lg:block dark:text-slate-100">
+                                    {user?.name || user?.role}
+                                </span>
+                                <ChevronDown
+                                    className={`h-3.5 w-3.5 text-[var(--sv-muted)] transition-transform ${profileOpen ? 'rotate-180' : ''}`}
+                                />
+                            </button>
 
-                                {profileOpen && (
-                                    <>
+                            {profileOpen && (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="fixed inset-0 z-40 cursor-default"
+                                        aria-label="Close menu"
+                                        onClick={() => setProfileOpen(false)}
+                                    />
+                                    <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] py-1.5 shadow-xl dark:border-white/10 dark:bg-[#111827]">
+                                        <div className="border-b border-[var(--sv-border)] px-4 py-2.5 dark:border-white/10">
+                                            <p className="truncate text-xs font-black text-[var(--sv-text)] dark:text-slate-100">
+                                                {user?.name}
+                                            </p>
+                                            <p className="truncate text-[11px] capitalize text-[var(--sv-muted)]">
+                                                {user?.role} account
+                                            </p>
+                                        </div>
+                                        {user?.role === 'student' && (
+                                            <Link
+                                                to="/student/profile"
+                                                onClick={() => setProfileOpen(false)}
+                                                className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:text-slate-200 dark:hover:bg-white/10"
+                                            >
+                                                <UserRound className="h-4 w-4 text-[var(--sv-muted)]" />
+                                                My profile
+                                            </Link>
+                                        )}
                                         <button
                                             type="button"
-                                            className="fixed inset-0 z-40 cursor-default"
-                                            aria-label="Close menu"
-                                            onClick={() => setProfileOpen(false)}
-                                        />
-                                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] py-1.5 shadow-xl dark:border-white/10 dark:bg-[#111827]">
-                                            <div className="px-4 py-2.5 border-b border-[var(--sv-border)] dark:border-white/10">
-                                                <p className="text-xs font-black text-[var(--sv-text)] truncate dark:text-slate-100">{user.name}</p>
-                                                <p className="text-[11px] text-[var(--sv-muted)] truncate capitalize dark:text-[var(--sv-muted)]">{user.role} account</p>
-                                            </div>
-                                            {user.role === 'student' && (
-                                                <Link
-                                                    to="/student/profile"
-                                                    onClick={() => setProfileOpen(false)}
-                                                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:text-slate-200 dark:hover:bg-white/10"
-                                                >
-                                                    <UserRound className="h-4 w-4 text-[var(--sv-muted)] dark:text-[var(--sv-muted)]" />
-                                                    My profile
-                                                </Link>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={handleLogout}
-                                                className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50"
-                                            >
-                                                <LogOut className="h-4 w-4" />
-                                                Sign out
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                                            onClick={handleLogout}
+                                            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                                        >
+                                            <LogOut className="h-4 w-4" />
+                                            Sign out
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
 
-                            <button
-                                type="button"
-                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sv-border)] dark:border-white/10 dark:text-slate-100"
-                                onClick={() => setMobileOpen((v) => !v)}
-                            >
-                                {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 shrink-0">
-                            {user && showPublicShell ? (
-                                <Link
-                                    to={user.role === 'student' ? '/student' : user.role === 'teacher' ? '/teacher' : '/admin'}
-                                    className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[#2a3fa4] hover:underline dark:text-blue-300"
-                                >
-                                    My workspace
-                                </Link>
-                            ) : null}
-                            {!user ? (
-                                <Link
-                                    to="/login"
-                                    className="hidden sm:inline-flex px-4 py-2 text-sm font-bold text-[var(--sv-text)] hover:text-[#2a3fa4] dark:text-slate-200 dark:hover:text-blue-300"
-                                >
-                                    Sign in
-                                </Link>
-                            ) : null}
-                            <ThemeToggle compact className="hidden sm:inline-flex" />
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (user && showPublicShell) {
-                                        navigate(
-                                            user.role === 'student'
-                                                ? '/student'
-                                                : user.role === 'teacher'
-                                                  ? '/teacher'
-                                                  : '/admin'
-                                        );
-                                        return;
-                                    }
-                                    navigate('/login');
-                                }}
-                                className="inline-flex min-h-10 items-center rounded-2xl px-3.5 py-2 text-xs font-bold text-white sm:px-4 sm:text-sm"
-                                style={{ backgroundColor: BRAND.primary }}
-                            >
-                                <span className="sm:hidden">{user && showPublicShell ? 'Workspace' : 'Sign in'}</span>
-                                <span className="hidden sm:inline">
-                                    {user && showPublicShell ? 'Go to workspace' : 'Access platform'}
-                                </span>
-                            </button>
-                            <button
-                                type="button"
-                                className="lg:hidden flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--sv-border)] dark:border-white/10 dark:text-slate-100"
-                                onClick={() => setMobileOpen((v) => !v)}
-                                aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-                            >
-                                {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                            </button>
-                        </div>
-                    )}
+                        <button
+                            type="button"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sv-border)] lg:hidden dark:border-white/10 dark:text-slate-100"
+                            onClick={() => setMobileOpen((v) => !v)}
+                        >
+                            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {mobileOpen && (
-                <div className="lg:hidden border-t border-[var(--sv-border)] bg-[var(--sv-card)] dark:border-white/10 dark:bg-[#0b1220] safe-area-px">
-                    <nav className="max-w-[1400px] mx-auto px-4 py-4 space-y-1">
+                <div className="border-t border-[var(--sv-border)] bg-[var(--sv-card)] dark:border-white/10 dark:bg-[#0b1220] lg:hidden safe-area-px">
+                    <nav className="mx-auto max-w-[1400px] space-y-1 px-4 py-4">
                         <ThemeToggle className="mb-2 w-full justify-center" />
                         {navItems.map((item) => {
                             const Icon = mobileIcon(item.path) || LayoutDashboard;
@@ -247,7 +330,9 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     onClick={() => setMobileOpen(false)}
                                     className={({ isActive }) =>
                                         `flex items-center justify-between rounded-lg px-4 py-3 text-sm font-bold ${
-                                            isActive ? 'bg-[#2a3fa4]/10 text-[#2a3fa4] dark:text-blue-300' : 'text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:text-slate-200 dark:hover:bg-white/10'
+                                            isActive
+                                                ? 'bg-[#2a3fa4]/10 text-[#2a3fa4] dark:text-blue-300'
+                                                : 'text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:text-slate-200 dark:hover:bg-white/10'
                                         }`
                                     }
                                 >
