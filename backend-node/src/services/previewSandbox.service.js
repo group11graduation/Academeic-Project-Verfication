@@ -711,6 +711,14 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     }
 
     if (wait.reason === 'container_exited') {
+      const exitLogs =
+        wait.logs ||
+        (await dockerOrchestrator.getContainerLogs(deployResult.containerName, 200).catch(() => ''));
+      if (exitLogs?.trim()) {
+        appendLog(session, 'error', `Container log before exit:\n${exitLogs.trim().slice(-2500)}`);
+        session.runtimeTraceback = exitLogs.slice(-8000);
+        await session.save().catch(() => {});
+      }
       await handlePreviewContainerExit({
         sessionId,
         containerName: deployResult.containerName,

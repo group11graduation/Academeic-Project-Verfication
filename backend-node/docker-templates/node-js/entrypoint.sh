@@ -23,7 +23,10 @@ export CI=false
 export DISABLE_ESLINT_PLUGIN=true
 export GENERATE_SOURCEMAP=false
 
-# Ensure bcryptjs + jsonwebtoken exist for admin seed/login even on older base images.
+LISTEN="tcp://0.0.0.0:${UI_PORT}"
+HOLDER_PID=""
+
+# Ensure bcryptjs + jsonwebtoken exist for admin seed/login (deferred — never block/OOM at boot).
 ensure_preview_tools_auth() {
   need_install=0
   [ -f /preview-tools/node_modules/bcryptjs/package.json ] || need_install=1
@@ -36,6 +39,7 @@ ensure_preview_tools_auth() {
   if [ ! -f /preview-tools/package.json ]; then
     (cd /preview-tools && npm init -y >/dev/null 2>&1) || true
   fi
+  # Cap install time so a bad network cannot stall/kill the whole preview.
   (cd /preview-tools && npm install bcryptjs@2.4.3 jsonwebtoken@9.0.2 --omit=dev --no-audit --no-fund >/tmp/preview-tools-auth.log 2>&1) || {
     echo "[preview] WARN: could not install auth deps into /preview-tools"
     tail -20 /tmp/preview-tools-auth.log 2>/dev/null || true
@@ -43,10 +47,6 @@ ensure_preview_tools_auth() {
   }
   return 0
 }
-ensure_preview_tools_auth || true
-
-LISTEN="tcp://0.0.0.0:${UI_PORT}"
-HOLDER_PID=""
 
 # Browser-facing API base. With the same-origin gateway, the UI port proxies /api → internal API_PORT,
 # so the SPA must NOT call the separate host API port (that caused "Please wait…" hangs).
@@ -104,20 +104,35 @@ ensure_preview_gateway_file() {
 run_serve() {
   dir="$1"
   listen="$2"
-  cd "$dir" || exit 1
+  if ! cd "$dir"; then
+    echo "[preview] ERROR: cannot cd to serve dir: $dir — falling back"
+    return 1
+  fi
   # Never let a prior backend export leave PORT=API_PORT — gateway must own UI_PORT only.
   export PORT="$UI_PORT"
   if [ -n "$API_PORT" ]; then
     # Always refresh gateway (image may be stale; writes stay on container rootfs).
     ensure_preview_gateway_file /preview-gateway.cjs
     if [ -f /preview-gateway.cjs ]; then
+      # Wait briefly for the placeholder serve process to release UI_PORT.
+      n=0
+      while [ "$n" -lt 15 ]; do
+        if ! tcp_port_open "$UI_PORT"; then
+          break
+        fi
+        n=$((n + 1))
+        sleep 1
+      done
       if tcp_port_open "$UI_PORT"; then
-        echo "[preview] ERROR: UI port ${UI_PORT} already in use before gateway start — skipping duplicate listen (backend should be on :${API_PORT})"
-        echo "[preview] holding process alive without rebinding :${UI_PORT}"
+        echo "[preview] WARN: UI port ${UI_PORT} still busy — holding without gateway rebind"
         while true; do sleep 3600; done
       fi
       echo "[preview] starting same-origin gateway (UI :${UI_PORT} → API :${API_PORT})"
-      exec node /preview-gateway.cjs "$(pwd)"
+      # Do not let gateway EADDRINUSE kill the container (process.exit). Retry then hold.
+      node /preview-gateway.cjs "$(pwd)"
+      gw_ec=$?
+      echo "[preview] WARN: gateway exited code=${gw_ec} — keeping container alive"
+      while true; do sleep 3600; done
     fi
   fi
   echo "[preview] WARN: gateway unavailable — using static serve (browser login may hang)"
@@ -558,6 +573,7 @@ run_preview_admin_seed() {
   if [ -z "$PREVIEW_ADMIN_EMAIL" ] || [ ! -f package.json ]; then
     return 0
   fi
+  ensure_preview_tools_auth || true
   echo "[preview] ${label}…"
   if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
     node /preview-seed-mysql.js >> /tmp/preview-backend.log 2>&1 || {

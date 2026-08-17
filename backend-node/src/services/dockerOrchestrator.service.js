@@ -3562,7 +3562,7 @@ const PREVIEW_LOG_ERROR_PATTERNS = [
   /MongooseServerSelectionError/i,
   /ECONNREFUSED.*27017/i,
   /MongoNetworkError/i,
-  /EADDRINUSE/i,
+  // Do NOT treat EADDRINUSE as fatal — UI port handoff (holder→gateway) races on busy hosts.
 ];
 
 /**

@@ -31,8 +31,27 @@ export const stopPreview = asyncHandler(async (req, res) => {
 });
 
 export const getPreviewSession = asyncHandler(async (req, res) => {
-  const session = await previewSandbox.getPreviewSessionForTeacher(req.userId, req.params.sessionId);
-  return success(res, session);
+  try {
+    const session = await previewSandbox.getPreviewSessionForTeacher(req.userId, req.params.sessionId);
+    return success(res, session);
+  } catch (err) {
+    // Network blips / docker inspect races during Start preview must not 500 the poller.
+    if (err?.status === 404 || err?.status === 403) throw err;
+    console.error('[preview-session] get failed:', err?.message || err);
+    const fallback = {
+      _id: req.params.sessionId,
+      status: 'starting',
+      errorMessage: null,
+      logs: [
+        {
+          level: 'warn',
+          message: 'Preview status temporarily unavailable — retrying…',
+          at: new Date(),
+        },
+      ],
+    };
+    return success(res, fallback);
+  }
 });
 
 export const getActivePreviewForProposal = asyncHandler(async (req, res) => {

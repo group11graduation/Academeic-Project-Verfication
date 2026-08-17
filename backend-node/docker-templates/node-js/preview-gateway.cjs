@@ -520,13 +520,22 @@ const server = http.createServer((req, res) => {
 server.on('error', (err) => {
   if (err && err.code === 'EADDRINUSE') {
     console.error(
-      `[preview] ERROR: gateway port ${LISTEN_PORT} already in use — refusing duplicate listen ` +
+      `[preview] ERROR: gateway port ${LISTEN_PORT} already in use — will retry, not exit ` +
         `(backend must stay on API_PORT=${API_PORT})`
     );
-    process.exit(2);
+    // Never process.exit here — that stops the whole Docker preview container.
+    setTimeout(() => {
+      try {
+        server.listen(LISTEN_PORT, '0.0.0.0');
+      } catch (_e) {
+        console.error('[preview] gateway retry failed — holding process');
+        setInterval(() => {}, 3600_000);
+      }
+    }, 2000);
+    return;
   }
   console.error('[preview] gateway listen error:', err && err.message ? err.message : err);
-  process.exit(1);
+  setInterval(() => {}, 3600_000);
 });
 
 server.listen(LISTEN_PORT, '0.0.0.0', () => {
