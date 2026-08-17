@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
@@ -15,6 +15,7 @@ import {
     Menu,
     Search,
     Power,
+    ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
@@ -35,37 +36,83 @@ const AdminLayout = () => (
 
 const AdminLayoutInner = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { user, logout } = useAuth();
     const { query, setQuery, placeholder } = useShellSearch();
 
     const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
     const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
-    const navItems = [
-        { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, end: true },
-        { name: 'Admins', path: '/admin/admins', icon: Shield },
-        { name: 'Teachers', path: '/admin/teachers', icon: GraduationCap },
-        { name: 'Students', path: '/admin/students', icon: Users },
-        { name: 'Setup Workflow', path: '/admin/setup-workflow', icon: Workflow },
-        { name: 'Classes', path: '/admin/classes', icon: BookOpen },
-        { name: 'Subjects', path: '/admin/subjects', icon: BookMarked },
-        { name: 'Academic Structure', path: '/admin/academic-structure', icon: Building2 },
-        { name: 'Semesters', path: '/admin/semesters', icon: CalendarRange },
-        { name: 'Import / Export', path: '/admin/import-export', icon: FileSpreadsheet },
+    const navSections = [
+        {
+            key: 'dashboard',
+            name: 'Dashboard',
+            icon: LayoutDashboard,
+            links: [{ name: 'Dashboard', path: '/admin', icon: LayoutDashboard, end: true }],
+        },
+        {
+            key: 'people',
+            name: 'People',
+            icon: Users,
+            links: [
+                { name: 'Admins', path: '/admin/admins', icon: Shield },
+                { name: 'Teachers', path: '/admin/teachers', icon: GraduationCap },
+                { name: 'Students', path: '/admin/students', icon: Users },
+            ],
+        },
+        {
+            key: 'academic',
+            name: 'Academic',
+            icon: BookMarked,
+            links: [
+                { name: 'Setup Workflow', path: '/admin/setup-workflow', icon: Workflow },
+                { name: 'Classes', path: '/admin/classes', icon: BookOpen },
+                { name: 'Subjects', path: '/admin/subjects', icon: BookMarked },
+                { name: 'Academic Structure', path: '/admin/academic-structure', icon: Building2 },
+                { name: 'Semesters', path: '/admin/semesters', icon: CalendarRange },
+            ],
+        },
+        {
+            key: 'data',
+            name: 'Data',
+            icon: FileSpreadsheet,
+            links: [{ name: 'Import / Export', path: '/admin/import-export', icon: FileSpreadsheet }],
+        },
         ...((user?.roles || []).includes('teacher')
-            ? [{ name: 'Teacher Panel', path: '/teacher', icon: Shield }]
+            ? [
+                  {
+                      key: 'teacher',
+                      name: 'Teacher Panel',
+                      icon: Shield,
+                      links: [{ name: 'Teacher Panel', path: '/teacher', icon: Shield }],
+                  },
+              ]
             : []),
     ];
 
-    /** Mobile drawer still expects section groups */
-    const navSections = [
-        {
-            key: 'main',
-            name: 'Menu',
-            icon: LayoutDashboard,
-            links: navItems,
+    const pathMatches = (link, pathname) =>
+        link.end ? pathname === link.path : pathname === link.path || pathname.startsWith(`${link.path}/`);
+
+    const sectionKeyForPath = React.useCallback(
+        (pathname) => {
+            for (const section of navSections) {
+                if (section.links.some((link) => pathMatches(link, pathname))) return section.key;
+            }
+            return 'dashboard';
         },
-    ];
+        [navSections]
+    );
+
+    /** Only one parent open at a time — keeps sidebar short / no scroll */
+    const [openKey, setOpenKey] = React.useState(() => sectionKeyForPath(location.pathname));
+
+    React.useEffect(() => {
+        setOpenKey(sectionKeyForPath(location.pathname));
+    }, [location.pathname, sectionKeyForPath]);
+
+    const toggleGroup = (key) => {
+        setOpenKey((prev) => (prev === key ? null : key));
+    };
 
     const requestLogout = () => setShowLogoutConfirm(true);
     const confirmLogout = () => {
@@ -76,21 +123,43 @@ const AdminLayoutInner = () => {
     const firstName = (user?.name || 'Admin').trim().split(/\s+/)[0];
     const initial = (user?.name || 'A').trim().slice(0, 1).toUpperCase();
 
-    /** White pill + concave corners that blend into the main content */
-    const navLinkClass = ({ isActive }) =>
-        [
-            'group relative z-[1] flex items-center gap-3 py-3 pl-4 pr-3 text-[13px] font-semibold transition-colors',
-            isActive
-                ? 'rounded-l-[1.35rem] bg-white text-[#1d2f82] shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)]'
-                : 'mx-2 rounded-xl text-white/80 hover:bg-white/10 hover:text-white',
-        ].join(' ');
+    const cutoutActive = (isActive) =>
+        isActive ? (
+            <>
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute -right-px -top-3 h-3 w-3 bg-transparent"
+                    style={{
+                        borderBottomRightRadius: '0.75rem',
+                        boxShadow: `4px 4px 0 0 ${CONTENT_BG}`,
+                    }}
+                />
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute -bottom-3 -right-px h-3 w-3 bg-transparent"
+                    style={{
+                        borderTopRightRadius: '0.75rem',
+                        boxShadow: `4px -4px 0 0 ${CONTENT_BG}`,
+                    }}
+                />
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 -right-3 w-3"
+                    style={{ backgroundColor: CONTENT_BG }}
+                />
+            </>
+        ) : null;
+
+    const parentActiveClass =
+        'relative z-[1] flex w-full items-center gap-3 rounded-l-[1.35rem] bg-white py-3 pl-4 pr-3 text-[13px] font-bold text-[#1d2f82] shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)]';
+    const parentIdleClass =
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl py-3 pl-3 pr-2 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/10 hover:text-white';
 
     return (
         <div
             className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden font-sans antialiased dark:bg-[#020617] dark:text-slate-100"
             style={{ backgroundColor: CONTENT_BG }}
         >
-            {/* Mobile top bar */}
             <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px lg:hidden dark:border-white/10 dark:bg-[#0b1220]">
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
                     <ProjectVerifyLogo showMark={false} size="md" tagline="Admin console" />
@@ -117,20 +186,18 @@ const AdminLayoutInner = () => {
             />
 
             <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-                {/* Single dark sidebar — mockup style */}
                 <aside
-                    className="relative z-20 hidden h-full max-h-[100dvh] shrink-0 flex-col lg:flex"
+                    className="relative z-20 hidden h-full max-h-[100dvh] shrink-0 flex-col overflow-hidden lg:flex"
                     style={{
                         width: SIDEBAR_W,
                         minWidth: SIDEBAR_W,
                         background: 'linear-gradient(180deg, #2a3fa4 0%, #1d2f82 55%, #172663 100%)',
                     }}
                 >
-                    {/* Profile */}
-                    <div className="flex flex-col items-center px-4 pb-5 pt-8 text-center">
+                    <div className="flex shrink-0 flex-col items-center px-4 pb-4 pt-7 text-center">
                         <div className="relative mb-3">
                             <div
-                                className="flex h-[72px] w-[72px] items-center justify-center rounded-full text-2xl font-extrabold text-white"
+                                className="flex h-[68px] w-[68px] items-center justify-center rounded-full text-2xl font-extrabold text-white"
                                 style={{
                                     background: 'linear-gradient(145deg, #5b7cff 0%, #1D68E3 100%)',
                                     boxShadow: '0 0 0 4px rgba(255,255,255,0.22), 0 0 24px rgba(93,140,255,0.45)',
@@ -147,56 +214,106 @@ const AdminLayoutInner = () => {
                         </p>
                     </div>
 
-                    {/* Flat nav with cutout active state */}
-                    <nav className="relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden pb-4 pl-3 pr-0" aria-label="Admin navigation">
-                        {navItems.map((item) => {
-                            const Icon = item.icon;
+                    {/* Collapsible parents — no scrollbar */}
+                    <nav
+                        className="relative flex min-h-0 flex-1 flex-col justify-start gap-1 overflow-y-auto overflow-x-hidden pb-2 pl-3 pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                        aria-label="Admin navigation"
+                    >
+                        {navSections.map((section) => {
+                            const SectionIcon = section.icon;
+                            const links = section.links || [];
+                            const isSingle = links.length === 1;
+                            const isOpen = openKey === section.key;
+
+                            if (isSingle) {
+                                const item = links[0];
+                                return (
+                                    <NavLink
+                                        key={section.key}
+                                        to={item.path}
+                                        end={Boolean(item.end)}
+                                        className={({ isActive }) => (isActive ? parentActiveClass : parentIdleClass)}
+                                    >
+                                        {({ isActive }) => (
+                                            <>
+                                                {cutoutActive(isActive)}
+                                                <SectionIcon
+                                                    className={`relative z-[1] h-[18px] w-[18px] shrink-0 ${
+                                                        isActive ? 'text-[#2a3fa4]' : 'text-white/70'
+                                                    }`}
+                                                    strokeWidth={2.15}
+                                                />
+                                                <span className="relative z-[1] truncate">{section.name}</span>
+                                            </>
+                                        )}
+                                    </NavLink>
+                                );
+                            }
+
                             return (
-                                <NavLink key={item.path} to={item.path} end={Boolean(item.end)} className={navLinkClass}>
-                                    {({ isActive }) => (
-                                        <>
-                                            {isActive ? (
-                                                <>
-                                                    {/* Top concave corner */}
-                                                    <span
-                                                        aria-hidden
-                                                        className="pointer-events-none absolute -right-px -top-3 h-3 w-3 bg-transparent"
-                                                        style={{
-                                                            borderBottomRightRadius: '0.75rem',
-                                                            boxShadow: `4px 4px 0 0 ${CONTENT_BG}`,
-                                                        }}
-                                                    />
-                                                    {/* Bottom concave corner */}
-                                                    <span
-                                                        aria-hidden
-                                                        className="pointer-events-none absolute -bottom-3 -right-px h-3 w-3 bg-transparent"
-                                                        style={{
-                                                            borderTopRightRadius: '0.75rem',
-                                                            boxShadow: `4px -4px 0 0 ${CONTENT_BG}`,
-                                                        }}
-                                                    />
-                                                    {/* Bridge into content */}
-                                                    <span
-                                                        aria-hidden
-                                                        className="pointer-events-none absolute inset-y-0 -right-3 w-3"
-                                                        style={{ backgroundColor: CONTENT_BG }}
-                                                    />
-                                                </>
-                                            ) : null}
-                                            <Icon
-                                                className={`relative z-[1] h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#2a3fa4]' : 'text-white/70'}`}
-                                                strokeWidth={2.15}
-                                            />
-                                            <span className="relative z-[1] truncate">{item.name}</span>
-                                        </>
-                                    )}
-                                </NavLink>
+                                <div key={section.key} className="min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleGroup(section.key)}
+                                        className={parentIdleClass}
+                                        aria-expanded={isOpen}
+                                    >
+                                        <SectionIcon className="h-[18px] w-[18px] shrink-0 text-white/70" strokeWidth={2.15} />
+                                        <span className="min-w-0 flex-1 truncate text-left">{section.name}</span>
+                                        <ChevronDown
+                                            className={`h-4 w-4 shrink-0 text-white/50 transition-transform duration-200 ${
+                                                isOpen ? 'rotate-180' : ''
+                                            }`}
+                                        />
+                                    </button>
+
+                                    <div
+                                        className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                                            isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                                        }`}
+                                    >
+                                        <div className="overflow-hidden">
+                                            <div className="mt-0.5 space-y-0.5 pb-1 pl-2">
+                                                {links.map((item) => {
+                                                    const Icon = item.icon || SectionIcon;
+                                                    return (
+                                                        <NavLink
+                                                            key={item.path}
+                                                            to={item.path}
+                                                            end={Boolean(item.end)}
+                                                            className={({ isActive }) =>
+                                                                [
+                                                                    'relative z-[1] flex items-center gap-2.5 py-2.5 pl-3 pr-3 text-[12px] font-semibold transition-colors',
+                                                                    isActive
+                                                                        ? 'rounded-l-[1.15rem] bg-white text-[#1d2f82] shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)]'
+                                                                        : 'mx-1 rounded-lg text-white/70 hover:bg-white/10 hover:text-white',
+                                                                ].join(' ')
+                                                            }
+                                                        >
+                                                            {({ isActive }) => (
+                                                                <>
+                                                                    {cutoutActive(isActive)}
+                                                                    <Icon
+                                                                        className={`relative z-[1] h-3.5 w-3.5 shrink-0 ${
+                                                                            isActive ? 'text-[#2a3fa4]' : 'opacity-80'
+                                                                        }`}
+                                                                        strokeWidth={2}
+                                                                    />
+                                                                    <span className="relative z-[1] truncate">{item.name}</span>
+                                                                </>
+                                                            )}
+                                                        </NavLink>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             );
                         })}
                     </nav>
 
-                    {/* Logout */}
-                    <div className="mt-auto border-t border-white/10 px-4 py-4">
+                    <div className="mt-auto shrink-0 border-t border-white/10 px-4 py-4">
                         <button
                             type="button"
                             onClick={requestLogout}
@@ -208,7 +325,6 @@ const AdminLayoutInner = () => {
                     </div>
                 </aside>
 
-                {/* Main column */}
                 <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ backgroundColor: CONTENT_BG }}>
                     <header className="hidden shrink-0 items-center justify-between gap-4 px-6 pb-2 pt-6 lg:flex dark:bg-transparent">
                         <h1 className="min-w-0 truncate text-[1.65rem] font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
@@ -235,7 +351,6 @@ const AdminLayoutInner = () => {
                         </div>
                     </header>
 
-                    {/* Compact search on medium desktop */}
                     <div className="hidden px-6 pb-2 lg:block xl:hidden">
                         <label className="relative block">
                             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
