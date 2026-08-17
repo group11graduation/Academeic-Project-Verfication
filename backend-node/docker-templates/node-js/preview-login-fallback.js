@@ -7,17 +7,21 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V18:
+ * Marker V19:
+ * - Do NOT wrap bare JSON arrays as objects (fixes dashboard "a.map is not a function").
+ * - Still coerce missing list fields on object payloads to [].
+ * V18:
  * - Normalize API JSON list fields (loans, products, …) so UIs that do data.loans.length
  *   never crash when the backend omits the array (LoanFlow /admin/loans).
  * V17: main admin role + admin home path for every project.
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V18__) {
-    console.log('[DEBUG-SHIM] already installed V18 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V19__) {
+    console.log('[DEBUG-SHIM] already installed V19 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V19__ = true;
   window.__SV_LOGIN_FALLBACK_V18__ = true;
   window.__SV_LOGIN_FALLBACK_V17__ = true;
   window.__SV_LOGIN_FALLBACK_V16__ = true;
@@ -31,7 +35,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v18', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v19', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -155,7 +159,10 @@
   /**
    * Student UIs often do `setLoans(res.data.loans)` then `loans.length`.
    * Empty DBs / alternate response shapes omit the array → blank-page TypeError.
-   * Coerce common list fields to [] (and wrap bare arrays) for all future ZIPs.
+   * Coerce common list fields to [] on OBJECT responses only.
+   *
+   * CRITICAL: never wrap a bare JSON array as `{ data: [...] }` — many dashboards do
+   * `const a = await res.json(); a.map(...)` and crash with "a.map is not a function".
    */
   function normalizeApiListBody(body, url) {
     if (body == null) return body;
@@ -165,16 +172,8 @@
     } catch (_e) {
       path = String(url || '');
     }
-    if (Array.isArray(body)) {
-      if (/loan/i.test(path)) return { loans: body, data: body, success: true };
-      if (/product/i.test(path)) return { products: body, data: body, success: true };
-      if (/user/i.test(path)) return { users: body, data: body, success: true };
-      if (/notification/i.test(path)) return { notifications: body, data: body, success: true };
-      if (/repayment/i.test(path)) return { repayments: body, data: body, success: true };
-      if (/member/i.test(path)) return { members: body, data: body, success: true };
-      if (/order/i.test(path)) return { orders: body, data: body, success: true };
-      return { data: body, items: body, success: true };
-    }
+    // Keep bare arrays as arrays (do not wrap).
+    if (Array.isArray(body)) return body;
     if (typeof body !== 'object') return body;
     var out = body;
     try {
@@ -199,11 +198,45 @@
       'documents',
       'results',
       'categories',
+      'appointments',
+      'patients',
+      'doctors',
+      'bookings',
+      'services',
+      'projects',
+      'tasks',
+      'tickets',
+      'messages',
+      'invoices',
+      'payments',
+      'transactions',
+      'list',
+      'rows',
+      'records',
     ];
     for (var i = 0; i < listKeys.length; i++) {
       var key = listKeys[i];
       if (Object.prototype.hasOwnProperty.call(out, key) && !Array.isArray(out[key])) {
-        out[key] = out[key] == null ? [] : [];
+        // If nested object holds an array under data/items, promote it.
+        var v = out[key];
+        if (v && typeof v === 'object') {
+          if (Array.isArray(v.data)) out[key] = v.data;
+          else if (Array.isArray(v.items)) out[key] = v.items;
+          else if (Array.isArray(v.results)) out[key] = v.results;
+          else out[key] = [];
+        } else {
+          out[key] = [];
+        }
+      }
+    }
+    // Promote nested list under `data` only when it clearly wraps a list.
+    // Never force-convert login-style { data: { user, token } } objects.
+    if (Object.prototype.hasOwnProperty.call(out, 'data') && out.data != null && !Array.isArray(out.data)) {
+      if (typeof out.data === 'object') {
+        if (Array.isArray(out.data.items)) out.data = out.data.items;
+        else if (Array.isArray(out.data.results)) out.data = out.data.results;
+        else if (Array.isArray(out.data.list)) out.data = out.data.list;
+        else if (Array.isArray(out.data.rows)) out.data = out.data.rows;
       }
     }
     if (/\/admin\/loans\/?$/i.test(path) || /\/loans(\/my)?\/?$/i.test(path)) {
