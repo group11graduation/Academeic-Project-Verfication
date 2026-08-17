@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     ArrowRight,
@@ -9,7 +9,6 @@ import {
     Container,
     GraduationCap,
     Layers,
-    Loader2,
     Minus,
     Plus,
     ShieldCheck,
@@ -21,8 +20,6 @@ import {
 import { useAuth } from '../../../context/authContext';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
-import VerifiedProjectCard from '../components/VerifiedProjectCard';
-import galleryService from '../../../services/galleryService';
 import { BRAND, BRAND_GRADIENT, PROJECT_NAME } from '../../../shared/ui/brandTheme';
 
 const workflowSteps = [
@@ -136,8 +133,6 @@ const faqs = [
 const LandingPage = () => {
     const { user, logout } = useAuth();
     const [openFaq, setOpenFaq] = useState(0);
-    const [previewProjects, setPreviewProjects] = useState([]);
-    const [previewLoading, setPreviewLoading] = useState(true);
 
     const workspacePath =
         user?.role === 'student' ? '/student' : user?.role === 'teacher' ? '/teacher' : user?.role === 'admin' ? '/admin' : '/login';
@@ -150,30 +145,6 @@ const LandingPage = () => {
         if (!user) return true;
         return m.roles.includes(user.role) || m.roles.includes('guest');
     });
-
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            try {
-                setPreviewLoading(true);
-                const res = await galleryService.listVerifiedProjects({
-                    category: 'ALL CATEGORIES',
-                    sort: 'best',
-                    limit: 3,
-                });
-                if (!cancelled && res.success) {
-                    setPreviewProjects(res.data?.projects || []);
-                }
-            } catch {
-                if (!cancelled) setPreviewProjects([]);
-            } finally {
-                if (!cancelled) setPreviewLoading(false);
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, []);
 
     return (
         <StudentPublicShell forcePublic>
@@ -675,7 +646,7 @@ const LandingPage = () => {
                     </section>
 
                     {/* FAQ */}
-                    <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+                    <section className="mx-auto max-w-[1200px] px-4 py-10 pb-16 sm:px-6 lg:px-8 lg:py-14 lg:pb-20">
                         <div className="rounded-[28px] border border-slate-200 bg-white px-5 py-10 sm:rounded-[36px] sm:px-10 sm:py-14">
                             <div className="mx-auto mb-8 max-w-2xl text-center">
                                 <h2 className="mb-3 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
@@ -717,76 +688,6 @@ const LandingPage = () => {
                                         </div>
                                     );
                                 })}
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Verified projects */}
-                    <section className="px-3 pb-16 sm:px-4 md:px-5 lg:px-6">
-                        <div
-                            className="relative overflow-hidden rounded-[28px] border border-white/70 px-4 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.07)] sm:rounded-[36px] sm:px-6 sm:py-10 md:rounded-[40px] lg:px-8"
-                            style={{
-                                background: 'linear-gradient(180deg, #e8eeff 0%, #f5f7ff 35%, #ffffff 80%)',
-                            }}
-                        >
-                            <div
-                                aria-hidden
-                                className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/45 blur-3xl"
-                            />
-                            <div
-                                aria-hidden
-                                className="pointer-events-none absolute -right-16 top-4 h-56 w-56 rounded-full bg-[#bfdbfe]/40 blur-3xl"
-                            />
-
-                            <div className="relative mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                                <div className="max-w-xl">
-                                    <p className="mb-2 text-sm font-bold text-[#2a3fa4]">Verification gallery</p>
-                                    <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-                                        Verified projects
-                                    </h2>
-                                    <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
-                                        Teacher-approved student work from the academic archive — same projects you will
-                                        find in the full gallery.
-                                    </p>
-                                </div>
-                                <Link
-                                    to="/gallery"
-                                    className="inline-flex min-h-11 items-center gap-2 self-start rounded-full px-5 py-2.5 text-sm font-bold text-white"
-                                    style={{ backgroundColor: BRAND.primary }}
-                                >
-                                    <ArrowUpRight className="h-4 w-4" />
-                                    View all
-                                </Link>
-                            </div>
-
-                            <div className="relative">
-                                {previewLoading ? (
-                                    <div className="flex justify-center py-16">
-                                        <Loader2 className="h-9 w-9 animate-spin text-[#2a3fa4]" />
-                                    </div>
-                                ) : previewProjects.length === 0 ? (
-                                    <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/80 px-6 py-14 text-center">
-                                        <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-[#2a3fa4]" />
-                                        <p className="mb-2 text-base font-extrabold text-slate-950">
-                                            No verified projects yet
-                                        </p>
-                                        <p className="mx-auto mb-5 max-w-md text-sm font-medium text-slate-500">
-                                            When teachers approve final projects, they appear here automatically.
-                                        </p>
-                                        <Link
-                                            to="/gallery"
-                                            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#eef2ff] px-4 py-2 text-sm font-bold text-[#2a3fa4]"
-                                        >
-                                            Open gallery <ArrowUpRight className="h-4 w-4" />
-                                        </Link>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                        {previewProjects.map((proj) => (
-                                            <VerifiedProjectCard key={proj.id} project={proj} />
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </section>
