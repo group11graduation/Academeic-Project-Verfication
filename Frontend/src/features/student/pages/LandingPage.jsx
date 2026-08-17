@@ -721,30 +721,8 @@ const LandingPage = () => {
                         </div>
                     </section>
 
-                    {/* Help + verified projects */}
-                    <section className="px-3 pb-6 sm:px-4 md:px-5 lg:px-6">
-                        <div className="mb-10 mx-auto max-w-[1200px] text-center">
-                            <span className="mb-4 inline-flex rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-500">
-                                Dedicated support for your institution
-                            </span>
-                            <h2 className="mb-3 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Need help?</h2>
-                            <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-slate-500">
-                                Start with the{' '}
-                                <Link to="/guide" className="font-bold text-[#2a3fa4] underline-offset-2 hover:underline">
-                                    FAQ & guide
-                                </Link>
-                                , the{' '}
-                                <Link to="/about" className="font-bold text-[#2a3fa4] underline-offset-2 hover:underline">
-                                    About page
-                                </Link>
-                                , or browse{' '}
-                                <Link to="/gallery" className="font-bold text-[#2a3fa4] underline-offset-2 hover:underline">
-                                    Verified projects
-                                </Link>
-                                .
-                            </p>
-                        </div>
-
+                    {/* Verified projects */}
+                    <section className="px-3 pb-16 sm:px-4 md:px-5 lg:px-6">
                         <div
                             className="relative overflow-hidden rounded-[28px] border border-white/70 px-4 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.07)] sm:rounded-[36px] sm:px-6 sm:py-10 md:rounded-[40px] lg:px-8"
                             style={{
@@ -808,41 +786,6 @@ const LandingPage = () => {
                                             <VerifiedProjectCard key={proj.id} project={proj} />
                                         ))}
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Explore CTA strip */}
-                    <section className="mx-auto max-w-[1200px] px-4 pb-16 sm:px-6 lg:px-8">
-                        <div
-                            className="rounded-[28px] px-6 py-10 text-center sm:rounded-[36px] sm:px-10 sm:py-12"
-                            style={{ background: BRAND_GRADIENT }}
-                        >
-                            <h2 className="mb-3 text-2xl font-extrabold text-white sm:text-3xl">Explore the platform</h2>
-                            <p className="mx-auto mb-8 max-w-xl text-sm font-medium text-blue-100">
-                                Read the full platform guide or browse verified student projects from previous terms.
-                            </p>
-                            <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-                                <Link
-                                    to="/guide"
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-bold text-[#2a3fa4]"
-                                >
-                                    Platform guide
-                                </Link>
-                                <Link
-                                    to="/gallery"
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border-2 border-white/40 px-6 py-3 text-sm font-bold text-white hover:bg-white/10"
-                                >
-                                    Verified projects
-                                </Link>
-                                {!user && (
-                                    <Link
-                                        to="/login"
-                                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[#223688] px-6 py-3 text-sm font-bold text-white"
-                                    >
-                                        Sign in
-                                    </Link>
                                 )}
                             </div>
                         </div>
