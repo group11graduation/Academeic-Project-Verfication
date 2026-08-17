@@ -346,41 +346,6 @@ const LandingPage = () => {
                         </div>
                     </section>
 
-                    {/* Promo banner */}
-                    <section className="mx-auto max-w-[1200px] px-4 pb-10 sm:px-6 lg:px-8">
-                        <div className="grid overflow-hidden rounded-[28px] border border-slate-200 bg-white sm:rounded-[36px] lg:grid-cols-2">
-                            <div
-                                className="relative min-h-[200px] bg-cover bg-center sm:min-h-[280px]"
-                                style={{
-                                    backgroundImage:
-                                        'linear-gradient(135deg, rgba(42,63,164,0.92), rgba(29,104,227,0.85)), radial-gradient(circle at 30% 40%, #93c5fd 0%, transparent 55%)',
-                                }}
-                            >
-                                <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8">
-                                    <p className="mb-1 text-xs font-bold uppercase tracking-widest text-blue-100">Workflow</p>
-                                    <p className="text-xl font-extrabold text-white sm:text-2xl">From proposal to preview</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-col justify-center p-6 sm:p-10">
-                                <h2 className="mb-3 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
-                                    Start early — keep every submission on track
-                                </h2>
-                                <p className="mb-6 text-sm font-medium leading-relaxed text-slate-500">
-                                    Publish assignments, collect proposals, run integrity checks, and open live previews
-                                    before grading day. One platform for faculty and students.
-                                </p>
-                                <Link
-                                    to={primaryCta.to}
-                                    className="inline-flex w-fit min-h-11 items-center gap-2 rounded-2xl px-6 py-2.5 text-sm font-bold text-white"
-                                    style={{ backgroundColor: BRAND.primary }}
-                                >
-                                    <GraduationCap className="h-4 w-4" />
-                                    {user ? 'Open workspace' : 'Access platform'}
-                                </Link>
-                            </div>
-                        </div>
-                    </section>
-
                     {/* Why choose */}
                     <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
                         <div className="mb-10 text-center">
