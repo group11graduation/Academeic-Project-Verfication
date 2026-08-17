@@ -69,11 +69,86 @@ function wrapHtml(html) {
     `<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=${JSON.stringify(base)};` +
     `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};</script>`;
   const fallback = loadFallbackJs();
+  // Escape so a literal </script> inside the shim cannot break HTML parsing (and drop CSS links).
+  const safeFallback = fallback ? String(fallback).replace(/<\/script/gi, '<\\/script') : '';
   const fallbackBlock =
-    fallback && !html.includes('__SV_LOGIN_FALLBACK_V18__')
-      ? `<script>\n${fallback}\n</script>`
+    safeFallback && !html.includes('__SV_LOGIN_FALLBACK__')
+      ? `<script>\n${safeFallback}\n</script>`
       : '';
-  return `${boot}${fallbackBlock}${html}`;
+  const twCdn = shouldInjectTailwindCdn()
+    ? `<script src="https://cdn.tailwindcss.com"><\/script>`
+    : '';
+  const injection = `${boot}${fallbackBlock}${twCdn}`;
+
+  // Inject into <head> — never prepend before <!DOCTYPE> (breaks stylesheet parsing in some browsers).
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head[^>]*>/i, (m) => `${m}\n${injection}\n`);
+  }
+  if (/<html[^>]*>/i.test(html)) {
+    return html.replace(/<html[^>]*>/i, (m) => `${m}\n<head>${injection}</head>\n`);
+  }
+  return `${injection}${html}`;
+}
+
+function builtCssByteSize(staticRoot) {
+  try {
+    const assets = path.join(staticRoot, 'assets');
+    if (!fs.existsSync(assets)) return 0;
+    let total = 0;
+    for (const name of fs.readdirSync(assets)) {
+      if (!/\.css$/i.test(name)) continue;
+      try {
+        total += fs.statSync(path.join(assets, name)).size;
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return total;
+  } catch (_e2) {
+    return 0;
+  }
+}
+
+function projectLooksLikeTailwind(staticRoot) {
+  const roots = [path.join(staticRoot, '..'), staticRoot];
+  for (const root of roots) {
+    try {
+      const pkgPath = path.join(root, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        const all = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+        if (all.tailwindcss || all['@tailwindcss/vite']) return true;
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    for (const cfg of ['tailwind.config.js', 'tailwind.config.cjs', 'tailwind.config.ts']) {
+      if (fs.existsSync(path.join(root, cfg))) return true;
+    }
+    for (const css of ['src/index.css', 'src/App.css', 'index.css']) {
+      try {
+        const p = path.join(root, css);
+        if (fs.existsSync(p) && /@tailwind|tailwindcss/.test(fs.readFileSync(p, 'utf8'))) return true;
+      } catch (_e2) {
+        /* ignore */
+      }
+    }
+  }
+  return false;
+}
+
+/** CDN only when Tailwind is expected but the Vite build CSS is missing/tiny (purged empty). */
+function shouldInjectTailwindCdn() {
+  try {
+    if (!projectLooksLikeTailwind(STATIC_ROOT)) return false;
+    const size = builtCssByteSize(STATIC_ROOT);
+    // Healthy Tailwind builds are typically many KB; empty/broken often < 1KB.
+    if (size > 1500) return false;
+    console.log(`[preview] Tailwind CSS weak/missing (${size}B) — injecting CDN fallback`);
+    return true;
+  } catch (_e) {
+    return false;
+  }
 }
 
 /** True for real static assets (.js, .css, .png, …). Excludes .html (SPA shell). */
@@ -113,15 +188,8 @@ function isApiProxyPath(pathname) {
 function normalizeApiListBody(body, reqPath) {
   if (body == null) return body;
   const pathOnly = String(reqPath || '').split('?')[0] || '';
-  if (Array.isArray(body)) {
-    if (/loan/i.test(pathOnly)) return { loans: body, data: body, success: true };
-    if (/product/i.test(pathOnly)) return { products: body, data: body, success: true };
-    if (/user/i.test(pathOnly)) return { users: body, data: body, success: true };
-    if (/notification/i.test(pathOnly)) return { notifications: body, data: body, success: true };
-    if (/repayment/i.test(pathOnly)) return { repayments: body, data: body, success: true };
-    if (/order/i.test(pathOnly)) return { orders: body, data: body, success: true };
-    return { data: body, items: body, success: true };
-  }
+  // Keep bare arrays as arrays — never wrap (breaks u.map / a.map dashboards).
+  if (Array.isArray(body)) return body;
   if (typeof body !== 'object') return body;
   const out = { ...body };
   const listKeys = [
@@ -130,6 +198,7 @@ function normalizeApiListBody(body, reqPath) {
     'users',
     'items',
     'products',
+    'books',
     'notifications',
     'orders',
     'members',

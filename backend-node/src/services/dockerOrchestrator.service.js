@@ -240,6 +240,7 @@ async function previewNodeTemplateContentHash(templateDirName) {
     path.join(sharedNodeDir, 'preview-ensure-inject.cjs'),
     path.join(sharedNodeDir, 'preview-gateway.cjs'),
     path.join(sharedNodeDir, 'preview-patch-frontend-safe-map.cjs'),
+    path.join(sharedNodeDir, 'preview-ensure-tailwind.cjs'),
   ]);
 }
 
@@ -347,6 +348,7 @@ async function stagePreviewBaseBuildDir(templateDirName) {
       'preview-ensure-inject.cjs',
       'preview-gateway.cjs',
       'preview-patch-frontend-safe-map.cjs',
+      'preview-ensure-tailwind.cjs',
     ]) {
       const src = path.join(sharedNodeDir, scriptName);
       if (!fsSync.existsSync(src)) continue;
@@ -1810,6 +1812,7 @@ async function runPreviewContainer({
       ['preview-gateway.cjs', '/preview-gateway.cjs'],
       ['preview-gateway.cjs', '/usr/local/share/sv-preview-gateway.cjs'],
       ['preview-patch-frontend-safe-map.cjs', '/preview-patch-frontend-safe-map.cjs'],
+      ['preview-ensure-tailwind.cjs', '/preview-ensure-tailwind.cjs'],
     ];
     for (const [name, dest] of overlayFiles) {
       const src = path.join(sharedNodeDir, name);

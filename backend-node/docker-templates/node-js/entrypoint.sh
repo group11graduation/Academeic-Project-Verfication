@@ -223,6 +223,7 @@ compute_deps_hash() {
 }
 
 # Deterministic sha256 of all files under src/ (sorted paths). Empty/missing src → empty string (always miss).
+# Also include Tailwind/PostCSS config so CSS-tooling fixes invalidate dist cache.
 compute_frontend_src_hash() {
   node -e '
     const fs = require("fs");
@@ -237,17 +238,29 @@ compute_frontend_src_hash() {
         else if (e.isFile()) out.push(p);
       }
     }
-    if (!fs.existsSync("src") || !fs.statSync("src").isDirectory()) {
-      process.stdout.write("");
-      process.exit(0);
-    }
     const files = [];
-    walk("src", files);
+    if (fs.existsSync("src") && fs.statSync("src").isDirectory()) walk("src", files);
+    for (const extra of [
+      "index.html",
+      "index.css",
+      "tailwind.config.js",
+      "tailwind.config.cjs",
+      "tailwind.config.mjs",
+      "tailwind.config.ts",
+      "postcss.config.js",
+      "postcss.config.cjs",
+      "postcss.config.mjs",
+      "postcss.config.ts",
+      "vite.config.js",
+      "vite.config.ts",
+    ]) {
+      if (fs.existsSync(extra) && fs.statSync(extra).isFile()) files.push(extra);
+    }
     files.sort();
     const h = crypto.createHash("sha256");
     for (const f of files) {
-      h.update(f.split(path.sep).join("/") + "\0");
-      h.update(fs.readFileSync(f));
+      h.update(String(f).split(path.sep).join("/") + "\0");
+      try { h.update(fs.readFileSync(f)); } catch (_e) {}
       h.update("\0");
     }
     process.stdout.write(h.digest("hex"));
@@ -797,6 +810,12 @@ run_frontend_preview() {
   if [ -f /preview-patch-frontend-safe-map.cjs ]; then
     echo "[preview] patching frontend .map() safety (dashboard list responses)"
     node /preview-patch-frontend-safe-map.cjs "$(pwd)" 2>&1 | tee -a /tmp/preview-frontend-build.log || true
+  fi
+
+  # Ensure Tailwind/PostCSS produce real CSS (fixes "UI works but looks unstyled").
+  if [ -f /preview-ensure-tailwind.cjs ]; then
+    echo "[preview] ensuring Tailwind CSS build config…"
+    node /preview-ensure-tailwind.cjs "$(pwd)" 2>&1 | tee -a /tmp/preview-frontend-build.log || true
   fi
 
   src_hash="$(compute_frontend_src_hash)"
