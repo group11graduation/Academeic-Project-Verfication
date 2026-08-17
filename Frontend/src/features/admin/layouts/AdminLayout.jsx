@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
@@ -8,25 +8,24 @@ import {
     BookMarked,
     Shield,
     LogOut,
-    ChevronDown,
-    ChevronLeft,
-    ChevronRight,
     CalendarRange,
     FileSpreadsheet,
     Workflow,
     Building2,
     Menu,
+    Search,
+    Power,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import { ShellSearchProvider } from '../../../context/shellSearchContext';
+import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
 import NotificationBell from '../../../shared/components/NotificationBell';
 
 const ADMIN_BLUE = '#1e56e3';
-const SIDEBAR_W = 260;
-const SIDEBAR_COLLAPSED_W = 76;
+const SIDEBAR_W = 236;
+const CONTENT_BG = '#eef2f7';
 
 const AdminLayout = () => (
     <ShellSearchProvider>
@@ -37,81 +36,36 @@ const AdminLayout = () => (
 const AdminLayoutInner = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
-    const location = useLocation();
+    const { query, setQuery, placeholder } = useShellSearch();
 
-    const peopleChildren = [
+    const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
+    const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+
+    const navItems = [
+        { name: 'Dashboard', path: '/admin', icon: LayoutDashboard, end: true },
         { name: 'Admins', path: '/admin/admins', icon: Shield },
         { name: 'Teachers', path: '/admin/teachers', icon: GraduationCap },
         { name: 'Students', path: '/admin/students', icon: Users },
-    ];
-    const academicItems = [
         { name: 'Setup Workflow', path: '/admin/setup-workflow', icon: Workflow },
         { name: 'Classes', path: '/admin/classes', icon: BookOpen },
         { name: 'Subjects', path: '/admin/subjects', icon: BookMarked },
         { name: 'Academic Structure', path: '/admin/academic-structure', icon: Building2 },
         { name: 'Semesters', path: '/admin/semesters', icon: CalendarRange },
-    ];
-    const dataItems = [{ name: 'Import / Export', path: '/admin/import-export', icon: FileSpreadsheet }];
-    const teacherExtra =
-        (user?.roles || []).includes('teacher') ? [{ name: 'Teacher Panel', path: '/teacher', icon: Shield }] : [];
-
-    const navSections = [
-        {
-            key: 'dashboard',
-            name: 'Dashboard',
-            icon: LayoutDashboard,
-            links: [{ name: 'Dashboard', path: '/admin', icon: LayoutDashboard, end: true }],
-        },
-        { key: 'people', name: 'People', icon: Users, links: peopleChildren },
-        { key: 'academic', name: 'Academic', icon: BookMarked, links: academicItems },
-        { key: 'data', name: 'Data', icon: FileSpreadsheet, links: dataItems },
-        ...(teacherExtra.length
-            ? [{ key: 'teacher', name: 'Teacher Panel', icon: Shield, links: teacherExtra }]
+        { name: 'Import / Export', path: '/admin/import-export', icon: FileSpreadsheet },
+        ...((user?.roles || []).includes('teacher')
+            ? [{ name: 'Teacher Panel', path: '/teacher', icon: Shield }]
             : []),
     ];
 
-    const inferSectionKeyByPath = React.useCallback(
-        (pathname) => {
-            for (const section of navSections) {
-                for (const link of section.links) {
-                    const isMatch = link.end
-                        ? pathname === link.path
-                        : pathname === link.path || pathname.startsWith(`${link.path}/`);
-                    if (isMatch) return section.key;
-                }
-            }
-            return 'dashboard';
+    /** Mobile drawer still expects section groups */
+    const navSections = [
+        {
+            key: 'main',
+            name: 'Menu',
+            icon: LayoutDashboard,
+            links: navItems,
         },
-        [navSections]
-    );
-
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
-    const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
-    const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
-    const [openGroups, setOpenGroups] = React.useState(() => {
-        const key = inferSectionKeyByPath(location.pathname);
-        return { [key]: true };
-    });
-
-    React.useEffect(() => {
-        const key = inferSectionKeyByPath(location.pathname);
-        setOpenGroups((prev) => ({ ...prev, [key]: true }));
-    }, [location.pathname, inferSectionKeyByPath]);
-
-    React.useEffect(() => {
-        const onKeyDown = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
-                e.preventDefault();
-                setIsSidebarCollapsed((v) => !v);
-            }
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, []);
-
-    const toggleGroup = (key) => {
-        setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
-    };
+    ];
 
     const requestLogout = () => setShowLogoutConfirm(true);
     const confirmLogout = () => {
@@ -119,13 +73,25 @@ const AdminLayoutInner = () => {
         navigate('/');
     };
 
-    const sidebarWidth = isSidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W;
     const firstName = (user?.name || 'Admin').trim().split(/\s+/)[0];
     const initial = (user?.name || 'A').trim().slice(0, 1).toUpperCase();
 
+    /** White pill + concave corners that blend into the main content */
+    const navLinkClass = ({ isActive }) =>
+        [
+            'group relative z-[1] flex items-center gap-3 py-3 pl-4 pr-3 text-[13px] font-semibold transition-colors',
+            isActive
+                ? 'rounded-l-[1.35rem] bg-white text-[#1d2f82] shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)]'
+                : 'mx-2 rounded-xl text-white/80 hover:bg-white/10 hover:text-white',
+        ].join(' ');
+
     return (
-        <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-[#f3f6fb] font-sans antialiased dark:bg-[#020617] dark:text-slate-100">
-            <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px dark:border-white/10 dark:bg-[#0b1220] lg:hidden">
+        <div
+            className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden font-sans antialiased dark:bg-[#020617] dark:text-slate-100"
+            style={{ backgroundColor: CONTENT_BG }}
+        >
+            {/* Mobile top bar */}
+            <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px lg:hidden dark:border-white/10 dark:bg-[#0b1220]">
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
                     <ProjectVerifyLogo showMark={false} size="md" tagline="Admin console" />
                 </button>
@@ -151,239 +117,139 @@ const AdminLayoutInner = () => {
             />
 
             <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-                {/* Single unified sidebar — no icon rail + secondary panel */}
+                {/* Single dark sidebar — mockup style */}
                 <aside
-                    className="relative hidden h-full max-h-[100dvh] shrink-0 flex-col overflow-hidden bg-gradient-to-b from-[#2a3fa4] to-[#1d2f82] text-white shadow-[8px_0_28px_-16px_rgba(29,47,130,0.55)] lg:flex"
-                    style={{ width: sidebarWidth, minWidth: sidebarWidth }}
+                    className="relative z-20 hidden h-full max-h-[100dvh] shrink-0 flex-col lg:flex"
+                    style={{
+                        width: SIDEBAR_W,
+                        minWidth: SIDEBAR_W,
+                        background: 'linear-gradient(180deg, #2a3fa4 0%, #1d2f82 55%, #172663 100%)',
+                    }}
                 >
-                    <div className={`flex items-center gap-3 border-b border-white/10 ${isSidebarCollapsed ? 'justify-center px-2 py-4' : 'px-4 py-4'}`}>
-                        <button
-                            type="button"
-                            onClick={() => navigate('/admin')}
-                            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-white/40"
-                            title="Admin home"
-                            aria-label="Project Verify — Admin home"
-                        >
-                            <img src="/logo.png" alt="" className="h-9 w-9 object-contain" />
-                        </button>
-                        {!isSidebarCollapsed ? (
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-extrabold tracking-tight">Project Verify</p>
-                                <p className="truncate text-[11px] font-medium text-white/65">Admin console</p>
-                            </div>
-                        ) : null}
-                    </div>
-
-                    {!isSidebarCollapsed ? (
-                        <div className="mx-3 mt-3 flex items-center gap-3 rounded-2xl bg-white/10 px-3 py-2.5 ring-1 ring-white/15">
+                    {/* Profile */}
+                    <div className="flex flex-col items-center px-4 pb-5 pt-8 text-center">
+                        <div className="relative mb-3">
                             <div
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white ring-2 ring-white/25"
-                                style={{ background: 'linear-gradient(135deg, #4f6fff 0%, #1D68E3 100%)' }}
+                                className="flex h-[72px] w-[72px] items-center justify-center rounded-full text-2xl font-extrabold text-white"
+                                style={{
+                                    background: 'linear-gradient(145deg, #5b7cff 0%, #1D68E3 100%)',
+                                    boxShadow: '0 0 0 4px rgba(255,255,255,0.22), 0 0 24px rgba(93,140,255,0.45)',
+                                }}
                             >
                                 {initial}
                             </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate text-[13px] font-bold">{user?.name || 'Admin'}</p>
-                                <p className="truncate text-[10px] text-white/60">{user?.email || ''}</p>
-                            </div>
                         </div>
-                    ) : null}
+                        <p className="max-w-full truncate text-[15px] font-extrabold tracking-tight text-white">
+                            {user?.name || 'Admin'}
+                        </p>
+                        <p className="mt-0.5 max-w-full truncate text-[11px] font-medium text-white/55">
+                            {user?.email || 'admin@projectverify'}
+                        </p>
+                    </div>
 
-                    <nav
-                        className={`flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto py-3 ${isSidebarCollapsed ? 'px-1.5' : 'px-2.5'}`}
-                        aria-label="Admin navigation"
-                    >
-                        {navSections.map((section) => {
-                            const SectionIcon = section.icon;
-                            const links = section.links || [];
-                            const isSingle = links.length === 1;
-                            const isOpen = Boolean(openGroups[section.key]);
-                            const sectionHasActive = links.some((link) =>
-                                link.end
-                                    ? location.pathname === link.path
-                                    : location.pathname === link.path || location.pathname.startsWith(`${link.path}/`)
-                            );
-
-                            if (isSidebarCollapsed) {
-                                const target = links[0];
-                                return (
-                                    <button
-                                        key={section.key}
-                                        type="button"
-                                        title={section.name}
-                                        onClick={() => {
-                                            if (target?.path) navigate(target.path);
-                                            setIsSidebarCollapsed(false);
-                                            setOpenGroups((prev) => ({ ...prev, [section.key]: true }));
-                                        }}
-                                        className={`flex w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-2.5 transition ${
-                                            sectionHasActive
-                                                ? 'bg-white text-[#1d2f82] shadow-md'
-                                                : 'text-white/85 hover:bg-white/12'
-                                        }`}
-                                    >
-                                        <SectionIcon className="h-[18px] w-[18px]" strokeWidth={2.3} />
-                                        <span className="text-center text-[9px] font-semibold leading-tight">{section.name}</span>
-                                    </button>
-                                );
-                            }
-
-                            if (isSingle) {
-                                const item = links[0];
-                                return (
-                                    <NavLink
-                                        key={section.key}
-                                        to={item.path}
-                                        end={Boolean(item.end)}
-                                        className={({ isActive }) =>
-                                            `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-bold transition ${
-                                                isActive
-                                                    ? 'bg-white text-[#1d2f82] shadow-md'
-                                                    : 'text-white/90 hover:bg-white/12'
-                                            }`
-                                        }
-                                    >
-                                        <SectionIcon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-                                        <span className="truncate">{section.name}</span>
-                                    </NavLink>
-                                );
-                            }
-
+                    {/* Flat nav with cutout active state */}
+                    <nav className="relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden pb-4 pl-3 pr-0" aria-label="Admin navigation">
+                        {navItems.map((item) => {
+                            const Icon = item.icon;
                             return (
-                                <div key={section.key} className="mb-0.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleGroup(section.key)}
-                                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-bold transition ${
-                                            sectionHasActive
-                                                ? 'bg-white/15 text-white'
-                                                : 'text-white/90 hover:bg-white/10'
-                                        }`}
-                                        aria-expanded={isOpen}
-                                    >
-                                        <SectionIcon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-                                        <span className="min-w-0 flex-1 truncate">{section.name}</span>
-                                        <ChevronDown
-                                            className={`h-4 w-4 shrink-0 text-white/50 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                                        />
-                                    </button>
-
-                                    {isOpen ? (
-                                        <div className="mt-1 space-y-0.5 border-l border-white/20 ml-5 pl-2">
-                                            {links.map((item) => {
-                                                const Icon = item.icon || SectionIcon;
-                                                return (
-                                                    <NavLink
-                                                        key={item.path}
-                                                        to={item.path}
-                                                        end={Boolean(item.end)}
-                                                        className={({ isActive }) =>
-                                                            `flex items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-semibold transition ${
-                                                                isActive
-                                                                    ? 'bg-white text-[#1d2f82] shadow-sm'
-                                                                    : 'text-white/75 hover:bg-white/10 hover:text-white'
-                                                            }`
-                                                        }
-                                                    >
-                                                        <Icon className="h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={2} />
-                                                        <span className="truncate">{item.name}</span>
-                                                    </NavLink>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : null}
-                                </div>
+                                <NavLink key={item.path} to={item.path} end={Boolean(item.end)} className={navLinkClass}>
+                                    {({ isActive }) => (
+                                        <>
+                                            {isActive ? (
+                                                <>
+                                                    {/* Top concave corner */}
+                                                    <span
+                                                        aria-hidden
+                                                        className="pointer-events-none absolute -right-px -top-3 h-3 w-3 bg-transparent"
+                                                        style={{
+                                                            borderBottomRightRadius: '0.75rem',
+                                                            boxShadow: `4px 4px 0 0 ${CONTENT_BG}`,
+                                                        }}
+                                                    />
+                                                    {/* Bottom concave corner */}
+                                                    <span
+                                                        aria-hidden
+                                                        className="pointer-events-none absolute -bottom-3 -right-px h-3 w-3 bg-transparent"
+                                                        style={{
+                                                            borderTopRightRadius: '0.75rem',
+                                                            boxShadow: `4px -4px 0 0 ${CONTENT_BG}`,
+                                                        }}
+                                                    />
+                                                    {/* Bridge into content */}
+                                                    <span
+                                                        aria-hidden
+                                                        className="pointer-events-none absolute inset-y-0 -right-3 w-3"
+                                                        style={{ backgroundColor: CONTENT_BG }}
+                                                    />
+                                                </>
+                                            ) : null}
+                                            <Icon
+                                                className={`relative z-[1] h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#2a3fa4]' : 'text-white/70'}`}
+                                                strokeWidth={2.15}
+                                            />
+                                            <span className="relative z-[1] truncate">{item.name}</span>
+                                        </>
+                                    )}
+                                </NavLink>
                             );
                         })}
                     </nav>
 
-                    <div className={`mt-auto border-t border-white/10 ${isSidebarCollapsed ? 'px-1.5 py-3' : 'px-3 py-3'}`}>
-                        {!isSidebarCollapsed ? (
-                            <div className="mb-2 flex items-center gap-2">
-                                <ThemeToggle
-                                    compact
-                                    className="flex-1 justify-center border-white/20 bg-white/10 text-white hover:bg-white/15 dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={requestLogout}
-                                    className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/10 text-[12px] font-bold text-white ring-1 ring-white/15 transition hover:bg-rose-500/80"
-                                >
-                                    <LogOut className="h-3.5 w-3.5" />
-                                    Logout
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="mb-2 flex flex-col items-center gap-2">
-                                <ThemeToggle
-                                    compact
-                                    iconOnly
-                                    className="h-9 w-9 rounded-xl border-white/20 bg-white/10 px-0 py-0 text-white hover:bg-white/15 dark:border-white/20 dark:bg-white/10 dark:text-white"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={requestLogout}
-                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition hover:bg-rose-500/80"
-                                    title="Logout"
-                                >
-                                    <LogOut className="h-4 w-4" />
-                                </button>
-                            </div>
-                        )}
-
+                    {/* Logout */}
+                    <div className="mt-auto border-t border-white/10 px-4 py-4">
                         <button
                             type="button"
-                            onClick={() => setIsSidebarCollapsed((v) => !v)}
-                            className={`flex items-center justify-center gap-1 rounded-xl bg-white/10 text-white ring-1 ring-white/15 transition hover:bg-white/15 ${
-                                isSidebarCollapsed ? 'mx-auto h-8 w-8' : 'h-8 w-full text-[11px] font-bold'
-                            }`}
-                            title={isSidebarCollapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)'}
+                            onClick={requestLogout}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-[13px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
                         >
-                            {isSidebarCollapsed ? (
-                                <ChevronRight className="h-4 w-4" />
-                            ) : (
-                                <>
-                                    <ChevronLeft className="h-3.5 w-3.5" />
-                                    Collapse
-                                </>
-                            )}
+                            <Power className="h-4 w-4" strokeWidth={2.2} />
+                            Logout
                         </button>
                     </div>
                 </aside>
 
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f3f6fb] dark:bg-[#020617]">
-                    <header className="hidden min-h-[64px] shrink-0 items-center justify-between gap-3 border-b border-slate-200/70 bg-white/95 px-4 py-3 backdrop-blur-sm sm:px-5 lg:flex lg:px-6 dark:border-white/10 dark:bg-[#0b1220]/95">
-                        <div className="min-w-0 flex-1">
-                            <div className="truncate text-lg font-extrabold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">
-                                Welcome {firstName}!
-                            </div>
-                            <div className="text-xs font-semibold text-[#51628f] dark:text-slate-400">Admin Dashboard</div>
-                        </div>
+                {/* Main column */}
+                <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ backgroundColor: CONTENT_BG }}>
+                    <header className="hidden shrink-0 items-center justify-between gap-4 px-6 pb-2 pt-6 lg:flex dark:bg-transparent">
+                        <h1 className="min-w-0 truncate text-[1.65rem] font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                            Welcome {firstName} !
+                        </h1>
 
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <ThemeToggle compact className="hidden sm:inline-flex" />
+                        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+                            <label className="relative hidden min-w-0 max-w-md flex-1 xl:block">
+                                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="search"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder={placeholder || 'Search…'}
+                                    className="h-11 w-full rounded-full border-0 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25 dark:bg-[#111827] dark:text-slate-100 dark:ring-white/10"
+                                />
+                            </label>
+
+                            <ThemeToggle
+                                compact
+                                className="h-11 rounded-full border-0 bg-white px-3 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80 dark:bg-[#111827] dark:ring-white/10"
+                            />
                             <NotificationBell variant="admin" />
-                            <div className="flex items-center gap-2 rounded-2xl border border-[#cfdbfb] bg-[#f8faff] py-1 pl-1 pr-3 shadow-sm dark:border-white/10 dark:bg-[#111827]">
-                                <div
-                                    className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-extrabold text-white ring-2 ring-white"
-                                    style={{ background: 'linear-gradient(135deg, #2a3fa4 0%, #1D68E3 100%)' }}
-                                >
-                                    {initial}
-                                </div>
-                                <div className="hidden leading-tight sm:block">
-                                    <div className="max-w-[120px] truncate text-xs font-bold text-slate-800 dark:text-slate-100">
-                                        {user?.name || 'My account'}
-                                    </div>
-                                    <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                        {(user?.role || 'admin').toUpperCase()}
-                                    </div>
-                                </div>
-                                <ChevronDown className="hidden h-3.5 w-3.5 text-slate-400 dark:text-slate-500 sm:block" />
-                            </div>
                         </div>
                     </header>
 
-                    <main className="app-shell-main bg-[#f3f6fb] px-3 py-4 sm:px-4 lg:px-6 lg:py-5 dark:bg-[#020617]">
+                    {/* Compact search on medium desktop */}
+                    <div className="hidden px-6 pb-2 lg:block xl:hidden">
+                        <label className="relative block">
+                            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="search"
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder={placeholder || 'Search…'}
+                                className="h-11 w-full rounded-full border-0 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25 dark:bg-[#111827] dark:text-slate-100 dark:ring-white/10"
+                            />
+                        </label>
+                    </div>
+
+                    <main className="app-shell-main min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-2 sm:px-4 lg:px-6">
                         <div className="app-shell-page app-page">
                             <Outlet />
                         </div>

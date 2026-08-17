@@ -13,10 +13,7 @@ import {
 } from 'lucide-react';
 import adminDashboardService from '../../../services/adminDashboardService';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
-import { useAuth } from '../../../context/authContext';
-
 const AdminDashboard = () => {
-    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         totalStudents: 0,
@@ -45,8 +42,6 @@ const AdminDashboard = () => {
         };
         fetchStats();
     }, []);
-
-    const firstName = (user?.name || 'Admin').trim().split(/\s+/)[0];
 
     const statCards = useMemo(
         () => [
@@ -110,21 +105,8 @@ const AdminDashboard = () => {
     }
 
     return (
-        <div className="space-y-6 [font-family:var(--sv-font-sans)]">
-            {/* Welcome */}
-            <section className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-[1.65rem]">
-                        Welcome {firstName}!
-                    </h1>
-                    <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-                        Monitor academic setup, people, and project activity from one place.
-                    </p>
-                </div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#2a3fa4]">Admin Control Center</p>
-            </section>
-
-            {/* Overview metric cards */}
+        <div className="space-y-5 [font-family:var(--sv-font-sans)]">
+            {/* Overview metric cards — mockup top row */}
             <section>
                 <h2 className="mb-3 text-sm font-extrabold text-slate-800 dark:text-slate-200">Over View</h2>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
