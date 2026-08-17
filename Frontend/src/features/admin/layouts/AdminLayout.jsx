@@ -25,7 +25,7 @@ import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
 import NotificationBell from '../../../shared/components/NotificationBell';
 
 const ADMIN_BLUE = '#1e56e3';
-const SIDEBAR_W = 268;
+const SIDEBAR_W = 220;
 const FRAME_BG = '#f4f6fb';
 const CONTENT_BG = '#eef2f7';
 const BORDER = '#1d2f82';
@@ -160,14 +160,14 @@ const AdminLayoutInner = () => {
         ) : null;
 
     const parentActiveClass =
-        'relative z-[1] flex w-full items-center gap-3.5 rounded-l-[1.75rem] bg-[#eef2f7] py-4 pl-5 pr-4 text-[16px] font-bold text-[#1d2f82]';
+        'relative z-[1] flex w-full items-center gap-2.5 rounded-l-2xl bg-[#eef2f7] py-2.5 pl-3.5 pr-3 text-[12px] font-bold text-[#1d2f82]';
     const parentIdleClass =
-        'relative z-[1] mx-2.5 flex w-[calc(100%-1.25rem)] items-center gap-3.5 rounded-2xl py-4 pl-3.5 pr-2.5 text-[16px] font-semibold text-white/90 transition-colors hover:bg-white/10 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-2 text-[12px] font-semibold text-white/90 transition-colors hover:bg-white/10 hover:text-white';
 
     return (
         <div
             className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden antialiased [font-family:var(--sv-font-sans)]"
-            style={{ backgroundColor: FRAME_BG, fontSize: '17px' }}
+            style={{ backgroundColor: FRAME_BG, fontSize: '12.5px' }}
         >
             {/* Mobile top bar */}
             <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px lg:hidden dark:border-white/10 dark:bg-[#0b1220]">
@@ -196,9 +196,9 @@ const AdminLayoutInner = () => {
             />
 
             {/* Zoomed frame: thin blue border, sidebar flush to frame edges */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-2">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-1">
                 <div
-                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-[1.25rem] lg:border lg:border-[#1d2f82]/55 lg:shadow-[0_12px_40px_-20px_rgba(29,47,130,0.35)]"
+                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-xl lg:border lg:border-[#1d2f82]/55 lg:shadow-sm"
                     style={{ borderColor: BORDER }}
                 >
                     <aside
@@ -209,28 +209,28 @@ const AdminLayoutInner = () => {
                             background: 'linear-gradient(180deg, #2a3fa4 0%, #1d2f82 55%, #172663 100%)',
                         }}
                     >
-                        <div className="flex shrink-0 flex-col items-center px-5 pb-6 pt-9 text-center">
-                            <div className="relative mb-4">
+                        <div className="flex shrink-0 flex-col items-center px-3 pb-3 pt-5 text-center">
+                            <div className="relative mb-2.5">
                                 <div
-                                    className="flex h-[84px] w-[84px] items-center justify-center rounded-full text-[2rem] font-extrabold text-white"
+                                    className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-extrabold text-white"
                                     style={{
                                         background: 'linear-gradient(145deg, #5b7cff 0%, #1D68E3 100%)',
-                                        boxShadow: '0 0 0 5px rgba(255,255,255,0.22), 0 0 28px rgba(93,140,255,0.45)',
+                                        boxShadow: '0 0 0 3px rgba(255,255,255,0.22), 0 0 18px rgba(93,140,255,0.4)',
                                     }}
                                 >
                                     {initial}
                                 </div>
                             </div>
-                            <p className="max-w-full truncate text-[1.125rem] font-extrabold tracking-tight text-white">
+                            <p className="max-w-full truncate text-[13px] font-extrabold tracking-tight text-white">
                                 {user?.name || 'Admin'}
                             </p>
-                            <p className="mt-1 max-w-full truncate text-[13px] font-medium text-white/55">
+                            <p className="mt-0.5 max-w-full truncate text-[10px] font-medium text-white/55">
                                 {user?.email || 'admin@projectverify'}
                             </p>
                         </div>
 
                         <nav
-                            className="relative flex min-h-0 flex-1 flex-col justify-start gap-1.5 overflow-y-auto overflow-x-hidden pb-3 pl-3 pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                            className="relative flex min-h-0 flex-1 flex-col justify-start gap-0.5 overflow-y-auto overflow-x-hidden pb-2 pl-2.5 pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                             aria-label="Admin navigation"
                         >
                             {navSections.map((section) => {
@@ -252,7 +252,7 @@ const AdminLayoutInner = () => {
                                                 <>
                                                     {cutoutActive(isActive)}
                                                     <SectionIcon
-                                                        className={`relative z-[1] h-[22px] w-[22px] shrink-0 ${
+                                                        className={`relative z-[1] h-4 w-4 shrink-0 ${
                                                             isActive ? 'text-[#2a3fa4]' : 'text-white/75'
                                                         }`}
                                                         strokeWidth={2.15}
@@ -276,17 +276,17 @@ const AdminLayoutInner = () => {
                                             className={parentIdleClass}
                                             aria-expanded={isOpen}
                                         >
-                                            <SectionIcon className="h-[22px] w-[22px] shrink-0 text-white/75" strokeWidth={2.15} />
+                                            <SectionIcon className="h-4 w-4 shrink-0 text-white/75" strokeWidth={2.15} />
                                             <span className="min-w-0 flex-1 truncate text-left">{section.name}</span>
                                             <ChevronDown
-                                                className={`h-5 w-5 shrink-0 text-white/50 transition-transform duration-200 ${
+                                                className={`h-3.5 w-3.5 shrink-0 text-white/50 transition-transform duration-200 ${
                                                     isOpen ? 'rotate-180' : ''
                                                 }`}
                                             />
                                         </button>
 
                                         {isOpen ? (
-                                            <div className="mt-1 space-y-1 pb-1.5 pl-2">
+                                            <div className="mt-0.5 space-y-0.5 pb-1 pl-1.5">
                                                 {links.map((item) => {
                                                     const Icon = item.icon || SectionIcon;
                                                     return (
@@ -296,10 +296,10 @@ const AdminLayoutInner = () => {
                                                             end={Boolean(item.end)}
                                                             className={({ isActive }) =>
                                                                 [
-                                                                    'relative z-[1] flex items-center gap-3 py-3.5 pl-4 pr-3 text-[15px] font-semibold transition-colors',
+                                                                    'relative z-[1] flex items-center gap-2 py-2 pl-3 pr-2.5 text-[11px] font-semibold transition-colors',
                                                                     isActive
-                                                                        ? 'rounded-l-[1.35rem] bg-[#eef2f7] text-[#1d2f82]'
-                                                                        : 'mx-1 rounded-xl text-white/75 hover:bg-white/10 hover:text-white',
+                                                                        ? 'rounded-l-2xl bg-[#eef2f7] text-[#1d2f82]'
+                                                                        : 'mx-1 rounded-lg text-white/75 hover:bg-white/10 hover:text-white',
                                                                 ].join(' ')
                                                             }
                                                         >
@@ -307,7 +307,7 @@ const AdminLayoutInner = () => {
                                                                 <>
                                                                     {cutoutActive(isActive)}
                                                                     <Icon
-                                                                        className={`relative z-[1] h-[18px] w-[18px] shrink-0 ${
+                                                                        className={`relative z-[1] h-3.5 w-3.5 shrink-0 ${
                                                                             isActive ? 'text-[#2a3fa4]' : 'opacity-80'
                                                                         }`}
                                                                         strokeWidth={2}
@@ -325,13 +325,13 @@ const AdminLayoutInner = () => {
                             })}
                         </nav>
 
-                        <div className="mt-auto shrink-0 border-t border-white/10 px-5 py-5">
+                        <div className="mt-auto shrink-0 border-t border-white/10 px-3 py-3">
                             <button
                                 type="button"
                                 onClick={requestLogout}
-                                className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-white/10 px-3 py-3.5 text-[15px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-2.5 py-2 text-[12px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
                             >
-                                <Power className="h-5 w-5" strokeWidth={2.2} />
+                                <Power className="h-3.5 w-3.5" strokeWidth={2.2} />
                                 Logout
                             </button>
                         </div>
@@ -341,49 +341,49 @@ const AdminLayoutInner = () => {
                         className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
                         style={{ backgroundColor: CONTENT_BG }}
                     >
-                        <header className="hidden shrink-0 items-center justify-between gap-6 px-8 pb-4 pt-8 lg:flex">
+                        <header className="hidden shrink-0 items-center justify-between gap-3 px-5 pb-2 pt-4 lg:flex">
                             <div className="min-w-0">
-                                <h1 className="truncate text-[2.35rem] font-extrabold leading-none tracking-tight text-[#1d2f82]">
+                                <h1 className="truncate text-[1.35rem] font-extrabold leading-tight tracking-tight text-[#1d2f82]">
                                     Welcome {firstName} !
                                 </h1>
-                                <p className="mt-2 text-[16px] font-semibold text-[#51628f]">Over View</p>
+                                <p className="mt-0.5 text-[12px] font-semibold text-[#51628f]">Over View</p>
                             </div>
 
-                            <div className="flex min-w-0 flex-1 items-center justify-end gap-3.5">
-                                <label className="relative hidden min-w-0 max-w-xl flex-1 xl:block">
-                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                                <label className="relative hidden min-w-0 max-w-md flex-1 xl:block">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                                     <input
                                         type="search"
                                         value={query}
                                         onChange={(e) => setQuery(e.target.value)}
                                         placeholder={placeholder || 'Search…'}
-                                        className="h-13 h-[3.25rem] w-full rounded-full border-0 bg-white pl-12 pr-5 text-[16px] font-medium text-slate-800 shadow-[0_10px_28px_-14px_rgba(15,23,42,0.2)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
+                                        className="h-9 w-full rounded-full border-0 bg-white pl-9 pr-3 text-[12px] font-medium text-slate-800 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
                                     />
                                 </label>
 
                                 <ThemeToggle
                                     compact
-                                    className="h-[3.25rem] rounded-2xl border-0 bg-white px-4 shadow-[0_10px_28px_-14px_rgba(15,23,42,0.2)] ring-1 ring-slate-200/80"
+                                    className="h-9 rounded-xl border-0 bg-white px-2.5 shadow-sm ring-1 ring-slate-200/80"
                                 />
                                 <NotificationBell variant="admin" />
                             </div>
                         </header>
 
-                        <div className="hidden px-8 pb-3 lg:block xl:hidden">
+                        <div className="hidden px-5 pb-2 lg:block xl:hidden">
                             <label className="relative block">
-                                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="search"
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     placeholder={placeholder || 'Search…'}
-                                    className="h-[3.25rem] w-full rounded-full border-0 bg-white pl-12 pr-5 text-[16px] font-medium text-slate-800 shadow-[0_10px_28px_-14px_rgba(15,23,42,0.2)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
+                                    className="h-9 w-full rounded-full border-0 bg-white pl-9 pr-3 text-[12px] font-medium text-slate-800 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
                                 />
                             </label>
                         </div>
 
-                        <main className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-8">
-                            <div className="w-full max-w-none text-[16px] leading-relaxed [font-family:var(--sv-font-sans)]">
+                        <main className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-4 lg:px-5">
+                            <div className="app-shell-page app-page">
                                 <Outlet />
                             </div>
                         </main>

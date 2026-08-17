@@ -100,33 +100,33 @@ const AdminDashboard = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-9 w-9 animate-spin text-[#1D68E3]" />
+                <Loader2 className="h-6 w-6 animate-spin text-[#1D68E3]" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 [font-family:var(--sv-font-sans)]">
+        <div className="space-y-3 [font-family:var(--sv-font-sans)]">
             <section>
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
                     {statCards.map((card) => {
                         const Icon = card.icon;
                         return (
                             <div
                                 key={card.title}
-                                className={`relative overflow-hidden rounded-[1.35rem] p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)] ring-1 ${card.soft} ${card.ring}`}
+                                className={`relative overflow-hidden rounded-xl p-3 shadow-sm ring-1 ${card.soft} ${card.ring}`}
                             >
-                                <div className="mb-6 flex items-start justify-between gap-3">
-                                    <div className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-sm ${card.iconBg}`}>
-                                        <Icon className="h-7 w-7" strokeWidth={2.15} />
+                                <div className="mb-2.5 flex items-start justify-between gap-2">
+                                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${card.iconBg}`}>
+                                        <Icon className="h-4 w-4" strokeWidth={2.2} />
                                     </div>
-                                    <span className="text-[15px] font-bold text-slate-500">{card.title}</span>
+                                    <span className="text-[10px] font-bold text-slate-500">{card.title}</span>
                                 </div>
-                                <p className="text-[2.5rem] font-extrabold leading-none tracking-tight text-[#0f172a]">
+                                <p className="text-xl font-extrabold leading-none tracking-tight text-[#0f172a]">
                                     {Number(card.value).toLocaleString()}
                                 </p>
                                 {card.hint ? (
-                                    <p className="mt-3.5 text-[13px] font-medium leading-snug text-slate-500">{card.hint}</p>
+                                    <p className="mt-1.5 text-[10px] font-medium leading-snug text-slate-500">{card.hint}</p>
                                 ) : null}
                             </div>
                         );
@@ -134,29 +134,29 @@ const AdminDashboard = () => {
                 </div>
             </section>
 
-            <section className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-                <div className="flex flex-col gap-5 xl:col-span-3">
-                    <div className="rounded-[1.35rem] bg-white p-7 shadow-[0_12px_32px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80">
+            <section className="grid grid-cols-1 gap-2.5 xl:grid-cols-12">
+                <div className="flex flex-col gap-2.5 xl:col-span-3">
+                    <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80">
                         <div
-                            className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl text-white shadow-md"
+                            className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm"
                             style={{ background: BRAND_GRADIENT }}
                         >
-                            <Users className="h-8 w-8" />
+                            <Users className="h-4 w-4" />
                         </div>
-                        <p className="text-[2.5rem] font-extrabold leading-none tracking-tight text-[#0f172a]">
+                        <p className="text-xl font-extrabold leading-none tracking-tight text-[#0f172a]">
                             {(stats.totalStudents + stats.totalTeachers).toLocaleString()}
                         </p>
-                        <p className="mt-2.5 text-[16px] font-semibold text-slate-500">Total people</p>
-                        <p className="mt-3.5 text-[14px] font-medium text-slate-400">
+                        <p className="mt-1 text-[12px] font-semibold text-slate-500">Total people</p>
+                        <p className="mt-1.5 text-[10px] font-medium text-slate-400">
                             {stats.totalStudents} students · {stats.totalTeachers} teachers
                         </p>
                     </div>
 
-                    <div className="rounded-[1.35rem] bg-white p-7 shadow-[0_12px_32px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80">
-                        <h3 className="mb-6 text-[16px] font-extrabold text-[#0f172a]">Institution mix</h3>
-                        <div className="mx-auto mb-6 flex h-36 w-36 items-center justify-center">
+                    <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80">
+                        <h3 className="mb-2.5 text-[12px] font-extrabold text-[#0f172a]">Institution mix</h3>
+                        <div className="mx-auto mb-2.5 flex h-20 w-20 items-center justify-center">
                             <div
-                                className="relative h-36 w-36 rounded-full"
+                                className="relative h-20 w-20 rounded-full"
                                 style={{
                                     background: `conic-gradient(${BRAND.primary} 0% ${Math.min(
                                         100,
@@ -179,56 +179,56 @@ const AdminDashboard = () => {
                                     )}% 100%)`,
                                 }}
                             >
-                                <div className="absolute inset-6 flex flex-col items-center justify-center rounded-full bg-white">
-                                    <span className="text-2xl font-extrabold text-[#0f172a]">
+                                <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-white">
+                                    <span className="text-sm font-extrabold text-[#0f172a]">
                                         {stats.totalClasses + stats.activeProjects}
                                     </span>
-                                    <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total</span>
+                                    <span className="text-[8px] font-bold uppercase tracking-wide text-slate-400">Total</span>
                                 </div>
                             </div>
                         </div>
-                        <ul className="space-y-3 text-[14px] font-semibold text-slate-600">
-                            <li className="flex items-center gap-2.5">
-                                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: BRAND.primary }} />
+                        <ul className="space-y-1.5 text-[11px] font-semibold text-slate-600">
+                            <li className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: BRAND.primary }} />
                                 Classes · {stats.totalClasses}
                             </li>
-                            <li className="flex items-center gap-2.5">
-                                <span className="h-3 w-3 rounded-full bg-sky-300" />
+                            <li className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-sky-300" />
                                 Active projects · {stats.activeProjects}
                             </li>
                         </ul>
                     </div>
                 </div>
 
-                <div className="rounded-[1.35rem] bg-white p-7 shadow-[0_12px_32px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 xl:col-span-5">
-                    <div className="mb-6 flex items-center justify-between gap-2">
-                        <h2 className="text-[16px] font-extrabold text-[#0f172a]">Priority Setup Actions</h2>
-                        <Link to="/admin/setup-workflow" className="text-[14px] font-bold text-[#2a3fa4] hover:underline">
+                <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-5">
+                    <div className="mb-2.5 flex items-center justify-between gap-2">
+                        <h2 className="text-[12px] font-extrabold text-[#0f172a]">Priority Setup Actions</h2>
+                        <Link to="/admin/setup-workflow" className="text-[10px] font-bold text-[#2a3fa4] hover:underline">
                             View all
                         </Link>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                         {setupLinks.map((item) => {
                             const Icon = item.icon;
                             return (
                                 <Link
                                     key={item.to}
                                     to={item.to}
-                                    className="group block rounded-2xl border border-slate-100 bg-[#f8faff] p-4 transition hover:border-[#c5d0f0] hover:bg-white"
+                                    className="group block rounded-lg border border-slate-100 bg-[#f8faff] p-2.5 transition hover:border-[#c5d0f0] hover:bg-white"
                                 >
-                                    <div className="mb-3 flex items-center justify-between gap-2">
-                                        <div className="flex min-w-0 items-center gap-3.5">
-                                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/80">
-                                                <Icon className="h-5 w-5" />
+                                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/80">
+                                                <Icon className="h-3.5 w-3.5" />
                                             </span>
                                             <div className="min-w-0">
-                                                <p className="truncate text-[16px] font-extrabold text-[#0f172a]">{item.title}</p>
-                                                <p className="truncate text-[13px] font-medium text-slate-500">{item.desc}</p>
+                                                <p className="truncate text-[12px] font-extrabold text-[#0f172a]">{item.title}</p>
+                                                <p className="truncate text-[10px] font-medium text-slate-500">{item.desc}</p>
                                             </div>
                                         </div>
-                                        <ArrowRight className="h-5 w-5 shrink-0 text-slate-300 transition group-hover:text-[#2a3fa4]" />
+                                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-[#2a3fa4]" />
                                     </div>
-                                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-200/80">
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/80">
                                         <div
                                             className="h-full rounded-full"
                                             style={{ width: `${item.bar}%`, background: BRAND_GRADIENT }}
@@ -240,46 +240,46 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                <div className="rounded-[1.35rem] bg-white p-7 shadow-[0_12px_32px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 xl:col-span-4">
-                    <h2 className="mb-6 text-[16px] font-extrabold text-[#0f172a]">Role Workflow</h2>
-                    <div className="space-y-4">
+                <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-4">
+                    <h2 className="mb-2.5 text-[12px] font-extrabold text-[#0f172a]">Role Workflow</h2>
+                    <div className="space-y-2">
                         {roles.map((role, i) => (
-                            <div key={role.title} className="rounded-2xl border border-slate-100 bg-[#f8faff] p-5">
-                                <div className="mb-2.5 flex items-center gap-3">
+                            <div key={role.title} className="rounded-lg border border-slate-100 bg-[#f8faff] p-2.5">
+                                <div className="mb-1 flex items-center gap-2">
                                     <span
-                                        className="flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-extrabold text-white"
+                                        className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-extrabold text-white"
                                         style={{ background: BRAND_GRADIENT }}
                                     >
                                         {i + 1}
                                     </span>
-                                    <p className="text-[14px] font-extrabold uppercase tracking-wide text-[#2a3fa4]">
+                                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#2a3fa4]">
                                         {role.title}
                                     </p>
                                 </div>
-                                <p className="text-[14px] font-medium leading-relaxed text-slate-600">{role.text}</p>
+                                <p className="text-[11px] font-medium leading-snug text-slate-600">{role.text}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            <section className="rounded-[1.35rem] bg-white p-7 shadow-[0_12px_32px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80">
-                <h2 className="mb-6 text-[16px] font-extrabold text-[#0f172a]">Quick access</h2>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <section className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80">
+                <h2 className="mb-2.5 text-[12px] font-extrabold text-[#0f172a]">Quick access</h2>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     {setupLinks.map((item) => {
                         const Icon = item.icon;
                         return (
                             <Link
                                 key={`quick-${item.to}`}
                                 to={item.to}
-                                className="flex items-center gap-3.5 rounded-2xl border border-slate-100 bg-[#f8faff] px-4 py-4 transition hover:border-[#c5d0f0] hover:bg-white"
+                                className="flex items-center gap-2 rounded-lg border border-slate-100 bg-[#f8faff] px-2.5 py-2 transition hover:border-[#c5d0f0] hover:bg-white"
                             >
-                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/70">
-                                    <Icon className="h-5 w-5" />
+                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/70">
+                                    <Icon className="h-3.5 w-3.5" />
                                 </span>
                                 <span className="min-w-0">
-                                    <span className="block truncate text-[15px] font-extrabold text-[#0f172a]">{item.title}</span>
-                                    <span className="block truncate text-[13px] font-medium text-slate-500">{item.desc}</span>
+                                    <span className="block truncate text-[11px] font-extrabold text-[#0f172a]">{item.title}</span>
+                                    <span className="block truncate text-[10px] font-medium text-slate-500">{item.desc}</span>
                                 </span>
                             </Link>
                         );

@@ -44,7 +44,7 @@
   }
 
   html {
-    font-size: 100%;
+    font-size: 81.25%; /* ~13px root — zoomed-out app scale */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     scroll-behavior: smooth;
@@ -129,12 +129,12 @@
   /** Compact inner pages — admin, teacher, student authenticated shells */
   .app-page,
   .admin-page {
-    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[13px] leading-normal;
+    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[12px] leading-normal;
   }
 
   .app-shell-page.app-page,
   .app-shell-page .app-page-root {
-    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[13px] leading-normal;
+    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[12px] leading-normal;
   }
 
   /** Login & standalone auth screens — compact frosted card */
