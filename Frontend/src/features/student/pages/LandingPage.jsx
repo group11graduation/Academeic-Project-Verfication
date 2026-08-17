@@ -722,8 +722,8 @@ const LandingPage = () => {
                     </section>
 
                     {/* Help + verified projects */}
-                    <section className="mx-auto max-w-[1200px] px-4 pb-6 sm:px-6 lg:px-8">
-                        <div className="mb-10 text-center">
+                    <section className="px-3 pb-6 sm:px-4 md:px-5 lg:px-6">
+                        <div className="mb-10 mx-auto max-w-[1200px] text-center">
                             <span className="mb-4 inline-flex rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-500">
                                 Dedicated support for your institution
                             </span>
@@ -745,52 +745,72 @@ const LandingPage = () => {
                             </p>
                         </div>
 
-                        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                            <div className="max-w-xl">
-                                <p className="mb-2 text-sm font-bold text-[#2a3fa4]">Verification gallery</p>
-                                <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-                                    Verified projects
-                                </h2>
-                                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
-                                    Teacher-approved student work from the academic archive — same projects you will find
-                                    in the full gallery.
-                                </p>
-                            </div>
-                            <Link
-                                to="/gallery"
-                                className="inline-flex min-h-11 items-center gap-2 self-start rounded-2xl px-5 py-2.5 text-sm font-bold text-white"
-                                style={{ backgroundColor: BRAND.primary }}
-                            >
-                                <ArrowUpRight className="h-4 w-4" />
-                                View all
-                            </Link>
-                        </div>
+                        <div
+                            className="relative overflow-hidden rounded-[28px] border border-white/70 px-4 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.07)] sm:rounded-[36px] sm:px-6 sm:py-10 md:rounded-[40px] lg:px-8"
+                            style={{
+                                background: 'linear-gradient(180deg, #e8eeff 0%, #f5f7ff 35%, #ffffff 80%)',
+                            }}
+                        >
+                            <div
+                                aria-hidden
+                                className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/45 blur-3xl"
+                            />
+                            <div
+                                aria-hidden
+                                className="pointer-events-none absolute -right-16 top-4 h-56 w-56 rounded-full bg-[#bfdbfe]/40 blur-3xl"
+                            />
 
-                        {previewLoading ? (
-                            <div className="flex justify-center py-16">
-                                <Loader2 className="h-9 w-9 animate-spin text-[#2a3fa4]" />
-                            </div>
-                        ) : previewProjects.length === 0 ? (
-                            <div className="rounded-[28px] border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
-                                <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-[#2a3fa4]" />
-                                <p className="mb-2 text-base font-extrabold text-slate-950">No verified projects yet</p>
-                                <p className="mx-auto mb-5 max-w-md text-sm font-medium text-slate-500">
-                                    When teachers approve final projects, they appear here automatically.
-                                </p>
+                            <div className="relative mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                                <div className="max-w-xl">
+                                    <p className="mb-2 text-sm font-bold text-[#2a3fa4]">Verification gallery</p>
+                                    <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                                        Verified projects
+                                    </h2>
+                                    <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
+                                        Teacher-approved student work from the academic archive — same projects you will
+                                        find in the full gallery.
+                                    </p>
+                                </div>
                                 <Link
                                     to="/gallery"
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#eef2ff] px-4 py-2 text-sm font-bold text-[#2a3fa4]"
+                                    className="inline-flex min-h-11 items-center gap-2 self-start rounded-full px-5 py-2.5 text-sm font-bold text-white"
+                                    style={{ backgroundColor: BRAND.primary }}
                                 >
-                                    Open gallery <ArrowUpRight className="h-4 w-4" />
+                                    <ArrowUpRight className="h-4 w-4" />
+                                    View all
                                 </Link>
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                {previewProjects.map((proj) => (
-                                    <VerifiedProjectCard key={proj.id} project={proj} />
-                                ))}
+
+                            <div className="relative">
+                                {previewLoading ? (
+                                    <div className="flex justify-center py-16">
+                                        <Loader2 className="h-9 w-9 animate-spin text-[#2a3fa4]" />
+                                    </div>
+                                ) : previewProjects.length === 0 ? (
+                                    <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/80 px-6 py-14 text-center">
+                                        <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-[#2a3fa4]" />
+                                        <p className="mb-2 text-base font-extrabold text-slate-950">
+                                            No verified projects yet
+                                        </p>
+                                        <p className="mx-auto mb-5 max-w-md text-sm font-medium text-slate-500">
+                                            When teachers approve final projects, they appear here automatically.
+                                        </p>
+                                        <Link
+                                            to="/gallery"
+                                            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#eef2ff] px-4 py-2 text-sm font-bold text-[#2a3fa4]"
+                                        >
+                                            Open gallery <ArrowUpRight className="h-4 w-4" />
+                                        </Link>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                        {previewProjects.map((proj) => (
+                                            <VerifiedProjectCard key={proj.id} project={proj} />
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        </div>
                     </section>
 
                     {/* Explore CTA strip */}
