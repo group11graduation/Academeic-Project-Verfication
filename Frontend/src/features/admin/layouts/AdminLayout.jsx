@@ -25,9 +25,10 @@ import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
 import NotificationBell from '../../../shared/components/NotificationBell';
 
 const ADMIN_BLUE = '#1e56e3';
-const SIDEBAR_W = 252;
-const SHELL_BG = '#2a3fa4';
+const SIDEBAR_W = 268;
+const FRAME_BG = '#f4f6fb';
 const CONTENT_BG = '#eef2f7';
+const BORDER = '#1d2f82';
 
 const AdminLayout = () => (
     <ShellSearchProvider>
@@ -159,14 +160,14 @@ const AdminLayoutInner = () => {
         ) : null;
 
     const parentActiveClass =
-        'relative z-[1] flex w-full items-center gap-3 rounded-l-[1.5rem] bg-[#eef2f7] py-3.5 pl-4 pr-3 text-[15px] font-bold text-[#1d2f82]';
+        'relative z-[1] flex w-full items-center gap-3.5 rounded-l-[1.75rem] bg-[#eef2f7] py-4 pl-5 pr-4 text-[16px] font-bold text-[#1d2f82]';
     const parentIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl py-3.5 pl-3 pr-2 text-[15px] font-semibold text-white/85 transition-colors hover:bg-white/10 hover:text-white';
+        'relative z-[1] mx-2.5 flex w-[calc(100%-1.25rem)] items-center gap-3.5 rounded-2xl py-4 pl-3.5 pr-2.5 text-[16px] font-semibold text-white/90 transition-colors hover:bg-white/10 hover:text-white';
 
     return (
         <div
             className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden antialiased [font-family:var(--sv-font-sans)]"
-            style={{ backgroundColor: SHELL_BG, fontSize: '16px' }}
+            style={{ backgroundColor: FRAME_BG, fontSize: '17px' }}
         >
             {/* Mobile top bar */}
             <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px lg:hidden dark:border-white/10 dark:bg-[#0b1220]">
@@ -194,196 +195,198 @@ const AdminLayoutInner = () => {
                 panelTitle="Admin menu"
             />
 
-            {/* Sidebar flush to left / top / bottom edges; thin inset only on content */}
-            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-                <aside
-                    className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden lg:flex"
-                    style={{
-                        width: SIDEBAR_W,
-                        minWidth: SIDEBAR_W,
-                        background: 'linear-gradient(180deg, #2a3fa4 0%, #1d2f82 55%, #172663 100%)',
-                    }}
+            {/* Zoomed frame: thin blue border, sidebar flush to frame edges */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-2">
+                <div
+                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-[1.25rem] lg:border lg:border-[#1d2f82]/55 lg:shadow-[0_12px_40px_-20px_rgba(29,47,130,0.35)]"
+                    style={{ borderColor: BORDER }}
                 >
-                    <div className="flex shrink-0 flex-col items-center px-4 pb-5 pt-8 text-center">
-                        <div className="relative mb-3">
-                            <div
-                                className="flex h-[76px] w-[76px] items-center justify-center rounded-full text-[28px] font-extrabold text-white"
-                                style={{
-                                    background: 'linear-gradient(145deg, #5b7cff 0%, #1D68E3 100%)',
-                                    boxShadow: '0 0 0 4px rgba(255,255,255,0.22), 0 0 24px rgba(93,140,255,0.45)',
-                                }}
-                            >
-                                {initial}
-                            </div>
-                        </div>
-                        <p className="max-w-full truncate text-base font-extrabold tracking-tight text-white">
-                            {user?.name || 'Admin'}
-                        </p>
-                        <p className="mt-1 max-w-full truncate text-[12px] font-medium text-white/55">
-                            {user?.email || 'admin@projectverify'}
-                        </p>
-                    </div>
-
-                    <nav
-                        className="relative flex min-h-0 flex-1 flex-col justify-start gap-1 overflow-y-auto overflow-x-hidden pb-2 pl-3 pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                        aria-label="Admin navigation"
+                    <aside
+                        className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden lg:flex"
+                        style={{
+                            width: SIDEBAR_W,
+                            minWidth: SIDEBAR_W,
+                            background: 'linear-gradient(180deg, #2a3fa4 0%, #1d2f82 55%, #172663 100%)',
+                        }}
                     >
-                        {navSections.map((section) => {
-                            const SectionIcon = section.icon;
-                            const links = section.links || [];
-                            const isSingle = links.length === 1;
-                            const isOpen = openKey === section.key;
-
-                            if (isSingle) {
-                                const item = links[0];
-                                return (
-                                    <NavLink
-                                        key={section.key}
-                                        to={item.path}
-                                        end={Boolean(item.end)}
-                                        className={({ isActive }) => (isActive ? parentActiveClass : parentIdleClass)}
-                                    >
-                                        {({ isActive }) => (
-                                            <>
-                                                {cutoutActive(isActive)}
-                                                <SectionIcon
-                                                    className={`relative z-[1] h-5 w-5 shrink-0 ${
-                                                        isActive ? 'text-[#2a3fa4]' : 'text-white/70'
-                                                    }`}
-                                                    strokeWidth={2.15}
-                                                />
-                                                <span className="relative z-[1] truncate">{section.name}</span>
-                                            </>
-                                        )}
-                                    </NavLink>
-                                );
-                            }
-
-                            return (
-                                <div key={section.key} className="min-w-0">
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            toggleGroup(section.key);
-                                        }}
-                                        className={parentIdleClass}
-                                        aria-expanded={isOpen}
-                                    >
-                                        <SectionIcon className="h-5 w-5 shrink-0 text-white/70" strokeWidth={2.15} />
-                                        <span className="min-w-0 flex-1 truncate text-left">{section.name}</span>
-                                        <ChevronDown
-                                            className={`h-4.5 w-4.5 h-4 w-4 shrink-0 text-white/50 transition-transform duration-200 ${
-                                                isOpen ? 'rotate-180' : ''
-                                            }`}
-                                        />
-                                    </button>
-
-                                    {isOpen ? (
-                                        <div className="mt-1 space-y-1 pb-1 pl-2">
-                                            {links.map((item) => {
-                                                const Icon = item.icon || SectionIcon;
-                                                return (
-                                                    <NavLink
-                                                        key={item.path}
-                                                        to={item.path}
-                                                        end={Boolean(item.end)}
-                                                        className={({ isActive }) =>
-                                                            [
-                                                                'relative z-[1] flex items-center gap-3 py-3 pl-3.5 pr-3 text-[14px] font-semibold transition-colors',
-                                                                isActive
-                                                                    ? 'rounded-l-[1.25rem] bg-[#eef2f7] text-[#1d2f82]'
-                                                                    : 'mx-1 rounded-lg text-white/70 hover:bg-white/10 hover:text-white',
-                                                            ].join(' ')
-                                                        }
-                                                    >
-                                                        {({ isActive }) => (
-                                                            <>
-                                                                {cutoutActive(isActive)}
-                                                                <Icon
-                                                                    className={`relative z-[1] h-4 w-4 shrink-0 ${
-                                                                        isActive ? 'text-[#2a3fa4]' : 'opacity-80'
-                                                                    }`}
-                                                                    strokeWidth={2}
-                                                                />
-                                                                <span className="relative z-[1] truncate">{item.name}</span>
-                                                            </>
-                                                        )}
-                                                    </NavLink>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : null}
+                        <div className="flex shrink-0 flex-col items-center px-5 pb-6 pt-9 text-center">
+                            <div className="relative mb-4">
+                                <div
+                                    className="flex h-[84px] w-[84px] items-center justify-center rounded-full text-[2rem] font-extrabold text-white"
+                                    style={{
+                                        background: 'linear-gradient(145deg, #5b7cff 0%, #1D68E3 100%)',
+                                        boxShadow: '0 0 0 5px rgba(255,255,255,0.22), 0 0 28px rgba(93,140,255,0.45)',
+                                    }}
+                                >
+                                    {initial}
                                 </div>
-                            );
-                        })}
-                    </nav>
+                            </div>
+                            <p className="max-w-full truncate text-[1.125rem] font-extrabold tracking-tight text-white">
+                                {user?.name || 'Admin'}
+                            </p>
+                            <p className="mt-1 max-w-full truncate text-[13px] font-medium text-white/55">
+                                {user?.email || 'admin@projectverify'}
+                            </p>
+                        </div>
 
-                    <div className="mt-auto shrink-0 border-t border-white/10 px-4 py-4">
-                        <button
-                            type="button"
-                            onClick={requestLogout}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-3 text-[14px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
+                        <nav
+                            className="relative flex min-h-0 flex-1 flex-col justify-start gap-1.5 overflow-y-auto overflow-x-hidden pb-3 pl-3 pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                            aria-label="Admin navigation"
                         >
-                            <Power className="h-4 w-4" strokeWidth={2.2} />
-                            Logout
-                        </button>
-                    </div>
-                </aside>
+                            {navSections.map((section) => {
+                                const SectionIcon = section.icon;
+                                const links = section.links || [];
+                                const isSingle = links.length === 1;
+                                const isOpen = openKey === section.key;
 
-                {/* Thin brand edge on top/right/bottom only — left flush to sidebar */}
-                <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:p-1.5 lg:pl-0">
+                                if (isSingle) {
+                                    const item = links[0];
+                                    return (
+                                        <NavLink
+                                            key={section.key}
+                                            to={item.path}
+                                            end={Boolean(item.end)}
+                                            className={({ isActive }) => (isActive ? parentActiveClass : parentIdleClass)}
+                                        >
+                                            {({ isActive }) => (
+                                                <>
+                                                    {cutoutActive(isActive)}
+                                                    <SectionIcon
+                                                        className={`relative z-[1] h-[22px] w-[22px] shrink-0 ${
+                                                            isActive ? 'text-[#2a3fa4]' : 'text-white/75'
+                                                        }`}
+                                                        strokeWidth={2.15}
+                                                    />
+                                                    <span className="relative z-[1] truncate">{section.name}</span>
+                                                </>
+                                            )}
+                                        </NavLink>
+                                    );
+                                }
+
+                                return (
+                                    <div key={section.key} className="min-w-0">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                toggleGroup(section.key);
+                                            }}
+                                            className={parentIdleClass}
+                                            aria-expanded={isOpen}
+                                        >
+                                            <SectionIcon className="h-[22px] w-[22px] shrink-0 text-white/75" strokeWidth={2.15} />
+                                            <span className="min-w-0 flex-1 truncate text-left">{section.name}</span>
+                                            <ChevronDown
+                                                className={`h-5 w-5 shrink-0 text-white/50 transition-transform duration-200 ${
+                                                    isOpen ? 'rotate-180' : ''
+                                                }`}
+                                            />
+                                        </button>
+
+                                        {isOpen ? (
+                                            <div className="mt-1 space-y-1 pb-1.5 pl-2">
+                                                {links.map((item) => {
+                                                    const Icon = item.icon || SectionIcon;
+                                                    return (
+                                                        <NavLink
+                                                            key={item.path}
+                                                            to={item.path}
+                                                            end={Boolean(item.end)}
+                                                            className={({ isActive }) =>
+                                                                [
+                                                                    'relative z-[1] flex items-center gap-3 py-3.5 pl-4 pr-3 text-[15px] font-semibold transition-colors',
+                                                                    isActive
+                                                                        ? 'rounded-l-[1.35rem] bg-[#eef2f7] text-[#1d2f82]'
+                                                                        : 'mx-1 rounded-xl text-white/75 hover:bg-white/10 hover:text-white',
+                                                                ].join(' ')
+                                                            }
+                                                        >
+                                                            {({ isActive }) => (
+                                                                <>
+                                                                    {cutoutActive(isActive)}
+                                                                    <Icon
+                                                                        className={`relative z-[1] h-[18px] w-[18px] shrink-0 ${
+                                                                            isActive ? 'text-[#2a3fa4]' : 'opacity-80'
+                                                                        }`}
+                                                                        strokeWidth={2}
+                                                                    />
+                                                                    <span className="relative z-[1] truncate">{item.name}</span>
+                                                                </>
+                                                            )}
+                                                        </NavLink>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
+                        </nav>
+
+                        <div className="mt-auto shrink-0 border-t border-white/10 px-5 py-5">
+                            <button
+                                type="button"
+                                onClick={requestLogout}
+                                className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-white/10 px-3 py-3.5 text-[15px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
+                            >
+                                <Power className="h-5 w-5" strokeWidth={2.2} />
+                                Logout
+                            </button>
+                        </div>
+                    </aside>
+
                     <div
-                        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:rounded-r-2xl lg:rounded-l-none"
+                        className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
                         style={{ backgroundColor: CONTENT_BG }}
                     >
-                    <header className="hidden shrink-0 items-center justify-between gap-5 px-7 pb-3 pt-7 lg:flex">
-                        <div className="min-w-0">
-                            <h1 className="truncate text-[2rem] font-extrabold leading-tight tracking-tight text-[#1d2f82]">
-                                Welcome {firstName} !
-                            </h1>
-                            <p className="mt-1 text-[15px] font-semibold text-[#51628f]">Over View</p>
-                        </div>
+                        <header className="hidden shrink-0 items-center justify-between gap-6 px-8 pb-4 pt-8 lg:flex">
+                            <div className="min-w-0">
+                                <h1 className="truncate text-[2.35rem] font-extrabold leading-none tracking-tight text-[#1d2f82]">
+                                    Welcome {firstName} !
+                                </h1>
+                                <p className="mt-2 text-[16px] font-semibold text-[#51628f]">Over View</p>
+                            </div>
 
-                        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-                            <label className="relative hidden min-w-0 max-w-lg flex-1 xl:block">
-                                <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" />
+                            <div className="flex min-w-0 flex-1 items-center justify-end gap-3.5">
+                                <label className="relative hidden min-w-0 max-w-xl flex-1 xl:block">
+                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="search"
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        placeholder={placeholder || 'Search…'}
+                                        className="h-13 h-[3.25rem] w-full rounded-full border-0 bg-white pl-12 pr-5 text-[16px] font-medium text-slate-800 shadow-[0_10px_28px_-14px_rgba(15,23,42,0.2)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
+                                    />
+                                </label>
+
+                                <ThemeToggle
+                                    compact
+                                    className="h-[3.25rem] rounded-2xl border-0 bg-white px-4 shadow-[0_10px_28px_-14px_rgba(15,23,42,0.2)] ring-1 ring-slate-200/80"
+                                />
+                                <NotificationBell variant="admin" />
+                            </div>
+                        </header>
+
+                        <div className="hidden px-8 pb-3 lg:block xl:hidden">
+                            <label className="relative block">
+                                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="search"
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     placeholder={placeholder || 'Search…'}
-                                    className="h-12 w-full rounded-full border-0 bg-white pl-11 pr-4 text-[15px] font-medium text-slate-800 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
+                                    className="h-[3.25rem] w-full rounded-full border-0 bg-white pl-12 pr-5 text-[16px] font-medium text-slate-800 shadow-[0_10px_28px_-14px_rgba(15,23,42,0.2)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
                                 />
                             </label>
-
-                            <ThemeToggle
-                                compact
-                                className="h-12 rounded-full border-0 bg-white px-3.5 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80"
-                            />
-                            <NotificationBell variant="admin" />
                         </div>
-                    </header>
 
-                    <div className="hidden px-6 pb-2 lg:block xl:hidden">
-                        <label className="relative block">
-                            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                            <input
-                                type="search"
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                                placeholder={placeholder || 'Search…'}
-                                className="h-11 w-full rounded-full border-0 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
-                            />
-                        </label>
-                    </div>
-
-                    <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-7 pt-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-5 lg:px-7">
-                        <div className="app-shell-page w-full max-w-none text-[15px] leading-normal">
-                            <Outlet />
-                        </div>
-                    </main>
+                        <main className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-8">
+                            <div className="w-full max-w-none text-[16px] leading-relaxed [font-family:var(--sv-font-sans)]">
+                                <Outlet />
+                            </div>
+                        </main>
                     </div>
                 </div>
             </div>
