@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, ImageIcon, Loader2, Search, ShieldCheck, TrendingUp } from 'lucide-react';
+import { Loader2, Search, ShieldCheck, TrendingUp } from 'lucide-react';
 import StudentPublicShell from '../layouts/StudentPublicShell';
 import PublicSiteFooter from '../../../shared/components/PublicSiteFooter';
 import galleryService from '../../../services/galleryService';
 import ProjectScreenshotLightbox from '../components/ProjectScreenshotLightbox';
-import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
+import VerifiedProjectCard from '../components/VerifiedProjectCard';
+import { BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import { useAuth } from '../../../context/authContext';
@@ -19,30 +19,6 @@ const GALLERY_CATEGORIES = [
     'HTML & CSS',
     'HTML & CSS WITH JAVASCRIPT',
 ];
-
-const ProjectCover = ({ project, className = '' }) => {
-    const src = galleryService.resolveMediaUrl(project.screenshotUrl);
-    if (src) {
-        return (
-            <img
-                src={src}
-                alt={`${project.title} screenshot`}
-                className={`h-full w-full object-cover object-top ${className}`}
-                loading="lazy"
-            />
-        );
-    }
-    return (
-        <div
-            className={`flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center ${className}`}
-            style={{ background: BRAND_GRADIENT }}
-        >
-            <ImageIcon className="h-10 w-10 text-white/50" />
-            <p className="line-clamp-2 text-sm font-bold text-white/90">{project.title}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">Screenshot pending</p>
-        </div>
-    );
-};
 
 const StudentGallery = () => {
     const { token } = useAuth();
@@ -140,23 +116,32 @@ const StudentGallery = () => {
                     }}
                 />
                 <main className="relative mx-auto max-w-[1200px] px-4 pb-12 pt-6 sm:px-6 sm:pt-8 lg:px-8">
-                    {/* Hero */}
-                    <div className="relative mb-8 overflow-hidden rounded-[28px] border border-white/80 bg-white/80 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-12">
-                        <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/50 blur-3xl" />
-                        <div aria-hidden className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#bfdbfe]/45 blur-3xl" />
+                    <div
+                        className="relative mb-8 overflow-hidden rounded-[28px] border border-white/70 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:rounded-[40px] sm:px-10 sm:py-12"
+                        style={{
+                            background: 'linear-gradient(180deg, #e8eeff 0%, #f4f7ff 35%, #ffffff 78%)',
+                        }}
+                    >
+                        <div
+                            aria-hidden
+                            className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/50 blur-3xl"
+                        />
+                        <div
+                            aria-hidden
+                            className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#bfdbfe]/45 blur-3xl"
+                        />
                         <div className="relative mx-auto max-w-3xl text-center">
                             <p className="mb-4 text-sm font-bold tracking-tight text-[#2a3fa4]">Verified projects</p>
                             <h1 className="mb-4 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
                                 Approved student submissions
                             </h1>
                             <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
-                                Top teacher-approved capstone projects from the academic database. Anyone can love a
-                                project — counts show real reactions from visitors and signed-in users.
+                                Top teacher-approved capstone projects from the academic database. Browse titles,
+                                descriptions, and scores — anyone can love a project.
                             </p>
                         </div>
                     </div>
 
-                    {/* Filters */}
                     <div className="mb-8 rounded-[28px] border border-slate-200 bg-white p-4 sm:rounded-[32px] sm:p-6">
                         <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             {GALLERY_CATEGORIES.map((cat) => (
@@ -225,89 +210,15 @@ const StudentGallery = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                            {sortedProjects.map((proj) => {
-                                const totalLikes = Number(proj.likeCount) || 0;
-                                const isLiked = Boolean(proj.likedByMe);
-                                const screenshotUrls =
-                                    proj.screenshotUrls?.length > 0
-                                        ? proj.screenshotUrls
-                                        : proj.screenshotUrl
-                                          ? [proj.screenshotUrl]
-                                          : [];
-                                return (
-                                    <article
-                                        key={proj.id}
-                                        className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg"
-                                    >
-                                        <div className="relative h-[220px] overflow-hidden bg-[#f8faff] sm:h-[240px]">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    screenshotUrls.length
-                                                        ? setLightbox({ title: proj.title, urls: screenshotUrls })
-                                                        : undefined
-                                                }
-                                                className={`block h-full w-full text-left ${
-                                                    screenshotUrls.length ? 'cursor-zoom-in' : 'cursor-default'
-                                                }`}
-                                                title={screenshotUrls.length ? 'View screenshots' : undefined}
-                                            >
-                                                <ProjectCover
-                                                    project={proj}
-                                                    className="transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-                                                />
-                                            </button>
-                                            <div className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-widest text-slate-800 shadow-sm backdrop-blur-md">
-                                                {proj.category}
-                                            </div>
-                                            {proj.teacherScore != null && (
-                                                <div
-                                                    className="absolute bottom-4 left-4 rounded-full px-3 py-1 text-[10px] font-extrabold text-white shadow-sm"
-                                                    style={{ backgroundColor: BRAND.primary }}
-                                                >
-                                                    Score {proj.teacherScore}%
-                                                </div>
-                                            )}
-                                            <button
-                                                type="button"
-                                                disabled={reactBusyId === proj.id}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    toggleLike(proj);
-                                                }}
-                                                className={`absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm backdrop-blur-md transition disabled:opacity-60 ${
-                                                    isLiked
-                                                        ? 'bg-rose-500 text-white'
-                                                        : 'bg-white/95 text-slate-500'
-                                                }`}
-                                                title={isLiked ? 'Remove love' : 'Love this project'}
-                                            >
-                                                {reactBusyId === proj.id ? (
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                    <Heart className={`h-3.5 w-3.5 ${isLiked ? 'fill-white' : ''}`} />
-                                                )}
-                                                {totalLikes}
-                                            </button>
-                                        </div>
-                                        <div className="flex flex-grow flex-col p-6 sm:p-7">
-                                            <h3 className="mb-2 text-xl font-extrabold text-slate-950 sm:text-2xl">
-                                                {proj.title}
-                                            </h3>
-                                            <p className="mb-6 text-sm font-semibold text-slate-500">
-                                                By <span className="text-slate-900">{proj.author}</span>
-                                                {proj.subject ? <span> — {proj.subject}</span> : null}
-                                            </p>
-                                            <Link
-                                                to={`/gallery/${proj.id}`}
-                                                className="mt-auto inline-flex w-fit items-center gap-2 text-sm font-bold text-[#2a3fa4] transition-all group-hover:gap-3"
-                                            >
-                                                View project <ArrowRight className="h-4 w-4" />
-                                            </Link>
-                                        </div>
-                                    </article>
-                                );
-                            })}
+                            {sortedProjects.map((proj) => (
+                                <VerifiedProjectCard
+                                    key={proj.id}
+                                    project={proj}
+                                    onOpenScreenshots={setLightbox}
+                                    onToggleLike={toggleLike}
+                                    likeBusy={reactBusyId === proj.id}
+                                />
+                            ))}
                         </div>
                     )}
 
