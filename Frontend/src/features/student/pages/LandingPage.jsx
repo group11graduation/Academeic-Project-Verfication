@@ -162,7 +162,7 @@ const LandingPage = () => {
                 <main className="relative">
                     {/* Signed-in banner */}
                     {user && (
-                        <div className="mx-auto max-w-[1200px] px-4 pt-6 sm:px-6 lg:px-8">
+                        <div className="px-3 pt-4 sm:px-4 md:px-5 lg:px-6">
                             <div className="flex flex-col gap-4 rounded-3xl border border-[#dbe3f5] bg-white/90 px-5 py-4 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#2a3fa4]">
@@ -192,9 +192,15 @@ const LandingPage = () => {
                         </div>
                     )}
 
-                    {/* Hero */}
-                    <section className="mx-auto max-w-[1200px] px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pb-16">
-                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-white/80 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
+                    {/* Hero — floating box near edges, not touching viewport */}
+                    <section className="px-3 pb-8 pt-4 sm:px-4 sm:pb-10 sm:pt-5 md:px-5 lg:px-6 lg:pb-14">
+                        <div
+                            className="relative overflow-hidden rounded-[28px] border border-white/70 px-5 py-10 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:rounded-[36px] sm:px-10 sm:py-14 md:rounded-[40px] lg:px-16 lg:py-16"
+                            style={{
+                                background:
+                                    'linear-gradient(180deg, #e8eeff 0%, #f4f7ff 28%, #ffffff 72%)',
+                            }}
+                        >
                             {/* Soft gradient blobs inside hero */}
                             <div
                                 aria-hidden
@@ -239,14 +245,14 @@ const LandingPage = () => {
                             </div>
 
                             {/* Dashboard preview mock */}
-                            <div className="relative z-[1] mx-auto max-w-4xl">
+                            <div className="relative z-[1] mx-auto max-w-5xl">
                                 <div className="pointer-events-none absolute -left-2 top-8 hidden h-12 w-12 items-center justify-center rounded-2xl bg-[#eef2ff] text-[#2a3fa4] shadow-sm sm:flex lg:-left-6">
                                     <ShieldCheck className="h-5 w-5" />
                                 </div>
                                 <div className="pointer-events-none absolute -right-2 top-16 hidden h-12 w-12 items-center justify-center rounded-2xl bg-[#eef2ff] text-[#2a3fa4] shadow-sm sm:flex lg:-right-6">
                                     <Container className="h-5 w-5" />
                                 </div>
-                                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#f8faff] shadow-xl sm:rounded-3xl">
+                                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#f8faff]/90 shadow-xl sm:rounded-3xl">
                                     <div className="flex min-h-[220px] sm:min-h-[280px]">
                                         <aside className="hidden w-40 shrink-0 border-r border-slate-200 bg-white p-4 sm:block md:w-48">
                                             <p className="mb-4 text-xs font-extrabold text-slate-900">{PROJECT_NAME}</p>
