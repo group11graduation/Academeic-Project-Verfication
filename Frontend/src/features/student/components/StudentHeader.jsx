@@ -212,15 +212,19 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     }
                                     navigate('/login');
                                 }}
-                                className="inline-flex px-4 py-2 rounded-lg text-sm font-bold text-white"
+                                className="inline-flex min-h-10 items-center rounded-2xl px-3.5 py-2 text-xs font-bold text-white sm:px-4 sm:text-sm"
                                 style={{ backgroundColor: BRAND.primary }}
                             >
-                                {user && showPublicShell ? 'Go to workspace' : 'Access platform'}
+                                <span className="sm:hidden">{user && showPublicShell ? 'Workspace' : 'Sign in'}</span>
+                                <span className="hidden sm:inline">
+                                    {user && showPublicShell ? 'Go to workspace' : 'Access platform'}
+                                </span>
                             </button>
                             <button
                                 type="button"
-                                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sv-border)] dark:border-white/10 dark:text-slate-100"
+                                className="lg:hidden flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--sv-border)] dark:border-white/10 dark:text-slate-100"
                                 onClick={() => setMobileOpen((v) => !v)}
+                                aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                             </button>

@@ -26,9 +26,9 @@
     --sv-muted: #51628f;
     --sv-input-text: #0f172a;
     --sv-input-placeholder: #6b7280;
-    /* UI + forms — readable geometric sans; headings use Literata */
+    /* Single product font family across public + app UI */
     --sv-font-sans: "Plus Jakarta Sans", "Segoe UI", sans-serif;
-    --sv-font-display: "Literata", "Georgia", serif;
+    --sv-font-display: "Plus Jakarta Sans", "Segoe UI", sans-serif;
   }
 
   .dark {

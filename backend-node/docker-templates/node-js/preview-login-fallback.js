@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V21:
+ * Marker V22:
+ * - Sky Property sidebar: sweep ALL storage keys + JWT payloads + API user JSON to
+ *   SUPER_ADMIN (ADMIN left nav empty). Retry reload until role sticks.
+ * V21:
  * - Sky Property: detect brand text / SUPER_ADMIN+MANAGER enums; force role SUPER_ADMIN
  *   so sidebar nav links render (ADMIN role left the sidebar empty).
  * V20:
@@ -24,10 +27,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V21__) {
-    console.log('[DEBUG-SHIM] already installed V21 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V22__) {
+    console.log('[DEBUG-SHIM] already installed V22 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V22__ = true;
   window.__SV_LOGIN_FALLBACK_V21__ = true;
   window.__SV_LOGIN_FALLBACK_V20__ = true;
   window.__SV_LOGIN_FALLBACK_V19__ = true;
@@ -44,7 +48,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v21', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v22', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -341,6 +345,19 @@
       .json()
       .then(function (body) {
         var normalized = normalizeApiListBody(body, url);
+        // Sky Property: any auth/profile payload must carry SUPER_ADMIN for sidebar links.
+        try {
+          if (isSkyPropertyApp() && normalized && typeof normalized === 'object') {
+            if (
+              normalized.user ||
+              normalized.role ||
+              normalized.token ||
+              /\/(auth|login|users\/me|profile|current)/i.test(String(url || ''))
+            ) {
+              normalized = forceSkyRoleInObject(normalized);
+            }
+          }
+        } catch (_sky) {}
         try {
           if (JSON.stringify(normalized) === JSON.stringify(body)) return res;
         } catch (_eq) {}
@@ -686,17 +703,41 @@
 
   function isSkyPropertyApp() {
     try {
-      if (/SKY\s*PROPERTY/i.test(String(document.title || ''))) return true;
+      if (window.__SV_SKY_PROPERTY__) return true;
+    } catch (_eF) {}
+    try {
+      if (/SKY\s*PROPERTY/i.test(String(document.title || ''))) {
+        window.__SV_SKY_PROPERTY__ = true;
+        return true;
+      }
     } catch (_e0) {}
     try {
-      var bodyText = String((document.body && document.body.innerText) || '').slice(0, 4000);
-      if (/SKY\s*PROPERTY/i.test(bodyText)) return true;
+      var bodyText = String((document.body && document.body.innerText) || '').slice(0, 8000);
+      if (/SKY\s*PROPERTY/i.test(bodyText)) {
+        window.__SV_SKY_PROPERTY__ = true;
+        return true;
+      }
     } catch (_e1) {}
+    try {
+      var htmlDom = String((document.documentElement && document.documentElement.innerHTML) || '').slice(0, 200000);
+      if (/SKY\s*PROPERTY|sky[\s_-]*property|SkyProperty/i.test(htmlDom)) {
+        window.__SV_SKY_PROPERTY__ = true;
+        return true;
+      }
+    } catch (_eDom) {}
     var html = pageHintHtml();
-    if (/SKY\s*PROPERTY|sky[\s_-]*property|SkyProperty/i.test(html)) return true;
-    if (/manDash/.test(html)) return true;
-    if (appHints.routes.indexOf('/manDash') >= 0) return true;
-    // Role enums unique to this product family.
+    if (/SKY\s*PROPERTY|sky[\s_-]*property|SkyProperty/i.test(html)) {
+      window.__SV_SKY_PROPERTY__ = true;
+      return true;
+    }
+    if (/manDash/.test(html)) {
+      window.__SV_SKY_PROPERTY__ = true;
+      return true;
+    }
+    if (appHints.routes.indexOf('/manDash') >= 0) {
+      window.__SV_SKY_PROPERTY__ = true;
+      return true;
+    }
     var roles = allHintRoles();
     var hasSuperUpper = roles.some(function (r) {
       return r === 'SUPER_ADMIN';
@@ -704,11 +745,98 @@
     var hasManagerUpper = roles.some(function (r) {
       return r === 'MANAGER' || r === 'SUB_MANAGER';
     });
-    if (hasSuperUpper && hasManagerUpper) return true;
+    if (hasSuperUpper && hasManagerUpper) {
+      window.__SV_SKY_PROPERTY__ = true;
+      return true;
+    }
     try {
-      if (/manDash/i.test(String(location.pathname || ''))) return true;
+      if (/manDash/i.test(String(location.pathname || ''))) {
+        window.__SV_SKY_PROPERTY__ = true;
+        return true;
+      }
     } catch (_e) {}
     return false;
+  }
+
+  function patchJwtRoleClaim(token, role) {
+    try {
+      var parts = String(token || '').split('.');
+      if (parts.length !== 3) return token;
+      var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      var payload = JSON.parse(atob(b64));
+      if (!payload || typeof payload !== 'object') return token;
+      if (payload.role === role && payload.Role === role) return token;
+      payload.role = role;
+      payload.Role = role;
+      if (payload.user && typeof payload.user === 'object') {
+        payload.user.role = role;
+        payload.user.Role = role;
+      }
+      var enc = btoa(JSON.stringify(payload))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
+      // Keep original signature — many student UIs only decode the payload for role checks.
+      return parts[0] + '.' + enc + '.' + parts[2];
+    } catch (_e) {
+      return token;
+    }
+  }
+
+  function deepForceRole(value, role, depth) {
+    if (depth > 8 || value == null) return { value: value, changed: false };
+    if (typeof value === 'string' && value.split('.').length === 3 && value.length > 40) {
+      var patched = patchJwtRoleClaim(value, role);
+      return { value: patched, changed: patched !== value };
+    }
+    if (Array.isArray(value)) {
+      var arrChanged = false;
+      var arr = [];
+      for (var i = 0; i < value.length; i++) {
+        var item = deepForceRole(value[i], role, depth + 1);
+        arr.push(item.value);
+        if (item.changed) arrChanged = true;
+      }
+      return { value: arr, changed: arrChanged };
+    }
+    if (typeof value !== 'object') return { value: value, changed: false };
+    var out = {};
+    var changed = false;
+    for (var k in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, k)) continue;
+      if (k === 'role' || k === 'Role' || k === 'userRole' || k === 'user_role') {
+        if (value[k] !== role) {
+          out[k] = role;
+          changed = true;
+        } else {
+          out[k] = value[k];
+        }
+        continue;
+      }
+      if (k === 'token' || k === 'accessToken' || k === 'access_token' || k === 'jwt') {
+        var tok = deepForceRole(value[k], role, depth + 1);
+        out[k] = tok.value;
+        if (tok.changed) changed = true;
+        continue;
+      }
+      var nested = deepForceRole(value[k], role, depth + 1);
+      out[k] = nested.value;
+      if (nested.changed) changed = true;
+    }
+    return { value: out, changed: changed };
+  }
+
+  function forceSkyRoleInObject(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    var role = 'SUPER_ADMIN';
+    var res = deepForceRole(obj, role, 0);
+    var out = res.value;
+    if (out && typeof out === 'object' && !Array.isArray(out)) {
+      out = ensureUserDisplayFields(out);
+      if (out.user && typeof out.user === 'object') out.user = ensureUserDisplayFields(out.user);
+    }
+    return out;
   }
 
   /**
@@ -813,6 +941,7 @@
     if (!user || typeof user !== 'object') return user;
     ensureHintsBeforeLogin();
     var next = mainAdminRoleForApp();
+    if (isSkyPropertyApp()) next = 'SUPER_ADMIN';
     var out = {};
     try {
       for (var k in user) {
@@ -822,6 +951,7 @@
       out = user;
     }
     out.role = next;
+    if (out.Role != null) out.Role = next;
     console.log('[DEBUG-SHIM] preview main admin role →', next);
     return ensureUserDisplayFields(out);
   }
@@ -873,84 +1003,173 @@
       'auth',
       'profile',
       'loggedInUser',
+      'token',
+      'accessToken',
+      'access_token',
+      'jwt',
+      'skyUser',
+      'sky_user',
+      'persist:root',
+      'persist:auth',
+      'reduxPersist:auth',
     ];
   }
 
+  function storageStores() {
+    var out = [];
+    try {
+      out.push(window.localStorage);
+    } catch (_e) {}
+    try {
+      out.push(window.sessionStorage);
+    } catch (_e2) {}
+    return out;
+  }
+
   function fixStoredPreviewUserRole() {
-    var keys = authStorageKeys();
+    var sky = isSkyPropertyApp();
+    var targetRole = sky ? 'SUPER_ADMIN' : mainAdminRoleForApp();
     var changed = false;
     var becameSkyAdmin = false;
-    for (var i = 0; i < keys.length; i++) {
+    var stores = storageStores();
+
+    function patchRaw(raw) {
+      if (raw == null) return { raw: raw, changed: false, prevRole: '' };
+      // Bare JWT string
+      if (typeof raw === 'string' && raw.split('.').length === 3 && raw.length > 40 && raw.charAt(0) !== '{' && raw.charAt(0) !== '[') {
+        var jt = patchJwtRoleClaim(raw, targetRole);
+        return { raw: jt, changed: jt !== raw, prevRole: '' };
+      }
       try {
-        var storageKey = keys[i];
-        var raw = localStorage.getItem(storageKey);
-        if (!raw) continue;
         var parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object') continue;
-        var next = JSON.parse(raw);
-        var prevRole = '';
-
-        function patchPerson(obj) {
-          if (!obj || typeof obj !== 'object') return obj;
-          prevRole = String(obj.role || obj.Role || '');
-          // Every future upload: stored preview session uses this app's main admin role.
-          obj.role = mainAdminRoleForApp();
-          if (obj.Role != null) obj.Role = obj.role;
-          return ensureUserDisplayFields(obj);
+        if (!parsed || typeof parsed !== 'object') return { raw: raw, changed: false, prevRole: '' };
+        var prevRole = String(
+          parsed.role ||
+            parsed.Role ||
+            (parsed.user && (parsed.user.role || parsed.user.Role)) ||
+            ''
+        );
+        var forced = sky ? forceSkyRoleInObject(parsed) : parsed;
+        if (!sky) {
+          if (forced.user && typeof forced.user === 'object') {
+            forced.user.role = targetRole;
+            forced.user = ensureUserDisplayFields(forced.user);
+            forced.role = targetRole;
+          } else if (forced.email || forced.role || forced.name || forced.token || forced._id) {
+            forced.role = targetRole;
+            forced = ensureUserDisplayFields(forced);
+          }
         }
+        var serialized = JSON.stringify(forced);
+        return {
+          raw: serialized,
+          changed: serialized !== raw,
+          prevRole: prevRole,
+          nextRole: String(forced.role || (forced.user && forced.user.role) || ''),
+        };
+      } catch (_e) {
+        return { raw: raw, changed: false, prevRole: '' };
+      }
+    }
 
-        if (next.user && typeof next.user === 'object') {
-          next.user = patchPerson(next.user);
-          next.name = next.name || next.user.name;
-          next.fullName = next.fullName || next.user.fullName;
-          next.firstName = next.firstName || next.user.firstName;
-          next.email = next.email || next.user.email;
-          next.role = next.user.role;
-        } else if (next.email || next.role || next.name || next.token || next._id) {
-          next = patchPerson(next);
-        } else {
-          continue;
+    for (var s = 0; s < stores.length; s++) {
+      var store = stores[s];
+      if (!store) continue;
+      var keys = [];
+      try {
+        for (var ki = 0; ki < store.length; ki++) keys.push(store.key(ki));
+      } catch (_k) {
+        keys = authStorageKeys();
+      }
+      // Always include known auth keys even if length enumeration fails.
+      authStorageKeys().forEach(function (k) {
+        if (keys.indexOf(k) < 0) keys.push(k);
+      });
+      for (var i = 0; i < keys.length; i++) {
+        var storageKey = keys[i];
+        if (!storageKey) continue;
+        // Skip huge non-auth blobs
+        if (/^firebase|^google|^amplitude|^hj/i.test(storageKey)) continue;
+        try {
+          var raw = store.getItem(storageKey);
+          if (raw == null || raw === '') continue;
+          if (raw.length > 500000) continue;
+          // Only touch entries that look auth-related unless Sky (then sweep role fields).
+          if (
+            !sky &&
+            authStorageKeys().indexOf(storageKey) < 0 &&
+            !/"role"\s*:/.test(raw) &&
+            raw.split('.').length !== 3
+          ) {
+            continue;
+          }
+          if (sky && !/"role"\s*:/i.test(raw) && raw.split('.').length !== 3 && authStorageKeys().indexOf(storageKey) < 0) {
+            continue;
+          }
+          var patched = patchRaw(raw);
+          if (!patched.changed) continue;
+          store.setItem(storageKey, patched.raw);
+          changed = true;
+          console.log('[DEBUG-SHIM] reconciled', storageKey, 'role→', targetRole);
+          if (sky && patched.nextRole === 'SUPER_ADMIN' && !/^SUPER_ADMIN$/i.test(patched.prevRole)) {
+            becameSkyAdmin = true;
+          }
+        } catch (_e2) {}
+      }
+    }
+
+    if (sky) {
+      try {
+        var stillWrong = false;
+        for (var s2 = 0; s2 < stores.length; s2++) {
+          var st = stores[s2];
+          if (!st) continue;
+          for (var j = 0; j < authStorageKeys().length; j++) {
+            var kk = authStorageKeys()[j];
+            var rv = st.getItem(kk);
+            if (!rv) continue;
+            if (/"role"\s*:\s*"(ADMIN|admin|Admin|super_admin)"/.test(rv)) stillWrong = true;
+          }
         }
-
-        if (
-          isSkyPropertyApp() &&
-          String(next.role || '') === 'SUPER_ADMIN' &&
-          !/^SUPER_ADMIN$/i.test(prevRole)
-        ) {
+        if (stillWrong) {
+          try {
+            sessionStorage.removeItem('__sv_sky_role_reload__');
+          } catch (_c) {}
           becameSkyAdmin = true;
         }
-
-        var serialized = JSON.stringify(next);
-        if (serialized === raw) continue;
-        localStorage.setItem(storageKey, serialized);
-        changed = true;
-        console.log('[DEBUG-SHIM] reconciled', storageKey, 'role=', next.role || (next.user && next.user.role));
-      } catch (_e2) {}
+      } catch (_e3) {}
     }
-    if (!changed) return false;
+
+    if (!changed && !becameSkyAdmin) return false;
     try {
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new Event('userChanged'));
-    } catch (_e3) {}
-    // Sky Property sidebar is role-gated on SUPER_ADMIN — reload once so nav re-renders.
-    if (becameSkyAdmin) {
+    } catch (_e4) {}
+    if (sky && (becameSkyAdmin || changed)) {
       try {
-        if (!sessionStorage.getItem('__sv_sky_role_reload__')) {
-          sessionStorage.setItem('__sv_sky_role_reload__', '1');
-          console.log('[DEBUG-SHIM] Sky Property role upgraded → SUPER_ADMIN; reloading for sidebar');
+        var n = Number(sessionStorage.getItem('__sv_sky_role_reload_n__') || '0');
+        if (n < 2) {
+          sessionStorage.setItem('__sv_sky_role_reload_n__', String(n + 1));
+          console.log('[DEBUG-SHIM] Sky Property forcing SUPER_ADMIN — reload', n + 1);
           setTimeout(function () {
             window.location.reload();
-          }, 80);
+          }, 100);
         }
-      } catch (_e4) {}
+      } catch (_e5) {}
     }
     return true;
   }
 
   function pickPostLoginPath(user) {
     var role = roleKeyOf((user && (user.role || user.Role)) || mainAdminRoleForApp());
-    if (isSkyPropertyApp() || role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
-      if (hasRoute('/manDash') || isSkyPropertyApp()) return '/manDash';
+    if (isSkyPropertyApp()) {
+      // Newer Sky builds use /dashboard for SUPER_ADMIN; /manDash is often manager-only.
+      if (hasRoute('/dashboard') || /\/dashboard/i.test(String(location.pathname || ''))) return '/dashboard';
+      if (hasRoute('/manDash')) return '/manDash';
+      return '/dashboard';
+    }
+    if (role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
+      if (hasRoute('/manDash')) return '/manDash';
     }
     if (isLoanStyleApp()) return '/admin/loans';
     if (isStaffSetApp()) return '/admin/dashboard';
@@ -1093,10 +1312,13 @@
   try {
     setTimeout(function () {
       fixStoredPreviewUserRole();
-    }, 800);
+    }, 400);
     setTimeout(function () {
       fixStoredPreviewUserRole();
-    }, 2500);
+    }, 1200);
+    setTimeout(function () {
+      fixStoredPreviewUserRole();
+    }, 3000);
   } catch (_eLate) {}
 
   /**
@@ -1132,6 +1354,10 @@
       };
     }
     if (user) user = normalizePreviewUserRole(user);
+    if (isSkyPropertyApp()) {
+      if (user) user = forceSkyRoleInObject(user);
+      if (token) token = patchJwtRoleClaim(token, 'SUPER_ADMIN');
+    }
     if (!token && !user) return obj;
     var out = {};
     try {
