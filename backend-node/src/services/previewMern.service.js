@@ -562,6 +562,12 @@ export async function patchBackendForPreview(
     previewEnv.push('PREVIEW_DB_ENGINE=mongo');
     previewEnv.push(`MONGO_URI=${mongoUri}`);
     previewEnv.push(`MONGODB_URI=${mongoUri}`);
+    previewEnv.push(`MONGO_URL=${mongoUri}`);
+    previewEnv.push(`DB_URI=${mongoUri}`);
+    previewEnv.push(`DATABASE_URI=${mongoUri}`);
+    previewEnv.push(`CONNECTION_URL=${mongoUri}`);
+    previewEnv.push(`CONNECTION_STRING=${mongoUri}`);
+    previewEnv.push(`DATABASE_URL=${mongoUri}`);
   }
   if (loginApiPath) {
     previewEnv.push(`PREVIEW_LOGIN_API_PATH=${loginApiPath}`);
@@ -582,6 +588,22 @@ export async function patchBackendForPreview(
   await fs.writeFile(path.join(backendRoot, '.env'), `${previewEnv.join('\n')}`, 'utf8');
   files += 1;
 
+  // Root package.json often runs `node backend/server.js` while dotenv loads backend/.env
+  for (const nested of ['backend', 'server', 'api', 'Backend', 'Server']) {
+    const nestedDir = path.join(backendRoot, nested);
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await pathExists(nestedDir))) continue;
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await pathExists(path.join(nestedDir, 'server.js'))) &&
+        !(await pathExists(path.join(nestedDir, 'index.js'))) &&
+        !(await pathExists(path.join(nestedDir, 'package.json')))) {
+      continue;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await fs.writeFile(path.join(nestedDir, '.env'), `${previewEnv.join('\n')}`, 'utf8');
+    files += 1;
+  }
+
   if (!useMysql && mongoUri) {
     files += await patchMongoInBackendSources(backendRoot, mongoUri);
   }
@@ -593,6 +615,7 @@ export async function patchBackendForPreview(
     });
   }
 
+  files += await patchHardcodedListenPorts(backendRoot);
   files += await patchDbNoExitOnPreviewFail(backendRoot, useMysql ? 'mysql' : 'mongo');
   files += await walkRelaxCors(backendRoot);
   files += await walkPatchShortJwtSecrets(backendRoot);
@@ -637,6 +660,59 @@ async function patchMongoInBackendSources(backendRoot, mongoUri, depth = 0) {
     for (const pattern of LOCAL_MONGO_PATTERNS) {
       content = content.replace(pattern, mongoUri);
     }
+    // process.env.SOME_EMPTY_KEY with no fallback → prefer MONGO_URI chain
+    content = content.replace(
+      /mongoose\.connect\(\s*process\.env\.([A-Z0-9_]+)\s*\)/g,
+      `mongoose.connect(process.env.$1 || process.env.MONGO_URI || process.env.MONGODB_URI || process.env.MONGO_URL || process.env.DATABASE_URL)`
+    );
+    content = content.replace(
+      /mongoose\.connect\(\s*process\.env\.([A-Z0-9_]+)\s*,/g,
+      `mongoose.connect(process.env.$1 || process.env.MONGO_URI || process.env.MONGODB_URI || process.env.MONGO_URL || process.env.DATABASE_URL,`
+    );
+    if (content !== before) {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.writeFile(full, content, 'utf8');
+      files += 1;
+    }
+  }
+  return files;
+}
+
+/** Force hardcoded Express listen ports (8000/5000/…) to honor preview API_PORT/PORT. */
+async function patchHardcodedListenPorts(backendRoot, depth = 0) {
+  if (depth > 8) return 0;
+  let files = 0;
+  let entries;
+  try {
+    entries = await fs.readdir(backendRoot, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === 'build') {
+      continue;
+    }
+    const full = path.join(backendRoot, entry.name);
+    if (entry.isDirectory()) {
+      // eslint-disable-next-line no-await-in-loop
+      files += await patchHardcodedListenPorts(full, depth + 1);
+      continue;
+    }
+    if (!/\.(js|mjs|cjs|ts)$/i.test(entry.name)) continue;
+    // eslint-disable-next-line no-await-in-loop
+    let content = await fs.readFile(full, 'utf8').catch(() => null);
+    if (content == null) continue;
+    const before = content;
+    // const PORT = 8000 / let port = 5000
+    content = content.replace(
+      /\b(const|let|var)\s+(PORT|port|APP_PORT|SERVER_PORT)\s*=\s*(\d{4,5})\b/g,
+      `$1 $2 = Number(process.env.API_PORT || process.env.PORT) || $3`
+    );
+    // app.listen(8000 …) / server.listen(5000, …
+    content = content.replace(
+      /\.listen\(\s*(\d{4,5})\s*(,|\))/g,
+      `.listen(Number(process.env.API_PORT || process.env.PORT) || $1$2`
+    );
     if (content !== before) {
       // eslint-disable-next-line no-await-in-loop
       await fs.writeFile(full, content, 'utf8');

@@ -379,6 +379,11 @@ write_mern_backend_env() {
     else
       echo "MONGO_URI=$mongo"
       echo "MONGODB_URI=$mongo"
+      echo "MONGO_URL=$mongo"
+      echo "DB_URI=$mongo"
+      echo "DATABASE_URI=$mongo"
+      echo "CONNECTION_URL=$mongo"
+      echo "CONNECTION_STRING=$mongo"
       echo "DATABASE_URL=$mongo"
     fi
     if [ -n "$cors" ]; then
@@ -403,8 +408,14 @@ write_mern_backend_env() {
   cat .env.preview-runtime > .env
   if [ -f .env.project ]; then
     # Drop student localhost CORS/frontend URLs so they cannot override preview origins.
-    grep -v -E '^(MONGO_URI|MONGODB_URI|DATABASE_URL|DB_HOST|DB_PORT|DB_NAME|DB_DATABASE|DB_USER|DB_USERNAME|DB_PASS|DB_PASSWORD|MYSQL_HOST|MYSQL_PORT|MYSQL_DATABASE|MYSQL_USER|MYSQL_PASSWORD|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|PREVIEW_DB_ENGINE|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
+    grep -v -E '^(MONGO_URI|MONGODB_URI|MONGO_URL|DB_URI|DATABASE_URI|CONNECTION_URL|CONNECTION_STRING|DATABASE_URL|DB_HOST|DB_PORT|DB_NAME|DB_DATABASE|DB_USER|DB_USERNAME|DB_PASS|DB_PASSWORD|MYSQL_HOST|MYSQL_PORT|MYSQL_DATABASE|MYSQL_USER|MYSQL_PASSWORD|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|PREVIEW_DB_ENGINE|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
   fi
+  # Root npm start → node backend/server.js often loads dotenv from backend/.env
+  for nested in backend server api Backend Server; do
+    if [ -d "./$nested" ]; then
+      cp -f .env "./$nested/.env" 2>/dev/null || true
+    fi
+  done
   rm -f .env.preview-runtime .env.preview-backup .env.student-original .env.student-filtered
   # Critical: do NOT export PORT=$API_PORT into this shell — that made the gateway
   # collide with Express (EADDRINUSE on :5000). Keep shell PORT = UI_PORT for gateway.
@@ -422,6 +433,12 @@ write_mern_backend_env() {
   else
     export MONGO_URI="$mongo"
     export MONGODB_URI="$mongo"
+    export MONGO_URL="$mongo"
+    export DB_URI="$mongo"
+    export DATABASE_URI="$mongo"
+    export CONNECTION_URL="$mongo"
+    export CONNECTION_STRING="$mongo"
+    export DATABASE_URL="$mongo"
     echo "[preview] MONGO_URI=$mongo"
   fi
 }
@@ -578,22 +595,45 @@ start_mern_backend() {
   echo "[preview] starting backend on 0.0.0.0:${API_PORT} (internal; gateway owns :${UI_PORT})"
   # Force API_PORT into the child only — shell PORT stays UI_PORT for the gateway.
   start_backend_once() {
-    if grep -q '"start"' package.json 2>/dev/null; then
-      env PORT="$API_PORT" HOST=0.0.0.0 npm start >> /tmp/preview-backend.log 2>&1 &
-    elif grep -q '"dev"' package.json 2>/dev/null; then
-      env PORT="$API_PORT" HOST=0.0.0.0 npm run dev >> /tmp/preview-backend.log 2>&1 &
-    elif [ -f server.js ]; then
-      env PORT="$API_PORT" HOST=0.0.0.0 node server.js >> /tmp/preview-backend.log 2>&1 &
-    elif [ -f index.js ]; then
-      env PORT="$API_PORT" HOST=0.0.0.0 node index.js >> /tmp/preview-backend.log 2>&1 &
-    elif [ -f src/index.js ]; then
-      env PORT="$API_PORT" HOST=0.0.0.0 node src/index.js >> /tmp/preview-backend.log 2>&1 &
-    elif [ -f src/server.js ]; then
-      env PORT="$API_PORT" HOST=0.0.0.0 node src/server.js >> /tmp/preview-backend.log 2>&1 &
-    else
+    if ! grep -q '"start"' package.json 2>/dev/null \
+      && ! grep -q '"dev"' package.json 2>/dev/null \
+      && [ ! -f server.js ] && [ ! -f index.js ] \
+      && [ ! -f src/index.js ] && [ ! -f src/server.js ] \
+      && [ ! -f backend/server.js ]; then
       echo "[preview] no backend start script found" >> /tmp/preview-backend.log
       return 1
     fi
+    # Pass Mongo aliases explicitly — some apps read MONGO_URL / CONNECTION_URL only.
+    (
+      export PORT="$API_PORT"
+      export API_PORT="$API_PORT"
+      export HOST=0.0.0.0
+      if [ "${PREVIEW_DB_ENGINE:-}" != "mysql" ] && [ -n "${MONGO_URI:-}" ]; then
+        export MONGO_URI="$MONGO_URI"
+        export MONGODB_URI="$MONGO_URI"
+        export MONGO_URL="$MONGO_URI"
+        export DB_URI="$MONGO_URI"
+        export DATABASE_URI="$MONGO_URI"
+        export CONNECTION_URL="$MONGO_URI"
+        export CONNECTION_STRING="$MONGO_URI"
+        export DATABASE_URL="$MONGO_URI"
+      fi
+      if grep -q '"start"' package.json 2>/dev/null; then
+        npm start
+      elif grep -q '"dev"' package.json 2>/dev/null; then
+        npm run dev
+      elif [ -f server.js ]; then
+        node server.js
+      elif [ -f index.js ]; then
+        node index.js
+      elif [ -f src/index.js ]; then
+        node src/index.js
+      elif [ -f src/server.js ]; then
+        node src/server.js
+      else
+        node backend/server.js
+      fi
+    ) >> /tmp/preview-backend.log 2>&1 &
     return 0
   }
 
@@ -607,16 +647,45 @@ start_mern_backend() {
     api_wait_max=120
   fi
   if ! wait_for_tcp_port "$API_PORT" "student API" "$api_wait_max"; then
-    echo "[preview] WARN: student API not listening yet on :${API_PORT} — retrying MySQL bootstrap + restart"
+    echo "[preview] WARN: student API not listening yet on :${API_PORT}"
     tail -40 /tmp/preview-backend.log 2>/dev/null || true
-    if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
-      run_preview_mysql_bootstrap || true
-      run_preview_admin_seed "retry admin seed" || true
-      start_backend_once || true
-      wait_for_tcp_port "$API_PORT" "student API" 60 || {
-        echo "[preview] WARN: student API still down — starting UI anyway"
-        tail -40 /tmp/preview-backend.log 2>/dev/null || true
-      }
+    # Many student apps hardcode listen(8000/5000) — adopt that port for the gateway.
+    for alt in 8000 5000 8080 4000 3001; do
+      if [ "$alt" != "$API_PORT" ] && tcp_port_open "$alt"; then
+        echo "[preview] adopting student API port :${alt} (hardcoded listen; gateway will proxy here)"
+        API_PORT="$alt"
+        export API_PORT
+        break
+      fi
+    done
+    if ! tcp_port_open "$API_PORT"; then
+      if [ "${PREVIEW_DB_ENGINE:-}" = "mysql" ] || [ -n "${DB_HOST:-}" ]; then
+        echo "[preview] retrying MySQL bootstrap + restart"
+        run_preview_mysql_bootstrap || true
+        run_preview_admin_seed "retry admin seed" || true
+        start_backend_once || true
+        wait_for_tcp_port "$API_PORT" "student API" 60 || {
+          echo "[preview] WARN: student API still down — starting UI anyway"
+          tail -40 /tmp/preview-backend.log 2>/dev/null || true
+        }
+      else
+        echo "[preview] retrying backend start (Mongo URI / PORT fix)"
+        start_backend_once || true
+        wait_for_tcp_port "$API_PORT" "student API" 45 || {
+          for alt in 8000 5000 8080 4000 3001; do
+            if tcp_port_open "$alt"; then
+              echo "[preview] adopting student API port :${alt}"
+              API_PORT="$alt"
+              export API_PORT
+              break
+            fi
+          done
+          if ! tcp_port_open "$API_PORT"; then
+            echo "[preview] ERROR: student API did not open port :${API_PORT}"
+            tail -40 /tmp/preview-backend.log 2>/dev/null || true
+          fi
+        }
+      fi
     fi
   fi
 

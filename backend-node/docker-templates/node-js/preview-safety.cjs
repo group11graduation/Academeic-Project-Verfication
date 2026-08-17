@@ -82,6 +82,38 @@ function installPreviewRuntimeGuards() {
   global.__scholarVerifyRuntimeGuards = true;
   longJwtSecret();
 
+  // Prefer preview Mongo URI when student code calls mongoose.connect(undefined / empty env).
+  try {
+    const mongoose = requireFromCwd('mongoose');
+    if (mongoose && typeof mongoose.connect === 'function' && !mongoose.__svPatchedConnect) {
+      const origConnect = mongoose.connect.bind(mongoose);
+      mongoose.connect = function safeConnect(uri, options, callback) {
+        const fixed =
+          (uri && String(uri).trim()) ||
+          process.env.MONGO_URI ||
+          process.env.MONGODB_URI ||
+          process.env.MONGO_URL ||
+          process.env.DB_URI ||
+          process.env.DATABASE_URI ||
+          process.env.CONNECTION_URL ||
+          process.env.CONNECTION_STRING ||
+          process.env.DATABASE_URL ||
+          '';
+        if (!fixed) {
+          console.error(
+            '[preview] mongoose.connect() got empty URI — set MONGO_URI / MONGODB_URI in preview env'
+          );
+        } else if (!uri || String(uri).trim() === '') {
+          console.warn('[preview] mongoose.connect() URI was empty — using preview MONGO_URI');
+        }
+        return origConnect(fixed, options, callback);
+      };
+      mongoose.__svPatchedConnect = true;
+    }
+  } catch (_e) {
+    /* optional */
+  }
+
   for (const pkg of ['bcryptjs', 'bcrypt']) {
     try {
       const bcrypt = requireFromCwd(pkg);
