@@ -108,7 +108,6 @@ const AdminDashboard = () => {
         <div className="space-y-5 [font-family:var(--sv-font-sans)]">
             {/* Overview metric cards — mockup top row */}
             <section>
-                <h2 className="mb-3 text-sm font-extrabold text-slate-800 dark:text-slate-200">Over View</h2>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {statCards.map((card) => {
                         const Icon = card.icon;
