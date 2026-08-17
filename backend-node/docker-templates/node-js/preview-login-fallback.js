@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V20:
+ * Marker V21:
+ * - Sky Property: detect brand text / SUPER_ADMIN+MANAGER enums; force role SUPER_ADMIN
+ *   so sidebar nav links render (ADMIN role left the sidebar empty).
+ * V20:
  * - Safe list hardening for ALL future ZIPs (no project-specific unwrap of books/products).
  * - Only unwrap generic { data|items|results|…: [...] } envelopes; keep named list objects.
  * - Keep bare arrays as arrays (V19).
@@ -21,10 +24,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V20__) {
-    console.log('[DEBUG-SHIM] already installed V20 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V21__) {
+    console.log('[DEBUG-SHIM] already installed V21 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V21__ = true;
   window.__SV_LOGIN_FALLBACK_V20__ = true;
   window.__SV_LOGIN_FALLBACK_V19__ = true;
   window.__SV_LOGIN_FALLBACK_V18__ = true;
@@ -40,7 +44,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v20', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v21', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -681,9 +685,26 @@
   }
 
   function isSkyPropertyApp() {
+    try {
+      if (/SKY\s*PROPERTY/i.test(String(document.title || ''))) return true;
+    } catch (_e0) {}
+    try {
+      var bodyText = String((document.body && document.body.innerText) || '').slice(0, 4000);
+      if (/SKY\s*PROPERTY/i.test(bodyText)) return true;
+    } catch (_e1) {}
     var html = pageHintHtml();
+    if (/SKY\s*PROPERTY|sky[\s_-]*property|SkyProperty/i.test(html)) return true;
     if (/manDash/.test(html)) return true;
     if (appHints.routes.indexOf('/manDash') >= 0) return true;
+    // Role enums unique to this product family.
+    var roles = allHintRoles();
+    var hasSuperUpper = roles.some(function (r) {
+      return r === 'SUPER_ADMIN';
+    });
+    var hasManagerUpper = roles.some(function (r) {
+      return r === 'MANAGER' || r === 'SUB_MANAGER';
+    });
+    if (hasSuperUpper && hasManagerUpper) return true;
     try {
       if (/manDash/i.test(String(location.pathname || ''))) return true;
     } catch (_e) {}
@@ -858,6 +879,7 @@
   function fixStoredPreviewUserRole() {
     var keys = authStorageKeys();
     var changed = false;
+    var becameSkyAdmin = false;
     for (var i = 0; i < keys.length; i++) {
       try {
         var storageKey = keys[i];
@@ -866,11 +888,14 @@
         var parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== 'object') continue;
         var next = JSON.parse(raw);
+        var prevRole = '';
 
         function patchPerson(obj) {
           if (!obj || typeof obj !== 'object') return obj;
+          prevRole = String(obj.role || obj.Role || '');
           // Every future upload: stored preview session uses this app's main admin role.
           obj.role = mainAdminRoleForApp();
+          if (obj.Role != null) obj.Role = obj.role;
           return ensureUserDisplayFields(obj);
         }
 
@@ -887,17 +912,39 @@
           continue;
         }
 
+        if (
+          isSkyPropertyApp() &&
+          String(next.role || '') === 'SUPER_ADMIN' &&
+          !/^SUPER_ADMIN$/i.test(prevRole)
+        ) {
+          becameSkyAdmin = true;
+        }
+
         var serialized = JSON.stringify(next);
         if (serialized === raw) continue;
         localStorage.setItem(storageKey, serialized);
         changed = true;
-        console.log('[DEBUG-SHIM] reconciled', storageKey);
+        console.log('[DEBUG-SHIM] reconciled', storageKey, 'role=', next.role || (next.user && next.user.role));
       } catch (_e2) {}
     }
-    if (!changed) return;
+    if (!changed) return false;
     try {
+      window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new Event('userChanged'));
     } catch (_e3) {}
+    // Sky Property sidebar is role-gated on SUPER_ADMIN — reload once so nav re-renders.
+    if (becameSkyAdmin) {
+      try {
+        if (!sessionStorage.getItem('__sv_sky_role_reload__')) {
+          sessionStorage.setItem('__sv_sky_role_reload__', '1');
+          console.log('[DEBUG-SHIM] Sky Property role upgraded → SUPER_ADMIN; reloading for sidebar');
+          setTimeout(function () {
+            window.location.reload();
+          }, 80);
+        }
+      } catch (_e4) {}
+    }
+    return true;
   }
 
   function pickPostLoginPath(user) {
@@ -1042,6 +1089,15 @@
       }, 50);
     }
   } catch (_eEarly) {}
+  // Sky Property paints "SKY PROPERTY" after React mount — re-check role for sidebar links.
+  try {
+    setTimeout(function () {
+      fixStoredPreviewUserRole();
+    }, 800);
+    setTimeout(function () {
+      fixStoredPreviewUserRole();
+    }, 2500);
+  } catch (_eLate) {}
 
   /**
    * Student UIs often do `if (res.data.success)` before storing the token / clearing

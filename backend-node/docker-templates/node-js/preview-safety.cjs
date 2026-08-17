@@ -208,23 +208,16 @@ function sanitizeUser(user) {
   delete obj.passwordHash;
   delete obj.passcode;
   delete obj.__v;
-  // Preserve schema casing when possible. Many apps (SYADA) gate on lowercase
-  // `super_admin` via Set.has — forcing SUPER_ADMIN logs them in then kicks
-  // them out of /admin. Emit lowercase for super-admin equivalents; the
-  // login shim upgrades to SUPER_ADMIN on Sky Property routes (/manDash).
+  // Preserve schema casing from DB/seed. Client login shim maps to SPA-specific
+  // values (SYADA → super_admin, Sky Property → SUPER_ADMIN). Forcing one casing
+  // here emptied Sky's sidebar when ADMIN/super_admin did not match SUPER_ADMIN.
   let role = obj.role || 'user';
   const originalRole = String(role);
   const roleKey = originalRole.trim().toUpperCase().replace(/[\s-]+/g, '_');
-  if (roleKey === 'SUPER_ADMIN' || roleKey === 'SUPERADMIN') {
-    role = 'super_admin';
-  } else if (roleKey === 'ADMIN' || roleKey === 'ADMINISTRATOR') {
-    role = 'super_admin';
-  } else if (roleKey === 'SUBMANAGER') {
+  if (roleKey === 'SUBMANAGER') {
     role = 'SUB_MANAGER';
-  } else if (roleKey === 'MANAGER') {
-    role = /[A-Z]/.test(originalRole) && originalRole === originalRole.toUpperCase()
-      ? 'MANAGER'
-      : 'manager';
+  } else if (roleKey === 'SUPERADMIN') {
+    role = originalRole === originalRole.toUpperCase() ? 'SUPER_ADMIN' : 'super_admin';
   }
   return {
     id: obj._id || obj.id,

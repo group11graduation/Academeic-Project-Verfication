@@ -296,8 +296,8 @@ function loadPreviewEnv() {
           if (officerExact) return officerExact;
         }
         const prefer = [
-          'super_admin',
           'SUPER_ADMIN',
+          'super_admin',
           'SuperAdmin',
           'superadmin',
           'ADMIN',
@@ -311,6 +311,10 @@ function loadPreviewEnv() {
           'user',
           'USER',
         ];
+        // Sky Property-style enums: prefer SUPER_ADMIN over plain ADMIN.
+        const hasSkySuper = vals.includes('SUPER_ADMIN');
+        const hasSkyManager = vals.includes('MANAGER') || vals.includes('SUB_MANAGER');
+        if (hasSkySuper && hasSkyManager) return 'SUPER_ADMIN';
         for (const p of prefer) {
           if (vals.includes(p)) return p;
         }
