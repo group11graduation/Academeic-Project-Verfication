@@ -25,7 +25,7 @@ import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
 import NotificationBell from '../../../shared/components/NotificationBell';
 
 const ADMIN_BLUE = '#1e56e3';
-const SIDEBAR_W = 236;
+const SIDEBAR_W = 252;
 const SHELL_BG = '#2a3fa4';
 const CONTENT_BG = '#eef2f7';
 
@@ -159,14 +159,14 @@ const AdminLayoutInner = () => {
         ) : null;
 
     const parentActiveClass =
-        'relative z-[1] flex w-full items-center gap-3 rounded-l-[1.35rem] bg-[#eef2f7] py-3 pl-4 pr-3 text-[13px] font-bold text-[#1d2f82]';
+        'relative z-[1] flex w-full items-center gap-3 rounded-l-[1.5rem] bg-[#eef2f7] py-3.5 pl-4 pr-3 text-[15px] font-bold text-[#1d2f82]';
     const parentIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl py-3 pl-3 pr-2 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/10 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl py-3.5 pl-3 pr-2 text-[15px] font-semibold text-white/85 transition-colors hover:bg-white/10 hover:text-white';
 
     return (
         <div
-            className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden font-sans antialiased lg:p-3"
-            style={{ backgroundColor: SHELL_BG }}
+            className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden antialiased [font-family:var(--sv-font-sans)]"
+            style={{ backgroundColor: SHELL_BG, fontSize: '16px' }}
         >
             {/* Mobile top bar */}
             <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px lg:hidden dark:border-white/10 dark:bg-[#0b1220]">
@@ -194,20 +194,20 @@ const AdminLayoutInner = () => {
                 panelTitle="Admin menu"
             />
 
-            {/* Connected shell: sidebar + content share one border frame */}
-            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-[#eef2f7] lg:rounded-[1.75rem] lg:shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)]">
+            {/* Sidebar flush to left / top / bottom edges; thin inset only on content */}
+            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
                 <aside
-                    className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden lg:flex lg:rounded-l-[1.75rem]"
+                    className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden lg:flex"
                     style={{
                         width: SIDEBAR_W,
                         minWidth: SIDEBAR_W,
                         background: 'linear-gradient(180deg, #2a3fa4 0%, #1d2f82 55%, #172663 100%)',
                     }}
                 >
-                    <div className="flex shrink-0 flex-col items-center px-4 pb-4 pt-7 text-center">
+                    <div className="flex shrink-0 flex-col items-center px-4 pb-5 pt-8 text-center">
                         <div className="relative mb-3">
                             <div
-                                className="flex h-[68px] w-[68px] items-center justify-center rounded-full text-2xl font-extrabold text-white"
+                                className="flex h-[76px] w-[76px] items-center justify-center rounded-full text-[28px] font-extrabold text-white"
                                 style={{
                                     background: 'linear-gradient(145deg, #5b7cff 0%, #1D68E3 100%)',
                                     boxShadow: '0 0 0 4px rgba(255,255,255,0.22), 0 0 24px rgba(93,140,255,0.45)',
@@ -216,10 +216,10 @@ const AdminLayoutInner = () => {
                                 {initial}
                             </div>
                         </div>
-                        <p className="max-w-full truncate text-[15px] font-extrabold tracking-tight text-white">
+                        <p className="max-w-full truncate text-base font-extrabold tracking-tight text-white">
                             {user?.name || 'Admin'}
                         </p>
-                        <p className="mt-0.5 max-w-full truncate text-[11px] font-medium text-white/55">
+                        <p className="mt-1 max-w-full truncate text-[12px] font-medium text-white/55">
                             {user?.email || 'admin@projectverify'}
                         </p>
                     </div>
@@ -247,7 +247,7 @@ const AdminLayoutInner = () => {
                                             <>
                                                 {cutoutActive(isActive)}
                                                 <SectionIcon
-                                                    className={`relative z-[1] h-[18px] w-[18px] shrink-0 ${
+                                                    className={`relative z-[1] h-5 w-5 shrink-0 ${
                                                         isActive ? 'text-[#2a3fa4]' : 'text-white/70'
                                                     }`}
                                                     strokeWidth={2.15}
@@ -271,17 +271,17 @@ const AdminLayoutInner = () => {
                                         className={parentIdleClass}
                                         aria-expanded={isOpen}
                                     >
-                                        <SectionIcon className="h-[18px] w-[18px] shrink-0 text-white/70" strokeWidth={2.15} />
+                                        <SectionIcon className="h-5 w-5 shrink-0 text-white/70" strokeWidth={2.15} />
                                         <span className="min-w-0 flex-1 truncate text-left">{section.name}</span>
                                         <ChevronDown
-                                            className={`h-4 w-4 shrink-0 text-white/50 transition-transform duration-200 ${
+                                            className={`h-4.5 w-4.5 h-4 w-4 shrink-0 text-white/50 transition-transform duration-200 ${
                                                 isOpen ? 'rotate-180' : ''
                                             }`}
                                         />
                                     </button>
 
                                     {isOpen ? (
-                                        <div className="mt-0.5 space-y-0.5 pb-1 pl-2">
+                                        <div className="mt-1 space-y-1 pb-1 pl-2">
                                             {links.map((item) => {
                                                 const Icon = item.icon || SectionIcon;
                                                 return (
@@ -291,9 +291,9 @@ const AdminLayoutInner = () => {
                                                         end={Boolean(item.end)}
                                                         className={({ isActive }) =>
                                                             [
-                                                                'relative z-[1] flex items-center gap-2.5 py-2.5 pl-3 pr-3 text-[12px] font-semibold transition-colors',
+                                                                'relative z-[1] flex items-center gap-3 py-3 pl-3.5 pr-3 text-[14px] font-semibold transition-colors',
                                                                 isActive
-                                                                    ? 'rounded-l-[1.15rem] bg-[#eef2f7] text-[#1d2f82]'
+                                                                    ? 'rounded-l-[1.25rem] bg-[#eef2f7] text-[#1d2f82]'
                                                                     : 'mx-1 rounded-lg text-white/70 hover:bg-white/10 hover:text-white',
                                                             ].join(' ')
                                                         }
@@ -302,7 +302,7 @@ const AdminLayoutInner = () => {
                                                             <>
                                                                 {cutoutActive(isActive)}
                                                                 <Icon
-                                                                    className={`relative z-[1] h-3.5 w-3.5 shrink-0 ${
+                                                                    className={`relative z-[1] h-4 w-4 shrink-0 ${
                                                                         isActive ? 'text-[#2a3fa4]' : 'opacity-80'
                                                                     }`}
                                                                     strokeWidth={2}
@@ -324,7 +324,7 @@ const AdminLayoutInner = () => {
                         <button
                             type="button"
                             onClick={requestLogout}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-[13px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-3 text-[14px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
                         >
                             <Power className="h-4 w-4" strokeWidth={2.2} />
                             Logout
@@ -332,34 +332,35 @@ const AdminLayoutInner = () => {
                     </div>
                 </aside>
 
-                {/* Content panel — left edge flush to sidebar (connected border) */}
-                <div
-                    className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:rounded-r-[1.75rem]"
-                    style={{ backgroundColor: CONTENT_BG }}
-                >
-                    <header className="hidden shrink-0 items-center justify-between gap-4 px-6 pb-2 pt-6 lg:flex">
+                {/* Thin brand edge on top/right/bottom only — left flush to sidebar */}
+                <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:p-1.5 lg:pl-0">
+                    <div
+                        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:rounded-r-2xl lg:rounded-l-none"
+                        style={{ backgroundColor: CONTENT_BG }}
+                    >
+                    <header className="hidden shrink-0 items-center justify-between gap-5 px-7 pb-3 pt-7 lg:flex">
                         <div className="min-w-0">
-                            <h1 className="truncate text-[1.65rem] font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                            <h1 className="truncate text-[2rem] font-extrabold leading-tight tracking-tight text-[#1d2f82]">
                                 Welcome {firstName} !
                             </h1>
-                            <p className="mt-0.5 text-sm font-semibold text-slate-500">Over View</p>
+                            <p className="mt-1 text-[15px] font-semibold text-[#51628f]">Over View</p>
                         </div>
 
                         <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-                            <label className="relative hidden min-w-0 max-w-md flex-1 xl:block">
-                                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <label className="relative hidden min-w-0 max-w-lg flex-1 xl:block">
+                                <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="search"
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     placeholder={placeholder || 'Search…'}
-                                    className="h-11 w-full rounded-full border-0 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
+                                    className="h-12 w-full rounded-full border-0 bg-white pl-11 pr-4 text-[15px] font-medium text-slate-800 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2a3fa4]/25"
                                 />
                             </label>
 
                             <ThemeToggle
                                 compact
-                                className="h-11 rounded-full border-0 bg-white px-3 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80"
+                                className="h-12 rounded-full border-0 bg-white px-3.5 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80"
                             />
                             <NotificationBell variant="admin" />
                         </div>
@@ -378,11 +379,12 @@ const AdminLayoutInner = () => {
                         </label>
                     </div>
 
-                    <main className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-4 lg:px-6">
-                        <div className="app-shell-page app-page">
+                    <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-7 pt-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-5 lg:px-7">
+                        <div className="app-shell-page w-full max-w-none text-[15px] leading-normal">
                             <Outlet />
                         </div>
                     </main>
+                    </div>
                 </div>
             </div>
 

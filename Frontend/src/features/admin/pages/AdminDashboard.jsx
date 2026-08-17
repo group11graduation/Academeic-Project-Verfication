@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import adminDashboardService from '../../../services/adminDashboardService';
 import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
+
 const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
@@ -106,29 +107,27 @@ const AdminDashboard = () => {
 
     return (
         <div className="space-y-5 [font-family:var(--sv-font-sans)]">
-            {/* Overview metric cards — mockup top row */}
+            {/* Overview metric cards */}
             <section>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     {statCards.map((card) => {
                         const Icon = card.icon;
                         return (
                             <div
                                 key={card.title}
-                                className={`relative overflow-hidden rounded-2xl p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)] ring-1 ${card.soft} ${card.ring} dark:bg-[#111827] dark:ring-white/10`}
+                                className={`relative overflow-hidden rounded-[1.25rem] p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ring-1 ${card.soft} ${card.ring}`}
                             >
-                                <div className="mb-4 flex items-start justify-between gap-2">
-                                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl shadow-sm ${card.iconBg}`}>
-                                        <Icon className="h-5 w-5" strokeWidth={2.2} />
+                                <div className="mb-5 flex items-start justify-between gap-2">
+                                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shadow-sm ${card.iconBg}`}>
+                                        <Icon className="h-6 w-6" strokeWidth={2.2} />
                                     </div>
-                                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{card.title}</span>
+                                    <span className="text-[13px] font-bold text-slate-500">{card.title}</span>
                                 </div>
-                                <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                                <p className="text-[2.15rem] font-extrabold leading-none tracking-tight text-[#0f172a]">
                                     {Number(card.value).toLocaleString()}
                                 </p>
                                 {card.hint ? (
-                                    <p className="mt-2 text-[11px] font-medium leading-snug text-slate-500 dark:text-slate-400">
-                                        {card.hint}
-                                    </p>
+                                    <p className="mt-3 text-[12px] font-medium leading-snug text-slate-500">{card.hint}</p>
                                 ) : null}
                             </div>
                         );
@@ -136,31 +135,29 @@ const AdminDashboard = () => {
                 </div>
             </section>
 
-            {/* Middle: people snapshot + setup list + roles */}
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-                {/* People snapshot */}
                 <div className="flex flex-col gap-4 xl:col-span-3">
-                    <div className="rounded-2xl bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 dark:bg-[#111827] dark:ring-white/10">
+                    <div className="rounded-[1.25rem] bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80">
                         <div
-                            className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-md"
+                            className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-md"
                             style={{ background: BRAND_GRADIENT }}
                         >
-                            <Users className="h-6 w-6" />
+                            <Users className="h-7 w-7" />
                         </div>
-                        <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                        <p className="text-[2.15rem] font-extrabold leading-none tracking-tight text-[#0f172a]">
                             {(stats.totalStudents + stats.totalTeachers).toLocaleString()}
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">Total people</p>
-                        <p className="mt-3 text-xs font-medium text-slate-400">
+                        <p className="mt-2 text-[15px] font-semibold text-slate-500">Total people</p>
+                        <p className="mt-3 text-[13px] font-medium text-slate-400">
                             {stats.totalStudents} students · {stats.totalTeachers} teachers
                         </p>
                     </div>
 
-                    <div className="rounded-2xl bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 dark:bg-[#111827] dark:ring-white/10">
-                        <h3 className="mb-4 text-sm font-extrabold text-slate-900 dark:text-slate-100">Institution mix</h3>
-                        <div className="mx-auto mb-4 flex h-28 w-28 items-center justify-center">
+                    <div className="rounded-[1.25rem] bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80">
+                        <h3 className="mb-5 text-[15px] font-extrabold text-[#0f172a]">Institution mix</h3>
+                        <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center">
                             <div
-                                className="relative h-28 w-28 rounded-full"
+                                className="relative h-32 w-32 rounded-full"
                                 style={{
                                     background: `conic-gradient(${BRAND.primary} 0% ${Math.min(
                                         100,
@@ -183,20 +180,20 @@ const AdminDashboard = () => {
                                     )}% 100%)`,
                                 }}
                             >
-                                <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white dark:bg-[#111827]">
-                                    <span className="text-lg font-extrabold text-slate-900 dark:text-slate-100">
+                                <div className="absolute inset-5 flex flex-col items-center justify-center rounded-full bg-white">
+                                    <span className="text-xl font-extrabold text-[#0f172a]">
                                         {stats.totalClasses + stats.activeProjects}
                                     </span>
-                                    <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Total</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Total</span>
                                 </div>
                             </div>
                         </div>
-                        <ul className="space-y-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                            <li className="flex items-center gap-2">
+                        <ul className="space-y-2.5 text-[13px] font-semibold text-slate-600">
+                            <li className="flex items-center gap-2.5">
                                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: BRAND.primary }} />
                                 Classes · {stats.totalClasses}
                             </li>
-                            <li className="flex items-center gap-2">
+                            <li className="flex items-center gap-2.5">
                                 <span className="h-2.5 w-2.5 rounded-full bg-sky-300" />
                                 Active projects · {stats.activeProjects}
                             </li>
@@ -204,38 +201,35 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* Priority setup — bar list style */}
-                <div className="rounded-2xl bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 dark:bg-[#111827] dark:ring-white/10 xl:col-span-5">
-                    <div className="mb-4 flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Priority Setup Actions</h2>
-                        <Link to="/admin/setup-workflow" className="text-xs font-bold text-[#2a3fa4] hover:underline">
+                <div className="rounded-[1.25rem] bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 xl:col-span-5">
+                    <div className="mb-5 flex items-center justify-between gap-2">
+                        <h2 className="text-[15px] font-extrabold text-[#0f172a]">Priority Setup Actions</h2>
+                        <Link to="/admin/setup-workflow" className="text-[13px] font-bold text-[#2a3fa4] hover:underline">
                             View all
                         </Link>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-3.5">
                         {setupLinks.map((item) => {
                             const Icon = item.icon;
                             return (
                                 <Link
                                     key={item.to}
                                     to={item.to}
-                                    className="group block rounded-xl border border-slate-100 bg-[#f8faff] p-3 transition hover:border-[#c5d0f0] hover:bg-white dark:border-white/10 dark:bg-[#0b1220]"
+                                    className="group block rounded-2xl border border-slate-100 bg-[#f8faff] p-3.5 transition hover:border-[#c5d0f0] hover:bg-white"
                                 >
-                                    <div className="mb-2 flex items-center justify-between gap-2">
-                                        <div className="flex min-w-0 items-center gap-2.5">
-                                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/80 dark:bg-[#111827] dark:ring-white/10">
-                                                <Icon className="h-4 w-4" />
+                                    <div className="mb-2.5 flex items-center justify-between gap-2">
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/80">
+                                                <Icon className="h-5 w-5" />
                                             </span>
                                             <div className="min-w-0">
-                                                <p className="truncate text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                                                    {item.title}
-                                                </p>
-                                                <p className="truncate text-[11px] font-medium text-slate-500">{item.desc}</p>
+                                                <p className="truncate text-[15px] font-extrabold text-[#0f172a]">{item.title}</p>
+                                                <p className="truncate text-[12px] font-medium text-slate-500">{item.desc}</p>
                                             </div>
                                         </div>
                                         <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-[#2a3fa4]" />
                                     </div>
-                                    <div className="h-2 overflow-hidden rounded-full bg-slate-200/80 dark:bg-white/10">
+                                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-200/80">
                                         <div
                                             className="h-full rounded-full"
                                             style={{ width: `${item.bar}%`, background: BRAND_GRADIENT }}
@@ -247,55 +241,46 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                {/* Role workflow */}
-                <div className="rounded-2xl bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 dark:bg-[#111827] dark:ring-white/10 xl:col-span-4">
-                    <h2 className="mb-4 text-sm font-extrabold text-slate-900 dark:text-slate-100">Role Workflow</h2>
-                    <div className="space-y-3">
+                <div className="rounded-[1.25rem] bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 xl:col-span-4">
+                    <h2 className="mb-5 text-[15px] font-extrabold text-[#0f172a]">Role Workflow</h2>
+                    <div className="space-y-3.5">
                         {roles.map((role, i) => (
-                            <div
-                                key={role.title}
-                                className="rounded-xl border border-slate-100 bg-[#f8faff] p-3.5 dark:border-white/10 dark:bg-[#0b1220]"
-                            >
-                                <div className="mb-1.5 flex items-center gap-2">
+                            <div key={role.title} className="rounded-2xl border border-slate-100 bg-[#f8faff] p-4">
+                                <div className="mb-2 flex items-center gap-2.5">
                                     <span
-                                        className="flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-extrabold text-white"
+                                        className="flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-extrabold text-white"
                                         style={{ background: BRAND_GRADIENT }}
                                     >
                                         {i + 1}
                                     </span>
-                                    <p className="text-xs font-extrabold uppercase tracking-wide text-[#2a3fa4]">
+                                    <p className="text-[13px] font-extrabold uppercase tracking-wide text-[#2a3fa4]">
                                         {role.title}
                                     </p>
                                 </div>
-                                <p className="text-[12px] font-medium leading-relaxed text-slate-600 dark:text-slate-300">
-                                    {role.text}
-                                </p>
+                                <p className="text-[13px] font-medium leading-relaxed text-slate-600">{role.text}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* Bottom quick links strip */}
-            <section className="rounded-2xl bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80 dark:bg-[#111827] dark:ring-white/10">
-                <h2 className="mb-4 text-sm font-extrabold text-slate-900 dark:text-slate-100">Quick access</h2>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <section className="rounded-[1.25rem] bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ring-1 ring-slate-200/80">
+                <h2 className="mb-5 text-[15px] font-extrabold text-[#0f172a]">Quick access</h2>
+                <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     {setupLinks.map((item) => {
                         const Icon = item.icon;
                         return (
                             <Link
                                 key={`quick-${item.to}`}
                                 to={item.to}
-                                className="flex items-center gap-3 rounded-xl border border-slate-100 bg-[#f8faff] px-3 py-3 transition hover:border-[#c5d0f0] hover:bg-white dark:border-white/10 dark:bg-[#0b1220]"
+                                className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-[#f8faff] px-3.5 py-3.5 transition hover:border-[#c5d0f0] hover:bg-white"
                             >
-                                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/70 dark:bg-[#111827]">
-                                    <Icon className="h-4 w-4" />
+                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/70">
+                                    <Icon className="h-5 w-5" />
                                 </span>
                                 <span className="min-w-0">
-                                    <span className="block truncate text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                                        {item.title}
-                                    </span>
-                                    <span className="block truncate text-[11px] font-medium text-slate-500">{item.desc}</span>
+                                    <span className="block truncate text-[14px] font-extrabold text-[#0f172a]">{item.title}</span>
+                                    <span className="block truncate text-[12px] font-medium text-slate-500">{item.desc}</span>
                                 </span>
                             </Link>
                         );
