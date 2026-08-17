@@ -147,7 +147,8 @@ const StudentHeader = ({ forcePublic = false }) => {
                                 <button
                                     type="button"
                                     onClick={() => navigate(user ? workspacePath : '/login')}
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-slate-950 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-slate-800 sm:px-4 sm:text-sm"
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold text-white transition hover:opacity-95 sm:px-4 sm:text-sm"
+                                    style={{ background: BRAND_GRADIENT }}
                                 >
                                     <GraduationCap className="h-4 w-4 shrink-0" />
                                     <span className="sm:hidden">{user ? 'Portal' : 'Apply'}</span>
@@ -194,7 +195,8 @@ const StudentHeader = ({ forcePublic = false }) => {
                                 <Link
                                     to={user ? workspacePath : '/login'}
                                     onClick={() => setMobileOpen(false)}
-                                    className="mt-2 flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-bold text-white"
+                                    className="mt-2 flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-white"
+                                    style={{ background: BRAND_GRADIENT }}
                                 >
                                     <GraduationCap className="h-4 w-4" />
                                     {user ? 'Open portal' : 'Apply'}

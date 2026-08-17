@@ -165,10 +165,9 @@ const StudentAbout = () => {
                                 <div
                                     key={role.title}
                                     className={`rounded-3xl p-6 sm:p-7 ${
-                                        role.highlight
-                                            ? 'bg-slate-950 text-white'
-                                            : 'border border-slate-200 bg-white'
+                                        role.highlight ? 'text-white' : 'border border-slate-200 bg-white'
                                     }`}
+                                    style={role.highlight ? { background: BRAND_GRADIENT } : undefined}
                                 >
                                     <div
                                         className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${
@@ -189,12 +188,12 @@ const StudentAbout = () => {
                                             <li
                                                 key={point}
                                                 className={`flex gap-2 text-sm font-medium leading-relaxed ${
-                                                    role.highlight ? 'text-slate-300' : 'text-slate-500'
+                                                    role.highlight ? 'text-blue-100' : 'text-slate-500'
                                                 }`}
                                             >
                                                 <CheckCircle2
                                                     className={`mt-0.5 h-4 w-4 shrink-0 ${
-                                                        role.highlight ? 'text-blue-300' : 'text-[#1D68E3]'
+                                                        role.highlight ? 'text-white' : 'text-[#1D68E3]'
                                                     }`}
                                                 />
                                                 <span>{point}</span>
@@ -303,23 +302,26 @@ const StudentAbout = () => {
 
                     {/* CTA */}
                     <section className="mx-auto max-w-[1200px] px-4 pb-16 sm:px-6 lg:px-8">
-                        <div className="rounded-[28px] bg-slate-950 px-6 py-12 text-center sm:rounded-[36px] sm:px-10 sm:py-14">
+                        <div
+                            className="rounded-[28px] px-6 py-12 text-center sm:rounded-[36px] sm:px-10 sm:py-14"
+                            style={{ background: BRAND_GRADIENT }}
+                        >
                             <h2 className="mb-3 text-2xl font-extrabold text-white sm:text-3xl">
                                 Ready to explore further?
                             </h2>
-                            <p className="mx-auto mb-8 max-w-xl text-sm font-medium text-slate-400">
+                            <p className="mx-auto mb-8 max-w-xl text-sm font-medium text-blue-100">
                                 Browse verified student work or meet the graduation team behind {PROJECT_NAME}.
                             </p>
                             <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                                 <Link
                                     to="/gallery"
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold text-slate-950"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold text-[#2a3fa4]"
                                 >
                                     Verified projects <ArrowUpRight className="h-4 w-4" />
                                 </Link>
                                 <Link
                                     to="/about"
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/25 px-6 py-3 text-sm font-bold text-white hover:bg-white/5"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/40 px-6 py-3 text-sm font-bold text-white hover:bg-white/10"
                                 >
                                     About the team
                                 </Link>

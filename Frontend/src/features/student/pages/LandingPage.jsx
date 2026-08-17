@@ -398,24 +398,25 @@ const LandingPage = () => {
                                     key={card.title}
                                     className={`rounded-3xl p-6 sm:p-7 ${
                                         card.highlight
-                                            ? 'flex min-h-[260px] flex-col justify-between bg-slate-950 text-white lg:row-span-2'
+                                            ? 'flex min-h-[260px] flex-col justify-between text-white lg:row-span-2'
                                             : 'border border-slate-200 bg-white'
                                     }`}
+                                    style={card.highlight ? { background: BRAND_GRADIENT } : undefined}
                                 >
                                     <div>
                                         <h3 className={`mb-2 text-lg font-extrabold ${card.highlight ? 'text-white' : 'text-slate-950'}`}>
                                             {card.title}
                                         </h3>
-                                        <p className={`text-sm font-medium leading-relaxed ${card.highlight ? 'text-slate-300' : 'text-slate-500'}`}>
+                                        <p className={`text-sm font-medium leading-relaxed ${card.highlight ? 'text-blue-100' : 'text-slate-500'}`}>
                                             {card.detail}
                                         </p>
                                     </div>
                                     {card.highlight && (
                                         <div className="mt-8 flex items-end justify-between gap-4">
-                                            <Layers className="h-16 w-16 text-white/20" />
+                                            <Layers className="h-16 w-16 text-white/25" />
                                             <Link
                                                 to="/guide"
-                                                className="inline-flex items-center gap-1 text-sm font-bold text-white underline-offset-4 hover:underline"
+                                                className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white hover:text-[#2a3fa4]"
                                             >
                                                 Learn more <ArrowUpRight className="h-4 w-4" />
                                             </Link>
@@ -617,27 +618,30 @@ const LandingPage = () => {
                         </div>
                     </section>
 
-                    {/* Dark CTA */}
+                    {/* Brand CTA */}
                     <section className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6 lg:px-8">
-                        <div className="relative overflow-hidden rounded-[28px] bg-slate-950 px-6 py-14 text-center sm:rounded-[36px] sm:px-10 sm:py-20">
+                        <div
+                            className="relative overflow-hidden rounded-[28px] px-6 py-14 text-center sm:rounded-[36px] sm:px-10 sm:py-20"
+                            style={{ background: BRAND_GRADIENT }}
+                        >
                             <div className="pointer-events-none absolute inset-0 opacity-30">
-                                <div className="absolute left-1/2 top-8 h-16 w-16 -translate-x-1/2 rounded-2xl border border-white/20 bg-white/5" />
-                                <ShieldCheck className="absolute left-[18%] top-[35%] h-8 w-8 text-white/40" />
-                                <Container className="absolute right-[18%] top-[30%] h-8 w-8 text-white/40" />
-                                <BrainCircuit className="absolute bottom-[28%] left-[28%] h-7 w-7 text-white/30" />
-                                <Layers className="absolute bottom-[26%] right-[26%] h-7 w-7 text-white/30" />
+                                <div className="absolute left-1/2 top-8 h-16 w-16 -translate-x-1/2 rounded-2xl border border-white/25 bg-white/10" />
+                                <ShieldCheck className="absolute left-[18%] top-[35%] h-8 w-8 text-white/50" />
+                                <Container className="absolute right-[18%] top-[30%] h-8 w-8 text-white/50" />
+                                <BrainCircuit className="absolute bottom-[28%] left-[28%] h-7 w-7 text-white/40" />
+                                <Layers className="absolute bottom-[26%] right-[26%] h-7 w-7 text-white/40" />
                             </div>
                             <div className="relative">
                                 <h2 className="mb-4 text-2xl font-extrabold tracking-tight text-white sm:text-4xl">
                                     Start your verification journey
                                 </h2>
-                                <p className="mx-auto mb-8 max-w-xl text-sm font-medium leading-relaxed text-slate-300 sm:text-base">
+                                <p className="mx-auto mb-8 max-w-xl text-sm font-medium leading-relaxed text-blue-100 sm:text-base">
                                     Join students and faculty already using {PROJECT_NAME} to keep academic projects
                                     clear, checkable, and preview-ready.
                                 </p>
                                 <Link
                                     to={primaryCta.to}
-                                    className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-8 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-slate-100"
+                                    className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-8 py-3 text-sm font-extrabold text-[#2a3fa4] transition hover:bg-blue-50"
                                 >
                                     {user ? 'Open my workspace' : 'Start application'}
                                 </Link>
@@ -658,7 +662,8 @@ const LandingPage = () => {
                                 </p>
                                 <Link
                                     to="/guide"
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-sm font-bold text-white"
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-white"
+                                    style={{ background: BRAND_GRADIENT }}
                                 >
                                     More questions
                                 </Link>
