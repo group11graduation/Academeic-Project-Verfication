@@ -9,8 +9,9 @@ ENV APP_SUBDIR=.
 # Static placeholder + built dist folders — avoid npx download on every preview start.
 RUN npm install -g serve@14.2.4
 
-# mysql2 for React+Express+MySQL preview seeding (student apps may not include mongoose).
-RUN mkdir -p /preview-tools && cd /preview-tools && npm init -y >/dev/null 2>&1 && npm install mysql2@3.11.5 --omit=dev
+# mysql2 + bcryptjs for preview seeding when the student ZIP omits them.
+RUN mkdir -p /preview-tools && cd /preview-tools && npm init -y >/dev/null 2>&1 \
+  && npm install mysql2@3.11.5 bcryptjs@2.4.3 --omit=dev
 
 # Student project is bind-mounted at /app at container start — not baked into the image.
 COPY entrypoint.sh /preview-entrypoint.sh

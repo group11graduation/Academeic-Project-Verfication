@@ -23,6 +23,25 @@ export CI=false
 export DISABLE_ESLINT_PLUGIN=true
 export GENERATE_SOURCEMAP=false
 
+# Ensure bcryptjs exists for admin seed even on older base images / ZIPs without bcrypt.
+ensure_preview_tools_bcrypt() {
+  if [ -f /preview-tools/node_modules/bcryptjs/package.json ]; then
+    return 0
+  fi
+  echo "[preview] installing bcryptjs into /preview-tools (admin seed)"
+  mkdir -p /preview-tools
+  if [ ! -f /preview-tools/package.json ]; then
+    (cd /preview-tools && npm init -y >/dev/null 2>&1) || true
+  fi
+  (cd /preview-tools && npm install bcryptjs@2.4.3 --omit=dev --no-audit --no-fund >/tmp/preview-tools-bcrypt.log 2>&1) || {
+    echo "[preview] WARN: could not install bcryptjs into /preview-tools"
+    tail -20 /tmp/preview-tools-bcrypt.log 2>/dev/null || true
+    return 1
+  }
+  return 0
+}
+ensure_preview_tools_bcrypt || true
+
 LISTEN="tcp://0.0.0.0:${UI_PORT}"
 HOLDER_PID=""
 

@@ -12,6 +12,25 @@ const { createRequire } = require('module');
 
 const requireFromCwd = createRequire(path.join(process.cwd(), 'package.json'));
 
+/** Prefer student deps; fall back to image-baked /preview-tools (bcryptjs, mysql2). */
+function requireOptional(pkg) {
+  try {
+    return requireFromCwd(pkg);
+  } catch {
+    /* try preview-tools */
+  }
+  try {
+    return createRequire('/preview-tools/package.json')(pkg);
+  } catch {
+    /* try direct path */
+  }
+  try {
+    return require(`/preview-tools/node_modules/${pkg}`);
+  } catch {
+    return null;
+  }
+}
+
 /** Load KEY=VALUE from .env without requiring the dotenv package. Never overrides existing env. */
 function loadEnvFileManual(envPath) {
   if (!fs.existsSync(envPath)) return;
@@ -131,23 +150,26 @@ function loadPreviewEnv() {
     const userModelPaths = [...new Set([...staticPaths, ...discovered])];
     const loadedModels = [];
 
-    let bcrypt;
-    let bcryptjs;
-    try {
-      bcrypt = requireFromCwd('bcrypt');
-    } catch {
-      bcrypt = null;
-    }
-    try {
-      bcryptjs = requireFromCwd('bcryptjs');
-    } catch {
-      bcryptjs = null;
+    const bcrypt = requireOptional('bcrypt');
+    const bcryptjs = requireOptional('bcryptjs');
+    if (!bcrypt && !bcryptjs) {
+      console.log('[preview-seed] no bcrypt in student ZIP or /preview-tools');
+    } else {
+      try {
+        requireFromCwd('bcrypt');
+      } catch {
+        try {
+          requireFromCwd('bcryptjs');
+        } catch {
+          console.log('[preview-seed] using bcryptjs from /preview-tools');
+        }
+      }
     }
 
     const hashPassword = async (plain) => {
       if (bcrypt) return bcrypt.hash(plain, 10);
       if (bcryptjs) return bcryptjs.hash(plain, 10);
-      throw new Error('bcrypt or bcryptjs required');
+      throw new Error('bcrypt or bcryptjs required (install in /preview-tools)');
     };
 
     const rawUpsertDoc = async (roleForRaw = 'admin') => {

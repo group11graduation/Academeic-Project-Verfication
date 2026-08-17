@@ -142,7 +142,7 @@ async function main() {
     return;
   }
 
-  let bcrypt;
+  let bcrypt = null;
   try {
     bcrypt = createRequire(path.join(process.cwd(), 'package.json'))('bcryptjs');
   } catch {
@@ -150,6 +150,23 @@ async function main() {
       bcrypt = createRequire(path.join(process.cwd(), 'package.json'))('bcrypt');
     } catch {
       bcrypt = null;
+    }
+  }
+  if (!bcrypt) {
+    try {
+      bcrypt = createRequire('/preview-tools/package.json')('bcryptjs');
+      console.log('[preview-seed-mysql] using bcryptjs from /preview-tools');
+    } catch {
+      try {
+        bcrypt = require('/preview-tools/node_modules/bcryptjs');
+        console.log('[preview-seed-mysql] using bcryptjs from /preview-tools');
+      } catch {
+        try {
+          bcrypt = createRequire('/preview-tools/package.json')('bcrypt');
+        } catch {
+          bcrypt = null;
+        }
+      }
     }
   }
 
