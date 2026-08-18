@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V22:
+ * Marker V23:
+ * - After preview login, ALWAYS land on admin home (not /shop / home / profile).
+ * - Force top-level login JSON `.role` to admin (Harmony userInfo kept role:"user").
+ * - Rescue when SPA already navigated to customer routes.
+ * V22:
  * - Sky Property sidebar: sweep ALL storage keys + JWT payloads + API user JSON to
  *   SUPER_ADMIN (ADMIN left nav empty). Retry reload until role sticks.
  * V21:
@@ -27,10 +31,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V22__) {
-    console.log('[DEBUG-SHIM] already installed V22 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V23__) {
+    console.log('[DEBUG-SHIM] already installed V23 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V23__ = true;
   window.__SV_LOGIN_FALLBACK_V22__ = true;
   window.__SV_LOGIN_FALLBACK_V21__ = true;
   window.__SV_LOGIN_FALLBACK_V20__ = true;
@@ -48,7 +53,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v22', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v23', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -951,9 +956,53 @@
       out = user;
     }
     out.role = next;
-    if (out.Role != null) out.Role = next;
+    out.Role = next;
+    out.userRole = next;
+    out.user_role = next;
+    out.isAdmin = true;
+    out.is_admin = true;
+    out.admin = true;
     console.log('[DEBUG-SHIM] preview main admin role →', next);
     return ensureUserDisplayFields(out);
+  }
+
+  function isCustomerLandingPath(path) {
+    var p = String(path || '').replace(/\/+$/, '') || '/';
+    if (/^\/(login|signin|sign-in|register|signup|sign-up|admin|manDash|dashboard|portal|teacher|student)(\/|$)/i.test(p)) {
+      return false;
+    }
+    // Shop / storefront / profile — Harmony Skin Care and similar ecommerce SPAs.
+    return (
+      p === '/' ||
+      /^\/(shop|store|home|products|product|cart|checkout|wishlist|orders|order|profile|account|client|customer|user)(\/|$)/i.test(
+        p
+      )
+    );
+  }
+
+  function defaultAdminHomePath() {
+    ensureHintsBeforeLogin();
+    if (isLoanStyleApp()) return '/admin/loans';
+    if (isStaffSetApp()) return '/admin/dashboard';
+    if (isSkyPropertyApp()) {
+      if (hasRoute('/dashboard')) return '/dashboard';
+      if (hasRoute('/manDash')) return '/manDash';
+      return '/dashboard';
+    }
+    if (hasRoute('/admin/loans')) return '/admin/loans';
+    if (hasRoute('/admin/dashboard')) return '/admin/dashboard';
+    if (hasRoute('/admin')) return '/admin';
+    // Skincare / Harmony / ecommerce: admin panel is almost always /admin even if
+    // the bundle scan missed the route string.
+    if (
+      /harmony|skin\s*care|skincare|shop|ecommerce|e-commerce|store/i.test(pageHintHtml()) ||
+      /\/shop/i.test(String(location.pathname || ''))
+    ) {
+      return '/admin';
+    }
+    if (hasRoute('/manDash')) return '/manDash';
+    if (hasRoute('/dashboard')) return '/dashboard';
+    return '/admin';
   }
 
   /**
@@ -1053,10 +1102,18 @@
         if (!sky) {
           if (forced.user && typeof forced.user === 'object') {
             forced.user.role = targetRole;
+            forced.user.Role = targetRole;
+            forced.user.isAdmin = true;
+            forced.user.is_admin = true;
             forced.user = ensureUserDisplayFields(forced.user);
             forced.role = targetRole;
+            forced.Role = targetRole;
+            forced.isAdmin = true;
           } else if (forced.email || forced.role || forced.name || forced.token || forced._id) {
             forced.role = targetRole;
+            forced.Role = targetRole;
+            forced.isAdmin = true;
+            forced.is_admin = true;
             forced = ensureUserDisplayFields(forced);
           }
         }
@@ -1162,71 +1219,116 @@
 
   function pickPostLoginPath(user) {
     var role = roleKeyOf((user && (user.role || user.Role)) || mainAdminRoleForApp());
-    if (isSkyPropertyApp()) {
-      // Newer Sky builds use /dashboard for SUPER_ADMIN; /manDash is often manager-only.
-      if (hasRoute('/dashboard') || /\/dashboard/i.test(String(location.pathname || ''))) return '/dashboard';
-      if (hasRoute('/manDash')) return '/manDash';
-      return '/dashboard';
-    }
-    if (role === 'MANAGER' || role === 'SUB_MANAGER' || role === 'SUBMANAGER') {
-      if (hasRoute('/manDash')) return '/manDash';
-    }
-    if (isLoanStyleApp()) return '/admin/loans';
-    if (isStaffSetApp()) return '/admin/dashboard';
-    // Privileged roles → admin home for this SPA (skincare /shop apps use /admin).
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPERADMIN' || role === 'OFFICER' || role === 'EDITOR' || role === 'MANAGER') {
-      if (hasRoute('/admin/loans')) return '/admin/loans';
-      if (hasRoute('/admin/dashboard')) return '/admin/dashboard';
-      if (hasRoute('/admin')) return '/admin';
-      if (hasRoute('/manDash')) return '/manDash';
-      if (hasRoute('/dashboard')) return '/dashboard';
+    // Teacher preview login is always privileged — never leave landing null.
+    if (
+      role === 'ADMIN' ||
+      role === 'SUPER_ADMIN' ||
+      role === 'SUPERADMIN' ||
+      role === 'OFFICER' ||
+      role === 'EDITOR' ||
+      role === 'MANAGER' ||
+      role === 'SUB_MANAGER' ||
+      role === 'SUBMANAGER' ||
+      !role
+    ) {
+      return defaultAdminHomePath();
     }
     if (role === 'TEACHER' && hasRoute('/teacher')) return '/teacher';
     if (role === 'STUDENT' && hasRoute('/student')) return '/student';
     if (role === 'MEMBER' && hasRoute('/portal')) return '/portal';
     if (role === 'BORROWER' && hasRoute('/dashboard')) return '/dashboard';
-    return null;
+    return defaultAdminHomePath();
   }
 
   function tryRescueStuckLogin() {
     try {
       var path = String((window.location && window.location.pathname) || '');
-      if (!/login|signin|sign-in/i.test(path)) return;
-      if (sessionStorage.getItem('__sv_post_login_nav__')) return;
       var token = localStorage.getItem('token') || localStorage.getItem('accessToken') || localStorage.getItem('loan_token');
       if (!token) return;
       ensureHintsBeforeLogin();
       fixStoredPreviewUserRole();
-      var raw = localStorage.getItem('user') || localStorage.getItem('loan_user');
-      if (!raw) return;
-      var user = JSON.parse(raw);
-      if (user && user.user) user = user.user;
-      user = normalizePreviewUserRole(user);
-      var target = pickPostLoginPath(user);
-      if (!target) return;
-      sessionStorage.setItem('__sv_post_login_nav__', '1');
-      console.log('[DEBUG-SHIM] rescue stuck login →', target, 'role=', user && user.role);
-      window.location.assign(target);
+      var user = readStoredPreviewUser();
+      if (!user) return;
+      if (/login|signin|sign-in/i.test(path) || isCustomerLandingPath(path)) {
+        sessionStorage.removeItem('__sv_post_login_nav__');
+        goAdminHome(user, 'rescue-stuck');
+      }
     } catch (_e) {}
+  }
+
+  function goAdminHome(user, reason) {
+    try {
+      if (sessionStorage.getItem('__sv_post_login_nav__') === 'done') return false;
+      var target = pickPostLoginPath(user) || defaultAdminHomePath();
+      if (!target) return false;
+      var cur = String((window.location && window.location.pathname) || '');
+      if (cur.replace(/\/+$/, '') === String(target).replace(/\/+$/, '')) {
+        sessionStorage.setItem('__sv_post_login_nav__', 'done');
+        return false;
+      }
+      sessionStorage.setItem('__sv_post_login_nav__', 'done');
+      console.log('[DEBUG-SHIM] admin landing →', target, reason || '');
+      window.location.assign(target);
+      return true;
+    } catch (_e) {
+      return false;
+    }
   }
 
   function redirectAfterPreviewLogin(user) {
     try {
-      var path = window.location && window.location.pathname ? String(window.location.pathname) : '';
-      if (!/login|signin|sign-in/i.test(path)) return;
-      if (sessionStorage.getItem('__sv_post_login_nav__')) return;
+      // Immediate attempt (login page) + delayed rescue if SPA sent us to /shop first.
+      goAdminHome(user, 'post-login-immediate');
       setTimeout(function () {
         try {
-          var stillLogin =
-            window.location && /login|signin|sign-in/i.test(String(window.location.pathname || ''));
-          if (!stillLogin) return;
-          var target = pickPostLoginPath(user);
-          if (!target) return;
-          sessionStorage.setItem('__sv_post_login_nav__', '1');
-          window.location.assign(target);
+          fixStoredPreviewUserRole();
+          var path = String((window.location && window.location.pathname) || '');
+          if (/login|signin|sign-in/i.test(path) || isCustomerLandingPath(path)) {
+            sessionStorage.removeItem('__sv_post_login_nav__');
+            goAdminHome(user, 'post-login-delayed');
+          }
         } catch (_e) {}
-      }, 2500);
-    } catch (_e2) {}
+      }, 600);
+      setTimeout(function () {
+        try {
+          ensureAdminLandingFromCustomerPath('post-login-late');
+        } catch (_e2) {}
+      }, 1800);
+    } catch (_e3) {}
+  }
+
+  function readStoredPreviewUser() {
+    try {
+      var raw =
+        localStorage.getItem('user') ||
+        localStorage.getItem('loan_user') ||
+        localStorage.getItem('userInfo') ||
+        localStorage.getItem('authUser') ||
+        localStorage.getItem('currentUser');
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (parsed && parsed.user && typeof parsed.user === 'object') parsed = parsed.user;
+      return normalizePreviewUserRole(parsed);
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  function ensureAdminLandingFromCustomerPath(reason) {
+    try {
+      var path = String((window.location && window.location.pathname) || '');
+      if (!isCustomerLandingPath(path)) return;
+      var token =
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('loan_token');
+      if (!token) return;
+      fixStoredPreviewUserRole();
+      var user = readStoredPreviewUser();
+      if (!user) return;
+      sessionStorage.removeItem('__sv_post_login_nav__');
+      goAdminHome(user, reason || 'customer-path-rescue');
+    } catch (_e) {}
   }
 
   /** Break A↔B Navigate storms (LoanFlow dashboard↔admin/loans). One hard navigation only. */
@@ -1290,6 +1392,7 @@
   scanAppBundles(function () {
     fixStoredPreviewUserRole();
     tryRescueStuckLogin();
+    ensureAdminLandingFromCustomerPath('bundle-scan');
   });
   installRedirectLoopGuard();
   // Brand/title can be known before the JS scan finishes.
@@ -1299,25 +1402,31 @@
         setTimeout(function () {
           fixStoredPreviewUserRole();
           tryRescueStuckLogin();
+          ensureAdminLandingFromCustomerPath('dom-ready');
         }, 50);
       });
     } else {
       setTimeout(function () {
         fixStoredPreviewUserRole();
         tryRescueStuckLogin();
+        ensureAdminLandingFromCustomerPath('dom-ready');
       }, 50);
     }
   } catch (_eEarly) {}
   // Sky Property paints "SKY PROPERTY" after React mount — re-check role for sidebar links.
+  // Also rescue Harmony /shop landings that ignored admin role.
   try {
     setTimeout(function () {
       fixStoredPreviewUserRole();
+      ensureAdminLandingFromCustomerPath('t400');
     }, 400);
     setTimeout(function () {
       fixStoredPreviewUserRole();
+      ensureAdminLandingFromCustomerPath('t1200');
     }, 1200);
     setTimeout(function () {
       fixStoredPreviewUserRole();
+      ensureAdminLandingFromCustomerPath('t3000');
     }, 3000);
   } catch (_eLate) {}
 
@@ -1375,15 +1484,20 @@
     if (user) {
       out.user = user;
       // Flatten for apps that store the whole login JSON as userInfo and read .name/.role.
-      out.name = out.name || user.name;
-      out.fullName = out.fullName || user.fullName;
-      out.firstName = out.firstName || user.firstName;
-      out.lastName = out.lastName || user.lastName;
-      out.email = out.email || user.email;
-      out.username = out.username || user.username;
-      out.role = out.role || user.role;
-      out._id = out._id || user._id || user.id;
-      out.id = out.id || user.id || user._id;
+      // CRITICAL: always overwrite role with the normalized admin role — Harmony/shop
+      // apps read userInfo.role; keeping API's role:"user" sent teachers to /shop.
+      out.name = user.name || out.name;
+      out.fullName = user.fullName || out.fullName;
+      out.firstName = user.firstName || out.firstName;
+      out.lastName = user.lastName || out.lastName;
+      out.email = user.email || out.email;
+      out.username = user.username || out.username;
+      out.role = user.role;
+      out.Role = user.role;
+      out.isAdmin = true;
+      out.is_admin = true;
+      out._id = user._id || user.id || out._id;
+      out.id = user.id || user._id || out.id;
     }
     out.success = true;
     out.message = out.message || 'Login successful';

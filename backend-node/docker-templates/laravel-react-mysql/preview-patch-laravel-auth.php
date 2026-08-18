@@ -303,11 +303,14 @@ if (!function_exists('sv_preview_auth_login_handler')) {
             'message' => 'Login successful',
             'token' => $token,
             'access_token' => $token,
+            'role' => 'admin',
+            'isAdmin' => true,
             'user' => $user,
             'data' => [
                 'token' => $token,
                 'access_token' => $token,
                 'user' => $user,
+                'role' => 'admin',
             ],
         ];
         return response()->json($payload);

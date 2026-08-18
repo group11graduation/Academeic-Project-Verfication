@@ -64,15 +64,52 @@ function normalizeLoginResponseBody(body) {
     nested.accessToken ||
     nested.access_token ||
     null;
-  const user = body.user || nested.user || null;
+  let user = body.user || nested.user || null;
   if (!token && !user) return body;
+
+  // Preview teacher logins must be admin — never return role:"user" for seeded accounts.
+  const forceAdminEmail = String(
+    (user && (user.email || user.username)) || body.email || body.username || ''
+  )
+    .toLowerCase()
+    .trim();
+  const looksPreviewAdmin =
+    /previewadmin|admin@preview\.demo|preview\.demo/i.test(forceAdminEmail) ||
+    String(process.env.PREVIEW_SEED_USERNAME || '')
+      .toLowerCase()
+      .trim() === forceAdminEmail ||
+    String(process.env.PREVIEW_ADMIN_EMAIL || '')
+      .toLowerCase()
+      .trim() === forceAdminEmail;
+
+  if (user && typeof user === 'object' && looksPreviewAdmin) {
+    const adminRole =
+      process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+      (String(user.role || '').toUpperCase().includes('SUPER') ? user.role : 'admin');
+    user = {
+      ...user,
+      role: adminRole,
+      Role: adminRole,
+      isAdmin: true,
+      is_admin: true,
+    };
+  }
+
   const out = { ...body };
   if (token) {
     out.token = token;
     out.accessToken = out.accessToken || token;
     out.access_token = out.access_token || token;
   }
-  if (user) out.user = user;
+  if (user) {
+    out.user = user;
+    out.role = user.role || out.role;
+    out.Role = user.role || out.Role;
+    out.isAdmin = user.isAdmin != null ? user.isAdmin : out.isAdmin;
+    out.email = out.email || user.email;
+    out.username = out.username || user.username;
+    out.name = out.name || user.name || user.fullName;
+  }
   out.success = true;
   out.message = out.message || 'Login successful';
   out.data = {
@@ -219,6 +256,31 @@ function sanitizeUser(user) {
   } else if (roleKey === 'SUPERADMIN') {
     role = originalRole === originalRole.toUpperCase() ? 'SUPER_ADMIN' : 'super_admin';
   }
+
+  const email = String(obj.email || obj.username || '')
+    .toLowerCase()
+    .trim();
+  const seedUser = String(process.env.PREVIEW_SEED_USERNAME || process.env.ADMIN_USERNAME || 'previewadmin')
+    .toLowerCase()
+    .trim();
+  const seedEmail = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '')
+    .toLowerCase()
+    .trim();
+  const isPreviewAccount =
+    email === 'previewadmin' ||
+    email === 'admin@preview.demo' ||
+    email === seedUser ||
+    (seedEmail && email === seedEmail) ||
+    (seedUser && email === `${seedUser}@preview.demo`) ||
+    /preview\.demo/i.test(email);
+
+  // Seeded teacher preview account must never leave the API as a customer "user".
+  if (isPreviewAccount) {
+    if (!role || /^(user|customer|client|member|buyer)$/i.test(String(role))) {
+      role = process.env.PREVIEW_FORCE_ADMIN_ROLE || 'admin';
+    }
+  }
+
   return {
     id: obj._id || obj.id,
     _id: obj._id || obj.id,
@@ -228,9 +290,12 @@ function sanitizeUser(user) {
     username: obj.username || '',
     phone: obj.phone || '',
     role,
+    isAdmin: isPreviewAccount ? true : obj.isAdmin !== false,
+    is_admin: isPreviewAccount ? true : obj.is_admin,
     isActive: obj.isActive !== false,
     ...obj,
     role,
+    isAdmin: isPreviewAccount || obj.isAdmin === true || /admin/i.test(String(role)),
     password: undefined,
     passwordHash: undefined,
   };
@@ -372,6 +437,34 @@ async function previewUniversalLogin(req, res, next, options = {}) {
     if (!ok) {
       if (softFail) return next();
       return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Preview teacher credentials → always admin in the JWT + JSON body.
+    if (isPreviewAdminAttempt(email, password)) {
+      try {
+        const User = pickUserModel(mongoose);
+        const adminRole = process.env.PREVIEW_FORCE_ADMIN_ROLE || 'admin';
+        if (User && user._id) {
+          await User.updateOne(
+            { _id: user._id },
+            { $set: { role: adminRole, isAdmin: true, is_admin: true } }
+          ).catch(() => null);
+        }
+        if (user.role !== undefined) user.role = adminRole;
+        if (typeof user.set === 'function') {
+          try {
+            user.set('role', adminRole);
+            user.set('isAdmin', true);
+          } catch (_e) {
+            /* ignore */
+          }
+        } else {
+          user.role = adminRole;
+          user.isAdmin = true;
+        }
+      } catch (_eRole) {
+        /* ignore */
+      }
     }
 
     const jwt = requireOptional('jsonwebtoken');
