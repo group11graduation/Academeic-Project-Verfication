@@ -558,34 +558,34 @@ const AdminClassDetail = () => {
 
     return (
         <div className="admin-page font-sans text-[13px] transition-colors duration-300">
-            <div className="flex items-center justify-between mb-3 gap-2">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <button
                     onClick={() => navigate('/admin/classes')}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-bold text-[12px] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-750 hover:text-[var(--brand-primary)] transition-all group"
+                    className="flex w-full items-center gap-2 px-3 py-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg text-[var(--text-secondary)] font-bold text-[12px] hover:bg-[var(--bg-elevated)] hover:text-[var(--brand-primary)] transition-all group sm:w-auto sm:py-1.5"
                 >
                     <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
                     Back to Classes
                 </button>
 
-                <div className="flex items-center gap-2">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                     <button
                         type="button"
                         onClick={handleDeleteClass}
                         disabled={deletingClass}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-60 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
+                        className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-60 sm:min-h-0 sm:w-auto dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
                         title="Delete class (students become unassigned)"
                     >
                         {deletingClass ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                         {deletingClass ? 'Deleting…' : 'Delete class'}
                     </button>
-                    <div className="relative w-full max-w-[220px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
+                    <div className="relative w-full sm:max-w-[220px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]" />
                         <input
                             type="text"
                             placeholder="Global search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-colors"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2.5 pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-colors sm:py-2"
                         />
                     </div>
                 </div>
@@ -596,7 +596,7 @@ const AdminClassDetail = () => {
                 <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium mt-0.5">{classInfo.description}</p>
             </div>
 
-            <div className="flex items-center gap-6 border-b border-[var(--border)] mb-4 transition-colors">
+            <div className="flex items-center gap-3 overflow-x-auto overscroll-x-contain border-b border-[var(--border)] mb-4 transition-colors app-chip-scroll">
                 <button
                     onClick={() => { setActiveTab('students'); setSearchQuery(''); }}
                     className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'students' ? 'text-[var(--brand-primary)]' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)] hover:text-[var(--text-secondary)] dark:hover:text-slate-300'}`}

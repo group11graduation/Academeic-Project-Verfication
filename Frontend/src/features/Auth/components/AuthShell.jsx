@@ -42,9 +42,9 @@ export default function AuthShell({
         <ThemeToggle compact />
       </div>
 
-      <main className="relative z-10 flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-2 sm:px-6">
+      <main className="relative z-10 flex min-h-0 flex-1 items-center justify-center overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-6">
         <div
-          className="w-full max-w-[420px] rounded-[1.5rem] border px-5 py-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:px-8 sm:py-7"
+          className="my-auto w-full max-w-[420px] rounded-[1.5rem] border px-5 py-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:px-8 sm:py-7"
           style={{
             background: 'color-mix(in srgb, var(--bg-elevated) 88%, transparent)',
             borderColor: 'var(--border)',

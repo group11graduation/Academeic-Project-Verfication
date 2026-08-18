@@ -186,12 +186,17 @@ const AdminLayoutInner = () => {
         >
             <header
                 className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b px-4 py-3 shadow-sm safe-area-px lg:hidden"
-                style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-card)' }}
+                style={{
+                    borderColor: 'var(--border)',
+                    backgroundColor: 'var(--bg-card)',
+                    paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+                }}
             >
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
                     <ProjectVerifyLogo size="md" tagline="Admin console" />
                 </button>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
+                    <NotificationBell variant="admin" />
                     <ThemeToggle compact />
                     <button
                         type="button"

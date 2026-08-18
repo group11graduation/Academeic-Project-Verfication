@@ -30,8 +30,8 @@ export default function NotificationBell({ variant = 'admin' }) {
 
   const buttonClass =
     variant === 'student'
-      ? 'relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]  dark:hover:bg-white/10'
-      : 'relative flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--sv-card)] text-[#53638f] transition-colors hover:bg-[#f5f8ff]   dark:hover:bg-[#1f2937]';
+      ? 'relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/10'
+      : 'relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:brightness-95';
 
   const refreshUnread = useCallback(async () => {
     try {

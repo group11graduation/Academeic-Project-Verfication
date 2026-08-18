@@ -497,24 +497,25 @@ const StudentMyProjectDetail = () => {
                         Project evolution
                     </div>
                     
-                    <div className="flex justify-between items-center relative max-w-[1000px] mx-auto">
-                        <div className="absolute left-0 right-0 top-5 h-0.5 bg-slate-300 -z-10"></div>
+                    <div className="overflow-x-auto overscroll-x-contain pb-1">
+                    <div className="flex min-w-[28rem] justify-between items-center relative max-w-[1000px] mx-auto sm:min-w-0">
+                        <div className="absolute left-0 right-0 top-5 h-0.5 bg-[var(--border)] -z-10"></div>
                         
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center px-1 text-center">
                             <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${projectSubmitted ? 'bg-[var(--accent)]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
                                 <Check className={`h-4 w-4 ${projectSubmitted ? 'text-white' : ''}`} />
                             </div>
-                            <div className="text-[9px] font-bold text-[var(--sv-text)] uppercase tracking-widest">Project submitted</div>
+                            <div className="text-[9px] font-bold text-[var(--sv-text)] uppercase tracking-widest">Submitted</div>
                             <div className="text-[9px] font-medium text-[var(--sv-muted)]">
                                 {formatWorkflowDate(row?.latestProjectSubmission?.createdAt)}
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center px-1 text-center">
                             <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${teacherPreviewed ? 'bg-[var(--accent)]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
                                 <Cpu className={`h-4 w-4 ${teacherPreviewed ? 'text-white' : ''}`} />
                             </div>
-                            <div className="text-[9px] font-bold text-[var(--sv-text)] uppercase tracking-widest">Teacher preview</div>
+                            <div className="text-[9px] font-bold text-[var(--sv-text)] uppercase tracking-widest">Preview</div>
                             <div className="text-[9px] font-medium text-[var(--sv-muted)]">
                                 {teacherPreviewed
                                     ? formatWorkflowDate(row?.latestProjectSubmission?.teacherPreviewedAt)
@@ -524,14 +525,14 @@ const StudentMyProjectDetail = () => {
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center px-1 text-center">
                             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${feedbackReceived ? 'bg-[var(--accent)]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
                                 <MessageSquare className={`h-4 w-4 ${feedbackReceived ? 'text-white fill-current' : ''}`} />
                             </div>
-                            <div className={`text-[9px] font-bold uppercase tracking-widest ${feedbackReceived ? 'text-[var(--accent)] dark:text-sky-300' : 'text-[var(--sv-text)]'}`}>
-                                Teacher feedback
+                            <div className={`text-[9px] font-bold uppercase tracking-widest ${feedbackReceived ? 'text-[var(--accent)]' : 'text-[var(--sv-text)]'}`}>
+                                Feedback
                             </div>
-                            <div className={`text-[9px] font-medium ${feedbackReceived ? 'text-[var(--accent)] dark:text-sky-300' : 'text-[var(--sv-muted)]'}`}>
+                            <div className={`text-[9px] font-medium ${feedbackReceived ? 'text-[var(--accent)]' : 'text-[var(--sv-muted)]'}`}>
                                 {feedbackReceived
                                     ? formatWorkflowDate(teacherFeedbackEntries[0]?.reviewedAt)
                                     : teacherPreviewed
@@ -539,6 +540,7 @@ const StudentMyProjectDetail = () => {
                                       : '-'}
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
 

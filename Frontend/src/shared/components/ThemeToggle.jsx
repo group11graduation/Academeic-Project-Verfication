@@ -15,7 +15,7 @@ export default function ThemeToggle({ className = '', compact = false, iconOnly 
                 toggleTheme();
             }}
             className={`inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-bold shadow-sm transition hover:brightness-95 ${
-                iconOnly ? 'h-9 w-9 px-0 py-0' : 'px-3 py-2'
+                iconOnly || compact ? 'h-9 w-9 px-0 py-0' : 'px-3 py-2'
             } ${className}`}
             style={{
                 borderColor: 'var(--border)',

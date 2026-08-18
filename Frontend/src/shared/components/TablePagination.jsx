@@ -51,7 +51,7 @@ export default function TablePagination({
             <p className="text-[11px] font-medium text-[var(--text-secondary)]">
                 Page {safePage} of {totalPages}
             </p>
-            <div className="flex items-center justify-center gap-0.5 sm:justify-end">
+            <div className="flex max-w-full items-center justify-start gap-0.5 overflow-x-auto overscroll-x-contain sm:justify-end">
                 <button type="button" className={navBtn} onClick={() => go(1)} disabled={safePage <= 1} aria-label="First page">
                     <ChevronsLeft className="h-3.5 w-3.5" />
                 </button>

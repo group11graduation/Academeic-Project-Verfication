@@ -78,7 +78,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                 aria-modal="true"
                 aria-labelledby="app-dialog-title"
                 aria-describedby="app-dialog-message"
-                className="relative w-full max-w-md overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-2xl"
+                className="relative max-h-[min(90dvh,40rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 shadow-2xl sm:p-6"
             >
                 <div
                     className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[var(--sv-primary)] via-[var(--sv-action)] to-[var(--sv-shell)]"
@@ -123,13 +123,19 @@ export default function AppDialogModal({ dialog, onClose }) {
                     </div>
                 </div>
 
-                <div className={`mt-6 flex gap-3 ${isConfirm ? 'justify-end' : 'justify-stretch'}`}>
+                <div
+                    className={`mt-6 flex gap-3 ${
+                        isConfirm
+                            ? 'flex-col-reverse sm:flex-row sm:justify-end'
+                            : 'justify-stretch'
+                    }`}
+                >
                     {isConfirm ? (
                         <>
                             <button
                                 type="button"
                                 onClick={() => onClose(false)}
-                                className="rounded-[12px] border border-[var(--sv-border)] bg-[var(--sv-card)] px-5 py-2.5 text-[14px] font-bold text-[var(--sv-text)] transition-colors hover:bg-[var(--sv-card-muted)]"
+                                className="min-h-[44px] w-full rounded-[12px] border border-[var(--sv-border)] bg-[var(--sv-card)] px-5 py-2.5 text-[14px] font-bold text-[var(--sv-text)] transition-colors hover:bg-[var(--sv-card-muted)] sm:min-h-0 sm:w-auto"
                             >
                                 {cancelLabel}
                             </button>
@@ -137,7 +143,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                                 ref={primaryRef}
                                 type="button"
                                 onClick={() => onClose(true)}
-                                className={`rounded-[12px] px-5 py-2.5 text-[14px] font-bold transition-all ${
+                                className={`min-h-[44px] w-full rounded-[12px] px-5 py-2.5 text-[14px] font-bold transition-all sm:min-h-0 sm:w-auto ${
                                     danger
                                         ? 'bg-red-600 text-white hover:bg-red-700 active:scale-[0.99]'
                                         : `${PRIMARY_BTN}`
@@ -152,7 +158,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                             ref={primaryRef}
                             type="button"
                             onClick={() => onClose(true)}
-                            className={`w-full rounded-[12px] px-5 py-3 text-[14px] font-bold transition-all ${style.button}`}
+                            className={`min-h-[44px] w-full rounded-[12px] px-5 py-3 text-[14px] font-bold transition-all ${style.button}`}
                             style={style.buttonStyle}
                         >
                             {confirmLabel}

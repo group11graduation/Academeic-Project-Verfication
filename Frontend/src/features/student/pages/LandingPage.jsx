@@ -402,8 +402,9 @@ const LandingPage = () => {
                                 trust.
                             </p>
                         </div>
-                        <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--bg-card)]">
-                            <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr] border-b border-[var(--border)] px-3 py-4 text-center text-[11px] font-extrabold uppercase tracking-wide text-[var(--text-primary)] sm:grid-cols-3 sm:px-6 sm:text-xs">
+                        <div className="overflow-x-auto overscroll-x-contain rounded-3xl border border-[var(--border)] bg-[var(--bg-card)]">
+                            <div className="min-w-[28rem] sm:min-w-0">
+                            <div className="grid grid-cols-3 border-b border-[var(--border)] px-3 py-4 text-center text-[10px] font-extrabold uppercase tracking-wide text-[var(--text-primary)] sm:px-6 sm:text-xs">
                                 <div className="text-left">Capability</div>
                                 <div>Other tools</div>
                                 <div>{PROJECT_NAME}</div>
@@ -411,9 +412,9 @@ const LandingPage = () => {
                             {comparisonRows.map((row, i) => (
                                 <div
                                     key={row.label}
-                                    className={`grid grid-cols-[1.2fr_0.9fr_0.9fr] items-center px-3 py-3.5 text-xs sm:grid-cols-3 sm:px-6 sm:text-sm ${
- i % 2 === 0 ? 'bg-[var(--bg-elevated)]' : 'bg-[var(--bg-card)]'
- }`}
+                                    className={`grid grid-cols-3 items-center px-3 py-3.5 text-[11px] sm:px-6 sm:text-sm ${
+                                        i % 2 === 0 ? 'bg-[var(--bg-elevated)]' : 'bg-[var(--bg-card)]'
+                                    }`}
                                 >
                                     <p className="pr-2 text-left font-semibold text-[var(--text-primary)]">{row.label}</p>
                                     <div className="flex justify-center text-center font-medium text-[var(--text-secondary)]">
@@ -434,6 +435,7 @@ const LandingPage = () => {
                                     </div>
                                 </div>
                             ))}
+                            </div>
                         </div>
                     </section>
 

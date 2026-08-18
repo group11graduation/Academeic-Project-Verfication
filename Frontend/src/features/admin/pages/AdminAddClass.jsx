@@ -111,11 +111,11 @@ const AdminAddClass = () => {
     };
 
     return (
-        <div className="p-8 max-w-[960px] mx-auto font-sans bg-[var(--bg-page)] min-h-screen">
-            <div className="flex items-center justify-between mb-8">
+        <div className="p-4 sm:p-6 md:p-8 max-w-[960px] mx-auto font-sans min-w-0 w-full">
+            <div className="mb-6 flex flex-col-reverse gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
                 <button
                     onClick={() => navigate('/admin/classes')}
-                    className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold transition-colors group"
+                    className="flex min-h-[44px] items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold transition-colors group sm:min-h-0"
                 >
                     <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
                     Back to Classes
@@ -123,19 +123,19 @@ const AdminAddClass = () => {
                 <button
                     onClick={handleRegisterClass}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-[var(--brand-primary)] text-white px-6 py-3 rounded-[12px] font-bold text-[14px] hover:bg-blue-700 disabled:opacity-60"
+                    className="flex min-h-[44px] w-full items-center justify-center gap-2 bg-[var(--brand-primary)] text-white px-6 py-3 rounded-[12px] font-bold text-[14px] hover:brightness-110 disabled:opacity-60 sm:min-h-0 sm:w-auto"
                 >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                     Register New Class
                 </button>
             </div>
 
-            <header className="mb-8">
-                <h1 className="text-[30px] font-extrabold text-[var(--text-primary)] tracking-tight mb-2">New Class Registration</h1>
-                <p className="text-[15px] text-[var(--text-secondary)] font-medium">Create a class section. Course registration is now managed from Subjects page.</p>
+            <header className="mb-6 sm:mb-8">
+                <h1 className="text-[1.5rem] sm:text-[30px] font-extrabold text-[var(--text-primary)] tracking-tight mb-2">New Class Registration</h1>
+                <p className="text-[13px] sm:text-[15px] text-[var(--text-secondary)] font-medium">Create a class section. Course registration is now managed from Subjects page.</p>
             </header>
 
-            <div className="bg-[var(--bg-card)] rounded-[24px] border border-[var(--border)] shadow-sm p-8 space-y-5">
+            <div className="bg-[var(--bg-card)] rounded-[24px] border border-[var(--border)] shadow-sm p-4 sm:p-6 md:p-8 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
                         <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Class Name</label>

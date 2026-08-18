@@ -171,11 +171,15 @@ const DashboardLayoutInner = ({ children }) => {
                 ['--sv-shell']: ADMIN.primary,
             }}
         >
-            <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 shadow-sm safe-area-px lg:hidden">
+            <header
+                className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 shadow-sm safe-area-px lg:hidden"
+                style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+            >
                 <button type="button" onClick={() => navigate('/teacher')} className="flex min-w-0 items-center gap-2 text-left">
                     <ProjectVerifyLogo size="md" tagline="Teacher console" />
                 </button>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
+                    <NotificationBell variant="teacher" />
                     <ThemeToggle compact />
                     <button
                         type="button"

@@ -767,7 +767,7 @@ const AdminStudents = () => {
 
             <div className="overflow-hidden rounded-[1.25rem] bg-[var(--bg-card)] shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-[var(--border)]">
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[860px] border-collapse text-left">
+                    <table className="w-full min-w-[36rem] border-collapse text-left">
                         <thead>
                             <tr className="border-b border-[var(--border)]">
                                 <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">

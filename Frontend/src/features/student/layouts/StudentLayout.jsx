@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Outlet, useLocation, Link, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Users, ChevronDown } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, BookOpen, FolderKanban, UserRound, Users, ChevronDown, MessageSquare } from 'lucide-react';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import StudentSidebar from '../components/StudentSidebar';
 import { useAuth } from '../../../context/authContext';
 import { ShellSearchProvider } from '../../../context/shellSearchContext';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
+import NotificationBell from '../../../shared/components/NotificationBell';
 import { ADMIN_SIDEBAR_GRADIENT } from '../../admin/ui/adminTheme';
 
 const pageTitles = [
@@ -15,6 +16,7 @@ const pageTitles = [
     { match: /^\/student\/groups/, title: 'My groups' },
     { match: /^\/student\/project\/[^/]+/, title: 'Project workspace' },
     { match: /^\/student\/project/, title: 'My projects' },
+    { match: /^\/student\/messages/, title: 'Contact teacher' },
     { match: /^\/student\/profile/, title: 'Profile' },
     { match: /^\/student/, title: 'Dashboard' },
 ];
@@ -29,6 +31,7 @@ const mobileNav = [
     { label: 'Groups', to: '/student/groups', icon: Users },
     { label: 'Work', to: '/student/assignments', icon: BookOpen },
     { label: 'Projects', to: '/student/project', icon: FolderKanban },
+    { label: 'Messages', to: '/student/messages', icon: MessageSquare },
     { label: 'Profile', to: '/student/profile', icon: UserRound },
 ];
 
@@ -52,21 +55,26 @@ const StudentLayoutInner = () => {
     });
 
     return (
-        <div className="flex min-h-screen w-full bg-[var(--bg-page)] text-[var(--text-primary)] antialiased [font-family:var(--sv-font-sans)]">
+        <div className="flex min-h-[100dvh] w-full max-w-full overflow-x-clip bg-[var(--bg-page)] text-[var(--text-primary)] antialiased [font-family:var(--sv-font-sans)]">
             <StudentSidebar />
 
-            <div className="flex min-h-screen min-w-0 flex-1 flex-col [font-family:var(--sv-font-sans)]">
+            <div className="flex min-h-[100dvh] min-w-0 flex-1 flex-col [font-family:var(--sv-font-sans)]">
                     {/* Mobile top bar */}
-                    <div className="lg:hidden flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-page)] px-4 py-3">
-                        <Link to="/student">
-                            <ProjectVerifyLogo size="lg" hideTextOnMobile tagline="" />
+                    <div
+                        className="lg:hidden flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 safe-area-px"
+                        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+                    >
+                        <Link to="/student" className="min-w-0">
+                            <ProjectVerifyLogo size="md" hideTextOnMobile tagline="" />
                         </Link>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
+                            <NotificationBell variant="student" />
                             <ThemeToggle compact />
                             <button
                                 type="button"
                                 onClick={() => setMobileOpen((v) => !v)}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)]"
+                                className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)]"
+                                aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                             </button>
@@ -75,7 +83,7 @@ const StudentLayoutInner = () => {
 
                     {mobileOpen && (
                         <div
-                            className="lg:hidden border-b border-white/10 p-3 space-y-1 safe-area-px"
+                            className="lg:hidden max-h-[70dvh] space-y-1 overflow-y-auto border-b border-white/10 p-3 safe-area-px"
                             style={{ background: ADMIN_SIDEBAR_GRADIENT }}
                         >
                             {mobileNav.map(({ label, to, icon: Icon, end }) => (
@@ -85,7 +93,7 @@ const StudentLayoutInner = () => {
                                     end={end}
                                     onClick={() => setMobileOpen(false)}
                                     className={({ isActive }) =>
-                                        `flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
+                                        `flex min-h-[44px] items-center gap-2 rounded-xl px-4 py-3 text-sm ${
                                             isActive ? 'bg-[var(--sidebar-active-bg)] font-semibold text-[var(--sidebar-active-text)]' : 'font-normal text-[var(--sidebar-fg-soft)]'
                                         }`
                                     }
@@ -100,7 +108,7 @@ const StudentLayoutInner = () => {
                                     logout();
                                     navigate('/');
                                 }}
-                                className="flex w-full items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-rose-300"
+                                className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-rose-300"
                             >
                                 <LogOut className="h-4 w-4" /> Logout
                             </button>
@@ -108,9 +116,9 @@ const StudentLayoutInner = () => {
                     )}
 
                     <header className="flex flex-col gap-2 px-4 pb-1 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
-                        <h1 className="text-lg font-extrabold tracking-tight text-[var(--text-primary)] sm:text-xl">{title}</h1>
+                        <h1 className="text-base font-extrabold tracking-tight text-[var(--text-primary)] sm:text-lg md:text-xl">{title}</h1>
                         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                            <ThemeToggle compact className="hidden sm:inline-flex" />
+                            <ThemeToggle compact className="hidden lg:inline-flex" />
                             <button
                                 type="button"
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-semibold text-[var(--text-secondary)] shadow-sm"
@@ -121,7 +129,7 @@ const StudentLayoutInner = () => {
                         </div>
                     </header>
 
-                    <main className="app-page flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-5 lg:px-6 [font-family:var(--sv-font-sans)]">
+                    <main className="app-page app-page-root flex-1 overflow-y-auto overflow-x-clip px-3 pb-6 pt-3 sm:px-5 lg:px-6 [font-family:var(--sv-font-sans)]">
                         <Outlet />
                     </main>
                 </div>

@@ -534,7 +534,30 @@ html[data-theme="dark"] .shadow-xl {
   }
 
   .app-table {
-    @apply w-full min-w-[520px] text-left border-collapse sm:min-w-[640px] md:min-w-[760px] lg:min-w-[900px];
+    /* Single modest floor — wrap scrolls horizontally on phones; avoid escalating min-widths */
+    @apply w-full min-w-[36rem] text-left border-collapse;
+  }
+
+  /** Page sections that must never cause horizontal page scroll */
+  .app-page-root,
+  .app-shell-page {
+    @apply max-w-full overflow-x-clip;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  /** Stack form action rows on small screens */
+  .app-form-actions {
+    @apply flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end;
+  }
+
+  .app-form-actions > * {
+    @apply w-full sm:w-auto;
   }
 
   /** Horizontally scrollable chip / tab rows on small screens */

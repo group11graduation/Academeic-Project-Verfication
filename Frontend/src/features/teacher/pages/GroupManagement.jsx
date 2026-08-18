@@ -182,7 +182,7 @@ const GroupManagement = () => {
     }
 
     return (
-        <div className="p-3 sm:p-4 md:p-6 lg:p-10 max-w-[1600px] mx-auto min-h-screen bg-[var(--bg-card)] transition-colors safe-area-px">
+        <div className="mx-auto w-full max-w-[1600px] min-w-0 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-px">
             {/* Breadcrumbs & Utility Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div className="space-y-2">
@@ -200,7 +200,7 @@ const GroupManagement = () => {
                         >
                             <ArrowLeft className="h-5 w-5 group-hover:-translate-x-0.5 transition-transform" />
                         </Link>
-                        <h1 className="text-3xl md:text-5xl font-bold text-[var(--text-primary)] tracking-tight">
+                        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl md:text-4xl">
                             Group Management
                         </h1>
                     </div>
