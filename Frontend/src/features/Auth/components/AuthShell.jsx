@@ -4,7 +4,7 @@ import { BRAND, BRAND_GRADIENT, PROJECT_NAME } from '../../../shared/ui/brandThe
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 
 /**
- * Split auth layout: form on the left (white), brand panel on the right.
+ * Split auth layout: brand panel on the left, form on the right (white).
  */
 export default function AuthShell({
   title,
@@ -16,54 +16,30 @@ export default function AuthShell({
 }) {
   return (
     <div className="fixed inset-0 flex min-h-[100dvh] overflow-hidden bg-white font-sans">
-      {/* Left — form */}
-      <div className="relative flex w-full flex-col overflow-y-auto px-6 py-8 sm:px-10 lg:w-[48%] lg:px-14 xl:px-20">
-        <div className="mb-10 shrink-0 lg:mb-14">
-          <Link to="/" className="inline-flex">
-            <ProjectVerifyLogo size="md" tagline="" />
-          </Link>
-        </div>
-
-        <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center pb-10">
-          {title ? (
-            <h1 className="text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-[#0F172A] sm:text-[2rem]">
-              {title}
-            </h1>
-          ) : null}
-          {subtitle ? (
-            <p className="mt-2 text-[14px] font-normal leading-[1.5] text-[#51628f]">{subtitle}</p>
-          ) : null}
-
-          <div className={title || subtitle ? 'mt-8' : ''}>{children}</div>
-          {footer}
-        </div>
-      </div>
-
-      {/* Right — brand panel */}
+      {/* Left — brand panel */}
       <div className="relative hidden min-h-full p-3 lg:flex lg:w-[52%]">
         <div
-          className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-l-[2.75rem] rounded-r-[1.25rem] px-10 py-12 text-white xl:px-14"
+          className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-r-[2.75rem] rounded-l-[1.25rem] px-10 py-12 text-white xl:px-14"
           style={{ background: BRAND_GRADIENT }}
         >
-          {/* Soft decorative blocks (CSS-only, no purple) */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
             <div
-              className="absolute -right-16 top-16 h-40 w-56 rotate-[-18deg] rounded-2xl opacity-30"
+              className="absolute -left-16 top-16 h-40 w-56 rotate-[18deg] rounded-2xl opacity-30"
               style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05))' }}
             />
             <div
-              className="absolute bottom-24 right-10 h-48 w-64 rotate-[12deg] rounded-2xl opacity-25"
+              className="absolute bottom-24 left-10 h-48 w-64 rotate-[-12deg] rounded-2xl opacity-25"
               style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.28), rgba(29,47,130,0.35))' }}
             />
             <div
-              className="absolute bottom-40 right-28 h-28 w-40 rotate-[-8deg] rounded-xl shadow-2xl"
+              className="absolute bottom-40 left-28 h-28 w-40 rotate-[8deg] rounded-xl shadow-2xl"
               style={{
                 background: 'linear-gradient(135deg, #fbbf24 0%, #f97316 55%, #ea580c 100%)',
                 opacity: 0.95,
               }}
             />
             <div
-              className="absolute left-10 top-1/3 h-24 w-36 rotate-[22deg] rounded-xl opacity-20"
+              className="absolute right-10 top-1/3 h-24 w-36 rotate-[-22deg] rounded-xl opacity-20"
               style={{ background: 'rgba(255,255,255,0.4)' }}
             />
           </div>
@@ -83,8 +59,33 @@ export default function AuthShell({
                 Students, teachers, and admins sign in with institution credentials managed by your administrator.
               </p>
             </div>
-            <p className="mt-6 text-[11px] font-normal text-white/55">© {new Date().getFullYear()} {PROJECT_NAME}</p>
+            <p className="mt-6 text-[11px] font-normal text-white/55">
+              © {new Date().getFullYear()} {PROJECT_NAME}
+            </p>
           </div>
+        </div>
+      </div>
+
+      {/* Right — form */}
+      <div className="relative flex w-full flex-col overflow-y-auto px-6 py-8 sm:px-10 lg:w-[48%] lg:px-14 xl:px-20">
+        <div className="mb-10 shrink-0 lg:mb-14">
+          <Link to="/" className="inline-flex">
+            <ProjectVerifyLogo size="md" tagline="" />
+          </Link>
+        </div>
+
+        <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center pb-10">
+          {title ? (
+            <h1 className="text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-[#0F172A] sm:text-[2rem]">
+              {title}
+            </h1>
+          ) : null}
+          {subtitle ? (
+            <p className="mt-2 text-[14px] font-normal leading-[1.5] text-[#51628f]">{subtitle}</p>
+          ) : null}
+
+          <div className={title || subtitle ? 'mt-8' : ''}>{children}</div>
+          {footer}
         </div>
       </div>
     </div>
