@@ -477,7 +477,7 @@ const AssignmentDetail = () => {
                                             ? 'Loading class roster and submissions…'
                                             : total === 0
                                                 ? isNormalAssignment
-                                                    ? 'No students matched this assignment's class(es). Check that student profiles use the correct class code, or wait for uploads.'
+                                                    ? "No students matched this assignment's class(es). Check that student profiles use the correct class code, or wait for uploads."
                                                     : 'No per-student file roster is loaded for this assignment. Use "Review proposals" for proposal workflow status.'
                                                 : 'No students in this view.'}
                                     </td>
