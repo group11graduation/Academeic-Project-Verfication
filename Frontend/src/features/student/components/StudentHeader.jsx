@@ -206,7 +206,7 @@ const StudentHeader = ({ forcePublic = false }) => {
     }
 
     return (
-        <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-[var(--sv-card)] shadow-[0_1px_0_rgba(42,63,164,0.04)] dark:border-white/10 dark:bg-[#0b1220]">
+        <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-[var(--sv-card)] shadow-[0_1px_0_rgba(42,63,164,0.04)] antialiased [font-family:var(--sv-font-sans)] dark:border-white/10 dark:bg-[#0b1220]">
             <div className="h-[3px] w-full" style={{ background: BRAND_GRADIENT }} />
 
             <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">

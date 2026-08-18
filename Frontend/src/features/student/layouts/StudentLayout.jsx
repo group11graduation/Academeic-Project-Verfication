@@ -6,6 +6,7 @@ import StudentSidebar from '../components/StudentSidebar';
 import { useAuth } from '../../../context/authContext';
 import { ShellSearchProvider } from '../../../context/shellSearchContext';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
+import { ADMIN_SIDEBAR_GRADIENT } from '../../admin/ui/adminTheme';
 
 const pageTitles = [
     { match: /^\/student\/assignments\/[^/]+\/proposal/, title: 'Submit proposal' },
@@ -51,10 +52,10 @@ const StudentLayoutInner = () => {
     });
 
     return (
-        <div className="flex min-h-screen w-full bg-[#f8fafc] font-sans text-[var(--sv-text)] dark:bg-[#020617] dark:text-slate-100">
+        <div className="flex min-h-screen w-full bg-[#f8fafc] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)] dark:bg-[#020617] dark:text-slate-100">
             <StudentSidebar />
 
-            <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+            <div className="flex min-h-screen min-w-0 flex-1 flex-col [font-family:var(--sv-font-sans)]">
                     {/* Mobile top bar */}
                     <div className="lg:hidden flex items-center justify-between gap-3 border-b border-slate-200/80 bg-[#f8fafc] px-4 py-3 dark:border-white/10 dark:bg-[#0b1220]">
                         <Link to="/student">
@@ -75,7 +76,7 @@ const StudentLayoutInner = () => {
                     {mobileOpen && (
                         <div
                             className="lg:hidden border-b border-white/10 p-3 space-y-1 safe-area-px"
-                            style={{ background: 'linear-gradient(180deg, #2a3fa4 0%, #223688 100%)' }}
+                            style={{ background: ADMIN_SIDEBAR_GRADIENT }}
                         >
                             {mobileNav.map(({ label, to, icon: Icon, end }) => (
                                 <NavLink
@@ -120,7 +121,7 @@ const StudentLayoutInner = () => {
                         </div>
                     </header>
 
-                    <main className="app-page flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-5 lg:px-6">
+                    <main className="app-page flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-5 lg:px-6 [font-family:var(--sv-font-sans)]">
                         <Outlet />
                     </main>
                 </div>

@@ -117,7 +117,7 @@ const StudentProjectDetail = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-[var(--sv-text)]">
+            <div className="flex min-h-screen flex-col bg-[#FAFAFA] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
                 <StudentHeader />
                 <div className="flex-1 flex items-center justify-center">
                     <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
@@ -128,7 +128,7 @@ const StudentProjectDetail = () => {
 
     if (!project) {
         return (
-            <div className="min-h-screen bg-[#FAFAFA] flex flex-col font-sans text-[var(--sv-text)]">
+            <div className="flex min-h-screen flex-col bg-[#FAFAFA] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
                 <StudentHeader />
                 <div className="flex-1 flex flex-col items-center justify-center gap-4">
                     <h2 className="text-xl font-bold text-[var(--sv-muted)]">Project Not Found</h2>
@@ -139,7 +139,7 @@ const StudentProjectDetail = () => {
     }
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#FAFAFA] font-sans text-[var(--sv-text)] overflow-x-hidden selection:bg-blue-100 selection:text-blue-900">
+        <div className="flex min-h-screen flex-col overflow-x-hidden bg-[#FAFAFA] text-[var(--sv-text)] antialiased selection:bg-blue-100 selection:text-blue-900 [font-family:var(--sv-font-sans)]">
             <StudentHeader />
 
             <main className="flex-1 pt-16 pb-24 px-6 max-w-[1536px] mx-auto w-full">

@@ -118,7 +118,7 @@ const StudentHomeDashboard = () => {
     }
 
     return (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_260px] gap-3">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_260px] antialiased [font-family:var(--sv-font-sans)]">
             <div className="space-y-3 min-w-0">
                 <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
                     <div className="flex flex-wrap gap-1.5 mb-4">

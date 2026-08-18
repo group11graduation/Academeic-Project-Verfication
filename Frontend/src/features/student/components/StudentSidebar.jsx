@@ -10,7 +10,8 @@ import {
     Users,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import { BRAND, RAIL_GRADIENT } from '../../../shared/ui/brandTheme';
+import { BRAND } from '../../../shared/ui/brandTheme';
+import { ADMIN_SIDEBAR_GRADIENT } from '../../admin/ui/adminTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 
@@ -34,11 +35,11 @@ const StudentSidebar = () => {
 
     return (
         <aside
-            className="hidden lg:flex w-[200px] xl:w-[220px] shrink-0 min-h-screen flex-col text-white py-5 pl-4 pr-3 rounded-tr-[56px] xl:rounded-tr-[64px]"
-            style={{ background: RAIL_GRADIENT }}
+            className="hidden min-h-screen w-[200px] shrink-0 flex-col rounded-tr-[56px] py-5 pl-4 pr-3 text-white antialiased [font-family:var(--sv-font-sans)] lg:flex xl:w-[220px] xl:rounded-tr-[64px]"
+            style={{ background: ADMIN_SIDEBAR_GRADIENT }}
         >
-            <Link to="/student" className="px-2 mb-5">
-                <ProjectVerifyLogo onDark size="md" tagline="" />
+            <Link to="/student" className="mb-5 px-2">
+                <ProjectVerifyLogo onDark plainMark size="sm" tagline="" />
             </Link>
 
             <nav className="flex-1 space-y-1 px-1">

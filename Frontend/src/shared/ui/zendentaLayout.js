@@ -1,6 +1,6 @@
 /** Shared “Zendenta-style” shells for assignment / student dashboards (light UI). */
 
-export const Z_PAGE = 'min-h-0 min-h-screen bg-[var(--sv-page-bg)] text-[var(--sv-text)] text-[13px]';
+export const Z_PAGE = 'min-h-0 min-h-screen bg-[var(--sv-page-bg)] text-[var(--sv-text)] text-[13px] antialiased [font-family:var(--sv-font-sans)]';
 /** Inside StudentLayout sidebar shell - no full-page bg or extra padding. */
 export const Z_SHELL = 'flex min-h-0 flex-1 flex-col text-[var(--sv-text)] text-[13px]';
 export const Z_SHELL_INNER = 'w-full flex-1';
