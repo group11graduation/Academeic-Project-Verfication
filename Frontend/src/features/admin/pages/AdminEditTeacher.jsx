@@ -137,23 +137,23 @@ const AdminEditTeacher = () => {
 
     if (initialLoading) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] flex flex-col items-center justify-center">
-                <Loader2 className="h-10 w-10 text-[#2f4aad] animate-spin mb-4" />
-                <p className="text-slate-500 font-medium">Loading teacher profile...</p>
+            <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-center">
+                <Loader2 className="h-10 w-10 text-[var(--brand-primary)] animate-spin mb-4" />
+                <p className="text-[var(--text-secondary)] font-medium">Loading teacher profile...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-screen bg-[#F8FAFB] flex flex-col items-center justify-center p-4 sm:p-6 md:p-10 text-center safe-area-px">
-                <div className="bg-white p-8 rounded-2xl border border-red-100 shadow-sm max-w-md w-full">
+            <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-center p-4 sm:p-6 md:p-10 text-center safe-area-px">
+                <div className="bg-[var(--bg-card)] p-8 rounded-2xl border border-red-100 shadow-sm max-w-md w-full">
                     <X className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-[#0F172A] mb-2">Error</h2>
-                    <p className="text-slate-500 mb-6">{error}</p>
+                    <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Error</h2>
+                    <p className="text-[var(--text-secondary)] mb-6">{error}</p>
                     <button
                         onClick={() => navigate('/admin/teachers')}
-                        className="bg-[#2f4aad] text-white px-6 py-2.5 rounded-[12px] font-bold shadow-lg hover:bg-blue-700 w-full"
+                        className="bg-[var(--brand-primary)] text-white px-6 py-2.5 rounded-[12px] font-bold shadow-lg hover:bg-blue-700 w-full"
                     >
                         Back to Directory
                     </button>
@@ -163,17 +163,17 @@ const AdminEditTeacher = () => {
     }
 
     return (
-        <div className="p-4 sm:p-6 md:p-8 lg:p-10 max-w-[1200px] mx-auto font-sans bg-[#F8FAFB] min-h-screen safe-area-px">
+        <div className="p-4 sm:p-6 md:p-8 lg:p-10 max-w-[1200px] mx-auto font-sans bg-[var(--bg-page)] min-h-screen safe-area-px">
 
             {/* Top Bar Area */}
-            <div className="flex items-center justify-between border-b border-slate-200 pb-8 mb-8">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-8 mb-8">
                 <div>
-                    <h1 className="text-[32px] font-extrabold text-[#0F172A] tracking-tight mb-2">Edit Teacher Profile</h1>
-                    <p className="text-[16px] text-slate-500 font-medium">Update information for {formData.name}</p>
+                    <h1 className="text-[32px] font-extrabold text-[var(--text-primary)] tracking-tight mb-2">Edit Teacher Profile</h1>
+                    <p className="text-[16px] text-[var(--text-secondary)] font-medium">Update information for {formData.name}</p>
                 </div>
                 <button
                     onClick={() => navigate(`/admin/teachers/${id}`)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-[12px] text-slate-600 font-bold hover:bg-slate-50 transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-[12px] text-[var(--text-secondary)] font-bold hover:bg-[var(--bg-elevated)] transition-colors shadow-sm"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     Back to Profile
@@ -181,32 +181,32 @@ const AdminEditTeacher = () => {
             </div>
 
             {/* Main Form Card */}
-            <div className="bg-white rounded-[16px] border border-slate-200 shadow-sm overflow-hidden p-8">
+            <div className="bg-[var(--bg-card)] rounded-[16px] border border-[var(--border)] shadow-sm overflow-hidden p-8">
 
                 {/* 1. PERSONAL DETAILS */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] uppercase tracking-widest mb-6">Personal Details</h3>
+                    <h3 className="text-[13px] font-extrabold text-[var(--brand-primary)] uppercase tracking-widest mb-6">Personal Details</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Full Name</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Full Name</label>
                             <input
                                 type="text"
                                 name="name"
                                 value={formData.name}
                                 onChange={handleChange}
                                 required
-                                className="w-full bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 px-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none"
+                                className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                             />
                         </div>
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Teacher ID</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Teacher ID</label>
                             <div className="relative">
                                 <input
                                     type="text"
                                     value={id}
                                     disabled
-                                    className="w-full bg-slate-100/70 border border-slate-200 rounded-[12px] py-3.5 px-4 text-[15px] font-medium text-slate-500 outline-none cursor-not-allowed"
+                                    className="w-full bg-[var(--bg-elevated)]/70 border border-[var(--border)] rounded-[12px] py-3.5 px-4 text-[15px] font-medium text-[var(--text-secondary)] outline-none cursor-not-allowed"
                                 />
                             </div>
                         </div>
@@ -214,25 +214,25 @@ const AdminEditTeacher = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Faculty</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Faculty</label>
                             <div className="relative">
                                 <select
                                     name="faculty"
                                     value={formData.faculty}
                                     onChange={handleChange}
                                     required
-                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none"
+                                    className="w-full appearance-none bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                                 >
                                     <option value="" disabled>Select Faculty</option>
                                     {facultyOptions.map((f) => (
                                         <option key={f} value={f}>{f}</option>
                                     ))}
                                 </select>
-                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-secondary)] pointer-events-none" />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Department</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Department</label>
                             <div className="relative">
                                 <select
                                     name="department"
@@ -240,29 +240,29 @@ const AdminEditTeacher = () => {
                                     onChange={handleChange}
                                     required
                                     disabled={!formData.faculty}
-                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                                    className="w-full appearance-none bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-secondary)]"
                                 >
                                     <option value="" disabled>Select Department</option>
                                     {departmentOptions.map((d) => (
                                         <option key={d} value={d}>{d}</option>
                                     ))}
                                 </select>
-                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-secondary)] pointer-events-none" />
                             </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Profile Picture & URL</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Profile Picture & URL</label>
                             <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                                <div className="w-14 h-14 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden shrink-0">
                                     {uploadingImage ? (
-                                        <Loader2 className="h-5 w-5 text-[#2f4aad] animate-spin" />
+                                        <Loader2 className="h-5 w-5 text-[var(--brand-primary)] animate-spin" />
                                     ) : formData.photo && formData.photo !== 'https://via.placeholder.com/150' ? (
                                         <img src={formData.photo} alt="Avatar" className="w-full h-full object-cover" />
                                     ) : (
-                                        <User className="h-6 w-6 text-slate-400" />
+                                        <User className="h-6 w-6 text-[var(--text-secondary)]" />
                                     )}
                                 </div>
                                 <input
@@ -276,11 +276,11 @@ const AdminEditTeacher = () => {
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={uploadingImage}
-                                    className="px-4 py-2 bg-white border border-slate-200 rounded-[8px] text-[13px] font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+                                    className="px-4 py-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-[8px] text-[13px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors shadow-sm disabled:opacity-50"
                                 >
                                     {uploadingImage ? 'Uploading...' : 'Upload File'}
                                 </button>
-                                <span className="text-[12px] font-medium text-slate-400">or enter Image URL below</span>
+                                <span className="text-[12px] font-medium text-[var(--text-secondary)]">or enter Image URL below</span>
                             </div>
                             <input
                                 type="text"
@@ -288,24 +288,24 @@ const AdminEditTeacher = () => {
                                 value={formData.photo}
                                 onChange={handleChange}
                                 placeholder="https://example.com/photo.jpg"
-                                className="w-full mt-3 bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 px-4 text-[14px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none"
+                                className="w-full mt-3 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 text-[14px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                             />
                         </div>
                     </div>
                 </section>
 
-                <hr className="border-slate-100 mb-10" />
+                <hr className="border-[var(--border)] mb-10" />
 
                 {/* 2. SUBJECT EXPERTISE */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] uppercase tracking-widest mb-6">Subject Expertise</h3>
+                    <h3 className="text-[13px] font-extrabold text-[var(--brand-primary)] uppercase tracking-widest mb-6">Subject Expertise</h3>
 
                     <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Skills & Expertise (Select multiple)</label>
+                        <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Skills & Expertise (Select multiple)</label>
                         <div className="relative">
-                            <div className="w-full bg-slate-50 border border-slate-200 rounded-[12px] p-2 flex flex-wrap gap-2 items-center min-h-[52px]">
+                            <div className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] p-2 flex flex-wrap gap-2 items-center min-h-[52px]">
                                 {skills.map(skill => (
-                                    <span key={skill} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-[#2f4aad] rounded-[8px] text-[13px] font-bold">
+                                    <span key={skill} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-[var(--brand-primary)] rounded-[8px] text-[13px] font-bold">
                                         {skill}
                                         <button onClick={() => removeSkill(skill)} className="hover:text-blue-700 focus:outline-none">
                                             <X className="h-3.5 w-3.5" />
@@ -313,7 +313,7 @@ const AdminEditTeacher = () => {
                                     </span>
                                 ))}
                                 <select
-                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-slate-700 outline-none w-full min-w-0 sm:w-[120px] sm:min-w-[200px]"
+                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-[var(--text-primary)] outline-none w-full min-w-0 sm:w-[120px] sm:min-w-[200px]"
                                     onChange={(e) => {
                                         handleAddSkill(e.target.value);
                                         e.target.value = ""; // Reset select after choosing
@@ -344,37 +344,37 @@ const AdminEditTeacher = () => {
                     </div>
                 </section>
 
-                <hr className="border-slate-100 mb-10" />
+                <hr className="border-[var(--border)] mb-10" />
 
                 {/* 3. CONTACT INFORMATION */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] uppercase tracking-widest mb-6">Contact Information</h3>
+                    <h3 className="text-[13px] font-extrabold text-[var(--brand-primary)] uppercase tracking-widest mb-6">Contact Information</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Contact Email</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Contact Email</label>
                             <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-secondary)]" />
                                 <input
                                     type="email"
                                     name="email"
                                     value={formData.email}
                                     onChange={handleChange}
                                     required
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 pl-12 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none"
+                                    className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 pl-12 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                                 />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Phone Number</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Phone Number</label>
                             <div className="relative">
-                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)]" />
                                 <input
                                     type="tel"
                                     name="phone"
                                     value={formData.phone}
                                     onChange={handleChange}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-[12px] py-3.5 pl-11 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 outline-none"
+                                    className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 pl-11 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                                 />
                             </div>
                         </div>
@@ -382,17 +382,17 @@ const AdminEditTeacher = () => {
                 </section>
 
                 {/* Footer Actions */}
-                <div className="flex items-center justify-end gap-6 pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-end gap-6 pt-6 border-t border-[var(--border)]">
                     <button
                         onClick={() => navigate(`/admin/teachers/${id}`)}
-                        className="text-[14px] font-bold text-[#0F172A] hover:text-slate-600 transition-colors"
+                        className="text-[14px] font-bold text-[var(--text-primary)] hover:text-[var(--text-secondary)] transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="flex items-center gap-2 bg-[#2f4aad] text-white px-6 py-3.5 rounded-[12px] font-bold text-[15px] shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 bg-[var(--brand-primary)] text-white px-6 py-3.5 rounded-[12px] font-bold text-[15px] shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <Loader2 className="h-5 w-5 animate-spin" />

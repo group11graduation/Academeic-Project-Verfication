@@ -99,8 +99,8 @@ const ClassDetail = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 font-medium">Loading class...</p>
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin mb-2" />
+                <p className="text-[12px] text-[var(--text-secondary)] font-medium">Loading class...</p>
             </div>
         );
     }
@@ -108,8 +108,8 @@ const ClassDetail = () => {
     if (!classData) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center p-4">
-                <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-3">Class Not Found</h2>
-                <Link to="/teacher/classes" className="text-[#2f4aad] dark:text-blue-400 hover:underline font-bold text-[12px]">
+                <h2 className="text-base font-bold text-[var(--text-primary)] mb-3">Class Not Found</h2>
+                <Link to="/teacher/classes" className="text-[var(--brand-primary)] dark:text-blue-400 hover:underline font-bold text-[12px]">
                     Return to My Classes
                 </Link>
             </div>
@@ -122,9 +122,9 @@ const ClassDetail = () => {
                 <header className="mb-4 border-b border-[var(--sv-border)] dark:border-slate-800 pb-3">
                     <Link
                         to="/teacher/classes"
-                        className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-[#2f4aad] dark:hover:text-blue-400 transition-colors mb-3 group w-fit"
+                        className="flex items-center gap-1.5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] hover:text-[var(--brand-primary)] dark:hover:text-blue-400 transition-colors mb-3 group w-fit"
                     >
-                        <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] p-1.5 rounded-lg border border-[var(--sv-border)] dark:border-white/5 group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
+                        <div className="bg-[var(--sv-card)] p-1.5 rounded-lg border border-[var(--sv-border)] group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
                             <ArrowLeft className="h-3.5 w-3.5" />
                         </div>
                         <span className="text-[11px] font-bold uppercase tracking-widest">Back to My Classes</span>
@@ -132,27 +132,27 @@ const ClassDetail = () => {
 
                     <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
                         <div>
-                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#2f4aad] dark:text-blue-400 mb-1">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--brand-primary)] dark:text-blue-400 mb-1">
                                 {classData.code}
                             </p>
-                            <h1 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-100 mb-1 tracking-tight">
+                            <h1 className="text-base md:text-lg font-bold text-[var(--text-primary)] mb-1 tracking-tight">
                                 {classData.title}
                             </h1>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium max-w-2xl">
+                            <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium max-w-2xl">
                                 Class profile, live counts, and full student roster for this section.
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <Link
                                 to={`/teacher/classes/${classData.code}/students`}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#2f4aad] text-white text-[11px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--brand-primary)] text-white text-[11px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors"
                             >
                                 <UserCheck className="h-3.5 w-3.5" />
                                 Full roster page
                             </Link>
                             <Link
                                 to={`/teacher/classes/${classData.code}/groups`}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--sv-border)] dark:border-white/10 text-slate-700 dark:text-slate-200 text-[11px] font-bold uppercase tracking-widest hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/5 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--sv-border)] text-[var(--text-primary)] text-[11px] font-bold uppercase tracking-widest hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/5 transition-colors"
                             >
                                 <Settings className="h-3.5 w-3.5" />
                                 Groups
@@ -162,12 +162,12 @@ const ClassDetail = () => {
                 </header>
 
                 {/* Class metadata */}
-                <section className="mb-4 rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card-muted)] dark:bg-[#0F172A] p-4">
+                <section className="mb-4 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-4">
                     <div className="flex items-center gap-2 mb-3">
-                        <div className="p-2 rounded-lg bg-[var(--sv-card)] dark:bg-[#0B1120] border border-[var(--sv-border)] dark:border-white/5 shadow-sm">
-                            <BookOpen className="h-4 w-4 text-[#2f4aad] dark:text-blue-400" />
+                        <div className="p-2 rounded-lg bg-[var(--sv-card)] border border-[var(--sv-border)] shadow-sm">
+                            <BookOpen className="h-4 w-4 text-[var(--brand-primary)] dark:text-blue-400" />
                         </div>
-                        <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100">Class information</h2>
+                        <h2 className="text-[12px] font-bold uppercase tracking-widest text-[var(--text-primary)]">Class information</h2>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                         <InfoItem icon={<Layers className="h-4 w-4" />} label="Category" value={classData.category || '-'} />
@@ -190,11 +190,11 @@ const ClassDetail = () => {
                         />
                     </div>
                     {classData.description ? (
-                        <p className="mt-3 text-[12px] text-slate-600 dark:text-slate-400 leading-relaxed border-t border-[var(--sv-border)] dark:border-white/10 pt-3">
+                        <p className="mt-3 text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] leading-relaxed border-t border-[var(--sv-border)] pt-3">
                             {classData.description}
                         </p>
                     ) : (
-                        <p className="mt-3 text-[12px] text-slate-500 dark:text-slate-500 border-t border-[var(--sv-border)] dark:border-white/10 pt-3 italic">
+                        <p className="mt-3 text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] border-t border-[var(--sv-border)] pt-3 italic">
                             No class description on file.
                         </p>
                     )}
@@ -243,8 +243,8 @@ const ClassDetail = () => {
                     />
                 </div>
 
-                <section id="review-alerts" className="rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] p-4 mb-4">
-                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Review alerts</h2>
+                <section id="review-alerts" className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 mb-4">
+                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-[var(--text-primary)] mb-2">Review alerts</h2>
                     {reviewAlerts.length > 0 ? (
                         <div className="space-y-2">
                             {reviewAlerts.map((alert) => (
@@ -254,18 +254,18 @@ const ClassDetail = () => {
                                     className="flex items-center justify-between gap-3 rounded-lg border border-rose-100 dark:border-rose-500/20 bg-rose-50/50 dark:bg-rose-500/5 px-3 py-2.5 hover:border-rose-200 dark:hover:border-rose-500/40 transition-colors"
                                 >
                                     <div className="min-w-0">
-                                        <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 truncate">
+                                        <p className="text-[12px] font-bold text-[var(--text-primary)] truncate">
                                             {alert.studentName}
                                             {alert.proposalTitle ? ` - ${alert.proposalTitle}` : ''}
                                         </p>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                        <p className="text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] truncate">
                                             {alert.assignmentTitle}
                                         </p>
                                         <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 mt-0.5">
                                             {ALERT_STATUS_LABELS[alert.status] || alert.status}
                                         </p>
                                     </div>
-                                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#2f4aad]">
+                                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--brand-primary)]">
                                         Review
                                         <ExternalLink className="h-3.5 w-3.5" />
                                     </span>
@@ -285,22 +285,22 @@ const ClassDetail = () => {
                 </section>
 
                 {/* Students on this page */}
-                <section className="rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] shadow-sm overflow-hidden mb-4">
-                    <div className="p-4 border-b border-[var(--sv-border)] dark:border-white/5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <section className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-sm overflow-hidden mb-4">
+                    <div className="p-4 border-b border-[var(--sv-border)] flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
-                            <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100">Students in this class</h2>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            <h2 className="text-[12px] font-bold uppercase tracking-widest text-[var(--text-primary)]">Students in this class</h2>
+                            <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mt-0.5">
                                 {students.length} student{students.length !== 1 ? 's' : ''} on the roster
                             </p>
                         </div>
                         <div className="relative w-full md:max-w-xs">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]" />
                             <input
                                 type="text"
                                 placeholder="Search name, ID, email..."
                                 value={studentSearch}
                                 onChange={(e) => setStudentSearch(e.target.value)}
-                                className="w-full rounded-lg border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card-muted)] dark:bg-[#0B1120] py-2 pl-9 pr-3 text-[12px] font-bold text-slate-800 dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] py-2 pl-9 pr-3 text-[12px] font-bold text-[var(--text-primary)]"
                             />
                         </div>
                     </div>
@@ -308,7 +308,7 @@ const ClassDetail = () => {
                         <div className="app-table-wrap custom-scrollbar max-h-[420px] overflow-y-auto">
                             <table className="app-table">
                                 <thead>
-                                    <tr className="app-table-headrow sticky top-0 z-[1] bg-[var(--sv-card)] dark:bg-[#0F172A]">
+                                    <tr className="app-table-headrow sticky top-0 z-[1] bg-[var(--sv-card)]">
                                         <th className="app-table-th">Student</th>
                                         <th className="app-table-th text-center">Student ID</th>
                                         <th className="app-table-th hidden md:table-cell">Email</th>
@@ -340,7 +340,7 @@ const ClassDetail = () => {
                                             >
                                                 <td className="app-table-td">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-[#0B1120] flex items-center justify-center overflow-hidden border border-[var(--sv-border)] dark:border-white/5 shrink-0">
+                                                        <div className="h-8 w-8 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden border border-[var(--sv-border)] shrink-0">
                                                             {student.photo && student.photo !== 'default-student.jpg' ? (
                                                                 <img
                                                                     src={
@@ -352,7 +352,7 @@ const ClassDetail = () => {
                                                                     className="h-full w-full object-cover"
                                                                 />
                                                             ) : (
-                                                                <span className="text-xs font-bold text-slate-500">
+                                                                <span className="text-xs font-bold text-[var(--text-secondary)]">
                                                                     {(student.name || '?')
                                                                         .split(' ')
                                                                         .map((n) => n[0])
@@ -361,36 +361,36 @@ const ClassDetail = () => {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                                                        <span className="font-bold text-[var(--text-primary)]">
                                                             {student.name}
                                                         </span>
                                                     </div>
                                                 </td>
                                                 <td className="app-table-td text-center font-mono text-sm">{student.id}</td>
                                                 <td className="app-table-td hidden md:table-cell">
-                                                    <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
+                                                    <span className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                                         <Mail className="h-3.5 w-3.5 shrink-0 opacity-60" />
                                                         {student.email || '-'}
                                                     </span>
                                                 </td>
                                                 <td className="app-table-td text-center">
-                                                    <span className="bg-blue-500/10 text-[#2f4aad] dark:text-blue-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                                                    <span className="bg-blue-500/10 text-[var(--brand-primary)] dark:text-blue-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                                                         {student.group || 'UNASSIGNED'}
                                                     </span>
                                                 </td>
                                                 <td className="app-table-td">
                                                     <div className="flex items-center gap-3 max-w-[180px]">
-                                                        <div className="flex-1 h-2 bg-slate-100 dark:bg-[#0B1120] rounded-full overflow-hidden border border-[var(--sv-border)] dark:border-white/5">
+                                                        <div className="flex-1 h-2 bg-[var(--bg-elevated)] rounded-full overflow-hidden border border-[var(--sv-border)]">
                                                             <div
                                                                 className={`h-full rounded-full ${
-                                                                    (student.attendance ?? 0) >= 50
-                                                                        ? 'bg-gradient-to-r from-blue-400 to-blue-600'
-                                                                        : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                                                                }`}
+ (student.attendance ?? 0) >= 50
+ ? 'bg-gradient-to-r from-blue-400 to-blue-600'
+ : 'bg-gradient-to-r from-rose-400 to-rose-600'
+ }`}
                                                                 style={{ width: `${Math.min(100, Number(student.attendance) || 0)}%` }}
                                                             />
                                                         </div>
-                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 w-10 text-right">
+                                                        <span className="text-xs font-bold text-[var(--text-primary)] w-10 text-right">
                                                             {student.attendance ?? 0}%
                                                         </span>
                                                     </div>
@@ -414,31 +414,31 @@ const ClassDetail = () => {
 
                 {/* Priority shortcuts */}
                 <section className="mb-4">
-                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Shortcuts</h2>
+                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-[var(--text-primary)] mb-2">Shortcuts</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <Link
                             to={`/teacher/classes/${classData.code}/students`}
-                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#2f4aad]/40 transition-all group shadow-sm"
+                            className="rounded-xl p-4 border border-[var(--sv-border)] bg-[var(--sv-card)] hover:border-[#2f4aad]/40 transition-all group shadow-sm"
                         >
-                            <UserCheck className="h-5 w-5 text-[#2f4aad] mb-2" />
-                            <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Student directory</h3>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+                            <UserCheck className="h-5 w-5 text-[var(--brand-primary)] mb-2" />
+                            <h3 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">Student directory</h3>
+                            <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mb-2">
                                 Open the dedicated roster page for sorting and extended layout.
                             </p>
-                            <span className="text-[#2f4aad] dark:text-blue-400 text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5">
+                            <span className="text-[var(--brand-primary)] dark:text-blue-400 text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5">
                                 Go <ArrowRight className="h-3.5 w-3.5" />
                             </span>
                         </Link>
                         <Link
                             to={`/teacher/classes/${classData.code}/groups`}
-                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#2f4aad]/40 transition-all group shadow-sm"
+                            className="rounded-xl p-4 border border-[var(--sv-border)] bg-[var(--sv-card)] hover:border-[#2f4aad]/40 transition-all group shadow-sm"
                         >
-                            <Settings className="h-5 w-5 text-slate-400 dark:text-slate-500 mb-2" />
-                            <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Team setup</h3>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+                            <Settings className="h-5 w-5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mb-2" />
+                            <h3 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">Team setup</h3>
+                            <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mb-2">
                                 Configure groups and project assignment flows for this class.
                             </p>
-                            <span className="text-[#2f4aad] dark:text-blue-400 text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5">
+                            <span className="text-[var(--brand-primary)] dark:text-blue-400 text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5">
                                 Configure <ArrowRight className="h-3.5 w-3.5" />
                             </span>
                         </Link>
@@ -451,29 +451,29 @@ const ClassDetail = () => {
 
 function InfoItem({ icon, label, value }) {
     return (
-        <div className="flex gap-2 rounded-lg bg-[var(--sv-card)] dark:bg-[#0B1120] border border-[var(--sv-border)] dark:border-white/5 p-3">
-            <div className="text-slate-400 dark:text-slate-500 mt-0.5">{icon}</div>
+        <div className="flex gap-2 rounded-lg bg-[var(--sv-card)] border border-[var(--sv-border)] p-3">
+            <div className="text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mt-0.5">{icon}</div>
             <div className="min-w-0">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">{label}</p>
-                <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 break-words">{value}</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mb-0.5">{label}</p>
+                <p className="text-[12px] font-bold text-[var(--text-primary)] break-words">{value}</p>
             </div>
         </div>
     );
 }
 
 const MetricCard = ({ icon, label, value, subValue, trend, trendBg, trendText, iconBg }) => (
-    <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] p-3 rounded-xl border border-[var(--sv-border)] dark:border-white/5 shadow-sm relative overflow-hidden transition-all hover:border-blue-500/20 group">
+    <div className="bg-[var(--sv-card)] p-3 rounded-xl border border-[var(--sv-border)] shadow-sm relative overflow-hidden transition-all hover:border-blue-500/20 group">
         <div className="flex justify-between items-start mb-2">
             <div className={`${iconBg} p-2 rounded-lg transition-transform group-hover:scale-105`}>{icon}</div>
             <div className={`${trendBg} px-2 py-0.5 rounded-full`}>
                 <span className={`${trendText} text-[10px] font-bold uppercase`}>{trend}</span>
             </div>
         </div>
-        <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-0.5">{label}</p>
+        <p className="text-[var(--text-secondary)] dark:text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mb-0.5">{label}</p>
         <div className="flex items-baseline gap-1">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 leading-none">{value}</h3>
+            <h3 className="text-xl font-bold text-[var(--text-primary)] leading-none">{value}</h3>
             {subValue != null && (
-                <span className="text-slate-400 dark:text-slate-500 text-sm font-bold">{subValue}</span>
+                <span className="text-[var(--text-secondary)] dark:text-[var(--text-secondary)] text-sm font-bold">{subValue}</span>
             )}
         </div>
     </div>

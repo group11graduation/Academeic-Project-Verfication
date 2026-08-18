@@ -13,7 +13,7 @@ import { appWarning } from '../../../lib/appDialog';
 function DescriptionBody({ text }) {
     const raw = (text || '').trim();
     if (!raw) {
-        return <p className="text-[15px] font-medium leading-relaxed text-slate-500">No description provided.</p>;
+        return <p className="text-[15px] font-medium leading-relaxed text-[var(--text-secondary)]">No description provided.</p>;
     }
 
     const blocks = raw.split(/\n{2,}/).filter(Boolean);
@@ -28,10 +28,10 @@ function DescriptionBody({ text }) {
                     const content = heading[2];
                     const cls =
                         level === 1
-                            ? 'text-xl font-extrabold text-slate-950'
+                            ? 'text-xl font-extrabold text-[var(--text-primary)]'
                             : level === 2
-                              ? 'text-lg font-extrabold text-slate-950'
-                              : 'text-base font-bold text-slate-900';
+                              ? 'text-lg font-extrabold text-[var(--text-primary)]'
+                              : 'text-base font-bold text-[var(--text-primary)]';
                     return (
                         <p key={i} className={cls}>
                             {content}
@@ -49,10 +49,10 @@ function DescriptionBody({ text }) {
                                         key={j}
                                         className={
                                             h[1].length === 1
-                                                ? 'text-xl font-extrabold text-slate-950'
+                                                ? 'text-xl font-extrabold text-[var(--text-primary)]'
                                                 : h[1].length === 2
-                                                  ? 'text-lg font-extrabold text-slate-950'
-                                                  : 'text-base font-bold text-slate-900'
+                                                  ? 'text-lg font-extrabold text-[var(--text-primary)]'
+                                                  : 'text-base font-bold text-[var(--text-primary)]'
                                         }
                                     >
                                         {h[2]}
@@ -61,17 +61,17 @@ function DescriptionBody({ text }) {
                             }
                             if (/^[-*]\s+/.test(line)) {
                                 return (
-                                    <p key={j} className="flex gap-2 text-[15px] font-medium leading-relaxed text-slate-600">
-                                        <span className="text-[#2a3fa4]">•</span>
+                                    <p key={j} className="flex gap-2 text-[15px] font-medium leading-relaxed text-[var(--text-secondary)]">
+                                        <span className="text-[var(--brand-primary)]">•</span>
                                         <span>{line.replace(/^[-*]\s+/, '').replace(/\*\*(.*?)\*\*/g, '$1')}</span>
                                     </p>
                                 );
                             }
                             if (/^---+$/.test(line.trim())) {
-                                return <hr key={j} className="border-slate-200" />;
+                                return <hr key={j} className="border-[var(--border)]" />;
                             }
                             return (
-                                <p key={j} className="text-[15px] font-medium leading-relaxed text-slate-600">
+                                <p key={j} className="text-[15px] font-medium leading-relaxed text-[var(--text-secondary)]">
                                     {line.replace(/\*\*(.*?)\*\*/g, '$1')}
                                 </p>
                             );
@@ -159,7 +159,7 @@ const VerifiedProjectDetail = () => {
                     <div className="mb-5">
                         <Link
                             to="/gallery"
-                            className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-slate-500 hover:text-[#2a3fa4]"
+                            className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
                         >
                             <ArrowLeft className="h-4 w-4" /> Back to verified projects
                         </Link>
@@ -167,16 +167,16 @@ const VerifiedProjectDetail = () => {
 
                     {loading ? (
                         <div className="flex justify-center py-24">
-                            <Loader2 className="h-10 w-10 animate-spin text-[#2a3fa4]" />
+                            <Loader2 className="h-10 w-10 animate-spin text-[var(--brand-primary)]" />
                         </div>
                     ) : error || !project ? (
-                        <div className="rounded-[28px] border border-white/70 bg-white/90 p-8 text-center shadow-sm sm:rounded-[36px]">
-                            <p className="font-semibold text-slate-500">{error || 'Project not found'}</p>
+                        <div className="rounded-[28px] border border-white/70 bg-[var(--bg-card)] p-8 text-center shadow-sm sm:rounded-[36px]">
+                            <p className="font-semibold text-[var(--text-secondary)]">{error || 'Project not found'}</p>
                         </div>
                     ) : (
                         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
                             {/* 1. Screens first */}
-                            <div className="overflow-hidden rounded-[28px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)] sm:rounded-[36px]">
+                            <div className="overflow-hidden rounded-[28px] bg-[var(--bg-card)] shadow-[0_24px_70px_rgba(15,23,42,0.10)] sm:rounded-[36px]">
                                 {activeSrc ? (
                                     <button
                                         type="button"
@@ -187,7 +187,7 @@ const VerifiedProjectDetail = () => {
                                         <img
                                             src={activeSrc}
                                             alt={`${project.title} UI screenshot`}
-                                            className="max-h-[min(70vh,640px)] w-full bg-[#f8faff] object-contain object-top"
+                                            className="max-h-[min(70vh,640px)] w-full bg-[var(--bg-page)] object-contain object-top"
                                         />
                                     </button>
                                 ) : (
@@ -202,7 +202,7 @@ const VerifiedProjectDetail = () => {
 
                                 {/* Screen thumbnail buttons under main screen */}
                                 {resolvedUrls.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-white p-3 sm:p-4">
+                                    <div className="flex flex-wrap gap-2 border-t border-[var(--border)] bg-[var(--bg-card)] p-3 sm:p-4">
                                         {resolvedUrls.map((src, i) => {
                                             const active = activeScreen === i;
                                             return (
@@ -211,10 +211,10 @@ const VerifiedProjectDetail = () => {
                                                     type="button"
                                                     onClick={() => setActiveScreen(i)}
                                                     className={`h-16 w-24 shrink-0 overflow-hidden rounded-2xl border transition sm:h-[4.5rem] sm:w-28 ${
-                                                        active
-                                                            ? 'border-[#2a3fa4] ring-2 ring-[#2a3fa4]/35'
-                                                            : 'border-slate-200 hover:border-[#2a3fa4]/50'
-                                                    }`}
+ active
+ ? 'border-[#2a3fa4] ring-2 ring-[#2a3fa4]/35'
+ : 'border-[var(--border)] hover:border-[#2a3fa4]/50'
+ }`}
                                                     title={`Screen ${i + 1}`}
                                                 >
                                                     <img
@@ -228,7 +228,7 @@ const VerifiedProjectDetail = () => {
                                         <button
                                             type="button"
                                             onClick={() => setLightboxIndex(activeScreen)}
-                                            className="inline-flex min-h-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-[#f8faff] px-4 text-xs font-bold text-[#2a3fa4] hover:border-[#2a3fa4]/40 sm:min-h-[4.5rem]"
+                                            className="inline-flex min-h-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg-page)] px-4 text-xs font-bold text-[var(--brand-primary)] hover:border-[#2a3fa4]/40 sm:min-h-[4.5rem]"
                                         >
                                             Open full screen
                                         </button>
@@ -240,7 +240,7 @@ const VerifiedProjectDetail = () => {
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0">
                                     <div className="mb-3 flex flex-wrap gap-2">
-                                        <span className="rounded-full bg-[#eef2ff] px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-[#2a3fa4]">
+                                        <span className="rounded-full bg-[#eef2ff] px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-[var(--brand-primary)]">
                                             {project.category}
                                         </span>
                                         {project.teacherScore != null && (
@@ -249,11 +249,11 @@ const VerifiedProjectDetail = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <h1 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl md:text-4xl">
+                                    <h1 className="mb-2 text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl md:text-4xl">
                                         {project.title}
                                     </h1>
-                                    <p className="text-sm font-medium text-slate-500">
-                                        By <span className="font-semibold text-slate-700">{project.author}</span>
+                                    <p className="text-sm font-medium text-[var(--text-secondary)]">
+                                        By <span className="font-semibold text-[var(--text-primary)]">{project.author}</span>
                                         {project.subject ? ` · ${project.subject}` : ''}
                                         {project.className ? ` · ${project.className}` : ''}
                                     </p>
@@ -263,10 +263,10 @@ const VerifiedProjectDetail = () => {
                                     disabled={reactBusy}
                                     onClick={toggleLike}
                                     className={`inline-flex min-h-11 shrink-0 items-center gap-2 self-start rounded-full px-4 py-2 text-sm font-bold shadow-sm transition disabled:opacity-60 ${
-                                        project.likedByMe
-                                            ? 'bg-rose-500 text-white'
-                                            : 'border border-[#2a3fa4]/30 bg-white text-[#2a3fa4] hover:bg-[#eef2ff]'
-                                    }`}
+ project.likedByMe
+ ? 'bg-rose-500 text-white'
+ : 'border border-[#2a3fa4]/30 bg-[var(--bg-card)] text-[var(--brand-primary)] hover:bg-[#eef2ff]'
+ }`}
                                 >
                                     {reactBusy ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -278,22 +278,22 @@ const VerifiedProjectDetail = () => {
                             </div>
 
                             {/* 3. Description wraps below */}
-                            <div className="rounded-[28px] border border-white bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-8">
-                                <h2 className="mb-4 text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
+                            <div className="rounded-[28px] border border-white bg-[var(--bg-card)] p-6 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-8">
+                                <h2 className="mb-4 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                                     Description
                                 </h2>
                                 <DescriptionBody text={project.description} />
                             </div>
 
                             {project.features?.length > 0 && (
-                                <div className="rounded-[28px] border border-white bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-8">
-                                    <h2 className="mb-4 text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
+                                <div className="rounded-[28px] border border-white bg-[var(--bg-card)] p-6 shadow-[0_16px_50px_rgba(15,23,42,0.06)] sm:rounded-[32px] sm:p-8">
+                                    <h2 className="mb-4 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
                                         Features
                                     </h2>
                                     <ul className="space-y-2.5">
                                         {project.features.map((f) => (
-                                            <li key={f} className="flex gap-2 text-sm font-medium text-slate-600">
-                                                <span className="text-[#2a3fa4]">•</span> {f}
+                                            <li key={f} className="flex gap-2 text-sm font-medium text-[var(--text-secondary)]">
+                                                <span className="text-[var(--brand-primary)]">•</span> {f}
                                             </li>
                                         ))}
                                     </ul>
@@ -305,7 +305,7 @@ const VerifiedProjectDetail = () => {
                                     {project.tags.map((tag) => (
                                         <span
                                             key={tag}
-                                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-500"
+                                            className="rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]"
                                         >
                                             {tag}
                                         </span>

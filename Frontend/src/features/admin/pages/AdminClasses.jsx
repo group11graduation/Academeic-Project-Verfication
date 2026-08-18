@@ -93,31 +93,31 @@ const AdminClasses = () => {
 
     return (
         <div className="admin-page font-sans text-[13px]">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-[var(--border)] dark:border-slate-800 pb-3 mb-4 gap-3">
                 <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)]" />
                     <input
                         type="text"
                         placeholder="Search classes..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-slate-700 dark:text-slate-200 outline-none"
+                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-[var(--text-primary)] outline-none"
                     />
                 </div>
 
                 <div className="flex items-center gap-2 justify-between sm:justify-end">
                     <button
                         type="button"
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg text-[var(--text-secondary)] font-bold text-[12px] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-700 transition-colors"
                     >
                         <Filter className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Filter</span>
                     </button>
                     <div className="text-right">
-                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">
+                        <h1 className="text-base font-extrabold text-[var(--text-primary)] tracking-tight leading-none">
                             Classes
                         </h1>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                        <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
                             Academics
                         </p>
                     </div>
@@ -126,7 +126,7 @@ const AdminClasses = () => {
 
             {loading ? (
                 <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 text-[#2f4aad] animate-spin" />
+                    <Loader2 className="h-8 w-8 text-[var(--brand-primary)] animate-spin" />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4">
@@ -139,7 +139,7 @@ const AdminClasses = () => {
                             <div
                                 key={item._id || item.code || index}
                                 onClick={() => navigate(`/admin/classes/${item.code}`)}
-                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden group hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer flex flex-col active:scale-[0.99]"
+                                className="bg-[var(--bg-card)] border border-[var(--border)] dark:border-slate-800 rounded-xl shadow-sm overflow-hidden group hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer flex flex-col active:scale-[0.99]"
                             >
                                 <div className={`h-[88px] relative p-4 ${style.color} flex flex-col justify-end`}>
                                     <IconComponent className="absolute right-[-12px] top-[-12px] h-[72px] w-[72px] text-white/10 rotate-[12deg] pointer-events-none" />
@@ -168,32 +168,32 @@ const AdminClasses = () => {
 
                                 <div className="p-3.5 flex flex-col flex-1">
                                     <div className="mb-3">
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                                        <p className="text-[9px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-0.5">
                                             Faculty
                                         </p>
-                                        <h3 className="text-[13px] font-extrabold text-[#0F172A] dark:text-white line-clamp-1">
+                                        <h3 className="text-[13px] font-extrabold text-[var(--text-primary)] line-clamp-1">
                                             {item.faculty}
                                         </h3>
-                                        <p className="text-[11px] font-medium text-slate-500 mt-0.5 line-clamp-1">
+                                        <p className="text-[11px] font-medium text-[var(--text-secondary)] mt-0.5 line-clamp-1">
                                             {item.department || 'No department'}
                                         </p>
                                     </div>
 
-                                    <div className="flex items-center gap-2.5 py-2 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800 mb-3 mt-auto">
-                                        <div className="p-1.5 bg-white dark:bg-slate-700 rounded-md shadow-sm">
-                                            <Users className="h-3.5 w-3.5 text-[#2f4aad]" />
+                                    <div className="flex items-center gap-2.5 py-2 px-3 bg-[var(--bg-elevated)]/50 rounded-lg border border-[var(--border)] dark:border-slate-800 mb-3 mt-auto">
+                                        <div className="p-1.5 bg-[var(--bg-card)] dark:bg-slate-700 rounded-md shadow-sm">
+                                            <Users className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                                         </div>
                                         <div>
-                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                            <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                                                 Enrollment
                                             </p>
-                                            <p className="text-[12px] font-black text-[#0F172A] dark:text-slate-200">
+                                            <p className="text-[12px] font-black text-[var(--text-primary)]">
                                                 {item.students} Students
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="text-[12px] font-bold text-[#2f4aad] group-hover:underline">
+                                    <div className="text-[12px] font-bold text-[var(--brand-primary)] group-hover:underline">
                                         View Details
                                     </div>
                                 </div>
@@ -203,13 +203,13 @@ const AdminClasses = () => {
 
                     <div
                         onClick={() => navigate('/admin/classes/new')}
-                        className="bg-slate-50/80 dark:bg-slate-800/30 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center p-6 min-h-[220px] group cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all"
+                        className="bg-[var(--bg-elevated)]/30 border-2 border-dashed border-[var(--border)] rounded-xl flex flex-col items-center justify-center p-6 min-h-[220px] group cursor-pointer hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-800/80 transition-all"
                     >
-                        <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm border border-slate-100 dark:border-slate-700 mb-2 group-hover:scale-105 transition-transform">
-                            <Plus className="h-5 w-5 text-[#2f4aad]" />
+                        <div className="w-10 h-10 bg-[var(--bg-card)] rounded-full flex items-center justify-center shadow-sm border border-[var(--border)] mb-2 group-hover:scale-105 transition-transform">
+                            <Plus className="h-5 w-5 text-[var(--brand-primary)]" />
                         </div>
-                        <h3 className="text-[13px] font-extrabold text-[#0F172A] dark:text-white">Quick Add Class</h3>
-                        <p className="text-[11px] font-medium text-slate-400 mt-0.5">Create a new section</p>
+                        <h3 className="text-[13px] font-extrabold text-[var(--text-primary)]">Quick Add Class</h3>
+                        <p className="text-[11px] font-medium text-[var(--text-secondary)] mt-0.5">Create a new section</p>
                     </div>
                 </div>
             )}

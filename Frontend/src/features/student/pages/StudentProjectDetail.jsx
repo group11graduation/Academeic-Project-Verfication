@@ -120,7 +120,7 @@ const StudentProjectDetail = () => {
             <div className="flex min-h-screen flex-col bg-[#FAFAFA] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
                 <StudentHeader />
                 <div className="flex-1 flex items-center justify-center">
-                    <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+                    <Loader2 className="h-10 w-10 text-[var(--accent)] animate-spin" />
                 </div>
             </div>
         );
@@ -132,7 +132,7 @@ const StudentProjectDetail = () => {
                 <StudentHeader />
                 <div className="flex-1 flex flex-col items-center justify-center gap-4">
                     <h2 className="text-xl font-bold text-[var(--sv-muted)]">Project Not Found</h2>
-                    <button onClick={() => navigate('/student')} className="text-[#1D68E3] font-bold">Back to Projects</button>
+                    <button onClick={() => navigate('/student')} className="text-[var(--accent)] font-bold">Back to Projects</button>
                 </div>
             </div>
         );
@@ -145,7 +145,7 @@ const StudentProjectDetail = () => {
             <main className="flex-1 pt-16 pb-24 px-6 max-w-[1536px] mx-auto w-full">
                 
                 {/* Back Button */}
-                <Link to="/student" className="inline-flex items-center gap-2 text-sm font-bold text-[var(--sv-muted)] hover:text-[#1D68E3] transition-colors mb-10 group">
+                <Link to="/student" className="inline-flex items-center gap-2 text-sm font-bold text-[var(--sv-muted)] hover:text-[var(--accent)] transition-colors mb-10 group">
                     <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" /> Back to My Projects
                 </Link>
 
@@ -218,9 +218,9 @@ const StudentProjectDetail = () => {
                                         onDragLeave={onDragLeave}
                                         onDrop={onDrop}
                                         className={`border-2 border-dashed rounded-xl p-8 mb-6 relative overflow-hidden transition-all flex flex-col items-center justify-center min-h-[200px] 
-                                            ${uploadedFile ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-500/10 cursor-default' : 
-                                            isDragging ? 'border-[#1D68E3] bg-blue-50/50 dark:bg-blue-500/10 cursor-pointer' : 
-                                            'border-[var(--sv-border)] bg-[var(--sv-card-muted)] hover:border-[#1D68E3] hover:bg-blue-50/50 dark:bg-blue-500/10 cursor-pointer group'}`}
+ ${uploadedFile ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-500/10 cursor-default' : 
+ isDragging ? 'border-[#1D68E3] bg-blue-50/50 dark:bg-blue-500/10 cursor-pointer' : 
+ 'border-[var(--sv-border)] bg-[var(--sv-card-muted)] hover:border-[#1D68E3] hover:bg-blue-50/50 dark:bg-blue-500/10 cursor-pointer group'}`}
                                     >
                                         <input 
                                             type="file" 
@@ -252,7 +252,7 @@ const StudentProjectDetail = () => {
                                             </div>
                                         ) : (
                                             <div className="text-center">
-                                                <div className="w-12 h-12 bg-blue-100 text-[#1D68E3] rounded-xl flex items-center justify-center mb-5 mx-auto group-hover:bg-[#1D68E3] group-hover:text-white transition-colors">
+                                                <div className="w-12 h-12 bg-blue-100 text-[var(--accent)] rounded-xl flex items-center justify-center mb-5 mx-auto group-hover:bg-[var(--accent)] group-hover:text-white transition-colors">
                                                     <UploadCloud className="h-6 w-6" />
                                                 </div>
                                                 <div className="text-[16px] font-bold text-[var(--sv-text)] mb-2">
@@ -268,7 +268,7 @@ const StudentProjectDetail = () => {
                                     <button 
                                         onClick={handleSubmitProposal}
                                         disabled={isSubmitting || !uploadedFile}
-                                        className="w-full bg-[#1D68E3] text-white px-8 py-4 rounded-xl text-[14px] font-black tracking-wide hover:shadow-lg hover:shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100 disabled:hover:shadow-none"
+                                        className="w-full bg-[var(--accent)] text-white px-8 py-4 rounded-xl text-[14px] font-black tracking-wide hover:shadow-lg hover:shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100 disabled:hover:shadow-none"
                                     >
                                         {isSubmitting ? 'Uploading...' : 'Submit Document'} <Send className="w-4 h-4" />
                                     </button>
@@ -289,7 +289,7 @@ const StudentProjectDetail = () => {
                             </div>
                             <h2 className="text-3xl font-black text-[var(--sv-text)] tracking-tight mb-2">Similarity Score</h2>
                             <div className="flex items-baseline gap-4">
-                                <span className={`text-6xl font-black leading-none tracking-tight ${project.similarityLevel === 'High' ? 'text-rose-600' : 'text-[#1D68E3]'}`}>
+                                <span className={`text-6xl font-black leading-none tracking-tight ${project.similarityLevel === 'High' ? 'text-rose-600' : 'text-[var(--accent)]'}`}>
                                     {project.similarity || 0}%
                                 </span>
                                 <span className="text-sm font-black text-[var(--sv-muted)] uppercase tracking-widest">{project.similarityLevel} SIMILARITY</span>
@@ -312,7 +312,7 @@ const StudentProjectDetail = () => {
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-black text-[var(--sv-text)]">{member.name}</h3>
-                                        <p className="text-[10px] font-black text-[#1D68E3] uppercase tracking-widest">{member.studentId}</p>
+                                        <p className="text-[10px] font-black text-[var(--accent)] uppercase tracking-widest">{member.studentId}</p>
                                     </div>
                                 </div>
                             ))}

@@ -205,22 +205,22 @@ const AdminAddStudent = () => {
     if (loadingClasses) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Initializing enrollment system...</p>
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin mb-2" />
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium">Initializing enrollment system...</p>
             </div>
         );
     }
 
     return (
-        <div className="font-sans text-[13px] text-[#0F172A] dark:text-slate-200 transition-colors">
+        <div className="font-sans text-[13px] text-[var(--text-primary)] transition-colors">
             {/* Top Navbar */}
-            <div className="border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between pb-3 mb-4 gap-3 transition-colors">
+            <div className="border-b border-[var(--border)] dark:border-slate-800 flex flex-col md:flex-row items-center justify-between pb-3 mb-4 gap-3 transition-colors">
                 <button
                     onClick={() => navigate('/admin/students')}
                     type="button"
-                    className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-[#2f4aad] dark:hover:text-blue-400 transition-all font-bold text-[12px] group"
+                    className="flex items-center gap-1.5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] hover:text-[var(--brand-primary)] dark:hover:text-blue-400 transition-all font-bold text-[12px] group"
                 >
-                    <div className="bg-slate-50 dark:bg-slate-800 p-1.5 rounded-lg group-hover:bg-blue-50 dark:group-hover:bg-slate-700 transition-all">
+                    <div className="bg-[var(--bg-elevated)] p-1.5 rounded-lg group-hover:bg-blue-50 dark:group-hover:bg-slate-700 transition-all">
                         <ChevronLeft className="h-3.5 w-3.5" />
                     </div>
                     Back to Students
@@ -229,14 +229,14 @@ const AdminAddStudent = () => {
                     <button
                         type="button"
                         onClick={() => navigate('/admin/students')}
-                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-[12px] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                        className="px-4 py-2 border border-[var(--border)] rounded-lg font-bold text-[12px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-800 transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={isSubmitting}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-[#2f4aad] text-white rounded-lg font-bold text-[12px] hover:bg-blue-600 transition-all disabled:opacity-70"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg font-bold text-[12px] hover:bg-blue-600 transition-all disabled:opacity-70"
                     >
                         {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
                         {isSubmitting ? 'Registering...' : 'Register Student'}
@@ -246,8 +246,8 @@ const AdminAddStudent = () => {
 
                 {/* Header */}
                 <div className="mb-4 text-center md:text-left">
-                    <h1 className="text-base font-black tracking-tight mb-0.5 text-[#0F172A] dark:text-white transition-colors">Register New Student</h1>
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-none transition-colors">Enrollment System</p>
+                    <h1 className="text-base font-black tracking-tight mb-0.5 text-[var(--text-primary)] transition-colors">Register New Student</h1>
+                    <p className="text-[9px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-bold uppercase tracking-widest leading-none transition-colors">Enrollment System</p>
                 </div>
 
                 {error && (
@@ -261,15 +261,15 @@ const AdminAddStudent = () => {
                     <div className="xl:col-span-2 space-y-4">
 
                         {/* Personal Information */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <User className="h-5 w-5 text-[#2f4aad] dark:text-blue-400" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Personal Information</h2>
+                                <User className="h-5 w-5 text-[var(--brand-primary)] dark:text-blue-400" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)]">Personal Information</h2>
                             </div>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Full Name (Magaca oo Dhammaystiran) *</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Full Name (Magaca oo Dhammaystiran) *</label>
                                     <input
                                         type="text"
                                         name="name"
@@ -277,13 +277,13 @@ const AdminAddStudent = () => {
                                         value={formData.name}
                                         onChange={handleChange}
                                         placeholder="e.g. Maxamed Cabdi Faarax"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-slate-800 dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)]"
                                     />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                     <div>
-                                        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Email Address *</label>
+                                        <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Email Address *</label>
                                         <input
                                             type="email"
                                             name="email"
@@ -291,45 +291,45 @@ const AdminAddStudent = () => {
                                             value={formData.email}
                                             onChange={handleChange}
                                             placeholder="student@example.com"
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)]"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Phone Number</label>
+                                        <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Phone Number</label>
                                         <input
                                             type="text"
                                             name="phone"
                                             value={formData.phone}
                                             onChange={handleChange}
                                             placeholder="+252 ..."
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)]"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                     <div className="relative">
-                                        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Gender</label>
+                                        <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Gender</label>
                                         <select
                                             name="gender"
                                             value={formData.gender}
                                             onChange={handleChange}
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)]"
                                         >
                                             <option>Select Gender</option>
                                             <option>Male</option>
                                             <option>Female</option>
                                         </select>
-                                        <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                        <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pointer-events-none" />
                                     </div>
                                     <div className="relative">
-                                        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Date of Birth</label>
+                                        <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Date of Birth</label>
                                         <input
                                             type="date"
                                             name="dob"
                                             value={formData.dob}
                                             onChange={handleChange}
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[#0F172A] dark:text-white"
+                                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)]"
                                         />
                                     </div>
                                 </div>
@@ -337,110 +337,110 @@ const AdminAddStudent = () => {
                         </div>
 
                         {/* Parent / Guardian Details */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <Users className="h-5 w-5 text-[#2f4aad] dark:text-blue-400" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Parent / Guardian Details</h2>
+                                <Users className="h-5 w-5 text-[var(--brand-primary)] dark:text-blue-400" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)]">Parent / Guardian Details</h2>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Father's Full Name</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Father's Full Name</label>
                                     <input
                                         type="text"
                                         name="fatherName"
                                         value={formData.fatherName}
                                         onChange={handleChange}
                                         placeholder="Father's Name"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] text-[var(--text-primary)]"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Father's Contact</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Father's Contact</label>
                                     <input
                                         type="text"
                                         name="fatherContact"
                                         value={formData.fatherContact}
                                         onChange={handleChange}
                                         placeholder="+252 ..."
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] text-[var(--text-primary)]"
                                     />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Mother's Full Name</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Mother's Full Name</label>
                                     <input
                                         type="text"
                                         name="motherName"
                                         value={formData.motherName}
                                         onChange={handleChange}
                                         placeholder="Mother's Name"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] text-[var(--text-primary)]"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Mother's Contact</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Mother's Contact</label>
                                     <input
                                         type="text"
                                         name="motherContact"
                                         value={formData.motherContact}
                                         onChange={handleChange}
                                         placeholder="+252 ..."
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] text-[var(--text-primary)]"
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* Educational Background */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <FileText className="h-5 w-5 text-[#2f4aad] dark:text-blue-400" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Educational Background</h2>
+                                <FileText className="h-5 w-5 text-[var(--brand-primary)] dark:text-blue-400" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)]">Educational Background</h2>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">High School Name</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">High School Name</label>
                                     <input
                                         type="text"
                                         name="highSchoolName"
                                         value={formData.highSchoolName}
                                         onChange={handleChange}
                                         placeholder="Jabir Binu Hayan"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] text-[var(--text-primary)]"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Graduation Year</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Graduation Year</label>
                                     <input
                                         type="text"
                                         name="graduationYear"
                                         value={formData.graduationYear}
                                         onChange={handleChange}
                                         placeholder="2022"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] text-[var(--text-primary)]"
                                     />
                                 </div>
                             </div>
 
                             <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">High School Certificate</label>
-                                    <div className="flex items-center bg-slate-50 dark:bg-slate-800 p-1 rounded-lg">
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest">High School Certificate</label>
+                                    <div className="flex items-center bg-[var(--bg-elevated)] p-1 rounded-lg">
                                         <button
                                             type="button"
                                             onClick={() => setCertificateMode('local')}
-                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'local' ? 'bg-white dark:bg-slate-700 text-[#2f4aad] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'}`}
+                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'local' ? 'bg-[var(--bg-card)] dark:bg-slate-700 text-[var(--brand-primary)] dark:text-blue-400 shadow-sm' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'}`}
                                         >
                                             Upload File
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setCertificateMode('url')}
-                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'url' ? 'bg-white dark:bg-slate-700 text-[#2f4aad] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'}`}
+                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'url' ? 'bg-[var(--bg-card)] dark:bg-slate-700 text-[var(--brand-primary)] dark:text-blue-400 shadow-sm' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'}`}
                                         >
                                             External Link
                                         </button>
@@ -450,7 +450,7 @@ const AdminAddStudent = () => {
                                 {certificateMode === 'local' ? (
                                     <div
                                         onClick={triggerCertificatePicker}
-                                        className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[20px] p-6 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-800/50 group hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-[#2f4aad] transition-all cursor-pointer relative overflow-hidden"
+                                        className="border-2 border-dashed border-[var(--border)] rounded-[20px] p-6 flex flex-col items-center justify-center bg-[var(--bg-elevated)]/50 group hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-800 hover:border-[#2f4aad] transition-all cursor-pointer relative overflow-hidden"
                                     >
                                         <input
                                             type="file"
@@ -461,22 +461,22 @@ const AdminAddStudent = () => {
                                         />
 
                                         {localCertificateFileName ? (
-                                            <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-6 py-3 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 z-10 w-full justify-between">
+                                            <div className="flex items-center gap-3 text-[var(--text-primary)] bg-[var(--bg-card)] px-6 py-3 rounded-xl shadow-sm border border-[var(--border)] z-10 w-full justify-between">
                                                 <div className="flex items-center gap-3 truncate">
-                                                    <FileText className="h-5 w-5 text-[#2f4aad] dark:text-blue-400 shrink-0" />
+                                                    <FileText className="h-5 w-5 text-[var(--brand-primary)] dark:text-blue-400 shrink-0" />
                                                     <span className="text-[14px] font-bold truncate">{localCertificateFileName}</span>
                                                 </div>
                                                 <Check className="h-5 w-5 text-[#10B981] dark:text-emerald-400 shrink-0" />
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="bg-blue-50 dark:bg-blue-900/40 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform text-[#2f4aad] dark:text-blue-400">
+                                                <div className="bg-blue-50 dark:bg-blue-900/40 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform text-[var(--brand-primary)] dark:text-blue-400">
                                                     <Upload className="h-6 w-6" />
                                                 </div>
-                                                <p className="text-[14px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                                    Click to <span className="text-[#2f4aad] dark:text-blue-400">Upload File</span>
+                                                <p className="text-[14px] font-bold text-[var(--text-primary)] mb-1">
+                                                    Click to <span className="text-[var(--brand-primary)] dark:text-blue-400">Upload File</span>
                                                 </p>
-                                                <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider text-center max-w-[80%]">Supported: PDF, JPG, PNG. Max size 5MB.</p>
+                                                <p className="text-[11px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-wider text-center max-w-[80%]">Supported: PDF, JPG, PNG. Max size 5MB.</p>
                                             </>
                                         )}
                                     </div>
@@ -485,31 +485,31 @@ const AdminAddStudent = () => {
                                         <input
                                             type="text"
                                             placeholder="Paste the URL link to the certificate..."
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[14px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 font-medium text-[#0F172A] dark:text-slate-200"
+                                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl py-3.5 px-5 text-[14px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] font-medium text-[var(--text-primary)]"
                                             value={certificateUrl}
                                             onChange={(e) => setCertificateUrl(e.target.value)}
                                         />
-                                        <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Ensure the link is publicly accessible.</p>
+                                        <p className="text-[11px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-wider pl-1">Ensure the link is publicly accessible.</p>
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {/* Academic Information */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <GraduationCap className="h-5 w-5 text-[#2f4aad] dark:text-blue-400" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Academic Information</h2>
+                                <GraduationCap className="h-5 w-5 text-[var(--brand-primary)] dark:text-blue-400" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)]">Academic Information</h2>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div className="relative">
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Faculty (Kulliyadda)</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Faculty (Kulliyadda)</label>
                                     <select
                                         name="faculty"
                                         value={formData.faculty}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)] font-medium"
                                     >
                                         <option value="">Select faculty</option>
                                         {facultySelectOptions.map((name) => (
@@ -518,59 +518,59 @@ const AdminAddStudent = () => {
                                             </option>
                                         ))}
                                     </select>
-                                    <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                    <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pointer-events-none" />
                                 </div>
                                 <div className="relative">
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Campus</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Campus</label>
                                     <select
                                         name="campus"
                                         value={formData.campus}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)] font-medium"
                                     >
                                         <option value="">Select Campus</option>
                                         <option>Campus 1</option>
                                         <option>Campus 2</option>
                                         <option>Campus 3</option>
                                     </select>
-                                    <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                    <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pointer-events-none" />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                                 <div className="relative">
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Study Mode</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Study Mode</label>
                                     <select
                                         name="studyMode"
                                         value={formData.studyMode}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)] font-medium"
                                     >
                                         <option>Full-time</option>
                                         <option>Part-time</option>
                                     </select>
-                                    <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                    <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pointer-events-none" />
                                 </div>
                                 <div className="relative">
-                                    <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Entry Date</label>
+                                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Entry Date</label>
                                     <input
                                         type="date"
                                         name="entryDate"
                                         value={formData.entryDate}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[#0F172A] dark:text-white"
+                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)]"
                                     />
                                 </div>
                             </div>
                             <div className="relative">
-                                <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Class Section (Glasses) *</label>
+                                <label className="block text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2">Class Section (Glasses) *</label>
                                 <select
                                     name="classId"
                                     required
                                     value={formData.classId}
                                     onChange={handleChange}
                                     disabled={loadingClasses}
-                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-slate-800 dark:text-white font-medium disabled:bg-slate-50 dark:disabled:bg-slate-800/50"
+                                    className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all text-[var(--text-primary)] font-medium disabled:bg-[var(--bg-elevated)] dark:disabled:bg-slate-800/50"
                                 >
                                     {loadingClasses ? (
                                         <option>Loading classes...</option>
@@ -582,7 +582,7 @@ const AdminAddStudent = () => {
                                         <option>No classes found</option>
                                     )}
                                 </select>
-                                <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                <ChevronDown className="absolute right-5 top-[46px] h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pointer-events-none" />
                             </div>
                         </div>
                     </div>
@@ -591,41 +591,41 @@ const AdminAddStudent = () => {
                     <div className="space-y-4">
 
                         {/* Profile Photo */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
-                            <h2 className="text-[12px] font-black uppercase tracking-widest mb-4 text-[#0F172A] dark:text-white">Profile Photo</h2>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 shadow-sm p-4">
+                            <h2 className="text-[12px] font-black uppercase tracking-widest mb-4 text-[var(--text-primary)]">Profile Photo</h2>
 
                             <div className="flex flex-col items-center">
-                                <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 border border-slate-100 dark:border-slate-700 shadow-inner relative overflow-hidden group">
+                                <div className="w-24 h-24 bg-[var(--bg-elevated)] rounded-full flex items-center justify-center mb-4 border border-[var(--border)] shadow-inner relative overflow-hidden group">
                                     {photoMode === 'local' ? (
                                         localPhotoPreview ? (
                                             <img src={localPhotoPreview} alt="Local Preview" className="w-full h-full object-cover" />
                                         ) : (
-                                            <User className="h-10 w-10 text-slate-200 dark:text-slate-600" />
+                                            <User className="h-10 w-10 text-slate-200" />
                                         )
                                     ) : (
                                         photoUrl ? (
                                             <img src={photoUrl} alt="URL Preview" className="w-full h-full object-cover" />
                                         ) : (
-                                            <User className="h-10 w-10 text-slate-200 dark:text-slate-600" />
+                                            <User className="h-10 w-10 text-slate-200" />
                                         )
                                     )}
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 dark:group-hover:bg-black/40 transition-all"></div>
                                 </div>
 
-                                <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 p-1 rounded-xl mb-6 w-full">
+                                <div className="flex items-center gap-1 bg-[var(--bg-elevated)] p-1 rounded-xl mb-6 w-full">
                                     <button
                                         type="button"
                                         onClick={() => setPhotoMode('local')}
-                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'local' ? 'bg-white dark:bg-slate-700 text-[#2f4aad] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'
-                                            }`}
+                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'local' ? 'bg-[var(--bg-card)] dark:bg-slate-700 text-[var(--brand-primary)] dark:text-blue-400 shadow-sm' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'
+ }`}
                                     >
                                         Local
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setPhotoMode('url')}
-                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'url' ? 'bg-white dark:bg-slate-700 text-[#2f4aad] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'
-                                            }`}
+                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'url' ? 'bg-[var(--bg-card)] dark:bg-slate-700 text-[var(--brand-primary)] dark:text-blue-400 shadow-sm' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)]'
+ }`}
                                     >
                                         URL
                                     </button>
@@ -643,12 +643,12 @@ const AdminAddStudent = () => {
                                         <button
                                             type="button"
                                             onClick={triggerFilePicker}
-                                            className="w-full flex items-center justify-center gap-2 bg-[#2f4aad] text-white py-3 rounded-xl font-bold text-[13px] shadow-lg shadow-blue-500/10 hover:bg-blue-600 transition-all mb-3"
+                                            className="w-full flex items-center justify-center gap-2 bg-[var(--brand-primary)] text-white py-3 rounded-xl font-bold text-[13px] shadow-lg shadow-blue-500/10 hover:bg-blue-600 transition-all mb-3"
                                         >
                                             <Upload className="h-4 w-4" />
                                             Choose Image
                                         </button>
-                                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider text-center">Supported: JPG, PNG. Max size 2MB.</p>
+                                        <p className="text-[10px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-wider text-center">Supported: JPG, PNG. Max size 2MB.</p>
                                     </>
                                 ) : (
                                     <div className="w-full space-y-3">
@@ -656,24 +656,24 @@ const AdminAddStudent = () => {
                                             <input
                                                 type="text"
                                                 placeholder="Enter Image URL..."
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 font-medium text-[#0F172A] dark:text-slate-200"
+                                                className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl py-3 px-4 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#2f4aad] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[var(--text-secondary)] font-medium text-[var(--text-primary)]"
                                                 value={photoUrl}
                                                 onChange={(e) => setPhotoUrl(e.target.value)}
                                             />
-                                            <ImageIcon className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 dark:text-slate-500" />
+                                            <ImageIcon className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 dark:text-[var(--text-secondary)]" />
                                         </div>
-                                        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider text-center">Paste a direct image link (JPEG, PNG).</p>
+                                        <p className="text-[10px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-wider text-center">Paste a direct image link (JPEG, PNG).</p>
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {/* Student ID */}
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
-                            <h2 className="text-[12px] font-black uppercase tracking-widest mb-4 text-[#0F172A] dark:text-white">Student Enrollment</h2>
-                            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-lg p-4 text-center space-y-1.5">
-                                <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Upon successful registration, the ID and Passcode will be generated.</p>
-                                <p className="text-[11px] font-bold text-[#2f4aad] dark:text-blue-400 uppercase tracking-wider">Automated Enrollment</p>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 shadow-sm p-4">
+                            <h2 className="text-[12px] font-black uppercase tracking-widest mb-4 text-[var(--text-primary)]">Student Enrollment</h2>
+                            <div className="bg-[var(--bg-elevated)]/50 border border-[var(--border)] dark:border-slate-800 rounded-lg p-4 text-center space-y-1.5">
+                                <p className="text-[12px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">Upon successful registration, the ID and Passcode will be generated.</p>
+                                <p className="text-[11px] font-bold text-[var(--brand-primary)] dark:text-blue-400 uppercase tracking-wider">Automated Enrollment</p>
                             </div>
                         </div>
 

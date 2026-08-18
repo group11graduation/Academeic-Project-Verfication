@@ -74,7 +74,7 @@ const ManageClasses = () => {
         return (
             <div className="flex min-h-[40vh] flex-col items-center justify-center [font-family:var(--sv-font-sans)]">
                 <Loader2 className="mb-2 h-6 w-6 animate-spin" style={{ color: TEACHER_PRIMARY }} />
-                <p className="text-[12px] font-medium text-slate-500">Loading classes...</p>
+                <p className="text-[12px] font-medium text-[var(--text-secondary)]">Loading classes...</p>
             </div>
         );
     }
@@ -88,7 +88,7 @@ const ManageClasses = () => {
                 <div className="space-y-5">
                     {classesGroupedByTerm.map((group) => (
                         <section key={group.key}>
-                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.5px] text-slate-500">
+                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                 {group.heading}
                             </p>
                             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -108,12 +108,12 @@ const ManageClasses = () => {
                     ))}
                 </div>
             ) : classes.length > 0 ? (
-                <div className="rounded-xl border border-dashed border-[#d5dcf0] bg-[#f8f9fd] py-8 text-center">
-                    <p className="text-[12px] font-medium text-slate-500">No classes match your search.</p>
+                <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--content-bg)] py-8 text-center">
+                    <p className="text-[12px] font-medium text-[var(--text-secondary)]">No classes match your search.</p>
                 </div>
             ) : (
-                <div className="rounded-xl border border-dashed border-[#d5dcf0] bg-[#f8f9fd] py-8 text-center">
-                    <p className="text-[12px] font-medium text-slate-500">You have no active classes assigned.</p>
+                <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--content-bg)] py-8 text-center">
+                    <p className="text-[12px] font-medium text-[var(--text-secondary)]">You have no active classes assigned.</p>
                 </div>
             )}
         </TeacherPage>

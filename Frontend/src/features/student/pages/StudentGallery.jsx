@@ -134,11 +134,11 @@ const StudentGallery = () => {
                         />
 
                         <div className="relative mb-8 mx-auto max-w-3xl text-center">
-                            <p className="mb-3 text-sm font-bold tracking-tight text-[#2a3fa4]">Verified projects</p>
-                            <h1 className="mb-3 text-[1.75rem] font-extrabold leading-[1.15] tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
+                            <p className="mb-3 text-sm font-bold tracking-tight text-[var(--brand-primary)]">Verified projects</p>
+                            <h1 className="mb-3 text-[1.75rem] font-extrabold leading-[1.15] tracking-tight text-[var(--text-primary)] sm:text-4xl md:text-5xl">
                                 Approved student submissions
                             </h1>
-                            <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                            <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-[var(--text-secondary)] sm:text-base">
                                 Teacher-approved capstone projects from the academic database. Browse titles,
                                 descriptions, and reactions.
                             </p>
@@ -152,10 +152,10 @@ const StudentGallery = () => {
                                         type="button"
                                         onClick={() => setActiveCategory(cat)}
                                         className={`shrink-0 rounded-full px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest transition sm:text-xs ${
-                                            activeCategory === cat
-                                                ? 'bg-[#2a3fa4] text-white shadow-md shadow-[#2a3fa4]/20'
-                                                : 'bg-[#f0f2f7] text-slate-500 hover:bg-slate-200/80'
-                                        }`}
+ activeCategory === cat
+ ? 'bg-[var(--brand-primary)] text-white shadow-md shadow-[#2a3fa4]/20'
+ : 'bg-[#f0f2f7] text-[var(--text-secondary)] hover:bg-slate-200/80'
+ }`}
                                     >
                                         {cat}
                                     </button>
@@ -164,13 +164,13 @@ const StudentGallery = () => {
 
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                                 <div className="relative min-w-0 flex-1">
-                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
                                     <input
                                         type="search"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search projects by title, author, description…"
-                                        className="w-full rounded-full border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15"
+                                        className="w-full rounded-full border border-[var(--border)] bg-[var(--bg-card)] py-3 pl-11 pr-4 text-sm font-medium text-[var(--text-primary)] outline-none transition focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15"
                                         aria-label="Search verified projects"
                                     />
                                 </div>
@@ -178,10 +178,10 @@ const StudentGallery = () => {
                                     type="button"
                                     onClick={() => setSortBest((v) => !v)}
                                     className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-widest transition sm:text-xs ${
-                                        sortBest
-                                            ? 'text-white shadow-md shadow-[#2a3fa4]/20'
-                                            : 'border border-slate-200 bg-white text-[#2a3fa4] hover:bg-[#eef2ff]'
-                                    }`}
+ sortBest
+ ? 'text-white shadow-md shadow-[#2a3fa4]/20'
+ : 'border border-[var(--border)] bg-[var(--bg-card)] text-[var(--brand-primary)] hover:bg-[#eef2ff]'
+ }`}
                                     style={sortBest ? { background: BRAND_GRADIENT } : undefined}
                                 >
                                     <TrendingUp className="h-3.5 w-3.5" />
@@ -193,19 +193,19 @@ const StudentGallery = () => {
                         <div className="relative">
                             {loading ? (
                                 <div className="flex justify-center py-24">
-                                    <Loader2 className="h-10 w-10 animate-spin text-[#2a3fa4]" />
+                                    <Loader2 className="h-10 w-10 animate-spin text-[var(--brand-primary)]" />
                                 </div>
                             ) : error ? (
                                 <div className="rounded-3xl border border-rose-200 bg-rose-50 px-6 py-8 text-center font-semibold text-rose-700">
                                     {error}
                                 </div>
                             ) : sortedProjects.length === 0 ? (
-                                <div className="mx-auto max-w-xl rounded-[28px] border border-slate-200/80 bg-white px-8 py-16 text-center">
-                                    <ShieldCheck className="mx-auto mb-4 h-12 w-12 text-[#2a3fa4]" />
-                                    <h2 className="mb-2 text-xl font-extrabold text-slate-950">
+                                <div className="mx-auto max-w-xl rounded-[28px] border border-[var(--border)]/80 bg-[var(--bg-card)] px-8 py-16 text-center">
+                                    <ShieldCheck className="mx-auto mb-4 h-12 w-12 text-[var(--brand-primary)]" />
+                                    <h2 className="mb-2 text-xl font-extrabold text-[var(--text-primary)]">
                                         {searchQuery.trim() ? 'No matching projects' : 'No verified projects yet'}
                                     </h2>
-                                    <p className="text-sm font-medium text-slate-500">
+                                    <p className="text-sm font-medium text-[var(--text-secondary)]">
                                         {searchQuery.trim()
                                             ? 'Try a different search term or switch back to All Categories.'
                                             : 'When teachers approve final projects and students upload a UI screenshot, they appear here automatically.'}
@@ -227,7 +227,7 @@ const StudentGallery = () => {
 
                             {!loading && sortedProjects.length > 0 && (
                                 <div className="pt-12 text-center">
-                                    <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-slate-400">
+                                    <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-[var(--text-secondary)]">
                                         Showing {sortedProjects.length} verified project
                                         {sortedProjects.length === 1 ? '' : 's'}
                                     </p>

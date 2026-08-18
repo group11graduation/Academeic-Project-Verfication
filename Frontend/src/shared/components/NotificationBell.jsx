@@ -30,8 +30,8 @@ export default function NotificationBell({ variant = 'admin' }) {
 
   const buttonClass =
     variant === 'student'
-      ? 'relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] dark:text-slate-300 dark:hover:bg-white/10'
-      : 'relative flex h-8 w-8 items-center justify-center rounded-lg border border-[#cfdbfb] bg-[var(--sv-card)] text-[#53638f] transition-colors hover:bg-[#f5f8ff] dark:border-white/10 dark:bg-[#111827] dark:text-slate-300 dark:hover:bg-[#1f2937]';
+      ? 'relative hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]  dark:hover:bg-white/10'
+      : 'relative flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--sv-card)] text-[#53638f] transition-colors hover:bg-[#f5f8ff]   dark:hover:bg-[#1f2937]';
 
   const refreshUnread = useCallback(async () => {
     try {
@@ -115,10 +115,10 @@ export default function NotificationBell({ variant = 'admin' }) {
         {unread > 0 && (
           <span
             className={`absolute flex items-center justify-center rounded-full bg-rose-500 font-bold text-white ring-2 ring-white dark:ring-[#0f172a] ${
-              variant === 'student'
-                ? 'top-1 right-1 min-h-[14px] min-w-[14px] px-0.5 text-[8px]'
-                : '-right-1 -top-1 min-h-[15px] min-w-[15px] px-0.5 text-[8px]'
-            }`}
+ variant === 'student'
+ ? 'top-1 right-1 min-h-[14px] min-w-[14px] px-0.5 text-[8px]'
+ : '-right-1 -top-1 min-h-[15px] min-w-[15px] px-0.5 text-[8px]'
+ }`}
           >
             {unread > 99 ? '99+' : unread}
           </span>
@@ -126,11 +126,11 @@ export default function NotificationBell({ variant = 'admin' }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-xl dark:border-white/10 dark:bg-[#111827]">
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--sv-border)] px-3 py-2.5 dark:border-white/10">
+        <div className="absolute right-0 z-50 mt-2 w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] shadow-xl">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--sv-border)] px-3 py-2.5">
             <div>
-              <p className="text-[12px] font-black text-[var(--sv-text)] dark:text-slate-100">Notifications</p>
-              <p className="text-[10px] font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
+              <p className="text-[12px] font-black text-[var(--sv-text)]">Notifications</p>
+              <p className="text-[10px] font-semibold text-[var(--sv-muted)]">
                 {unread > 0 ? `${unread} unread` : 'You are up to date'}
               </p>
             </div>
@@ -138,7 +138,7 @@ export default function NotificationBell({ variant = 'admin' }) {
               type="button"
               onClick={onMarkAll}
               disabled={markingAll || unread === 0}
-              className="inline-flex items-center gap-1 rounded-lg border border-[var(--sv-border)] px-2 py-1 text-[10px] font-bold text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--sv-border)] px-2 py-1 text-[10px] font-bold text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] disabled:opacity-40 dark:hover:bg-white/5"
             >
               {markingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
               Mark all read
@@ -151,7 +151,7 @@ export default function NotificationBell({ variant = 'admin' }) {
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading…
               </div>
             ) : items.length === 0 ? (
-              <div className="px-3 py-8 text-center text-[12px] font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
+              <div className="px-3 py-8 text-center text-[12px] font-semibold text-[var(--sv-muted)]">
                 No notifications yet.
               </div>
             ) : (
@@ -164,15 +164,15 @@ export default function NotificationBell({ variant = 'admin' }) {
                         type="button"
                         onClick={() => onItemClick(item)}
                         className={`flex w-full flex-col gap-0.5 px-3 py-2.5 text-left transition hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/5 ${
-                          isUnread ? 'bg-blue-50/60 dark:bg-blue-500/10' : ''
-                        }`}
+ isUnread ? 'bg-blue-50/60 dark:bg-blue-500/10' : ''
+ }`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-100">{item.title}</p>
-                          {isUnread && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#1D68E3]" />}
+                          <p className="text-[12px] font-bold text-[var(--sv-text)]">{item.title}</p>
+                          {isUnread && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--accent)]" />}
                         </div>
                         {item.body ? (
-                          <p className="line-clamp-2 text-[11px] font-medium text-[var(--sv-muted)] dark:text-slate-300">
+                          <p className="line-clamp-2 text-[11px] font-medium text-[var(--sv-muted)]">
                             {item.body}
                           </p>
                         ) : null}

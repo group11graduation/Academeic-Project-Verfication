@@ -425,10 +425,10 @@ const StudentAssignments = () => {
                                 setQuery('');
                             }}
                             className={`rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition ${
-                                moduleTab === 'subjects'
-                                    ? 'border-[#1e56e3] bg-[#1e56e3] text-white'
-                                    : 'border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]'
-                            }`}
+ moduleTab === 'subjects'
+ ? 'border-[#1e56e3] bg-[#1e56e3] text-white'
+ : 'border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]'
+ }`}
                         >
                             Subjects
                         </button>
@@ -439,10 +439,10 @@ const StudentAssignments = () => {
                                 setQuery('');
                             }}
                             className={`rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition ${
-                                moduleTab === 'collab'
-                                    ? 'border-[#1e56e3] bg-[#1e56e3] text-white'
-                                    : 'border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]'
-                            }`}
+ moduleTab === 'collab'
+ ? 'border-[#1e56e3] bg-[#1e56e3] text-white'
+ : 'border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)]'
+ }`}
                         >
                             Collab subjects
                             {collabModules.length ? (
@@ -683,10 +683,10 @@ const StudentAssignments = () => {
                                                         <div className="flex min-w-0 flex-1 gap-3">
                                                             <div
                                                                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                                                                    isProjectSubmitted(row)
-                                                                        ? 'bg-emerald-50 text-emerald-600'
-                                                                        : 'bg-blue-50 dark:bg-blue-500/15 text-[#1e56e3] dark:text-sky-300'
-                                                                }`}
+ isProjectSubmitted(row)
+ ? 'bg-emerald-50 text-emerald-600'
+ : 'bg-blue-50 dark:bg-blue-500/15 text-[#1e56e3] dark:text-sky-300'
+ }`}
                                                             >
                                                                 {isProjectSubmitted(row) ? (
                                                                     <CheckCircle2 className="h-4 w-4" />

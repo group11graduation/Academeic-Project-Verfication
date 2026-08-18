@@ -10,7 +10,6 @@ import {
     Users,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import { BRAND } from '../../../shared/ui/brandTheme';
 import { ADMIN_SIDEBAR_GRADIENT } from '../../admin/ui/adminTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
@@ -35,7 +34,7 @@ const StudentSidebar = () => {
 
     return (
         <aside
-            className="hidden min-h-screen w-[200px] shrink-0 flex-col rounded-tr-[56px] py-5 pl-4 pr-3 text-white antialiased [font-family:var(--sv-font-sans)] lg:flex xl:w-[220px] xl:rounded-tr-[64px]"
+            className="hidden min-h-screen w-[200px] shrink-0 flex-col rounded-tr-[56px] py-5 pl-4 pr-3 text-[var(--sidebar-fg)] antialiased [font-family:var(--sv-font-sans)] lg:flex xl:w-[220px] xl:rounded-tr-[64px]"
             style={{ background: ADMIN_SIDEBAR_GRADIENT }}
         >
             <Link to="/student" className="mb-5 px-2">
@@ -51,8 +50,8 @@ const StudentSidebar = () => {
                         className={({ isActive }) =>
                             `flex items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-semibold transition-all ${
                                 isActive
-                                    ? 'bg-white text-[#1d2f82] shadow-[0_10px_22px_-12px_rgba(15,23,42,0.55)]'
-                                    : 'text-white/85 hover:bg-white/12 hover:text-white'
+                                    ? 'bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active-text)] shadow-[0_10px_22px_-12px_rgba(15,23,42,0.55)]'
+                                    : 'text-[var(--sidebar-fg-soft)] hover:bg-white/12 hover:text-[var(--sidebar-fg)]'
                             }`
                         }
                     >
@@ -62,14 +61,13 @@ const StudentSidebar = () => {
                 ))}
             </nav>
 
-            <div className="mt-4 mr-1 rounded-xl bg-[var(--sv-card)] p-3 text-[var(--sv-text)] shadow-lg ring-1 ring-[var(--sv-border)]/80 dark:bg-[#111827] dark:text-slate-100 dark:ring-white/10">
-                <p className="text-[10px] font-bold leading-snug text-[var(--sv-text)] dark:text-slate-100">
+            <div className="mt-4 mr-1 rounded-xl bg-[var(--bg-card)] p-3 text-[var(--text-primary)] shadow-lg ring-1 ring-[var(--border)]">
+                <p className="text-[10px] font-bold leading-snug text-[var(--text-primary)]">
                     Need more time? Use Contact teacher to request a deadline extension.
                 </p>
                 <Link
                     to="/student/messages"
-                    className="mt-2.5 inline-flex text-[11px] font-black hover:underline"
-                    style={{ color: BRAND.shell }}
+                    className="mt-2.5 inline-flex text-[11px] font-black hover:underline text-[var(--accent)]"
                 >
                     Open messages →
                 </Link>
@@ -77,23 +75,19 @@ const StudentSidebar = () => {
 
             <Link
                 to="/"
-                className="mt-5 flex items-center gap-2 px-3 py-2 text-[11px] font-semibold text-white/55 hover:text-white transition-colors"
+                className="mt-5 flex items-center gap-2 px-3 py-2 text-[11px] font-semibold text-[var(--sidebar-fg-muted)] hover:text-[var(--sidebar-fg)] transition-colors"
             >
                 <ExternalLink className="h-3.5 w-3.5" /> System overview
             </Link>
 
             <div className="mt-2 px-3">
-                <ThemeToggle
-                    compact
-                    iconOnly
-                    className="w-full border-white/20 bg-white/10 text-white hover:bg-white/15 dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-                />
+                <ThemeToggle compact iconOnly className="w-full" />
             </div>
 
             <button
                 type="button"
                 onClick={handleLogout}
-                className="mt-1 mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-white/80 hover:bg-white/12 w-full text-left transition-colors"
+                className="mt-1 mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-[var(--sidebar-fg-muted)] transition-colors hover:bg-white/12"
             >
                 <LogOut className="h-[17px] w-[17px]" />
                 Logout

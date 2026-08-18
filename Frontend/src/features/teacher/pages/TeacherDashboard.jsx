@@ -46,25 +46,25 @@ const TeacherDashboard = () => {
                 title: 'Projects Reviewed',
                 value: dashboardData.totalProjectsReviewed,
                 icon: CheckCircle2,
-                soft: 'bg-[#eef2fb]',
-                iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-[#d5dcf0]',
+                soft: 'bg-[var(--bg-elevated)]',
+                iconBg: 'bg-[var(--bg-card)] text-[var(--brand-primary)]',
+                ring: 'ring-[var(--border)]',
             },
             {
                 title: 'Pending Reviews',
                 value: dashboardData.pendingReviews,
                 icon: Hourglass,
-                soft: 'bg-[#e8ecf8]',
-                iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-[#d5dcf0]',
+                soft: 'bg-[var(--bg-elevated)]',
+                iconBg: 'bg-[var(--bg-card)] text-[var(--brand-primary)]',
+                ring: 'ring-[var(--border)]',
             },
             {
                 title: 'Similarity Alerts',
                 value: dashboardData.similarityAlerts,
                 icon: AlertTriangle,
-                soft: 'bg-[#f2f4fb]',
-                iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-[#d5dcf0]',
+                soft: 'bg-[var(--bg-elevated)]',
+                iconBg: 'bg-[var(--bg-card)] text-[var(--brand-primary)]',
+                ring: 'ring-[var(--border)]',
             },
         ],
         [dashboardData]
@@ -95,9 +95,9 @@ const TeacherDashboard = () => {
                                     >
                                         <Icon className="h-4 w-4" strokeWidth={2.2} />
                                     </div>
-                                    <span className="text-[10px] font-semibold text-slate-500">{card.title}</span>
+                                    <span className="text-[10px] font-semibold text-[var(--text-secondary)]">{card.title}</span>
                                 </div>
-                                <p className="text-xl font-bold leading-[1.2] tracking-tight text-[#0f172a]">
+                                <p className="text-xl font-bold leading-[1.2] tracking-tight text-[var(--text-primary)]">
                                     {Number(card.value).toLocaleString()}
                                 </p>
                             </div>
@@ -107,9 +107,9 @@ const TeacherDashboard = () => {
             </section>
 
             <section className="grid grid-cols-1 gap-2.5 xl:grid-cols-12">
-                <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-8">
+                <div className="rounded-xl bg-[var(--bg-card)] p-3.5 shadow-sm ring-1 ring-[var(--border)] xl:col-span-8">
                     <div className="mb-3 flex items-center justify-between gap-2">
-                        <h2 className="text-[13px] font-semibold text-[#0f172a]">Assigned Classes</h2>
+                        <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Assigned Classes</h2>
                         <Link
                             to="/teacher/classes"
                             className="inline-flex items-center gap-1 text-[11px] font-semibold"
@@ -134,14 +134,14 @@ const TeacherDashboard = () => {
                                 />
                             ))
                         ) : (
-                            <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center sm:col-span-2">
-                                <p className="text-[12px] font-medium text-slate-500">No active classes assigned yet.</p>
+                            <div className="rounded-lg border border-dashed border-[var(--border)] py-8 text-center sm:col-span-2">
+                                <p className="text-[12px] font-medium text-[var(--text-secondary)]">No active classes assigned yet.</p>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-4">
+                <div className="rounded-xl bg-[var(--bg-card)] p-3.5 shadow-sm ring-1 ring-[var(--border)] xl:col-span-4">
                     <div className="mb-3 flex items-center gap-2">
                         <div
                             className="flex h-8 w-8 items-center justify-center rounded-lg text-white shadow-sm"
@@ -149,7 +149,7 @@ const TeacherDashboard = () => {
                         >
                             <ClipboardList className="h-4 w-4" />
                         </div>
-                        <h2 className="text-[13px] font-semibold text-[#0f172a]">Quick Actions</h2>
+                        <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">Quick Actions</h2>
                     </div>
                     <div className="space-y-2">
                         <ActionLink
@@ -186,15 +186,15 @@ const TeacherDashboard = () => {
 const ActionLink = ({ to, icon: Icon, title, desc }) => (
     <Link
         to={to}
-        className="block rounded-xl border border-[#d5dcf0] bg-[#f8f9fd] p-3 transition hover:border-[#2f4aad]/35 hover:bg-[#eef2fb]"
+        className="block rounded-xl border border-[var(--border)] bg-[var(--content-bg)] p-3 transition hover:border-[#2f4aad]/35 hover:bg-[var(--bg-elevated)]"
     >
         <div className="mb-1 flex items-center gap-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#2f4aad] shadow-sm ring-1 ring-[#d5dcf0]">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-card)] text-[var(--brand-primary)] shadow-sm ring-1 ring-[var(--border)]">
                 <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
             </div>
-            <p className="text-[12px] font-semibold text-[#0f172a]">{title}</p>
+            <p className="text-[12px] font-semibold text-[var(--text-primary)]">{title}</p>
         </div>
-        <p className="text-[10px] font-normal leading-snug text-slate-500">{desc}</p>
+        <p className="text-[10px] font-normal leading-snug text-[var(--text-secondary)]">{desc}</p>
     </Link>
 );
 

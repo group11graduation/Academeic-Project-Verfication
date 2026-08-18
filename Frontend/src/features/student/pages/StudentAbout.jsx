@@ -118,15 +118,15 @@ const StudentAbout = () => {
                 <main className="relative">
                     {/* Hero */}
                     <section className="mx-auto max-w-[1200px] px-4 pb-8 pt-6 sm:px-6 sm:pt-8 lg:px-8">
-                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-white/80 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
+                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-[var(--bg-card)] px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
                             <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/50 blur-3xl" />
                             <div aria-hidden className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#bfdbfe]/45 blur-3xl" />
                             <div className="relative mx-auto max-w-3xl text-center">
-                                <p className="mb-4 text-sm font-bold tracking-tight text-[#2a3fa4]">Platform guide</p>
-                                <h1 className="mb-5 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
+                                <p className="mb-4 text-sm font-bold tracking-tight text-[var(--brand-primary)]">Platform guide</p>
+                                <h1 className="mb-5 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-[var(--text-primary)] sm:text-4xl md:text-5xl">
                                     How {PROJECT_NAME} works
                                 </h1>
-                                <p className="mx-auto mb-8 max-w-xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                                <p className="mx-auto mb-8 max-w-xl text-sm font-medium leading-relaxed text-[var(--text-secondary)] sm:text-base">
                                     {PROJECT_NAME} helps universities verify student project originality — from proposal
                                     review to ZIP upload and live Docker preview — for students, teachers, and admins.
                                 </p>
@@ -141,7 +141,7 @@ const StudentAbout = () => {
                                     </Link>
                                     <Link
                                         to="/about"
-                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-white px-7 py-3 text-sm font-bold text-slate-900 hover:bg-slate-50"
+                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-[var(--bg-card)] px-7 py-3 text-sm font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                                     >
                                         Meet the team
                                     </Link>
@@ -153,10 +153,10 @@ const StudentAbout = () => {
                     {/* Roles */}
                     <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
                         <div className="mb-8 grid gap-4 lg:grid-cols-2 lg:items-end lg:gap-10">
-                            <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl lg:text-4xl">
+                            <h2 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
                                 Who uses the platform
                             </h2>
-                            <p className="text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                            <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)] sm:text-base">
                                 Three roles share one workflow: publish work, verify originality, and review real code.
                             </p>
                         </div>
@@ -165,21 +165,21 @@ const StudentAbout = () => {
                                 <div
                                     key={role.title}
                                     className={`rounded-3xl p-6 sm:p-7 ${
-                                        role.highlight ? 'text-white' : 'border border-slate-200 bg-white'
-                                    }`}
+ role.highlight ? 'text-white' : 'border border-[var(--border)] bg-[var(--bg-card)]'
+ }`}
                                     style={role.highlight ? { background: BRAND_GRADIENT } : undefined}
                                 >
                                     <div
                                         className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${
-                                            role.highlight ? 'bg-white/15 text-white' : 'bg-[#eef2ff] text-[#2a3fa4]'
-                                        }`}
+ role.highlight ? 'bg-white/15 text-white' : 'bg-[var(--bg-elevated)] text-[var(--brand-primary)]'
+ }`}
                                     >
                                         <role.icon className="h-5 w-5" />
                                     </div>
                                     <h3
                                         className={`mb-3 text-lg font-extrabold ${
-                                            role.highlight ? 'text-white' : 'text-slate-950'
-                                        }`}
+ role.highlight ? 'text-white' : 'text-[var(--text-primary)]'
+ }`}
                                     >
                                         {role.title}
                                     </h3>
@@ -188,13 +188,13 @@ const StudentAbout = () => {
                                             <li
                                                 key={point}
                                                 className={`flex gap-2 text-sm font-medium leading-relaxed ${
-                                                    role.highlight ? 'text-blue-100' : 'text-slate-500'
-                                                }`}
+ role.highlight ? 'text-blue-100' : 'text-[var(--text-secondary)]'
+ }`}
                                             >
                                                 <CheckCircle2
                                                     className={`mt-0.5 h-4 w-4 shrink-0 ${
-                                                        role.highlight ? 'text-white' : 'text-[#1D68E3]'
-                                                    }`}
+ role.highlight ? 'text-white' : 'text-[var(--accent)]'
+ }`}
                                                 />
                                                 <span>{point}</span>
                                             </li>
@@ -210,29 +210,29 @@ const StudentAbout = () => {
                         <div className="rounded-[28px] bg-[#f0f1f3] p-5 sm:rounded-[36px] sm:p-8 lg:p-10">
                             <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="max-w-xl">
-                                    <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                                    <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl">
                                         End-to-end workflow
                                     </h2>
-                                    <p className="text-sm font-medium leading-relaxed text-slate-500">
+                                    <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)]">
                                         From assignment creation to live preview of the student project.
                                     </p>
                                 </div>
-                                <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-2xl bg-white px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-[#2a3fa4] ring-1 ring-slate-200">
+                                <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-2xl bg-[var(--bg-card)] px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-[var(--brand-primary)] ring-1 ring-[var(--border)]">
                                     <UploadCloud className="h-3.5 w-3.5" />
                                     Proposal → ZIP → Preview
                                 </span>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                                 {workflow.map((item) => (
-                                    <div key={item.step} className="rounded-3xl border border-slate-200/80 bg-white p-5">
+                                    <div key={item.step} className="rounded-3xl border border-[var(--border)]/80 bg-[var(--bg-card)] p-5">
                                         <span
                                             className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-extrabold text-white"
                                             style={{ backgroundColor: BRAND.primary }}
                                         >
                                             {item.step}
                                         </span>
-                                        <h3 className="mb-2 text-sm font-extrabold text-slate-950">{item.title}</h3>
-                                        <p className="text-sm font-medium leading-relaxed text-slate-500">{item.detail}</p>
+                                        <h3 className="mb-2 text-sm font-extrabold text-[var(--text-primary)]">{item.title}</h3>
+                                        <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)]">{item.detail}</p>
                                     </div>
                                 ))}
                             </div>
@@ -242,10 +242,10 @@ const StudentAbout = () => {
                     {/* Integrity */}
                     <section className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
                         <div className="mb-8 text-center">
-                            <h2 className="mb-3 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                            <h2 className="mb-3 text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl">
                                 Integrity & verification
                             </h2>
-                            <p className="mx-auto max-w-2xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                            <p className="mx-auto max-w-2xl text-sm font-medium leading-relaxed text-[var(--text-secondary)] sm:text-base">
                                 Built-in checks keep submissions honest before and after teacher review.
                             </p>
                         </div>
@@ -253,13 +253,13 @@ const StudentAbout = () => {
                             {integrity.map((item) => (
                                 <div
                                     key={item.title}
-                                    className="rounded-3xl border border-slate-200 bg-white p-6 transition hover:border-[#c5d0f0] hover:shadow-md"
+                                    className="rounded-3xl border border-[var(--border)] bg-[var(--bg-card)] p-6 transition hover:border-[var(--border)] hover:shadow-md"
                                 >
-                                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef2ff] text-[#2a3fa4]">
+                                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef2ff] text-[var(--brand-primary)]">
                                         <item.icon className="h-5 w-5" />
                                     </div>
-                                    <h3 className="mb-2 text-base font-extrabold text-slate-950">{item.title}</h3>
-                                    <p className="text-sm font-medium leading-relaxed text-slate-500">{item.desc}</p>
+                                    <h3 className="mb-2 text-base font-extrabold text-[var(--text-primary)]">{item.title}</h3>
+                                    <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)]">{item.desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -268,14 +268,14 @@ const StudentAbout = () => {
                     {/* Collab + Docker */}
                     <section className="mx-auto max-w-[1200px] px-4 pb-10 sm:px-6 lg:px-8">
                         <div className="grid gap-4 lg:grid-cols-2">
-                            <div className="rounded-[28px] border border-slate-200 bg-white p-6 sm:rounded-[36px] sm:p-8">
-                                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef2ff] text-[#2a3fa4]">
+                            <div className="rounded-[28px] border border-[var(--border)] bg-[var(--bg-card)] p-6 sm:rounded-[36px] sm:p-8">
+                                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef2ff] text-[var(--brand-primary)]">
                                     <Layers className="h-5 w-5" />
                                 </div>
-                                <h2 className="mb-3 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                <h2 className="mb-3 text-xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-2xl">
                                     Collaborative assignments
                                 </h2>
-                                <p className="text-sm font-medium leading-relaxed text-slate-500">
+                                <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)]">
                                     Final projects can pair a frontend teacher and a backend teacher on the same class.
                                     Each side uploads requirements; both must approve the proposal before students can
                                     submit project code.
@@ -315,7 +315,7 @@ const StudentAbout = () => {
                             <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                                 <Link
                                     to="/gallery"
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-extrabold text-[#2a3fa4]"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--bg-card)] px-6 py-3 text-sm font-extrabold text-[var(--brand-primary)]"
                                 >
                                     Verified projects <ArrowUpRight className="h-4 w-4" />
                                 </Link>

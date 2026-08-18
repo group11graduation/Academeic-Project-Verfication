@@ -491,14 +491,14 @@ const CollaborativeAssignmentCreate = () => {
                 <p className="text-[10px] font-bold uppercase tracking-wider">{label}</p>
                 <span
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        isSectionComplete(value) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
-                    }`}
+ isSectionComplete(value) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+ }`}
                 >
                     {isSectionComplete(value) ? <Check className="h-3 w-3" /> : null}
                     {isSectionComplete(value) ? 'Complete' : 'Pending'}
                 </span>
             </div>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[10px] text-[var(--text-secondary)]">
                 {editable ? 'Your section - upload your requirements file below.' : `Filled by ${teacherLabel(ownerTeacher)}.`}
                 {!editable && <Lock className="inline h-3 w-3 ml-1 -mt-0.5" />}
             </p>
@@ -506,7 +506,7 @@ const CollaborativeAssignmentCreate = () => {
             <div>
                 <label className={Z_LABEL}>Requirements file *</label>
                 {value.originalFileName ? (
-                    <p className="text-[11px] font-semibold text-slate-700 mb-1">{value.originalFileName}</p>
+                    <p className="text-[11px] font-semibold text-[var(--text-primary)] mb-1">{value.originalFileName}</p>
                 ) : null}
                 <input
                     type="file"
@@ -547,7 +547,7 @@ const CollaborativeAssignmentCreate = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-7 w-7 text-[#2a3fa4] animate-spin" />
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin" />
             </div>
         );
     }
@@ -575,8 +575,8 @@ const CollaborativeAssignmentCreate = () => {
                         <Users className="h-4 w-4 text-indigo-500" />
                     </div>
                     <div>
-                        <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">Collaborative Assignment</h1>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <h1 className="text-base font-bold text-[var(--text-primary)]">Collaborative Assignment</h1>
+                        <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
                             Frontend and backend teachers each fill their own requirements. Either teacher can complete shared fields and publish once both sections are done.
                         </p>
                     </div>
@@ -592,11 +592,11 @@ const CollaborativeAssignmentCreate = () => {
                 />
 
                 {collaborators.length > 0 && (
-                    <div className="mt-4 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] p-3 space-y-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3 space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
                             Your partners &amp; drafts ({collaborators.length})
                         </p>
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[10px] text-[var(--text-secondary)]">
                             Each accepted teacher is a separate collaboration. You can have one active draft per partner.
                         </p>
                         {collaborators.map((c) => {
@@ -604,19 +604,19 @@ const CollaborativeAssignmentCreate = () => {
                             return (
                                 <div
                                     key={String(c.teacherId)}
-                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-slate-100 dark:border-white/10 px-3 py-2 bg-slate-50/50 dark:bg-slate-900/30"
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2 bg-[var(--bg-elevated)]/30"
                                 >
                                     <div className="min-w-0">
-                                        <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                                        <p className="text-[12px] font-bold text-[var(--text-primary)]">
                                             {c.name || c.email}
                                         </p>
-                                        <p className="text-[10px] text-slate-500">
+                                        <p className="text-[10px] text-[var(--text-secondary)]">
                                             {c.myRole ? `You: ${c.myRole}` : ''}
                                             {c.frontendSubject?.code ? ` · FE: ${c.frontendSubject.code}` : ''}
                                             {c.backendSubject?.code ? ` · BE: ${c.backendSubject.code}` : ''}
                                             {c.class?.code ? ` · ${c.class.code}` : ''}
                                         </p>
-                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                        <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">
                                             {partnerDraft
                                                 ? `Draft: ${partnerDraft.title?.trim() || 'Untitled'} (FE ${partnerDraft.frontendSectionComplete ? 'done' : 'pending'} · BE ${partnerDraft.backendSectionComplete ? 'done' : 'pending'})`
                                                 : 'No draft yet with this partner'}
@@ -643,7 +643,7 @@ const CollaborativeAssignmentCreate = () => {
                                                         setMyRole(c.myRole);
                                                     }
                                                 }}
-                                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200"
+                                                className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-1.5 text-[10px] font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                                             >
                                                 Select to start
                                             </button>
@@ -656,16 +656,16 @@ const CollaborativeAssignmentCreate = () => {
                 )}
 
                 {catalog.length === 0 ? (
-                    <p className="text-slate-500 text-sm mt-4">No class/subject assignments found. Ask admin to assign classes first.</p>
+                    <p className="text-[var(--text-secondary)] text-sm mt-4">No class/subject assignments found. Ask admin to assign classes first.</p>
                 ) : collaborators.length === 0 ? (
-                    <div className="mt-4 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 p-3 text-[11px] text-slate-600 dark:text-slate-400">
+                    <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)]/30 p-3 text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                         Once a colleague <strong>accepts</strong> your request above, you can start a collaborative assignment draft.
                     </div>
                 ) : (
                     <>
                         {drafts.length > 0 && !draft && (
-                            <div className="mt-4 rounded-lg border border-slate-200 p-3 space-y-2 dark:border-white/10">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Continue a draft</p>
+                            <div className="mt-4 rounded-lg border border-[var(--border)] p-3 space-y-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Continue a draft</p>
                                 {drafts.map((row) => {
                                     const partner =
                                         String(row.initiatedBy?._id || row.initiatedBy) === currentUserId
@@ -674,7 +674,7 @@ const CollaborativeAssignmentCreate = () => {
                                     return (
                                         <div
                                             key={row._id}
-                                            className="flex items-stretch gap-2 rounded-lg border border-slate-200 dark:border-white/10 overflow-hidden"
+                                            className="flex items-stretch gap-2 rounded-lg border border-[var(--border)] overflow-hidden"
                                         >
                                             <button
                                                 type="button"
@@ -682,13 +682,13 @@ const CollaborativeAssignmentCreate = () => {
                                                     setSearchParams({ draft: row._id });
                                                     loadDraft(row._id, catalog);
                                                 }}
-                                                className="flex-1 text-left px-3 py-2 text-[11px] hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                                                className="flex-1 text-left px-3 py-2 text-[11px] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-900/40"
                                             >
-                                                <span className="font-bold text-slate-800 dark:text-slate-100">
+                                                <span className="font-bold text-[var(--text-primary)]">
                                                     {row.title?.trim() || 'Untitled draft'}
                                                 </span>
-                                                <span className="text-slate-500"> · with {teacherLabel(partner)}</span>
-                                                <span className="block text-[10px] text-slate-500 mt-0.5">
+                                                <span className="text-[var(--text-secondary)]"> · with {teacherLabel(partner)}</span>
+                                                <span className="block text-[10px] text-[var(--text-secondary)] mt-0.5">
                                                     Frontend {row.frontendSectionComplete ? 'done' : 'pending'} · Backend{' '}
                                                     {row.backendSectionComplete ? 'done' : 'pending'}
                                                 </span>
@@ -697,7 +697,7 @@ const CollaborativeAssignmentCreate = () => {
                                                 type="button"
                                                 disabled={deleting}
                                                 onClick={() => handleDeleteDraft(row._id)}
-                                                className="shrink-0 px-2.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-l border-slate-200 dark:border-white/10"
+                                                className="shrink-0 px-2.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-l border-[var(--border)]"
                                                 title="Delete draft (either teacher)"
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" />
@@ -709,7 +709,7 @@ const CollaborativeAssignmentCreate = () => {
                         )}
 
                         {!draft ? (
-                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/10 space-y-3">
+                    <div className="mt-4 pt-4 border-t border-[var(--border)] space-y-3">
                         <div>
                             <label className={Z_LABEL}>Co-teacher *</label>
                             <select value={coTeacherId} onChange={(e) => setCoTeacherId(e.target.value)} className={Z_INPUT}>
@@ -721,7 +721,7 @@ const CollaborativeAssignmentCreate = () => {
                             </select>
                         </div>
                         {selectedPartner && (
-                            <div className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 p-3 space-y-1.5 text-[10px] text-slate-600 dark:text-slate-400">
+                            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)]/30 p-3 space-y-1.5 text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                 <p>
                                     Class: <strong>{selectedPartner.class?.code || '-'}</strong>
                                     {selectedPartner.class?.name ? ` - ${selectedPartner.class.name}` : ''}
@@ -739,7 +739,7 @@ const CollaborativeAssignmentCreate = () => {
                                         Backend subject: <strong>{selectedPartner.backendSubject.code} - {selectedPartner.backendSubject.name}</strong>
                                     </p>
                                 ) : null}
-                                <p className="text-slate-500">These were agreed when the collaboration was accepted.</p>
+                                <p className="text-[var(--text-secondary)]">These were agreed when the collaboration was accepted.</p>
                             </div>
                         )}
                         <button type="button" onClick={handleStartDraft} disabled={startingDraft || !coTeacherId} className={Z_BTN_INDIGO}>
@@ -748,9 +748,9 @@ const CollaborativeAssignmentCreate = () => {
                         </button>
                     </div>
                         ) : (
-                    <div className="space-y-3 mt-4 pt-4 border-t border-slate-200 dark:border-white/10">
-                        <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 text-[11px] text-slate-700 dark:border-indigo-900/40 dark:bg-indigo-950/20 dark:text-slate-300">
-                            <p className="font-bold text-slate-900 dark:text-slate-100 mb-1">Partnership</p>
+                    <div className="space-y-3 mt-4 pt-4 border-t border-[var(--border)]">
+                        <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 text-[11px] text-[var(--text-primary)] dark:border-indigo-900/40 dark:bg-indigo-950/20">
+                            <p className="font-bold text-[var(--text-primary)] mb-1">Partnership</p>
                             <p>
                                 Frontend: <strong>{teacherLabel(frontendTeacher)}</strong>
                                 {myDraftRole === 'frontend' ? ' (you)' : ''} - {frontendDone ? 'complete' : 'pending'}
@@ -761,7 +761,7 @@ const CollaborativeAssignmentCreate = () => {
                             </p>
                         </div>
 
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Shared details (either teacher)</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Shared details (either teacher)</p>
 
                         <div>
                             <label className={Z_LABEL}>Class</label>
@@ -823,14 +823,14 @@ const CollaborativeAssignmentCreate = () => {
 
                         <div>
                             <label className={Z_LABEL}>Classes for this project *</label>
-                            <div className="rounded-lg border border-slate-200 dark:border-white/10 p-2.5 space-y-1.5 bg-white dark:bg-[#0B1120]">
+                            <div className="rounded-lg border border-[var(--border)] p-2.5 space-y-1.5 bg-[var(--bg-card)]">
                                 {(collaborationLocked
                                     ? catalog.filter((row) => activeClassIds.includes(String(row.class?._id || '')))
                                     : compatibleClassOptions
                                 ).map((row) => {
                                     const classId = String(row.class?._id || '');
                                     return (
-                                        <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-slate-700 dark:text-slate-200">
+                                        <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-[var(--text-primary)]">
                                             <input
                                                 type="checkbox"
                                                 checked={activeClassIds.includes(classId)}
@@ -910,7 +910,7 @@ const CollaborativeAssignmentCreate = () => {
                                     className={Z_INPUT}
                                 />
                                 {proposalDeadline ? (
-                                    <p className="mt-1 text-[11px] text-slate-500">
+                                    <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
                                         Dates before the proposal deadline are not available.
                                     </p>
                                 ) : null}
@@ -931,7 +931,7 @@ const CollaborativeAssignmentCreate = () => {
                                 type="button"
                                 onClick={handlePublish}
                                 disabled={publishing || saving || deleting || !readyToPublish}
-                                className={`${Z_BTN_INDIGO} bg-[#2a3fa4] hover:bg-[#223688] disabled:opacity-50`}
+                                className={`${Z_BTN_INDIGO} bg-[var(--brand-primary)] hover:brightness-110 disabled:opacity-50`}
                                 title={
                                     readyToPublish
                                         ? 'Saves latest changes, then publishes'
@@ -945,14 +945,14 @@ const CollaborativeAssignmentCreate = () => {
                                 type="button"
                                 onClick={() => handleDeleteDraft()}
                                 disabled={deleting || saving || publishing}
-                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900/40 dark:bg-transparent dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-[var(--bg-card)] px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-900/40 dark:bg-transparent dark:text-rose-300 dark:hover:bg-rose-950/30"
                                 title="Removes assignment draft only - partnership with your co-teacher stays active"
                             >
                                 {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                 Delete draft
                             </button>
                         </div>
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[10px] text-[var(--text-secondary)]">
                             Save progress anytime so your partner can continue. Publish saves automatically first, then creates the assignment when both sections are complete.
                         </p>
                         {!readyToPublish && (

@@ -70,7 +70,7 @@ const NormalAssignmentStudents = () => {
     if (loading) {
         return (
             <div className={`${Z_PAGE} flex min-h-[50vh] items-center justify-center`}>
-                <Loader2 className="h-10 w-10 animate-spin text-[#2f4aad]" />
+                <Loader2 className="h-10 w-10 animate-spin text-[var(--brand-primary)]" />
             </div>
         );
     }
@@ -78,12 +78,12 @@ const NormalAssignmentStudents = () => {
     if (error) {
         return (
             <div className={`${Z_PAGE} px-4 py-8 md:px-8`}>
-                <nav className="mx-auto mb-6 flex max-w-[900px] flex-wrap items-center gap-1 text-xs font-semibold text-slate-500">
+                <nav className="mx-auto mb-6 flex max-w-[900px] flex-wrap items-center gap-1 text-xs font-semibold text-[var(--text-secondary)]">
                     <Link to="/teacher/assignments" className={Z_LINK}>
                         Assignments
                     </Link>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="text-slate-800">Students</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
+                    <span className="text-[var(--text-primary)]">Students</span>
                 </nav>
                 <div className={`${Z_CARD} mx-auto max-w-[900px] border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800`}>
                     {error}
@@ -98,13 +98,13 @@ const NormalAssignmentStudents = () => {
     return (
         <div className={Z_PAGE}>
             <div className={Z_INNER}>
-                <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-slate-500">
+                <nav className="mb-4 flex flex-wrap items-center gap-1 text-[13px] font-semibold text-[var(--text-secondary)]">
                     <Link to="/teacher/assignments" className={Z_LINK}>
                         Assignments
                     </Link>
                     {classCrumb ? (
                         <>
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
                             <Link
                                 to={classCrumb.to}
                                 className={`${Z_LINK} max-w-[min(100%,14rem)] truncate`}
@@ -114,79 +114,79 @@ const NormalAssignmentStudents = () => {
                             </Link>
                         </>
                     ) : null}
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="max-w-[min(100%,28rem)] truncate text-slate-800" title={title}>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
+                    <span className="max-w-[min(100%,28rem)] truncate text-[var(--text-primary)]" title={title}>
                         {title}
                     </span>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="text-slate-800">Students</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
+                    <span className="text-[var(--text-primary)]">Students</span>
                 </nav>
 
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">Class roster</h1>
-                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+                    <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] md:text-[26px]">Class roster</h1>
+                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
                         Open a student to see submission status, similarity vs peers, and extracted document content.
                     </p>
                 </div>
                 <div className="relative w-full sm:max-w-xs">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
                     <input
                         type="search"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search by name, email, ID, class…"
-                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none ring-[#2f4aad]/0 transition focus:border-[#2f4aad]/40 focus:ring-2 focus:ring-[#2f4aad]/20"
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-2.5 pl-10 pr-3 text-sm font-medium text-[var(--text-primary)] shadow-sm outline-none ring-[#2f4aad]/0 transition focus:border-[#2f4aad]/40 focus:ring-2 focus:ring-[#2f4aad]/20"
                     />
                 </div>
             </div>
 
             <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className={`${Z_CARD} p-4`}>
-                    <div className="flex items-center gap-2 text-slate-500">
-                        <Users className="h-4 w-4 text-[#2f4aad]" />
+                    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                        <Users className="h-4 w-4 text-[var(--brand-primary)]" />
                         <span className="text-[11px] font-bold uppercase tracking-wide">Students</span>
                     </div>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{students.length}</p>
+                    <p className="mt-2 text-2xl font-bold text-[var(--text-primary)]">{students.length}</p>
                 </div>
                 <div className={`${Z_CARD} p-4`}>
-                    <div className="flex items-center gap-2 text-slate-500">
+                    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                         <FileCheck className="h-4 w-4 text-emerald-600" />
                         <span className="text-[11px] font-bold uppercase tracking-wide">Submitted</span>
                     </div>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{bundle?.submittedCount ?? 0}</p>
+                    <p className="mt-2 text-2xl font-bold text-[var(--text-primary)]">{bundle?.submittedCount ?? 0}</p>
                 </div>
                 <div className={`${Z_CARD} p-4`}>
-                    <div className="flex items-center gap-2 text-slate-500">
+                    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                         <FileText className="h-4 w-4 text-amber-600" />
                         <span className="text-[11px] font-bold uppercase tracking-wide">Pending</span>
                     </div>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
+                    <p className="mt-2 text-2xl font-bold text-[var(--text-primary)]">
                         {Math.max(0, students.length - (bundle?.submittedCount ?? 0))}
                     </p>
                 </div>
                 <div className={`${Z_CARD} p-4`}>
-                    <div className="flex items-center gap-2 text-slate-500">
+                    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                         <AlertTriangle className="h-4 w-4 text-rose-500" />
                         <span className="text-[11px] font-bold uppercase tracking-wide">Flagged</span>
                     </div>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{bundle?.flaggedCount ?? 0}</p>
+                    <p className="mt-2 text-2xl font-bold text-[var(--text-primary)]">{bundle?.flaggedCount ?? 0}</p>
                 </div>
             </div>
 
             {students.length === 0 ? (
-                <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>
+                <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-[var(--text-secondary)]`}>
                     No students found for this assignment's classes.
                 </div>
             ) : filteredStudents.length === 0 ? (
-                <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>
+                <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-[var(--text-secondary)]`}>
                     No students match "{query.trim()}".
                 </div>
             ) : (
                 <div className={`${Z_CARD} overflow-hidden`}>
-                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 md:px-5">
-                        <h2 className="text-sm font-bold text-slate-900">Student list</h2>
-                        <span className="text-xs font-semibold text-slate-400">
+                    <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3 md:px-5">
+                        <h2 className="text-sm font-bold text-[var(--text-primary)]">Student list</h2>
+                        <span className="text-xs font-semibold text-[var(--text-secondary)]">
                             {filteredStudents.length} shown
                         </span>
                     </div>
@@ -200,14 +200,14 @@ const NormalAssignmentStudents = () => {
                                             `/teacher/assignments/${assignmentId}/normal-students/${encodeURIComponent(s.studentUserId)}`
                                         )
                                     }
-                                    className="flex w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-slate-50 md:px-5"
+                                    className="flex w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-[var(--bg-elevated)] md:px-5"
                                 >
                                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2f4aad] to-[#3b74ff] text-sm font-bold text-white shadow-sm">
                                         {(s.name || s.email || '?').charAt(0).toUpperCase()}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate font-bold text-slate-900">{s.name || 'Student'}</p>
-                                        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+                                        <p className="truncate font-bold text-[var(--text-primary)]">{s.name || 'Student'}</p>
+                                        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-[var(--text-secondary)]">
                                             {s.email ? (
                                                 <span className="flex min-w-0 items-center gap-1">
                                                     <Mail className="h-3.5 w-3.5 shrink-0" />
@@ -221,7 +221,7 @@ const NormalAssignmentStudents = () => {
                                                 </span>
                                             ) : null}
                                             {s.classCode ? (
-                                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                                                <span className="rounded-md bg-[var(--bg-elevated)] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
                                                     {s.classCode}
                                                 </span>
                                             ) : null}
@@ -236,7 +236,7 @@ const NormalAssignmentStudents = () => {
                                         {s.submission?.plagiarismFlag ? (
                                             <span className="text-[10px] font-bold uppercase text-rose-600">High similarity</span>
                                         ) : s.submitted && s.submission?.plagiarismScore != null ? (
-                                            <span className="text-[10px] font-semibold text-slate-400">
+                                            <span className="text-[10px] font-semibold text-[var(--text-secondary)]">
                                                 {Math.round(Number(s.submission.plagiarismScore) * 100)}% vs peers
                                             </span>
                                         ) : null}

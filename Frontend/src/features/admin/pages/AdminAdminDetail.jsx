@@ -55,7 +55,7 @@ const AdminAdminDetail = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-10 w-10 animate-spin text-[#2f4aad]" />
+                <Loader2 className="h-10 w-10 animate-spin text-[var(--brand-primary)]" />
             </div>
         );
     }
@@ -65,52 +65,52 @@ const AdminAdminDetail = () => {
             <button
                 type="button"
                 onClick={() => navigate('/admin/admins')}
-                className="mb-6 inline-flex items-center gap-2 text-[14px] font-bold text-slate-600 hover:text-slate-900"
+                className="mb-6 inline-flex items-center gap-2 text-[14px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
                 <ArrowLeft className="h-4 w-4" />
                 Back
             </button>
-            <h1 className="text-2xl font-extrabold text-slate-900 mb-6">Edit administrator</h1>
-            <form onSubmit={onSave} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h1 className="text-2xl font-extrabold text-[var(--text-primary)] mb-6">Edit administrator</h1>
+            <form onSubmit={onSave} className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-sm">
                 <div>
-                    <label className="block text-[13px] font-bold text-slate-600 mb-1">Name</label>
+                    <label className="block text-[13px] font-bold text-[var(--text-secondary)] mb-1">Name</label>
                     <input
                         required
-                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[14px]"
+                        className="w-full rounded-xl border border-[var(--border)] px-4 py-2.5 text-[14px]"
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                     />
                 </div>
                 <div>
-                    <label className="block text-[13px] font-bold text-slate-600 mb-1">Email</label>
+                    <label className="block text-[13px] font-bold text-[var(--text-secondary)] mb-1">Email</label>
                     <input
                         type="email"
                         required
-                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[14px]"
+                        className="w-full rounded-xl border border-[var(--border)] px-4 py-2.5 text-[14px]"
                         value={form.email}
                         onChange={(e) => setForm({ ...form, email: e.target.value })}
                     />
                 </div>
                 <div>
-                    <label className="block text-[13px] font-bold text-slate-600 mb-1">Username</label>
+                    <label className="block text-[13px] font-bold text-[var(--text-secondary)] mb-1">Username</label>
                     <input
-                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[14px]"
+                        className="w-full rounded-xl border border-[var(--border)] px-4 py-2.5 text-[14px]"
                         value={form.username}
                         onChange={(e) => setForm({ ...form, username: e.target.value })}
                     />
                 </div>
                 <div>
-                    <label className="block text-[13px] font-bold text-slate-600 mb-1">New password (optional)</label>
+                    <label className="block text-[13px] font-bold text-[var(--text-secondary)] mb-1">New password (optional)</label>
                     <input
                         type="password"
-                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[14px]"
+                        className="w-full rounded-xl border border-[var(--border)] px-4 py-2.5 text-[14px]"
                         value={form.password}
                         onChange={(e) => setForm({ ...form, password: e.target.value })}
                     />
                 </div>
                 <button
                     type="submit"
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#2f4aad] px-6 py-3 text-[14px] font-bold text-white hover:bg-blue-700"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-6 py-3 text-[14px] font-bold text-white hover:bg-blue-700"
                 >
                     Save
                 </button>

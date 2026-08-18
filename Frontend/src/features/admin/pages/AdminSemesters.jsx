@@ -265,23 +265,23 @@ const AdminSemesters = () => {
     if (loading) {
         return (
             <div className="admin-page min-h-[40vh] flex items-center justify-center">
-                <Loader2 className="h-7 w-7 animate-spin text-[#2f4aad]" />
+                <Loader2 className="h-7 w-7 animate-spin text-[var(--brand-primary)]" />
             </div>
         );
     }
 
     return (
         <div className="admin-page space-y-4 font-sans text-[13px]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#2f4aad] dark:bg-blue-500/15 dark:text-blue-300">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[var(--brand-primary)] dark:bg-blue-500/15 dark:text-blue-300">
                         <CalendarRange className="h-4 w-4" />
                     </div>
                     <div>
-                        <h1 className="text-base font-extrabold leading-none text-slate-900 dark:text-slate-100">Semesters</h1>
-                        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        <h1 className="text-base font-extrabold leading-none text-[var(--text-primary)]">Semesters</h1>
+                        <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                             Manage academic years and terms.{' '}
-                            <Link to="/admin/academic-structure" className="font-bold text-[#2f4aad] hover:underline">
+                            <Link to="/admin/academic-structure" className="font-bold text-[var(--brand-primary)] hover:underline">
                                 Faculties &amp; departments
                             </Link>
                             {' '}are managed separately.
@@ -292,7 +292,7 @@ const AdminSemesters = () => {
                 <div className="flex flex-wrap items-center gap-2">
                     <Link
                         to="/admin/academic-structure"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-[#162033]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                     >
                         <Building2 className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Academic Structure</span>
@@ -300,7 +300,7 @@ const AdminSemesters = () => {
                     <button
                         type="button"
                         onClick={openCreateYearForm}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-[#162033]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">New Year</span>
@@ -308,7 +308,7 @@ const AdminSemesters = () => {
                     <select
                         value={selectedYearId}
                         onChange={(e) => setSelectedYearId(e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
+                        className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-semibold text-[var(--text-primary)]"
                     >
                         <option value="">Select year</option>
                         {academicYears.map((y) => (
@@ -321,7 +321,7 @@ const AdminSemesters = () => {
                         <button
                             type="button"
                             onClick={() => openEditYearForm(selectedYear)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-[#111827] dark:text-slate-200 dark:hover:bg-[#162033]"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                             title="Edit selected academic year"
                         >
                             <Edit2 className="h-3.5 w-3.5" />
@@ -331,7 +331,7 @@ const AdminSemesters = () => {
                     <button
                         type="button"
                         onClick={openCreateSemesterForm}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         Add Semester
@@ -342,10 +342,10 @@ const AdminSemesters = () => {
             {showYearForm && (
                 <form
                     onSubmit={handleSaveAcademicYear}
-                    className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111827] dark:shadow-none"
+                    className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-sm"
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">
+                        <h2 className="text-sm font-black text-[var(--text-primary)]">
                             {editingYearId ? 'Edit Academic Year' : 'New Academic Year'}
                         </h2>
                         <button
@@ -354,40 +354,40 @@ const AdminSemesters = () => {
                                 resetYearForm();
                                 setShowYearForm(false);
                             }}
-                            className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-[#162033]"
+                            className="rounded-lg border border-[var(--border)] px-3 py-1 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
                         >
                             Close
                         </button>
                     </div>
 
                     <div>
-                        <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Label</label>
+                        <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">Label</label>
                         <input
                             value={yearForm.label}
                             onChange={(e) => setYearForm((f) => ({ ...f, label: e.target.value }))}
                             placeholder="e.g. 2025/2026"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                         />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
-                            <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Start Date</label>
+                            <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">Start Date</label>
                             <input
                                 type="date"
                                 value={yearForm.startDate}
                                 onChange={(e) => setYearForm((f) => ({ ...f, startDate: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                             />
                         </div>
                         <div>
-                            <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">End Date</label>
+                            <label className="mb-1 block text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">End Date</label>
                             <input
                                 type="date"
                                 value={yearForm.endDate}
                                 min={yearForm.startDate || undefined}
                                 onChange={(e) => setYearForm((f) => ({ ...f, endDate: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                             />
                         </div>
                     </div>
@@ -399,14 +399,14 @@ const AdminSemesters = () => {
                                 resetYearForm();
                                 setShowYearForm(false);
                             }}
-                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-bold text-slate-600 hover:bg-slate-50"
+                            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[12px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={yearSubmitting}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                         >
                             {yearSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editingYearId ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                             {yearSubmitting ? 'Saving...' : editingYearId ? 'Update Year' : 'Create Year'}
@@ -415,33 +415,33 @@ const AdminSemesters = () => {
                 </form>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
-                <h2 className="text-sm font-black text-slate-900 mb-3 dark:text-slate-100">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-sm">
+                <h2 className="text-sm font-black text-[var(--text-primary)] mb-3">
                     {selectedYear ? `Semesters in ${selectedYear.label}` : 'Semesters'}
                 </h2>
                 {semesters.length === 0 ? (
-                    <p className="text-[11px] text-slate-500">No semesters found for selected year.</p>
+                    <p className="text-[11px] text-[var(--text-secondary)]">No semesters found for selected year.</p>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                         {semesters.map((s) => (
-                            <div key={s._id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-[#0f172a]/60">
+                            <div key={s._id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)]/70 p-3 /60">
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className="text-[13px] font-extrabold text-slate-900 truncate dark:text-slate-100">{s.name}</p>
+                                    <p className="text-[13px] font-extrabold text-[var(--text-primary)] truncate">{s.name}</p>
                                     <div className="flex items-center gap-1 shrink-0">
-                                        <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-white/10">
+                                        <span className="rounded-full bg-[var(--bg-card)] px-2 py-0.5 text-[9px] font-black text-[var(--text-secondary)] ring-1 ring-[var(--border)]">
                                             Order {s.order ?? 0}
                                         </span>
                                         <button
                                             type="button"
                                             onClick={() => openEditSemesterForm(s)}
-                                            className="rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-[#111827] dark:text-slate-300"
+                                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-1 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
                                             title="Edit semester"
                                         >
                                             <Edit2 className="h-3.5 w-3.5" />
                                         </button>
                                     </div>
                                 </div>
-                                <p className="mt-1.5 text-[10px] font-medium text-slate-500">
+                                <p className="mt-1.5 text-[10px] font-medium text-[var(--text-secondary)]">
                                     {s.startDate ? new Date(s.startDate).toLocaleDateString() : 'No start'} -{' '}
                                     {s.endDate ? new Date(s.endDate).toLocaleDateString() : 'No end'}
                                 </p>
@@ -454,10 +454,10 @@ const AdminSemesters = () => {
             {showCreateForm && (
                 <form
                     onSubmit={handleSaveSemester}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 dark:border-white/10 dark:bg-[#111827] dark:shadow-none"
+                    className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-sm space-y-3"
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-black text-slate-900 dark:text-slate-100">
+                        <h2 className="text-sm font-black text-[var(--text-primary)]">
                             {editingSemesterId ? 'Edit Semester' : 'New Semester Registration'}
                         </h2>
                         <button
@@ -466,60 +466,60 @@ const AdminSemesters = () => {
                                 resetSemesterForm();
                                 setShowCreateForm(false);
                             }}
-                            className="rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-[#162033]"
+                            className="rounded-lg border border-[var(--border)] px-3 py-1 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
                         >
                             Close
                         </button>
                     </div>
 
                     <div>
-                        <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-slate-500">Semester Name</label>
+                        <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)]">Semester Name</label>
                         <input
                             value={form.name}
                             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                             placeholder="e.g. Semester 1"
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                            className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                         />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
-                            <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-slate-500">Order</label>
+                            <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)]">Order</label>
                             <input
                                 type="number"
                                 min={1}
                                 value={form.order}
                                 onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                             />
                         </div>
                         <div className="sm:col-span-2">
-                            <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-slate-500">Start Date</label>
+                            <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)]">Start Date</label>
                             <input
                                 type="date"
                                 value={form.startDate}
                                 min={yearDateBounds?.min}
                                 max={yearDateBounds?.max}
                                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-slate-500">End Date</label>
+                        <label className="block mb-1 text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)]">End Date</label>
                         <input
                             type="date"
                             value={form.endDate}
                             min={yearDateBounds?.min}
                             max={yearDateBounds?.max}
                             onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-800 dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-100"
+                            className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                         />
                     </div>
 
                     {yearDateBounds ? (
-                        <p className="text-[11px] font-medium text-slate-500">
+                        <p className="text-[11px] font-medium text-[var(--text-secondary)]">
                             Dates must fall within {yearDateBounds.label}: {formatDayLabel(yearDateBounds.min)} – {formatDayLabel(yearDateBounds.max)}.
                         </p>
                     ) : (
@@ -535,14 +535,14 @@ const AdminSemesters = () => {
                                 resetSemesterForm();
                                 setShowCreateForm(false);
                             }}
-                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-bold text-slate-600 hover:bg-slate-50"
+                            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[12px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                         >
                             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editingSemesterId ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                             {submitting ? 'Saving...' : editingSemesterId ? 'Update Semester' : 'Create Semester'}

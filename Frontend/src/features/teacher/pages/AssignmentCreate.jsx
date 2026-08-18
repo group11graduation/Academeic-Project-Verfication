@@ -349,7 +349,7 @@ const AssignmentCreate = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-7 w-7 text-[#2a3fa4] animate-spin" />
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin" />
             </div>
         );
     }
@@ -365,17 +365,17 @@ const AssignmentCreate = () => {
             </button>
 
             <div className={Z_FORM_CARD}>
-                <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                <h1 className="text-base font-bold text-[var(--text-primary)]">
                     {isEdit ? 'Edit Assignment' : 'New Assignment'}
                 </h1>
-                <p className="text-[11px] text-slate-500 mt-0.5 mb-4">
+                <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 mb-4">
                     {isNormal
                         ? 'Normal assignments: each student uploads one file. Set an optional submission deadline; students still see it on their assignment list and detail page.'
                         : 'Final assignments: students submit proposals first, then projects. Set deadlines and optional AI requirement checks below.'}
                 </p>
 
                 {catalog.length === 0 ? (
-                    <p className="text-slate-500 text-sm">No class/subject assignments found. Ask admin to assign classes and subjects.</p>
+                    <p className="text-[var(--text-secondary)] text-sm">No class/subject assignments found. Ask admin to assign classes and subjects.</p>
                 ) : (
                     <form onSubmit={handleCreate} className="space-y-3">
                         {formError && (
@@ -421,7 +421,7 @@ const AssignmentCreate = () => {
                                     </option>
                                 ))}
                             </select>
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-[var(--text-secondary)]">
                                 Pick a subject first, then choose class assignment mode and your class(es) below.
                             </p>
                         </div>
@@ -440,10 +440,10 @@ const AssignmentCreate = () => {
 
                         {isNormal ? (
                             <div className="rounded-lg border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/25 p-3 space-y-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#2a3fa4] dark:text-blue-300">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--brand-primary)] dark:text-blue-300">
                                     Normal assignment - requirements only
                                 </p>
-                                <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 -mt-1">
+                                <p className="text-[11px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] -mt-1">
                                     Students upload one file per assignment. Use the fields below for what they must submit; other proposal/project options are hidden.
                                 </p>
 
@@ -512,7 +512,7 @@ const AssignmentCreate = () => {
                                         min={deadlineMin}
                                         className={`${Z_INPUT} max-w-md`}
                                     />
-                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <p className="mt-2 text-xs text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                         Must be after the current date and time. Shown to students as the due date. Leave empty for no fixed deadline.
                                     </p>
                                 </div>
@@ -527,7 +527,7 @@ const AssignmentCreate = () => {
                                         onChange={(e) => setRequirementsFile(e.target.files?.[0] || null)}
                                         className={Z_INPUT}
                                     />
-                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <p className="mt-2 text-xs text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                         Optional PDF or document. Students can download it from their assignment page.
                                     </p>
                                     {requirementsFile && (
@@ -589,12 +589,12 @@ const AssignmentCreate = () => {
                                             })}
                                         </select>
                                     ) : (
-                                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-2.5 space-y-1.5 bg-white dark:bg-[#0B1120]">
+                                        <div className="rounded-lg border border-[var(--border)] p-2.5 space-y-1.5 bg-[var(--bg-card)]">
                                             {compatibleClassOptions.map((row) => {
                                                 const classId = String(row.class?._id || '');
                                                 const checked = selectedClassIds.includes(classId);
                                                 return (
-                                                    <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-slate-700 dark:text-slate-200">
+                                                    <label key={classId} className="flex items-center gap-2 text-[12px] font-semibold text-[var(--text-primary)]">
                                                         <input
                                                             type="checkbox"
                                                             checked={checked}
@@ -605,11 +605,11 @@ const AssignmentCreate = () => {
                                                 );
                                             })}
                                             {compatibleClassOptions.length === 0 && (
-                                                <p className="text-sm font-medium text-slate-500">No classes teach this subject.</p>
+                                                <p className="text-sm font-medium text-[var(--text-secondary)]">No classes teach this subject.</p>
                                             )}
                                         </div>
                                     )}
-                                    <p className="mt-2 text-xs text-slate-500">
+                                    <p className="mt-2 text-xs text-[var(--text-secondary)]">
                                         {classAssignmentMode === 'single'
                                             ? 'Single class mode: pick one class from the dropdown.'
                                             : `Multiple class mode: select every class that should receive this assignment (same semester & year).`}
@@ -660,7 +660,7 @@ const AssignmentCreate = () => {
                                         className={Z_INPUT}
                                     />
                                     <div className="mt-2 flex flex-wrap items-center gap-3">
-                                        <p className="text-xs text-slate-500">
+                                        <p className="text-xs text-[var(--text-secondary)]">
                                             If you attach a file, typed requirements and keyword filters are hidden-students follow the document.
                                         </p>
                                         {hasExistingRequirementsFile && (
@@ -694,7 +694,7 @@ const AssignmentCreate = () => {
                                                 placeholder="Example: Must include authentication, dashboard, and API integration."
                                                 className={Z_INPUT}
                                             />
-                                            <p className="mt-1 text-[11px] text-slate-500">
+                                            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
                                                 Required unless you upload a requirements file.
                                             </p>
                                         </div>
@@ -730,7 +730,7 @@ const AssignmentCreate = () => {
                                             min={deadlineMin}
                                             className={Z_INPUT}
                                         />
-                                        <p className="mt-1 text-[11px] text-slate-500">Must be after the current date and time.</p>
+                                        <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Must be after the current date and time.</p>
                                     </div>
                                     <div>
                                         <label className={Z_LABEL}>Project deadline</label>
@@ -741,7 +741,7 @@ const AssignmentCreate = () => {
                                             min={projectDeadlineMin}
                                             className={Z_INPUT}
                                         />
-                                        <p className="mt-1 text-[11px] text-slate-500">
+                                        <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
                                             {proposalDeadline
                                                 ? 'Dates before the proposal deadline are not available.'
                                                 : 'Must be on or after the proposal deadline.'}

@@ -9,10 +9,10 @@ export {
     ADMIN_MOBILE_GRADIENT,
 } from '../../admin/ui/adminTheme';
 
-export const TEACHER_PRIMARY = '#2f4aad';
-export const TEACHER_PRIMARY_HOVER = '#263c96';
-export const TEACHER_PRIMARY_DEEP = '#1e317a';
-export const TEACHER_SOFT = '#eef2fb';
-export const TEACHER_SOFT_BORDER = '#d5dcf0';
-export const TEACHER_CONTENT_BG = '#f8f9fd';
-export const TEACHER_MUTED = '#647092';
+export const TEACHER_PRIMARY = 'var(--brand-primary)';
+export const TEACHER_PRIMARY_HOVER = 'var(--brand-primary-hover)';
+export const TEACHER_PRIMARY_DEEP = 'var(--shell-border)';
+export const TEACHER_SOFT = 'var(--bg-elevated)';
+export const TEACHER_SOFT_BORDER = 'var(--border)';
+export const TEACHER_CONTENT_BG = 'var(--content-bg)';
+export const TEACHER_MUTED = 'var(--text-secondary)';

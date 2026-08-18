@@ -32,7 +32,7 @@ import StudentTeacherInfoPanel, {
 
 function DetailRow({ label, value }) {
     return (
-        <div className="grid grid-cols-1 gap-1 border-b border-slate-50 py-3 last:border-0 sm:grid-cols-[minmax(0,140px)_1fr] sm:gap-3">
+        <div className="grid grid-cols-1 gap-1 border-b border-[var(--border)] py-3 last:border-0 sm:grid-cols-[minmax(0,140px)_1fr] sm:gap-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-[var(--sv-muted)]">{label}</span>
             <span className="text-sm font-semibold text-[var(--sv-text)] break-words">{value ?? '-'}</span>
         </div>
@@ -370,10 +370,10 @@ const StudentAssignmentDetail = () => {
                                         type="button"
                                         onClick={() => setTab(t.id)}
                                         className={`rounded-t-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wide transition ${
-                                            tab === t.id
-                                                ? 'border border-b-0 border-[var(--sv-border)] bg-[var(--sv-card)] text-[#1e56e3]'
-                                                : 'border border-transparent text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] hover:text-[var(--sv-text)]'
-                                        }`}
+ tab === t.id
+ ? 'border border-b-0 border-[var(--sv-border)] bg-[var(--sv-card)] text-[#1e56e3]'
+ : 'border border-transparent text-[var(--sv-muted)] hover:bg-[var(--sv-card-muted)] hover:text-[var(--sv-text)]'
+ }`}
                                     >
                                         {t.label}
                                     </button>
@@ -614,7 +614,7 @@ const StudentAssignmentDetail = () => {
                                     </li>
                                 )}
                                 {row?.latestNormalSubmission?.originalFilename ? (
-                                    <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-3 ring-1 ring-slate-100">
+                                    <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-3 ring-1 ring-[var(--border)]">
                                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/15 ring-1 ring-blue-100">
                                             <FileText className="h-5 w-5 text-blue-600" />
                                         </div>

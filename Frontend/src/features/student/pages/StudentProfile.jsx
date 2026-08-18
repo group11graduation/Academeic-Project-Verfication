@@ -67,8 +67,8 @@ const StudentProfile = () => {
                     <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300">
                         <Lock className="w-5 h-5" />
                     </div>
-                    <h2 className="mb-1.5 text-sm font-bold text-[var(--sv-text)] dark:text-slate-100">Access Denied</h2>
-                    <p className="text-[12px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{error || 'Unable to retrieve profile data'}</p>
+                    <h2 className="mb-1.5 text-sm font-bold text-[var(--sv-text)]">Access Denied</h2>
+                    <p className="text-[12px] font-medium text-[var(--sv-muted)]">{error || 'Unable to retrieve profile data'}</p>
                 </div>
             </div>
         );
@@ -85,11 +85,11 @@ const StudentProfile = () => {
                                 <img
                                     src={profilePhotoUrl}
                                     alt={studentData.name}
-                                    className="h-20 w-20 rounded-xl border-2 border-white object-cover shadow-md dark:border-white/10"
+                                    className="h-20 w-20 rounded-xl border-2 border-white object-cover shadow-md"
                                 />
                             ) : (
                                 <div
-                                    className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-white bg-slate-200 text-xl font-bold tracking-wide text-[var(--sv-muted)] shadow-md dark:border-white/10 dark:bg-slate-700 dark:text-slate-200"
+                                    className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-white bg-slate-200 text-xl font-bold tracking-wide text-[var(--sv-muted)] shadow-md dark:bg-slate-700"
                                     aria-label={studentData.name}
                                 >
                                     {teacherInitials(studentData.name)}
@@ -97,18 +97,18 @@ const StudentProfile = () => {
                             )}
                         </div>
                         <div className="text-center md:text-left">
-                            <h2 className="mb-2 text-base font-bold tracking-tight text-[var(--sv-text)] dark:text-slate-100">
+                            <h2 className="mb-2 text-base font-bold tracking-tight text-[var(--sv-text)]">
                                 {studentData.name}
                             </h2>
                             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                                <span className="rounded-full border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)] dark:border-white/10 dark:bg-[#0f172a] dark:text-slate-300">
+                                <span className="rounded-full border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)]">
                                     {studentData.studentId}
                                 </span>
                                 <span className="flex items-center gap-1.5 rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-green-700 dark:border-green-500/30 dark:bg-green-900/30 dark:text-green-300">
                                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
                                     {studentData.status}
                                 </span>
-                                <span className="rounded-full border border-blue-100 dark:border-blue-400/30 bg-blue-50 dark:bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[#1D68E3] dark:border-blue-500/20 dark:bg-blue-500/15 dark:text-blue-300">
+                                <span className="rounded-full border border-blue-100 dark:border-blue-400/30 bg-blue-50 dark:bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-[var(--accent)] dark:border-blue-500/20 dark:bg-blue-500/15 dark:text-blue-300">
                                     CLASS: {studentData.classId}
                                 </span>
                             </div>
@@ -121,39 +121,39 @@ const StudentProfile = () => {
                         {/* Project Tracking Hub */}
                         <div className={`${Z_CARD} p-4`}>
                             <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)] dark:text-slate-100">Project Tracking Hub</h2>
-                                <BarChart3 className="w-4 h-4 text-[#1D68E3]" />
+                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)]">Project Tracking Hub</h2>
+                                <BarChart3 className="w-4 h-4 text-[var(--accent)]" />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3 dark:border-white/10 dark:bg-[#0f172a]">
-                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">SUBMITTED</span>
-                                    <span className="text-xl font-bold text-[#1D68E3]">
+                                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3">
+                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--sv-muted)]">SUBMITTED</span>
+                                    <span className="text-xl font-bold text-[var(--accent)]">
                                         {String(studentData.projectStats?.submitted ?? 0).padStart(2, '0')}
                                     </span>
                                 </div>
-                                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3 dark:border-white/10 dark:bg-[#0f172a]">
-                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">PENDING</span>
+                                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3">
+                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--sv-muted)]">PENDING</span>
                                     <span className="text-xl font-bold text-orange-500">
                                         {String(studentData.projectStats?.pending ?? 0).padStart(2, '0')}
                                     </span>
                                 </div>
-                                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3 dark:border-white/10 dark:bg-[#0f172a]">
-                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">TOTAL COURSES</span>
-                                    <span className="text-xl font-bold text-[var(--sv-text)] dark:text-slate-100">
+                                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3">
+                                    <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--sv-muted)]">TOTAL COURSES</span>
+                                    <span className="text-xl font-bold text-[var(--sv-text)]">
                                         {String(studentData.projectStats?.totalCourses ?? 0).padStart(2, '0')}
                                     </span>
                                 </div>
                             </div>
                             <div>
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-[12px] font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Academic Progress</span>
-                                    <span className="text-[12px] font-bold text-[#1D68E3]">
+                                    <span className="text-[12px] font-bold text-[var(--sv-muted)]">Academic Progress</span>
+                                    <span className="text-[12px] font-bold text-[var(--accent)]">
                                         {studentData.projectStats?.progressPercent ?? 0}% Complete
                                     </span>
                                 </div>
                                 <div className="w-full h-2 bg-[var(--sv-card-muted)] rounded-full overflow-hidden">
                                     <div
-                                        className="h-full bg-[#1D68E3] rounded-full transition-all duration-1000"
+                                        className="h-full bg-[var(--accent)] rounded-full transition-all duration-1000"
                                         style={{ width: `${studentData.projectStats?.progressPercent ?? 0}%` }}
                                     />
                                 </div>
@@ -164,10 +164,10 @@ const StudentProfile = () => {
                         <div className={`${Z_CARD} p-4`}>
                             <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/15 text-[#1D68E3] dark:bg-blue-500/15 dark:text-blue-300">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/15 text-[var(--accent)] dark:bg-blue-500/15 dark:text-blue-300">
                                         <User className="w-4 h-4" />
                                     </div>
-                                    <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)] dark:text-slate-100">Personal information</h2>
+                                    <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)]">Personal information</h2>
                                 </div>
                                 <button className={`${Z_BTN_PRIMARY}`}>
                                     <MessageSquare className="w-3.5 h-3.5" /> Message
@@ -176,21 +176,21 @@ const StudentProfile = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6">
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Email address (login)</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">{studentData.email}</div>
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">{studentData.email}</div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Date of birth</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">
                                         {studentData.personalInfo?.dob ? new Date(studentData.personalInfo.dob).toLocaleDateString() : 'N/A'}
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Gender</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">{studentData.personalInfo?.gender || 'N/A'}</div>
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">{studentData.personalInfo?.gender || 'N/A'}</div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Phone number</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">{studentData.personalInfo?.phone || 'N/A'}</div>
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">{studentData.personalInfo?.phone || 'N/A'}</div>
                                 </div>
                             </div>
                         </div>
@@ -201,32 +201,32 @@ const StudentProfile = () => {
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-500 dark:bg-orange-500/15 dark:text-orange-300">
                                     <GraduationCap className="w-4 h-4" />
                                 </div>
-                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)] dark:text-slate-100">Educational background</h2>
+                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)]">Educational background</h2>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6 mb-4">
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">High school</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">{studentData.educationalBackground?.highSchoolName || 'N/A'}</div>
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">{studentData.educationalBackground?.highSchoolName || 'N/A'}</div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Graduation year</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">{studentData.educationalBackground?.graduationYear || 'N/A'}</div>
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">{studentData.educationalBackground?.graduationYear || 'N/A'}</div>
                                 </div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-2">High school certificate</label>
-                                <div className="flex items-center justify-between rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3 dark:border-white/10 dark:bg-[#0f172a]">
+                                <div className="flex items-center justify-between rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-3">
                                     <div className="flex items-center gap-3">
-                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)] dark:border-white/10 dark:bg-[#111827] dark:text-[var(--sv-muted)]">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] text-[var(--sv-muted)]">
                                             <FileText className="w-4 h-4" />
                                         </div>
                                         <div>
-                                            <div className="text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-200">
+                                            <div className="text-[12px] font-bold text-[var(--sv-text)]">
                                                 {studentData.educationalBackground?.certificateUrl
                                                     ? studentData.educationalBackground.certificateUrl.split('/').pop()
                                                     : 'No certificate uploaded'}
                                             </div>
-                                            <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Document</div>
+                                            <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)]">Document</div>
                                         </div>
                                     </div>
                                     {studentData.educationalBackground?.certificateUrl && (
@@ -258,23 +258,23 @@ const StudentProfile = () => {
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-500/15 dark:text-green-300">
                                     <Shield className="w-4 h-4" />
                                 </div>
-                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)] dark:text-slate-100">Parent information</h2>
+                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)]">Parent information</h2>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6">
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Father&apos;s name</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">{studentData.parentDetails?.fatherName || 'N/A'}</div>
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">{studentData.parentDetails?.fatherName || 'N/A'}</div>
                                     <div className="mt-2">
                                         <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-[0.15em] block mb-0.5">Father&apos;s contact</label>
-                                        <div className="text-[12px] font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{studentData.parentDetails?.fatherContact || 'N/A'}</div>
+                                        <div className="text-[12px] font-bold text-[var(--sv-muted)]">{studentData.parentDetails?.fatherContact || 'N/A'}</div>
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Mother&apos;s name</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">{studentData.parentDetails?.motherName || 'N/A'}</div>
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">{studentData.parentDetails?.motherName || 'N/A'}</div>
                                     <div className="mt-2">
                                         <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-[0.15em] block mb-0.5">Mother&apos;s contact</label>
-                                        <div className="text-[12px] font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{studentData.parentDetails?.motherContact || 'N/A'}</div>
+                                        <div className="text-[12px] font-bold text-[var(--sv-muted)]">{studentData.parentDetails?.motherContact || 'N/A'}</div>
                                     </div>
                                 </div>
                             </div>
@@ -285,33 +285,33 @@ const StudentProfile = () => {
                     <div className="space-y-4">
                         <div className={`${Z_CARD} p-4`}>
                             <div className="flex items-center gap-2 mb-4">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100/50 text-[#1D68E3] dark:bg-blue-500/15 dark:text-blue-300">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100/50 text-[var(--accent)] dark:bg-blue-500/15 dark:text-blue-300">
                                     <BookOpen className="w-4 h-4" />
                                 </div>
-                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)] dark:text-slate-100">Academic</h2>
+                                <h2 className="text-sm font-bold tracking-tight text-[var(--sv-text)]">Academic</h2>
                             </div>
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Faculty</label>
-                                    <div className="text-[13px] font-bold leading-tight text-[var(--sv-text)] dark:text-slate-200">
+                                    <div className="text-[13px] font-bold leading-tight text-[var(--sv-text)]">
                                         {studentData.academicInfo?.faculty || 'Computer Science & IT'}
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Campus</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">
                                         {studentData.academicInfo?.campus || 'Campus 1'}
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Mode</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">
                                         {studentData.academicInfo?.studyMode || 'Full-time'}
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-[var(--sv-muted)] uppercase tracking-widest block mb-1">Entry date</label>
-                                    <div className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-200">
+                                    <div className="text-[13px] font-bold text-[var(--sv-text)]">
                                         {studentData.academicInfo?.entryDate 
                                             ? new Date(studentData.academicInfo.entryDate).toLocaleDateString() 
                                             : new Date(studentData.enrollmentDate).toLocaleDateString()}
@@ -321,7 +321,7 @@ const StudentProfile = () => {
                         </div>
 
                         <div className="bg-[#0F172A] rounded-xl p-4 text-white relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-[#1D68E3] rounded-full blur-[50px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--accent)] rounded-full blur-[50px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
                             <h3 className="text-sm font-bold mb-2 relative z-10">Academic Support</h3>
                             <p className="text-[12px] font-medium text-[var(--sv-muted)] leading-relaxed mb-4 relative z-10">
                                 Need help with your courses or verification requests? Our support team is here for you.
@@ -341,17 +341,17 @@ const StudentProfile = () => {
                     onClick={() => setShowCertificate(false)}
                 >
                     <div 
-                        className="flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-[var(--sv-card)] shadow-2xl dark:bg-[#111827]"
+                        className="flex h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-[var(--sv-card)] shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between border-b border-[var(--sv-border)] px-4 py-3 dark:border-white/10">
+                        <div className="flex items-center justify-between border-b border-[var(--sv-border)] px-4 py-3">
                             <div className="flex items-center gap-2">
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-500 dark:bg-orange-500/15 dark:text-orange-300">
                                     <FileText className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <h3 className="text-[13px] font-bold text-[var(--sv-text)] dark:text-slate-100">High School Certificate</h3>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
+                                    <h3 className="text-[13px] font-bold text-[var(--sv-text)]">High School Certificate</h3>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)]">
                                         {studentData.educationalBackground.certificateUrl.split('/').pop()}
                                     </p>
                                 </div>

@@ -115,14 +115,14 @@ const AdminAddTeacher = () => {
         <div className="w-full font-sans">
 
             {/* Top Bar Area */}
-            <div className="flex flex-col md:flex-row items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-6 md:pb-8 mb-6 md:mb-8 gap-4">
+            <div className="flex flex-col md:flex-row items-center justify-between border-b border-[var(--border)] dark:border-slate-800 pb-6 md:pb-8 mb-6 md:mb-8 gap-4">
                 <div>
-                    <h1 className="text-xl md:text-2xl font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none mb-1 md:mb-2 text-center md:text-left">Register New Teacher</h1>
-                    <p className="text-[12px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest leading-none transition-colors text-center md:text-left">Faculty Enrollment</p>
+                    <h1 className="text-xl md:text-2xl font-extrabold text-[var(--text-primary)] tracking-tight leading-none mb-1 md:mb-2 text-center md:text-left">Register New Teacher</h1>
+                    <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-bold uppercase tracking-widest leading-none transition-colors text-center md:text-left">Faculty Enrollment</p>
                 </div>
                 <button
                     onClick={() => navigate('/admin/teachers')}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-[12px] text-[var(--text-secondary)] font-bold hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-700 transition-colors shadow-sm"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     Back to Directory
@@ -130,15 +130,15 @@ const AdminAddTeacher = () => {
             </div>
 
             {/* Main Form Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-[16px] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden p-8">
+            <div className="bg-[var(--bg-card)] rounded-[16px] border border-[var(--border)] dark:border-slate-800 shadow-sm overflow-hidden p-8">
 
                 {/* 1. PERSONAL DETAILS */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] dark:text-blue-400 uppercase tracking-widest mb-6">Personal Details</h3>
+                    <h3 className="text-[13px] font-extrabold text-[var(--brand-primary)] dark:text-blue-400 uppercase tracking-widest mb-6">Personal Details</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Full Name</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Full Name</label>
                             <input
                                 type="text"
                                 name="name"
@@ -146,18 +146,18 @@ const AdminAddTeacher = () => {
                                 onChange={handleChange}
                                 required
                                 placeholder="e.g. Dr. Jane Smith"
-                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 px-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                             />
                         </div>
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Teacher ID (Auto-generated)</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Teacher ID (Auto-generated)</label>
                             <div className="relative">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
                                 <input
                                     type="text"
                                     value={teacherId}
                                     disabled
-                                    className="w-full bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-[12px] py-3.5 pl-11 pr-4 text-[15px] font-medium text-slate-500 dark:text-slate-400 outline-none cursor-not-allowed"
+                                    className="w-full bg-[var(--bg-elevated)]/70/50 border border-[var(--border)]/50 rounded-[12px] py-3.5 pl-11 pr-4 text-[15px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] outline-none cursor-not-allowed"
                                 />
                             </div>
                         </div>
@@ -165,25 +165,25 @@ const AdminAddTeacher = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Faculty</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Faculty</label>
                             <div className="relative">
                                 <select
                                     name="faculty"
                                     value={formData.faculty}
                                     onChange={handleChange}
                                     required
-                                    className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                    className="w-full appearance-none bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                                 >
                                     <option value="" disabled>Select Faculty</option>
                                     {facultyOptions.map((f) => (
                                         <option key={f} value={f}>{f}</option>
                                     ))}
                                 </select>
-                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pointer-events-none" />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Department</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Department</label>
                             <div className="relative">
                                 <select
                                     name="department"
@@ -191,29 +191,29 @@ const AdminAddTeacher = () => {
                                     onChange={handleChange}
                                     required
                                     disabled={!formData.faculty}
-                                    className="w-full appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none disabled:bg-slate-100/80 disabled:text-slate-400 dark:disabled:bg-slate-800/50"
+                                    className="w-full appearance-none bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 pr-10 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none disabled:bg-[var(--bg-elevated)]/80 disabled:text-[var(--text-secondary)] dark:disabled:bg-slate-800/50"
                                 >
                                     <option value="" disabled>Select Department</option>
                                     {departmentOptions.map((d) => (
                                         <option key={d} value={d}>{d}</option>
                                     ))}
                                 </select>
-                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pointer-events-none" />
                             </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Profile Picture</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Profile Picture</label>
                             <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                                <div className="w-14 h-14 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] flex items-center justify-center overflow-hidden shrink-0">
                                     {uploadingImage ? (
-                                        <Loader2 className="h-5 w-5 text-[#2f4aad] animate-spin" />
+                                        <Loader2 className="h-5 w-5 text-[var(--brand-primary)] animate-spin" />
                                     ) : formData.photo && formData.photo !== 'https://via.placeholder.com/150' ? (
                                         <img src={formData.photo} alt="Avatar" className="w-full h-full object-cover" />
                                     ) : (
-                                        <User className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                        <User className="h-6 w-6 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
                                     )}
                                 </div>
                                 <input
@@ -227,11 +227,11 @@ const AdminAddTeacher = () => {
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={uploadingImage}
-                                    className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[8px] text-[13px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50"
+                                    className="px-4 py-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-[8px] text-[13px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50"
                                 >
                                     {uploadingImage ? 'Uploading...' : 'Upload File'}
                                 </button>
-                                <span className="text-[12px] font-medium text-slate-400 dark:text-slate-500">or enter Image URL below</span>
+                                <span className="text-[12px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">or enter Image URL below</span>
                             </div>
                             <input
                                 type="text"
@@ -239,24 +239,24 @@ const AdminAddTeacher = () => {
                                 value={formData.photo}
                                 onChange={handleChange}
                                 placeholder="https://example.com/photo.jpg"
-                                className="w-full mt-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 px-4 text-[14px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                className="w-full mt-3 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 px-4 text-[14px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                             />
                         </div>
                     </div>
                 </section>
 
-                <hr className="border-slate-100 dark:border-slate-800 mb-10" />
+                <hr className="border-[var(--border)] dark:border-slate-800 mb-10" />
 
                 {/* 2. SUBJECT EXPERTISE */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] dark:text-blue-400 uppercase tracking-widest mb-6">Subject Expertise</h3>
+                    <h3 className="text-[13px] font-extrabold text-[var(--brand-primary)] dark:text-blue-400 uppercase tracking-widest mb-6">Subject Expertise</h3>
 
                     <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Skills & Expertise (Select multiple)</label>
+                        <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Skills & Expertise (Select multiple)</label>
                         <div className="relative">
-                            <div className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] p-2 flex flex-wrap gap-2 items-center min-h-[52px]">
+                            <div className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] p-2 flex flex-wrap gap-2 items-center min-h-[52px]">
                                 {skills.map(skill => (
-                                    <span key={skill} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-[#2f4aad] dark:text-blue-400 rounded-[8px] text-[13px] font-bold">
+                                    <span key={skill} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-[var(--brand-primary)] dark:text-blue-400 rounded-[8px] text-[13px] font-bold">
                                         {skill}
                                         <button onClick={() => removeSkill(skill)} className="hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none">
                                             <X className="h-3.5 w-3.5" />
@@ -264,7 +264,7 @@ const AdminAddTeacher = () => {
                                     </span>
                                 ))}
                                 <select
-                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-slate-700 dark:text-slate-200 outline-none w-full min-w-0 sm:w-[120px] sm:min-w-[200px]"
+                                    className="flex-1 bg-transparent border-none py-1.5 px-2 text-[14px] font-medium text-[var(--text-primary)] outline-none w-full min-w-0 sm:w-[120px] sm:min-w-[200px]"
                                     onChange={(e) => {
                                         handleAddSkill(e.target.value);
                                         e.target.value = ""; // Reset select after choosing
@@ -287,17 +287,17 @@ const AdminAddTeacher = () => {
                     </div>
                 </section>
 
-                <hr className="border-slate-100 dark:border-slate-800 mb-10" />
+                <hr className="border-[var(--border)] dark:border-slate-800 mb-10" />
 
                 {/* 3. CONTACT INFORMATION */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] dark:text-blue-400 uppercase tracking-widest mb-6">Contact Information</h3>
+                    <h3 className="text-[13px] font-extrabold text-[var(--brand-primary)] dark:text-blue-400 uppercase tracking-widest mb-6">Contact Information</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Contact Email</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Contact Email</label>
                             <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
                                 <input
                                     type="email"
                                     name="email"
@@ -305,21 +305,21 @@ const AdminAddTeacher = () => {
                                     onChange={handleChange}
                                     required
                                     placeholder="jane.smith@academy.edu"
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 pl-12 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                    className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 pl-12 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                                 />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Phone Number</label>
+                            <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Phone Number</label>
                             <div className="relative">
-                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
                                 <input
                                     type="tel"
                                     name="phone"
                                     value={formData.phone}
                                     onChange={handleChange}
                                     placeholder="+1 (555) 000-0000"
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] py-3.5 pl-11 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                    className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[12px] py-3.5 pl-11 pr-4 text-[15px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-[var(--text-primary)] outline-none"
                                 />
                             </div>
                         </div>
@@ -327,17 +327,17 @@ const AdminAddTeacher = () => {
                 </section>
 
                 {/* Footer Actions */}
-                <div className="flex items-center justify-end gap-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-end gap-6 pt-6 border-t border-[var(--border)] dark:border-slate-800">
                     <button
                         onClick={() => navigate('/admin/teachers')}
-                        className="text-[14px] font-bold text-[#0F172A] dark:text-slate-300 hover:text-slate-600 dark:hover:text-white transition-colors"
+                        className="text-[14px] font-bold text-[var(--text-primary)] hover:text-[var(--text-secondary)] dark:hover:text-white transition-colors"
                     >
                         Discard
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="flex items-center gap-2 bg-[#2f4aad] text-white px-6 py-3.5 rounded-[12px] font-bold text-[15px] shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 bg-[var(--brand-primary)] text-white px-6 py-3.5 rounded-[12px] font-bold text-[15px] shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <Loader2 className="h-5 w-5 animate-spin" />

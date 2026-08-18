@@ -9,18 +9,18 @@ import {
 } from '../../../lib/ipynbDocument';
 
 const mdComponents = {
-    p: (props) => <p className="mb-3 last:mb-0 text-[15px] leading-relaxed text-slate-800 dark:text-slate-200" {...props} />,
-    h1: (props) => <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-4 mb-2 first:mt-0" {...props} />,
-    h2: (props) => <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-4 mb-2 first:mt-0" {...props} />,
-    h3: (props) => <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mt-3 mb-1.5" {...props} />,
-    ul: (props) => <ul className="list-disc pl-5 mb-3 space-y-1 text-[15px] text-slate-800 dark:text-slate-200" {...props} />,
-    ol: (props) => <ol className="list-decimal pl-5 mb-3 space-y-1 text-[15px] text-slate-800 dark:text-slate-200" {...props} />,
+    p: (props) => <p className="mb-3 last:mb-0 text-[15px] leading-relaxed text-[var(--text-primary)]" {...props} />,
+    h1: (props) => <h1 className="text-xl font-bold text-[var(--text-primary)] mt-4 mb-2 first:mt-0" {...props} />,
+    h2: (props) => <h2 className="text-lg font-bold text-[var(--text-primary)] mt-4 mb-2 first:mt-0" {...props} />,
+    h3: (props) => <h3 className="text-base font-bold text-[var(--text-primary)] mt-3 mb-1.5" {...props} />,
+    ul: (props) => <ul className="list-disc pl-5 mb-3 space-y-1 text-[15px] text-[var(--text-primary)]" {...props} />,
+    ol: (props) => <ol className="list-decimal pl-5 mb-3 space-y-1 text-[15px] text-[var(--text-primary)]" {...props} />,
     li: (props) => <li className="leading-relaxed" {...props} />,
-    a: (props) => <a className="text-[#2f4aad] underline font-medium break-all" target="_blank" rel="noopener noreferrer" {...props} />,
+    a: (props) => <a className="text-[var(--brand-primary)] underline font-medium break-all" target="_blank" rel="noopener noreferrer" {...props} />,
     code: ({ inline, className, children, ...props }) =>
         inline ? (
             <code
-                className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[0.9em] font-mono text-rose-700 dark:text-rose-300"
+                className="rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[0.9em] font-mono text-rose-700 dark:text-rose-300"
                 {...props}
             >
                 {children}
@@ -35,40 +35,40 @@ const mdComponents = {
     ),
     blockquote: (props) => (
         <blockquote
-            className="border-l-4 border-[#2f4aad]/40 pl-4 my-3 text-slate-600 dark:text-slate-400 italic"
+            className="border-l-4 border-[#2f4aad]/40 pl-4 my-3 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] italic"
             {...props}
         />
     ),
-    hr: () => <hr className="my-6 border-slate-200 dark:border-slate-700" />,
+    hr: () => <hr className="my-6 border-[var(--border)]" />,
     table: (props) => (
         <div className="overflow-x-auto my-3">
-            <table className="min-w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden" {...props} />
+            <table className="min-w-full text-sm border border-[var(--border)] rounded-lg overflow-hidden" {...props} />
         </div>
     ),
-    th: (props) => <th className="border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-1 text-left font-bold" {...props} />,
-    td: (props) => <td className="border border-slate-200 dark:border-slate-700 px-2 py-1" {...props} />,
+    th: (props) => <th className="border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1 text-left font-bold" {...props} />,
+    td: (props) => <td className="border border-[var(--border)] px-2 py-1" {...props} />,
 };
 
 function NotebookCell({ cell, highlightNorms, defaultLang }) {
     const n = normalizeTextBlock(cell.source);
     const match = highlightNorms && n && highlightNorms.has(n);
     const shell = `rounded-xl border overflow-hidden mb-4 last:mb-0 ${
-        match ? 'border-amber-300 dark:border-amber-700/60 ring-1 ring-amber-200/80 dark:ring-amber-900/40' : 'border-slate-200 dark:border-slate-700'
+        match ? 'border-amber-300 dark:border-amber-700/60 ring-1 ring-amber-200/80 dark:ring-amber-900/40' : 'border-[var(--border)]'
     }`;
 
     if (cell.type === 'markdown') {
         return (
             <div className={shell}>
-                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-[var(--bg-elevated)]/80 text-[var(--text-secondary)] border-b border-[var(--border)]">
                     Markdown
                 </div>
-                <div className="px-4 py-3 bg-white dark:bg-[#0f172a]">
+                <div className="px-4 py-3 bg-[var(--bg-card)]">
                     {cell.source.trim() ? (
                         <div className="prose-notebook">
                             <ReactMarkdown components={mdComponents}>{cell.source}</ReactMarkdown>
                         </div>
                     ) : (
-                        <p className="text-sm text-slate-400 italic">Empty markdown cell</p>
+                        <p className="text-sm text-[var(--text-secondary)] italic">Empty markdown cell</p>
                     )}
                 </div>
             </div>
@@ -88,7 +88,7 @@ function NotebookCell({ cell, highlightNorms, defaultLang }) {
                     </pre>
                     {cell.outputsSummary ? (
                         <div>
-                            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-900 border-t border-slate-800">
+                            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] bg-slate-900 border-t border-slate-800">
                                 Output
                             </div>
                             <pre className="p-4 overflow-x-auto text-[12px] leading-relaxed font-mono whitespace-pre-wrap text-slate-200 max-h-[320px] overflow-y-auto">
@@ -106,7 +106,7 @@ function NotebookCell({ cell, highlightNorms, defaultLang }) {
             <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-b border-amber-100 dark:border-amber-900/50">
                 Raw
             </div>
-            <pre className="p-4 text-sm font-mono whitespace-pre-wrap bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 max-h-[400px] overflow-y-auto">
+            <pre className="p-4 text-sm font-mono whitespace-pre-wrap bg-[var(--bg-card)] text-[var(--text-primary)] max-h-[400px] overflow-y-auto">
                 {cell.source || ' '}
             </pre>
         </div>
@@ -130,7 +130,7 @@ export default function ExtractedSubmissionView({ text, filename, highlightNorms
     if (nb && cells.length) {
         return (
             <div className="space-y-1">
-                <p className="text-[11px] font-bold text-slate-500 mb-3">
+                <p className="text-[11px] font-bold text-[var(--text-secondary)] mb-3">
                     Notebook structure: {cells.length} cell{cells.length === 1 ? '' : 's'}
                     {kernelLang ? ` · kernel: ${kernelLang}` : ''}
                 </p>
@@ -155,11 +155,11 @@ export default function ExtractedSubmissionView({ text, filename, highlightNorms
 
     const blocks = splitPlainParagraphs(text);
     if (blocks.length === 0) {
-        return <p className="text-sm text-slate-400 font-medium">No extracted text for this file.</p>;
+        return <p className="text-sm text-[var(--text-secondary)] font-medium">No extracted text for this file.</p>;
     }
 
     return (
-        <div className="space-y-4 text-[15px] leading-[1.75] text-slate-800 dark:text-slate-200">
+        <div className="space-y-4 text-[15px] leading-[1.75] text-[var(--text-primary)]">
             {blocks.map((para, i) => {
                 const key = normalizeTextBlock(para);
                 const match = highlightNorms && key && highlightNorms.has(key);
@@ -167,8 +167,8 @@ export default function ExtractedSubmissionView({ text, filename, highlightNorms
                     <p
                         key={i}
                         className={`whitespace-pre-wrap rounded-md px-1 -mx-1 py-0.5 ${
-                            match ? 'bg-amber-100/90 dark:bg-amber-900/35' : ''
-                        }`}
+ match ? 'bg-amber-100/90 dark:bg-amber-900/35' : ''
+ }`}
                     >
                         {para}
                     </p>

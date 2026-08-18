@@ -12,7 +12,7 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
     const isAlert = status === 'alert';
 
     return (
-        <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_10px_30px_-18px_rgba(47,74,173,0.45)] ring-1 ring-[#d5dcf0] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-18px_rgba(47,74,173,0.55)] [font-family:var(--sv-font-sans)]">
+        <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--bg-card)] shadow-[0_10px_30px_-18px_rgba(47,74,173,0.45)] ring-1 ring-[var(--border)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-18px_rgba(47,74,173,0.55)] [font-family:var(--sv-font-sans)]">
             {/* Soft header wash */}
             <div
                 className="relative px-4 pb-4 pt-4"
@@ -36,14 +36,14 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                            <h4 className="truncate text-[15px] font-bold tracking-tight text-[#0f172a]">
+                            <h4 className="truncate text-[15px] font-bold tracking-tight text-[var(--text-primary)]">
                                 {code}
                             </h4>
-                            <span className="shrink-0 rounded-full bg-white/90 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-[#2f4aad] ring-1 ring-[#d5dcf0]">
+                            <span className="shrink-0 rounded-full bg-[var(--bg-card)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-primary)] ring-1 ring-[var(--border)]">
                                 Sec {section}
                             </span>
                         </div>
-                        <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-snug text-[#647092]">
+                        <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-snug text-[var(--text-secondary)]">
                             {title}
                         </p>
                     </div>
@@ -53,24 +53,24 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
             <div className="flex flex-1 flex-col px-4 pb-4">
                 {/* Stats row */}
                 <div className="mt-1 grid grid-cols-2 gap-2">
-                    <div className="rounded-xl bg-[#f8f9fd] px-3 py-2.5 ring-1 ring-[#e8eefc]">
-                        <div className="mb-1 flex items-center gap-1.5 text-[#647092]">
+                    <div className="rounded-xl bg-[var(--content-bg)] px-3 py-2.5 ring-1 ring-[var(--border)]">
+                        <div className="mb-1 flex items-center gap-1.5 text-[var(--text-secondary)]">
                             <Users className="h-3 w-3" strokeWidth={2.2} />
                             <span className="text-[9px] font-semibold uppercase tracking-[0.5px]">Students</span>
                         </div>
-                        <p className="text-lg font-bold leading-none tracking-tight text-[#0f172a]">
+                        <p className="text-lg font-bold leading-none tracking-tight text-[var(--text-primary)]">
                             {students}
                         </p>
                     </div>
-                    <div className="rounded-xl bg-[#f8f9fd] px-3 py-2.5 ring-1 ring-[#e8eefc]">
-                        <div className="mb-1 flex items-center gap-1.5 text-[#647092]">
+                    <div className="rounded-xl bg-[var(--content-bg)] px-3 py-2.5 ring-1 ring-[var(--border)]">
+                        <div className="mb-1 flex items-center gap-1.5 text-[var(--text-secondary)]">
                             <Clock3 className="h-3 w-3" strokeWidth={2.2} />
                             <span className="text-[9px] font-semibold uppercase tracking-[0.5px]">Pending</span>
                         </div>
                         <p
                             className={`text-lg font-bold leading-none tracking-tight ${
-                                pendingCount > 0 ? 'text-rose-600' : 'text-[#0f172a]'
-                            }`}
+ pendingCount > 0 ? 'text-rose-600' : 'text-[var(--text-primary)]'
+ }`}
                         >
                             {pendingCount}
                         </p>

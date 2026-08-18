@@ -217,7 +217,7 @@ const TONE_CLASSES = {
   violet: 'border-violet-200 bg-violet-50 text-violet-800',
   amber: 'border-amber-200 bg-amber-50 text-amber-800',
   rose: 'border-rose-200 bg-rose-50 text-rose-800',
-  slate: 'border-slate-200 bg-slate-100 text-slate-700',
+  slate: 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-primary)]',
 };
 
 export function getWorkflowBadgeClasses(tone) {

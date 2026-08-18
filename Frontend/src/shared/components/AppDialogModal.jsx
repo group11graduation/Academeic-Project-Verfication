@@ -8,27 +8,27 @@ const PRIMARY_BTN =
 const VARIANTS = {
     info: {
         icon: Info,
-        iconWrap: 'bg-[#EEF4FF] text-[var(--sv-primary)] ring-1 ring-[#2a3fa4]/10',
+        iconWrap: 'bg-[var(--bg-elevated)] text-[var(--accent)] ring-1 ring-[var(--border)]',
         button: PRIMARY_BTN,
-        buttonStyle: { backgroundColor: BRAND.primary },
+        buttonStyle: { backgroundColor: 'var(--accent)' },
     },
     success: {
         icon: CheckCircle2,
         iconWrap: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-500/10',
         button: PRIMARY_BTN,
-        buttonStyle: { backgroundColor: BRAND.primary },
+        buttonStyle: { backgroundColor: 'var(--accent)' },
     },
     error: {
         icon: AlertCircle,
         iconWrap: 'bg-red-50 text-red-600 ring-1 ring-red-500/10',
         button: PRIMARY_BTN,
-        buttonStyle: { backgroundColor: BRAND.primary },
+        buttonStyle: { backgroundColor: 'var(--accent)' },
     },
     warning: {
         icon: AlertTriangle,
-        iconWrap: 'bg-[#EEF4FF] text-[var(--sv-primary)] ring-1 ring-[#2a3fa4]/10',
+        iconWrap: 'bg-[var(--bg-elevated)] text-[var(--accent)] ring-1 ring-[var(--border)]',
         button: PRIMARY_BTN,
-        buttonStyle: { backgroundColor: BRAND.primary },
+        buttonStyle: { backgroundColor: 'var(--accent)' },
     },
 };
 
@@ -78,7 +78,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                 aria-modal="true"
                 aria-labelledby="app-dialog-title"
                 aria-describedby="app-dialog-message"
-                className="relative w-full max-w-md overflow-hidden rounded-[24px] border border-[var(--sv-border)] bg-[var(--sv-card)] p-6 shadow-2xl shadow-[#2a3fa4]/10"
+                className="relative w-full max-w-md overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-6 shadow-2xl"
             >
                 <div
                     className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[var(--sv-primary)] via-[var(--sv-action)] to-[var(--sv-shell)]"
@@ -88,7 +88,7 @@ export default function AppDialogModal({ dialog, onClose }) {
                 <button
                     type="button"
                     onClick={() => onClose(false)}
-                    className="absolute right-4 top-4 rounded-lg p-1.5 text-[var(--sv-muted)] transition-colors hover:bg-[#EEF4FF] hover:text-[var(--sv-primary)]"
+                    className="absolute right-4 top-4 rounded-lg p-1.5 text-[var(--sv-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--accent)]"
                     aria-label="Close"
                 >
                     <X className="h-4 w-4" />

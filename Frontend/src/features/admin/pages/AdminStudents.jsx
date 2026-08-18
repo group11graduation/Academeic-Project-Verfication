@@ -177,15 +177,15 @@ const AdminStudents = () => {
 
     const renderPhotoField = ({ form, mode, uploading }) => (
         <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Profile Image</label>
+            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Profile Image</label>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="h-14 w-14 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center shrink-0">
+                <div className="h-14 w-14 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] overflow-hidden flex items-center justify-center shrink-0">
                     {uploading ? (
-                        <Loader2 className="h-5 w-5 text-[#2f4aad] animate-spin" />
+                        <Loader2 className="h-5 w-5 text-[var(--brand-primary)] animate-spin" />
                     ) : form.photo ? (
                         <img src={form.photo} alt="Student" className="h-full w-full object-cover" />
                     ) : (
-                        <User className="h-6 w-6 text-slate-400" />
+                        <User className="h-6 w-6 text-[var(--text-secondary)]" />
                     )}
                 </div>
                 <div className="flex-1 space-y-2">
@@ -201,12 +201,12 @@ const AdminStudents = () => {
                             type="button"
                             onClick={() => (mode === 'add' ? addPhotoInputRef : editPhotoInputRef).current?.click()}
                             disabled={uploading}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-[12px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-800 disabled:opacity-60"
                         >
                             <Upload className="h-3.5 w-3.5" />
                             {uploading ? 'Uploading...' : 'Upload Image'}
                         </button>
-                        <span className="text-[11px] font-medium text-slate-400">or paste image URL</span>
+                        <span className="text-[11px] font-medium text-[var(--text-secondary)]">or paste image URL</span>
                     </div>
                     <input
                         type="text"
@@ -217,7 +217,7 @@ const AdminStudents = () => {
                             else setEditForm((p) => ({ ...p, photo: value }));
                         }}
                         placeholder="https://example.com/photo.jpg"
-                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
+                        className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]"
                     />
                 </div>
             </div>
@@ -460,33 +460,33 @@ const AdminStudents = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading students...</p>
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin mb-2" />
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium">Loading students...</p>
             </div>
         );
     }
 
     return (
         <div className="font-sans text-[13px] transition-colors min-w-0 max-w-full">
-            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-3 space-y-3">
+            <div className="border-b border-[var(--border)] dark:border-slate-800 pb-3 mb-3 space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Students</h1>
-                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Directory</p>
+                        <h1 className="text-base font-extrabold text-[var(--text-primary)] tracking-tight leading-none">Students</h1>
+                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">Directory</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
                             onClick={submitExport}
                             disabled={exporting}
-                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60 whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60 whitespace-nowrap"
                         >
                             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                             {exporting ? 'Exporting...' : 'Export CSV'}
                         </button>
                         <Link
                             to="/admin/students/new"
-                            className="inline-flex items-center gap-1.5 bg-[#2f4aad] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 bg-[var(--brand-primary)] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
                         >
                             <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Add Student
                         </Link>
@@ -499,14 +499,14 @@ const AdminStudents = () => {
                                     appError(err.message || 'Could not download template.');
                                 }
                             }}
-                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60 whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-1.5 rounded-lg font-bold text-[12px] disabled:opacity-60 whitespace-nowrap"
                         >
                             <Download className="h-3.5 w-3.5" /> Excel template
                         </button>
                         <button
                             type="button"
                             onClick={() => setMode('import')}
-                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
                         >
                             <Upload className="h-3.5 w-3.5" /> Import Students
                         </button>
@@ -515,11 +515,11 @@ const AdminStudents = () => {
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
                     <div className="relative w-full min-w-0 flex-1 sm:max-w-xs">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)]" />
                         <input
                             type="text"
                             placeholder="Search by name, ID or class..."
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 outline-none font-medium text-slate-700 dark:text-slate-200"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 outline-none font-medium text-[var(--text-primary)]"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -528,18 +528,18 @@ const AdminStudents = () => {
                         <select
                             value={classFilter}
                             onChange={(e) => setClassFilter(e.target.value)}
-                            className="w-full appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-3 pr-8 text-[12px] font-semibold text-slate-700 dark:text-slate-200"
+                            className="w-full appearance-none bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-3 pr-8 text-[12px] font-semibold text-[var(--text-primary)]"
                         >
                             <option value="">Classes</option>
                             {uniqueClasses.map((cls) => <option key={cls} value={cls}>{cls}</option>)}
                         </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)] pointer-events-none" />
                     </div>
                     <div className="relative w-full sm:w-[160px] shrink-0">
                         <select
                             value={facultyFilter}
                             onChange={(e) => setFacultyFilter(e.target.value)}
-                            className="w-full appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-3 pr-8 text-[12px] font-semibold text-slate-700 dark:text-slate-200"
+                            className="w-full appearance-none bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-3 pr-8 text-[12px] font-semibold text-[var(--text-primary)]"
                         >
                             <option value="">All faculties</option>
                             {facultyFilterOptions.map((fac) => (
@@ -548,42 +548,42 @@ const AdminStudents = () => {
                                 </option>
                             ))}
                         </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)] pointer-events-none" />
                     </div>
                 </div>
             </div>
 
             {mode === 'add' && (
-                <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm mb-4">
+                <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 p-4 shadow-sm mb-4">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Add New Student</h2>
-                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
+                        <h2 className="text-base font-black text-[var(--text-primary)]">Add New Student</h2>
+                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                             <ArrowLeft className="h-3.5 w-3.5" /> Back to list
                         </button>
                     </div>
                     <form onSubmit={submitAdd} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Full Name</label>
-                            <input value={addForm.name} onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Full Name</label>
+                            <input value={addForm.name} onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]" />
                         </div>
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Email</label>
-                            <input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Email</label>
+                            <input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]" />
                         </div>
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class</label>
-                            <select value={addForm.classId} onChange={(e) => setAddForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100">
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Class</label>
+                            <select value={addForm.classId} onChange={(e) => setAddForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]">
                                 {(classes || []).map((c) => (
                                     <option key={c._id} value={c.code}>{c.code} {c.name ? `- ${c.name}` : ''}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Faculty</label>
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Faculty</label>
                             <select
                                 value={addForm.faculty}
                                 onChange={(e) => setAddForm((p) => ({ ...p, faculty: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]"
                             >
                                 <option value="">Select faculty</option>
                                 {allFacultyOptions.map((name) => (
@@ -600,7 +600,7 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="md:col-span-2 flex justify-end">
-                            <button disabled={adding} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                            <button disabled={adding} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
                                 {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                                 {adding ? 'Saving...' : 'Save Student'}
                             </button>
@@ -610,36 +610,36 @@ const AdminStudents = () => {
             )}
 
             {mode === 'edit' && (
-                <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm mb-4">
+                <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 p-4 shadow-sm mb-4">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Update Student</h2>
-                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
+                        <h2 className="text-base font-black text-[var(--text-primary)]">Update Student</h2>
+                        <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                             <ArrowLeft className="h-3.5 w-3.5" /> Back to list
                         </button>
                     </div>
                     <form onSubmit={submitEdit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Full Name</label>
-                            <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Full Name</label>
+                            <input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]" />
                         </div>
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Email</label>
-                            <input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100" />
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Email</label>
+                            <input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]" />
                         </div>
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Class</label>
-                            <select value={editForm.classId} onChange={(e) => setEditForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100">
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Class</label>
+                            <select value={editForm.classId} onChange={(e) => setEditForm((p) => ({ ...p, classId: e.target.value, faculty: classes.find((c) => c.code === e.target.value)?.faculty || p.faculty }))} className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]">
                                 {(classes || []).map((c) => (
                                     <option key={c._id} value={c.code}>{c.code} {c.name ? `- ${c.name}` : ''}</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Faculty</label>
+                            <label className="block text-xs font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Faculty</label>
                             <select
                                 value={editForm.faculty}
                                 onChange={(e) => setEditForm((p) => ({ ...p, faculty: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] text-slate-900 dark:text-slate-100"
+                                className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[13px] text-[var(--text-primary)]"
                             >
                                 <option value="">Select faculty</option>
                                 {allFacultyOptions.map((name) => (
@@ -656,7 +656,7 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="md:col-span-2 flex justify-end">
-                            <button disabled={editing} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                            <button disabled={editing} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
                                 {editing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                                 {editing ? 'Updating...' : 'Update Student'}
                             </button>
@@ -666,9 +666,9 @@ const AdminStudents = () => {
             )}
 
             {mode === 'import' && (
-                <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm mb-4">
+                <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 p-4 shadow-sm mb-4">
                     <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-                        <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Import Students</h2>
+                        <h2 className="text-base font-black text-[var(--text-primary)]">Import Students</h2>
                         <div className="flex flex-wrap items-center gap-2">
                             <button
                                 type="button"
@@ -679,16 +679,16 @@ const AdminStudents = () => {
                                         setImportError(err.message || 'Could not download template.');
                                     }
                                 }}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-[12px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-800"
                             >
                                 <Download className="h-3.5 w-3.5" /> Download Excel template
                             </button>
-                            <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800">
+                            <button type="button" onClick={() => setMode('list')} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                                 <ArrowLeft className="h-3.5 w-3.5" /> Back to list
                             </button>
                         </div>
                     </div>
-                    <p className="mb-3 text-[11px] text-slate-500 dark:text-slate-400">
+                    <p className="mb-3 text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                         Use the template headers exactly, fill your rows, then upload the .xlsx/.csv file below.
                     </p>
                     <div className="space-y-3">
@@ -696,14 +696,14 @@ const AdminStudents = () => {
                             type="file"
                             accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             onChange={onCsvFile}
-                            className="block w-full text-[12px] text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:font-bold file:bg-blue-50 file:text-blue-700"
+                            className="block w-full text-[12px] text-[var(--text-secondary)] file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:font-bold file:bg-blue-50 file:text-blue-700"
                         />
                         <textarea
                             value={csvText}
                             onChange={(e) => setCsvText(e.target.value)}
                             rows={8}
                             placeholder={`name,email,studentId,classCode,phone,dob,gender,fatherName,fatherContact,motherName,motherContact,highSchoolName,graduationYear\nHassan Ali,hassan@student.com,ST-2026-001,CA229,+252617366205,2003-05-25,Male,Ahmed Ali,+252611111111,Fatima Ali,+252622222222,Jabir School,2022\n\nOr upload .csv / .xlsx - Excel is parsed automatically.`}
-                            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 p-3 font-mono text-[12px] text-slate-900 dark:text-slate-100"
+                            className="w-full rounded-lg border border-[var(--border)] p-3 font-mono text-[12px] text-[var(--text-primary)]"
                         />
                         {importError && (
                             <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-semibold text-red-700">
@@ -713,12 +713,12 @@ const AdminStudents = () => {
                         {importResult && (
                             <div
                                 className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
-                                    (importResult.failed?.length || 0) > 0 && !(importResult.created?.length > 0)
-                                        ? 'bg-amber-50 border-amber-200 text-amber-900'
-                                        : (importResult.failed?.length || 0) > 0
-                                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                                          : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                }`}
+ (importResult.failed?.length || 0) > 0 && !(importResult.created?.length > 0)
+ ? 'bg-amber-50 border-amber-200 text-amber-900'
+ : (importResult.failed?.length || 0) > 0
+ ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+ : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+ }`}
                             >
                                 <div className="flex items-start gap-2">
                                     <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
@@ -750,7 +750,7 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="flex justify-end">
-                            <button onClick={submitImport} disabled={importing || !csvText.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                            <button onClick={submitImport} disabled={importing || !csvText.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
                                 {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                 {importing ? 'Importing...' : 'Run Import'}
                             </button>
@@ -760,30 +760,30 @@ const AdminStudents = () => {
             )}
 
             <div className="mb-3 flex items-center gap-3">
-                <p className="text-[11px] font-medium text-slate-400">
-                    Showing <span className="font-bold text-slate-600 dark:text-slate-200">{filteredStudents.length}</span> of {students.length}
+                <p className="text-[11px] font-medium text-[var(--text-secondary)]">
+                    Showing <span className="font-bold text-[var(--text-secondary)]">{filteredStudents.length}</span> of {students.length}
                 </p>
             </div>
 
-            <div className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 dark:bg-slate-900 dark:ring-white/10">
+            <div className="overflow-hidden rounded-[1.25rem] bg-[var(--bg-card)] shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-[var(--border)]">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[860px] border-collapse text-left">
                         <thead>
-                            <tr className="border-b border-slate-100 dark:border-white/10">
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">
-                                    <span className="text-[#2f4aad]">Name</span>
+                            <tr className="border-b border-[var(--border)]">
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">
+                                    <span className="text-[var(--brand-primary)]">Name</span>
                                     <span className="text-slate-300"> / ID</span>
                                 </th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Class</th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Faculty</th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Passcode</th>
-                                <th className="px-5 py-3.5 text-right text-[11px] font-semibold text-slate-400">Actions</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">Class</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">Faculty</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">Passcode</th>
+                                <th className="px-5 py-3.5 text-right text-[11px] font-semibold text-[var(--text-secondary)]">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredStudents.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-5 py-12 text-center text-[12px] font-medium text-slate-400">
+                                    <td colSpan={5} className="px-5 py-12 text-center text-[12px] font-medium text-[var(--text-secondary)]">
                                         No students match the selected filters.
                                     </td>
                                 </tr>
@@ -795,7 +795,7 @@ const AdminStudents = () => {
                                     return (
                                         <tr
                                             key={sid || index}
-                                            className="group border-b border-slate-50 transition-colors last:border-0 hover:bg-[#eef2fb]/70 dark:border-white/5 dark:hover:bg-white/5"
+                                            className="group border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--bg-elevated)]/70 dark:hover:bg-white/5"
                                         >
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-3">
@@ -810,11 +810,11 @@ const AdminStudents = () => {
                                                         <Link
                                                             to={`/admin/students/${sid}`}
                                                             state={{ from: location.pathname }}
-                                                            className="block truncate text-[13px] font-bold text-slate-800 hover:text-[#2f4aad] dark:text-slate-100"
+                                                            className="block truncate text-[13px] font-bold text-[var(--text-primary)] hover:text-[var(--brand-primary)]"
                                                         >
                                                             {name}
                                                         </Link>
-                                                        <p className="truncate text-[11px] font-semibold text-[#2f4aad]">
+                                                        <p className="truncate text-[11px] font-semibold text-[var(--brand-primary)]">
                                                             {sid || 'N/A'}
                                                         </p>
                                                     </div>
@@ -824,29 +824,29 @@ const AdminStudents = () => {
                                                 {student.classId || student.classCode ? (
                                                     <Link
                                                         to={`/admin/classes/${encodeURIComponent(student.classId || student.classCode)}`}
-                                                        className="text-[13px] font-medium text-slate-600 hover:text-[#2f4aad] hover:underline dark:text-slate-300"
+                                                        className="text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:underline"
                                                     >
                                                         {student.classId || student.classCode}
                                                     </Link>
                                                 ) : (
-                                                    <span className="text-[13px] font-medium text-slate-400">No class</span>
+                                                    <span className="text-[13px] font-medium text-[var(--text-secondary)]">No class</span>
                                                 )}
                                             </td>
                                             <td className="px-5 py-4">
-                                                <span className="text-[13px] font-medium text-slate-500">
+                                                <span className="text-[13px] font-medium text-[var(--text-secondary)]">
                                                     {resolveStudentFaculty(student) || 'N/A'}
                                                 </span>
                                             </td>
                                             <td className="px-5 py-4">
                                                 {student.passcode ? (
                                                     <div className="inline-flex items-center gap-1.5">
-                                                        <span className="font-mono text-[12px] font-bold tracking-wider text-slate-700 dark:text-slate-200">
+                                                        <span className="font-mono text-[12px] font-bold tracking-wider text-[var(--text-primary)]">
                                                             {revealedPasscodes[student.studentId] ? student.passcode : '••••••'}
                                                         </span>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleCopyPasscode(student.studentId, student.passcode)}
-                                                            className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-[#2f4aad]"
+                                                            className="rounded-full p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--brand-primary)]"
                                                             title="Copy passcode"
                                                         >
                                                             {copiedStudentId === student.studentId ? (
@@ -858,7 +858,7 @@ const AdminStudents = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => togglePasscode(student.studentId)}
-                                                            className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-[#2f4aad]"
+                                                            className="rounded-full p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--brand-primary)]"
                                                             title={revealedPasscodes[student.studentId] ? 'Hide passcode' : 'Show passcode'}
                                                         >
                                                             {revealedPasscodes[student.studentId] ? (
@@ -872,7 +872,7 @@ const AdminStudents = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleGeneratePasscode(student.studentId)}
-                                                        className="inline-flex items-center gap-1 rounded-full bg-[#eef2fb] px-3 py-1.5 text-[11px] font-bold text-[#2f4aad] hover:bg-[#2f4aad] hover:text-white"
+                                                        className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-bold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
                                                     >
                                                         <Plus className="h-3.5 w-3.5" /> Generate
                                                     </button>
@@ -883,14 +883,14 @@ const AdminStudents = () => {
                                                     <Link
                                                         to={`/admin/students/${sid}`}
                                                         state={{ from: location.pathname }}
-                                                        className="rounded-full bg-[#2f4aad] px-4 py-1.5 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100"
+                                                        className="rounded-full bg-[var(--brand-primary)] px-4 py-1.5 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100"
                                                     >
                                                         View
                                                     </Link>
                                                     <button
                                                         type="button"
                                                         onClick={() => startEdit(student)}
-                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300"
+                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-slate-200 dark:bg-white/10"
                                                         title="Update"
                                                     >
                                                         <Pencil className="h-3.5 w-3.5" />
@@ -899,7 +899,7 @@ const AdminStudents = () => {
                                                         type="button"
                                                         onClick={() => handleDeleteStudent(student.studentId)}
                                                         disabled={deletingId === student.studentId}
-                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-60 dark:bg-white/10"
+                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-red-50 hover:text-red-600 disabled:opacity-60 dark:bg-white/10"
                                                         title="Delete"
                                                     >
                                                         {deletingId === student.studentId ? (

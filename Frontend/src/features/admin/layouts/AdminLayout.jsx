@@ -162,15 +162,15 @@ const AdminLayoutInner = () => {
             </>
         ) : null;
 
-    /** Cutout active: light fill, large left radius, flush to content edge */
+    /** Cutout active: content fill, large left radius, flush to content edge */
     const parentActiveClass =
-        'relative z-[1] flex w-full items-center gap-2.5 rounded-l-[1.5rem] bg-[#f8f9fd] py-2.5 pl-3.5 pr-3 text-[12px] font-semibold text-[#2f4aad]';
+        'relative z-[1] flex w-full items-center gap-2.5 rounded-l-[1.5rem] bg-[var(--sidebar-active-bg)] py-2.5 pl-3.5 pr-3 text-[12px] font-semibold text-[var(--sidebar-active-text)]';
     const parentIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl py-2.5 pl-3 pr-2.5 text-[12px] font-normal text-white/90 transition-colors hover:bg-white/12 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl py-2.5 pl-3 pr-2.5 text-[12px] font-normal text-[var(--sidebar-fg-soft)] transition-colors hover:bg-white/12 hover:text-[var(--sidebar-fg)]';
     const childActiveClass =
-        'relative z-[1] flex w-full items-center gap-2 rounded-l-[1.25rem] bg-[#f8f9fd] py-2 pl-3.5 pr-3 text-[11px] font-semibold text-[#2f4aad]';
+        'relative z-[1] flex w-full items-center gap-2 rounded-l-[1.25rem] bg-[var(--sidebar-active-bg)] py-2 pl-3.5 pr-3 text-[11px] font-semibold text-[var(--sidebar-active-text)]';
     const childIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg py-2 pl-3 pr-2.5 text-[11px] font-normal text-white/80 transition-colors hover:bg-white/12 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg py-2 pl-3 pr-2.5 text-[11px] font-normal text-[var(--sidebar-fg-muted)] transition-colors hover:bg-white/12 hover:text-[var(--sidebar-fg)]';
 
     return (
         <div
@@ -184,7 +184,10 @@ const AdminLayoutInner = () => {
                 ['--sv-shell']: ADMIN.primary,
             }}
         >
-            <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm safe-area-px lg:hidden dark:border-white/10 dark:bg-[#0b1220]">
+            <header
+                className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b px-4 py-3 shadow-sm safe-area-px lg:hidden"
+                style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-card)' }}
+            >
                 <button type="button" onClick={() => navigate('/admin')} className="flex min-w-0 items-center gap-2 text-left">
                     <ProjectVerifyLogo size="md" tagline="Admin console" />
                 </button>
@@ -193,7 +196,12 @@ const AdminLayoutInner = () => {
                     <button
                         type="button"
                         onClick={() => setMobileNavOpen(true)}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-[#111827] dark:text-slate-100"
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border"
+                        style={{
+                            borderColor: 'var(--border)',
+                            backgroundColor: 'var(--bg-elevated)',
+                            color: 'var(--text-primary)',
+                        }}
                         aria-label="Open navigation menu"
                     >
                         <Menu className="h-5 w-5" />
@@ -240,7 +248,7 @@ const AdminLayoutInner = () => {
                                 onDark
                                 className="justify-center transition group-hover:scale-[1.03]"
                             />
-                            <p className="max-w-full truncate text-[13px] font-semibold tracking-tight text-white">
+                            <p className="max-w-full truncate text-[13px] font-semibold tracking-tight text-[var(--sidebar-fg)]">
                                 {PROJECT_NAME}
                             </p>
                         </Link>
@@ -269,8 +277,8 @@ const AdminLayoutInner = () => {
                                                     {cutoutActive(isActive)}
                                                     <SectionIcon
                                                         className={`relative z-[1] h-4 w-4 shrink-0 ${
-                                                            isActive ? 'text-[#2f4aad]' : 'text-white/80'
-                                                        }`}
+ isActive ? 'text-[var(--sidebar-active-text)]' : 'text-[var(--sidebar-fg-muted)]'
+ }`}
                                                         strokeWidth={2.15}
                                                     />
                                                     <span className="relative z-[1] truncate">{section.name}</span>
@@ -292,12 +300,12 @@ const AdminLayoutInner = () => {
                                             className={parentIdleClass}
                                             aria-expanded={isOpen}
                                         >
-                                            <SectionIcon className="h-4 w-4 shrink-0 text-white/80" strokeWidth={2.15} />
+                                            <SectionIcon className="h-4 w-4 shrink-0 text-[var(--sidebar-fg-muted)]" strokeWidth={2.15} />
                                             <span className="min-w-0 flex-1 truncate text-left">{section.name}</span>
                                             <ChevronDown
-                                                className={`h-3.5 w-3.5 shrink-0 text-white/55 transition-transform duration-200 ${
-                                                    isOpen ? 'rotate-180' : ''
-                                                }`}
+                                                className={`h-3.5 w-3.5 shrink-0 text-[var(--sidebar-fg-muted)] transition-transform duration-200 ${
+ isOpen ? 'rotate-180' : ''
+ }`}
                                             />
                                         </button>
 
@@ -319,8 +327,8 @@ const AdminLayoutInner = () => {
                                                                     {cutoutActive(isActive)}
                                                                     <Icon
                                                                         className={`relative z-[1] h-3.5 w-3.5 shrink-0 ${
-                                                                            isActive ? 'text-[#2f4aad]' : 'text-white/75'
-                                                                        }`}
+ isActive ? 'text-[var(--sidebar-active-text)]' : 'text-[var(--sidebar-fg-muted)]'
+ }`}
                                                                         strokeWidth={2}
                                                                     />
                                                                     <span className="relative z-[1] truncate">{item.name}</span>
@@ -346,10 +354,10 @@ const AdminLayoutInner = () => {
                                     <User className="h-3.5 w-3.5" strokeWidth={2.2} />
                                 </span>
                                 <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-[12px] font-semibold text-white">
+                                    <span className="block truncate text-[12px] font-semibold text-[var(--sidebar-fg)]">
                                         {displayName}
                                     </span>
-                                    <span className="block truncate text-[10px] font-normal text-white/55">
+                                    <span className="block truncate text-[10px] font-normal text-[var(--sidebar-fg-muted)]">
                                         My profile
                                     </span>
                                 </span>
@@ -357,7 +365,7 @@ const AdminLayoutInner = () => {
                             <button
                                 type="button"
                                 onClick={requestLogout}
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#3d56b5] px-2.5 py-2 text-[12px] font-bold text-white transition hover:bg-[#4a66c4]"
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-2.5 py-2 text-[12px] font-bold text-white transition hover:brightness-110"
                             >
                                 <Power className="h-3.5 w-3.5" strokeWidth={2.2} />
                                 Logout
@@ -373,10 +381,10 @@ const AdminLayoutInner = () => {
                             <div className="min-w-0">
                                 {location.pathname === '/admin' || location.pathname === '/admin/' ? (
                                     <>
-                                        <h1 className="truncate text-[1.35rem] font-extrabold leading-[1.2] tracking-tight text-[#2f4aad]">
+                                        <h1 className="truncate text-[1.35rem] font-extrabold leading-[1.2] tracking-tight text-[var(--sidebar-active-text)]">
                                             Welcome {firstName} !
                                         </h1>
-                                        <p className="mt-0.5 text-[12px] font-normal text-[#647092]">Over View</p>
+                                        <p className="mt-0.5 text-[12px] font-normal text-[var(--text-secondary)]">Over View</p>
                                     </>
                                 ) : null}
                             </div>
@@ -384,7 +392,7 @@ const AdminLayoutInner = () => {
                             <div className="flex shrink-0 items-center gap-2">
                                 <ThemeToggle
                                     compact
-                                    className="h-9 rounded-xl border-0 bg-white px-2.5 shadow-sm ring-1 ring-slate-200/80"
+                                    className="h-9 rounded-xl border-0 bg-[var(--bg-card)] px-2.5 shadow-sm ring-1 ring-[var(--border)]"
                                 />
                                 <NotificationBell variant="admin" />
                             </div>
@@ -411,9 +419,9 @@ const AdminLayoutInner = () => {
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="logout-dialog-title"
-                        className="relative w-full max-w-md overflow-hidden rounded-xl border border-[#cfdbfb] bg-white shadow-[0_16px_48px_-12px_rgba(29,47,130,0.22)]"
+                        className="relative w-full max-w-md overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_16px_48px_-12px_rgba(29,47,130,0.22)]"
                     >
-                        <div className="border-b border-[#e8eefc] bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-4 py-4 sm:px-5">
+                        <div className="border-b border-[var(--border)] bg-gradient-to-r from-[#f4f7ff] via-white to-[#f4f7ff] px-4 py-4 sm:px-5">
                             <div className="flex items-start gap-3">
                                 <div
                                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white shadow-md"
@@ -422,11 +430,11 @@ const AdminLayoutInner = () => {
                                     <LogOut className="h-5 w-5" strokeWidth={2.25} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-[9px] font-medium uppercase tracking-[0.5px] text-[#51628f]">Session</p>
+                                    <p className="text-[9px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">Session</p>
                                     <h3 id="logout-dialog-title" className="mt-0.5 text-base font-semibold tracking-tight text-[#1e317a]">
                                         Sign out of your account?
                                     </h3>
-                                    <p className="mt-1.5 text-[12px] font-normal leading-[1.5] text-[#51628f]">
+                                    <p className="mt-1.5 text-[12px] font-normal leading-[1.5] text-[var(--text-secondary)]">
                                         You will need to sign in again to access the admin panel and management tools.
                                     </p>
                                 </div>
@@ -436,7 +444,7 @@ const AdminLayoutInner = () => {
                             <button
                                 type="button"
                                 onClick={() => setShowLogoutConfirm(false)}
-                                className="w-full rounded-lg border border-[#cfdbfb] bg-white px-4 py-2 text-[12px] font-bold text-[#1e317a] transition-colors hover:bg-[#f5f8ff] sm:w-auto"
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-4 py-2 text-[12px] font-bold text-[#1e317a] transition-colors hover:bg-[#f5f8ff] sm:w-auto"
                             >
                                 Stay signed in
                             </button>

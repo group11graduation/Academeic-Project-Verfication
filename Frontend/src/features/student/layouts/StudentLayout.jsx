@@ -52,12 +52,12 @@ const StudentLayoutInner = () => {
     });
 
     return (
-        <div className="flex min-h-screen w-full bg-[#f8fafc] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)] dark:bg-[#020617] dark:text-slate-100">
+        <div className="flex min-h-screen w-full bg-[var(--bg-page)] text-[var(--text-primary)] antialiased [font-family:var(--sv-font-sans)]">
             <StudentSidebar />
 
             <div className="flex min-h-screen min-w-0 flex-1 flex-col [font-family:var(--sv-font-sans)]">
                     {/* Mobile top bar */}
-                    <div className="lg:hidden flex items-center justify-between gap-3 border-b border-slate-200/80 bg-[#f8fafc] px-4 py-3 dark:border-white/10 dark:bg-[#0b1220]">
+                    <div className="lg:hidden flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-page)] px-4 py-3">
                         <Link to="/student">
                             <ProjectVerifyLogo size="lg" hideTextOnMobile tagline="" />
                         </Link>
@@ -66,7 +66,7 @@ const StudentLayoutInner = () => {
                             <button
                                 type="button"
                                 onClick={() => setMobileOpen((v) => !v)}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card)] dark:border-white/10 dark:bg-[#111827]"
+                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)]"
                             >
                                 {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                             </button>
@@ -86,7 +86,7 @@ const StudentLayoutInner = () => {
                                     onClick={() => setMobileOpen(false)}
                                     className={({ isActive }) =>
                                         `flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
-                                            isActive ? 'bg-[var(--sv-card)] font-semibold text-[#1d2f82]' : 'font-normal text-white/85'
+                                            isActive ? 'bg-[var(--sidebar-active-bg)] font-semibold text-[var(--sidebar-active-text)]' : 'font-normal text-[var(--sidebar-fg-soft)]'
                                         }`
                                     }
                                 >
@@ -108,15 +108,15 @@ const StudentLayoutInner = () => {
                     )}
 
                     <header className="flex flex-col gap-2 px-4 pb-1 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
-                        <h1 className="text-lg font-extrabold tracking-tight text-[var(--sv-text)] dark:text-slate-100 sm:text-xl">{title}</h1>
+                        <h1 className="text-lg font-extrabold tracking-tight text-[var(--text-primary)] sm:text-xl">{title}</h1>
                         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                             <ThemeToggle compact className="hidden sm:inline-flex" />
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-[var(--sv-card)] px-3 py-1.5 text-[12px] font-semibold text-[var(--sv-muted)] shadow-sm dark:border-white/10 dark:bg-[#111827] dark:text-slate-300"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-[12px] font-semibold text-[var(--text-secondary)] shadow-sm"
                             >
                                 {today}
-                                <ChevronDown className="h-3.5 w-3.5 text-[var(--sv-muted)] dark:text-[var(--sv-muted)]" />
+                                <ChevronDown className="h-3.5 w-3.5 text-[var(--sv-muted)]" />
                             </button>
                         </div>
                     </header>

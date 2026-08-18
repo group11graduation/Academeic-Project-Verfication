@@ -279,8 +279,8 @@ const AdminStudentDetail = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading student profile...</p>
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin mb-2" />
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium">Loading student profile...</p>
             </div>
         );
     }
@@ -289,7 +289,7 @@ const AdminStudentDetail = () => {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
                 <p className="text-red-500 font-bold mb-3 text-[13px]">{error}</p>
-                <button onClick={() => navigate(backPath)} className="text-[#2f4aad] font-medium underline text-[12px]">Go Back</button>
+                <button onClick={() => navigate(backPath)} className="text-[var(--brand-primary)] font-medium underline text-[12px]">Go Back</button>
             </div>
         );
     }
@@ -299,7 +299,7 @@ const AdminStudentDetail = () => {
             <div className="mb-4">
 
                 {/* Profile Header Card */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm mb-4 flex flex-col md:flex-row items-center justify-between gap-4 transition-colors">
+                <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] shadow-sm mb-4 flex flex-col md:flex-row items-center justify-between gap-4 transition-colors">
                     <div className="flex items-center gap-4 w-full md:w-auto">
                         <div className="relative shrink-0">
                             <img
@@ -323,10 +323,10 @@ const AdminStudentDetail = () => {
                                         value={editForm.name}
                                         onChange={handleEditChange}
                                         placeholder="Student Name"
-                                        className="text-lg font-black tracking-tight leading-tight w-full border-b-2 border-blue-500 focus:outline-none bg-slate-50 dark:bg-slate-900 px-2 rounded-t-md text-slate-900 dark:text-white transition-colors"
+                                        className="text-lg font-black tracking-tight leading-tight w-full border-b-2 border-blue-500 focus:outline-none bg-[var(--bg-elevated)] px-2 rounded-t-md text-[var(--text-primary)] transition-colors"
                                     />
                                     <div className="flex flex-col gap-2">
-                                        <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors">Profile Picture Control</label>
+                                        <label className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest transition-colors">Profile Picture Control</label>
                                         <div className="flex items-center gap-3">
                                             <input
                                                 type="file"
@@ -339,42 +339,42 @@ const AdminStudentDetail = () => {
                                                 type="button"
                                                 onClick={() => fileInputRef.current?.click()}
                                                 disabled={uploadingPhoto}
-                                                className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 text-[#2f4aad] rounded-lg text-[12px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all flex items-center gap-3"
+                                                className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 text-[var(--brand-primary)] rounded-lg text-[12px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all flex items-center gap-3"
                                             >
                                                 {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                                 {uploadingPhoto ? 'Uploading...' : 'Upload Local Image'}
                                             </button>
-                                            <span className="text-slate-300 dark:text-slate-600 text-[12px] font-bold italic transition-colors">OR enter URL:</span>
+                                            <span className="text-slate-300 text-[12px] font-bold italic transition-colors">OR enter URL:</span>
                                             <input
                                                 type="text"
                                                 name="photo"
                                                 value={editForm.photo}
                                                 onChange={handleEditChange}
                                                 placeholder="https://example.com/avatar.jpg"
-                                                className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-4 text-[13px] font-medium outline-none focus:ring-2 focus:ring-blue-500/10 text-slate-800 dark:text-white transition-colors"
+                                                className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-2 px-4 text-[13px] font-medium outline-none focus:ring-2 focus:ring-blue-500/10 text-[var(--text-primary)] transition-colors"
                                             />
                                         </div>
                                     </div>
                                 </div>
                             ) : (
-                                <h1 className="text-base md:text-lg font-black tracking-tight mb-1 leading-tight text-slate-900 dark:text-white transition-colors">{student.name}</h1>
+                                <h1 className="text-base md:text-lg font-black tracking-tight mb-1 leading-tight text-[var(--text-primary)] transition-colors">{student.name}</h1>
                             )}
 
                             <div className="flex flex-wrap items-center gap-2 text-[12px] font-bold mt-1">
-                                <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-3 py-1 rounded-lg uppercase tracking-wider transition-colors">{student.studentId}</span>
+                                <span className="bg-[var(--bg-elevated)] dark:bg-slate-700 text-[var(--text-secondary)] dark:text-[var(--text-secondary)] px-3 py-1 rounded-lg uppercase tracking-wider transition-colors">{student.studentId}</span>
                                 <span className="flex items-center gap-1.5 text-[#10B981]">
                                     <span className="w-2 h-2 bg-[#10B981] rounded-full"></span>
                                     {student.status || 'Active'}
                                 </span>
-                                <span className="text-slate-300 dark:text-slate-600">•</span>
-                                <span className="text-[#2f4aad]">
+                                <span className="text-slate-300">•</span>
+                                <span className="text-[var(--brand-primary)]">
                                     Class: {isEditing ? (
                                         <select
                                             name="classId"
                                             value={editForm.classId}
                                             onChange={handleEditChange}
                                             disabled={loadingClasses}
-                                            className="border-b border-blue-500 bg-slate-50 dark:bg-slate-900 outline-none text-[#2f4aad] dark:text-blue-400 font-bold px-2 rounded-t-md text-slate-900 dark:text-white transition-colors"
+                                            className="border-b border-blue-500 bg-[var(--bg-elevated)] outline-none text-[var(--brand-primary)] dark:text-blue-400 font-bold px-2 rounded-t-md text-[var(--text-primary)] transition-colors"
                                         >
                                             {loadingClasses ? (
                                                 <option>Loading...</option>
@@ -397,7 +397,7 @@ const AdminStudentDetail = () => {
                             <>
                                 <button
                                     onClick={toggleEdit}
-                                    className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 transition-all"
+                                    className="flex items-center gap-1.5 px-3 py-2 border border-[var(--border)] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] rounded-lg font-bold text-[12px] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-750 transition-all"
                                 >
                                     <X className="h-3.5 w-3.5" /> Cancel
                                 </button>
@@ -413,7 +413,7 @@ const AdminStudentDetail = () => {
                         ) : (
                             <button
                                 onClick={toggleEdit}
-                                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 transition-all shadow-sm"
+                                className="flex items-center gap-1.5 px-3 py-2 border border-[var(--border)] text-[var(--text-primary)] rounded-lg font-bold text-[12px] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-750 transition-all shadow-sm"
                             >
                                 <Edit3 className="h-3.5 w-3.5" /> Edit Profile
                             </button>
@@ -433,98 +433,98 @@ const AdminStudentDetail = () => {
                     {/* Left & Center Column: Detailed Cards */}
                     <div className="xl:col-span-2 space-y-4">
                         {/* Personal Information */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between transition-colors">
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between transition-colors">
                                 <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4 text-[#2f4aad]" />
-                                    <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Personal Information</h2>
+                                    <User className="h-4 w-4 text-[var(--brand-primary)]" />
+                                    <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)] transition-colors">Personal Information</h2>
                                 </div>
-                                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#2f4aad] rounded-lg font-bold text-[12px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all">
+                                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-[var(--brand-primary)] rounded-lg font-bold text-[12px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all">
                                     <Mail className="h-3.5 w-3.5" /> Message
                                 </button>
                             </div>
                             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Email Address (Login)</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Email Address (Login)</p>
                                     {isEditing ? (
-                                        <input type="email" name="email" value={editForm.email} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="email" name="email" value={editForm.email} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.email || student.userId?.email || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.email || student.userId?.email || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Date of Birth</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Date of Birth</p>
                                     {isEditing ? (
-                                        <input type="date" name="dob" value={editForm.dob} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="date" name="dob" value={editForm.dob} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.dob ? new Date(student.personalInfo.dob).toLocaleDateString() : 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.personalInfo?.dob ? new Date(student.personalInfo.dob).toLocaleDateString() : 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Gender</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Gender</p>
                                     {isEditing ? (
-                                        <select name="gender" value={editForm.gender} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors">
+                                        <select name="gender" value={editForm.gender} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors">
                                             <option>Male</option>
                                             <option>Female</option>
                                             <option>Unknown</option>
                                         </select>
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.gender || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.personalInfo?.gender || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Phone Number</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Phone Number</p>
                                     {isEditing ? (
-                                        <input type="text" name="phone" value={editForm.phone} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="text" name="phone" value={editForm.phone} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.personalInfo?.phone || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.personalInfo?.phone || 'N/A'}</p>
                                     )}
                                 </div>
                             </div>
                         </div>
 
                         {/* Educational Background */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <GraduationCap className="h-4 w-4 text-[#2f4aad]" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Educational Background</h2>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-2 transition-colors">
+                                <GraduationCap className="h-4 w-4 text-[var(--brand-primary)]" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)] transition-colors">Educational Background</h2>
                             </div>
                             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">High School</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">High School</p>
                                     {isEditing ? (
-                                        <input type="text" name="highSchoolName" value={editForm.highSchoolName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="text" name="highSchoolName" value={editForm.highSchoolName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.educationalBackground?.highSchoolName || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.educationalBackground?.highSchoolName || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Graduation Year</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Graduation Year</p>
                                     {isEditing ? (
-                                        <input type="text" name="graduationYear" value={editForm.graduationYear} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="text" name="graduationYear" value={editForm.graduationYear} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.educationalBackground?.graduationYear || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.educationalBackground?.graduationYear || 'N/A'}</p>
                                     )}
                                 </div>
 
                                 {/* Certificate Viewer / Editor */}
-                                <div className="mt-4 border-t border-slate-50 dark:border-slate-700 pt-4 md:col-span-2 lg:col-span-3 transition-colors">
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 transition-colors">High School Certificate</p>
+                                <div className="mt-4 border-t border-[var(--border)] pt-4 md:col-span-2 lg:col-span-3 transition-colors">
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-3 transition-colors">High School Certificate</p>
 
                                     {isEditing ? (
-                                        <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 space-y-4 transition-colors">
-                                            <div className="flex bg-white dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 w-full sm:max-w-xs transition-colors">
+                                        <div className="border border-[var(--border)] rounded-xl p-4 bg-[var(--bg-elevated)]/50 space-y-4 transition-colors">
+                                            <div className="flex bg-[var(--bg-card)] p-1 rounded-lg border border-[var(--border)] w-full sm:max-w-xs transition-colors">
                                                 <button
                                                     type="button"
                                                     onClick={() => setCertEditMode('local')}
-                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'local' ? 'bg-[#2f4aad] text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'local' ? 'bg-[var(--brand-primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-700'}`}
                                                 >
                                                     Upload File
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setCertEditMode('url')}
-                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'url' ? 'bg-[#2f4aad] text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'url' ? 'bg-[var(--brand-primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-700'}`}
                                                 >
                                                     External Link
                                                 </button>
@@ -542,19 +542,19 @@ const AdminStudentDetail = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => editCertificateInputRef.current?.click()}
-                                                        className="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border-2 border-dashed border-blue-200 dark:border-blue-500/20 text-[#2f4aad] py-4 rounded-xl font-bold text-[13px] hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all transition-colors"
+                                                        className="w-full flex items-center justify-center gap-2 bg-[var(--bg-card)] border-2 border-dashed border-blue-200 dark:border-blue-500/20 text-[var(--brand-primary)] py-4 rounded-xl font-bold text-[13px] hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all transition-colors"
                                                     >
                                                         <Upload className="h-4 w-4" />
                                                         {editLocalCertFileName || 'Click to Upload New Certificate'}
                                                     </button>
-                                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 text-center transition-colors">Replacing will overwrite the old file. Max 5MB (PDF/JPG/PNG).</p>
+                                                    <p className="text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mt-2 text-center transition-colors">Replacing will overwrite the old file. Max 5MB (PDF/JPG/PNG).</p>
                                                 </div>
                                             ) : (
                                                 <div>
                                                     <input
                                                         type="text"
                                                         placeholder="Paste new direct document URL..."
-                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-[13px] focus:ring-2 focus:ring-blue-500/10 outline-none text-slate-800 dark:text-white transition-colors"
+                                                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl py-3 px-4 text-[13px] focus:ring-2 focus:ring-blue-500/10 outline-none text-[var(--text-primary)] transition-colors"
                                                         value={editCertUrl}
                                                         onChange={(e) => {
                                                             setEditCertUrl(e.target.value);
@@ -566,12 +566,12 @@ const AdminStudentDetail = () => {
                                         </div>
                                     ) : (
                                         student.educationalBackground?.certificateUrl ? (
-                                            <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 transition-colors">
+                                            <div className="border border-[var(--border)] rounded-xl p-4 flex items-center justify-between bg-[var(--bg-elevated)]/50 transition-colors">
                                                 <div className="flex items-center gap-3 truncate pr-4">
                                                     <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg shrink-0 transition-colors">
-                                                        <FileText className="h-4 w-4 text-[#2f4aad]" />
+                                                        <FileText className="h-4 w-4 text-[var(--brand-primary)]" />
                                                     </div>
-                                                    <span className="text-[14px] font-bold text-slate-700 dark:text-slate-300 transition-colors truncate">
+                                                    <span className="text-[14px] font-bold text-[var(--text-primary)] transition-colors truncate">
                                                         {student.educationalBackground.certificateUrl.startsWith('data:')
                                                             ? 'Uploaded_Certificate_File'
                                                             : student.educationalBackground.certificateUrl}
@@ -580,24 +580,24 @@ const AdminStudentDetail = () => {
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     <button
                                                         onClick={() => setIsCertModalOpen(true)}
-                                                        className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-[#2f4aad] transition-all shadow-sm"
+                                                        className="flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-700 hover:text-[var(--brand-primary)] transition-all shadow-sm"
                                                     >
                                                         <Eye className="h-4 w-4" /> View
                                                     </button>
                                                     <a
                                                         href={student.educationalBackground.certificateUrl}
                                                         download="High_School_Certificate"
-                                                        className="flex items-center gap-2 bg-[#2f4aad] text-white px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-blue-600 transition-all shadow-sm shadow-blue-500/10"
+                                                        className="flex items-center gap-2 bg-[var(--brand-primary)] text-white px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-blue-600 transition-all shadow-sm shadow-blue-500/10"
                                                     >
                                                         <Download className="h-4 w-4" /> Save
                                                     </a>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors">
-                                                <FileText className="h-6 w-6 text-slate-300 dark:text-slate-700 mb-2 transition-colors" />
-                                                <p className="text-[13px] font-bold text-slate-500 dark:text-slate-400 transition-colors">No Certificate Uploaded</p>
-                                                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 transition-colors">This student has not provided a high school certificate during registration.</p>
+                                            <div className="border border-[var(--border)] bg-[var(--bg-elevated)]/50 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors">
+                                                <FileText className="h-6 w-6 text-slate-300 dark:text-[var(--text-primary)] mb-2 transition-colors" />
+                                                <p className="text-[13px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] transition-colors">No Certificate Uploaded</p>
+                                                <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mt-1 transition-colors">This student has not provided a high school certificate during registration.</p>
                                             </div>
                                         )
                                     )}
@@ -606,42 +606,42 @@ const AdminStudentDetail = () => {
                         </div>
 
                         {/* Parent Information */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <Users className="h-4 w-4 text-[#2f4aad]" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Parent Information</h2>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-2 transition-colors">
+                                <Users className="h-4 w-4 text-[var(--brand-primary)]" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)] transition-colors">Parent Information</h2>
                             </div>
                             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Father's Name</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Father's Name</p>
                                     {isEditing ? (
-                                        <input type="text" name="fatherName" value={editForm.fatherName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="text" name="fatherName" value={editForm.fatherName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.fatherName || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.parentDetails?.fatherName || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Father's Contact</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Father's Contact</p>
                                     {isEditing ? (
-                                        <input type="text" name="fatherContact" placeholder="+252..." value={editForm.fatherContact} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="text" name="fatherContact" placeholder="+252..." value={editForm.fatherContact} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.fatherContact || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.parentDetails?.fatherContact || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Mother's Name</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Mother's Name</p>
                                     {isEditing ? (
-                                        <input type="text" name="motherName" value={editForm.motherName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="text" name="motherName" value={editForm.motherName} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.motherName || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.parentDetails?.motherName || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 transition-colors">Mother's Contact</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1.5 transition-colors">Mother's Contact</p>
                                     {isEditing ? (
-                                        <input type="text" name="motherContact" placeholder="+252..." value={editForm.motherContact} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="text" name="motherContact" placeholder="+252..." value={editForm.motherContact} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.parentDetails?.motherContact || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.parentDetails?.motherContact || 'N/A'}</p>
                                     )}
                                 </div>
                             </div>
@@ -651,16 +651,16 @@ const AdminStudentDetail = () => {
                     {/* Right Column: Academic & Status */}
                     <div className="space-y-4">
                         {/* Academic Summary */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <BookOpen className="h-4 w-4 text-[#2f4aad]" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Academic</h2>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-2 transition-colors">
+                                <BookOpen className="h-4 w-4 text-[var(--brand-primary)]" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)] transition-colors">Academic</h2>
                             </div>
                             <div className="p-4 space-y-4">
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Faculty</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1">Faculty</p>
                                     {isEditing ? (
-                                        <select name="faculty" value={editForm.faculty} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors">
+                                        <select name="faculty" value={editForm.faculty} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors">
                                             <option value="">Select faculty</option>
                                             {(() => {
                                                 const names = new Set(facultyStructureNames);
@@ -675,63 +675,63 @@ const AdminStudentDetail = () => {
                                             ))}
                                         </select>
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.faculty || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.academicInfo?.faculty || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Campus</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1">Campus</p>
                                     {isEditing ? (
-                                        <select name="campus" value={editForm.campus} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors">
+                                        <select name="campus" value={editForm.campus} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors">
                                             <option value="">Select Campus</option>
                                             <option>Campus 1</option>
                                             <option>Campus 2</option>
                                             <option>Campus 3</option>
                                         </select>
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.campus || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.academicInfo?.campus || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Mode</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1">Mode</p>
                                     {isEditing ? (
-                                        <select name="studyMode" value={editForm.studyMode} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors">
+                                        <select name="studyMode" value={editForm.studyMode} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors">
                                             <option>Full-time</option>
                                             <option>Part-time</option>
                                         </select>
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.studyMode || 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.academicInfo?.studyMode || 'N/A'}</p>
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 transition-colors">Entry Date</p>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-1 transition-colors">Entry Date</p>
                                     {isEditing ? (
-                                        <input type="date" name="entryDate" value={editForm.entryDate} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-white dark:bg-slate-900 dark:border-slate-700 text-slate-800 dark:text-white transition-colors" />
+                                        <input type="date" name="entryDate" value={editForm.entryDate} onChange={handleEditChange} className="w-full border p-2 rounded-lg bg-[var(--bg-card)] text-[var(--text-primary)] transition-colors" />
                                     ) : (
-                                        <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 transition-colors">{student.academicInfo?.entryDate ? new Date(student.academicInfo.entryDate).toLocaleDateString() : 'N/A'}</p>
+                                        <p className="text-[13px] font-bold text-[var(--text-primary)] transition-colors">{student.academicInfo?.entryDate ? new Date(student.academicInfo.entryDate).toLocaleDateString() : 'N/A'}</p>
                                     )}
                                 </div>
                             </div>
                         </div>
 
                         {/* Security & Access */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                            <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <ShieldCheck className="h-4 w-4 text-[#2f4aad]" />
-                                <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Security</h2>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden transition-colors">
+                            <div className="px-4 py-3 border-b border-[var(--border)] flex items-center gap-2 transition-colors">
+                                <ShieldCheck className="h-4 w-4 text-[var(--brand-primary)]" />
+                                <h2 className="uppercase font-black text-[12px] tracking-widest text-[var(--text-primary)] transition-colors">Security</h2>
                             </div>
                             <div className="p-4 space-y-3">
-                                <div className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 transition-colors">
-                                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 transition-colors">Student Passcode</p>
+                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]/50 p-3 transition-colors">
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] uppercase tracking-widest mb-2 transition-colors">Student Passcode</p>
                                     <div className="flex items-center justify-between gap-3">
-                                        <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5">
-                                            <span className="text-[15px] font-black tracking-widest font-mono text-slate-800 dark:text-slate-200 transition-colors">
+                                        <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5">
+                                            <span className="text-[15px] font-black tracking-widest font-mono text-[var(--text-primary)] transition-colors">
                                                 {student.passcode || 'N/A'}
                                             </span>
                                             <button
                                                 type="button"
                                                 onClick={handleCopyPasscode}
                                                 disabled={!student.passcode}
-                                                className="text-slate-500 hover:text-[#2f4aad] transition-colors disabled:opacity-60"
+                                                className="text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors disabled:opacity-60"
                                                 title="Copy passcode"
                                             >
                                                 {copiedPasscode ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
@@ -739,17 +739,17 @@ const AdminStudentDetail = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <button className="w-full flex items-center justify-between p-3 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group transition-colors">
+                                <button className="w-full flex items-center justify-between p-3 border border-[var(--border)] rounded-xl hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-750 transition-all group transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <Lock className="h-4 w-4 text-slate-400 group-hover:text-[#2f4aad] transition-colors" />
-                                        <span className="text-[13px] font-bold text-slate-600 dark:text-slate-300 transition-colors">Reset Password</span>
+                                        <Lock className="h-4 w-4 text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)] transition-colors" />
+                                        <span className="text-[13px] font-bold text-[var(--text-secondary)] transition-colors">Reset Password</span>
                                     </div>
                                     <ChevronRight className="h-4 w-4 text-slate-300" />
                                 </button>
-                                <button className="w-full flex items-center justify-between p-3 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all group transition-colors">
+                                <button className="w-full flex items-center justify-between p-3 border border-[var(--border)] rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all group transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <ShieldCheck className="h-4 w-4 text-slate-400 group-hover:text-red-500 transition-colors" />
-                                        <span className="text-[13px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">Deactivate Account</span>
+                                        <ShieldCheck className="h-4 w-4 text-[var(--text-secondary)] group-hover:text-red-500 transition-colors" />
+                                        <span className="text-[13px] font-bold text-[var(--text-secondary)] group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">Deactivate Account</span>
                                     </div>
                                     <ChevronRight className="h-4 w-4 text-slate-300" />
                                 </button>
@@ -762,29 +762,29 @@ const AdminStudentDetail = () => {
             {/* Certificate Modal */}
             {isCertModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-slate-900 w-full max-w-3xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200">
+                    <div className="bg-[var(--bg-card)] w-full max-w-3xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200">
                         {/* Modal Header */}
-                        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
+                        <div className="px-4 py-3 border-b border-[var(--border)] dark:border-slate-800 flex items-center justify-between bg-[var(--bg-card)] z-10">
                             <div className="flex items-center gap-3">
                                 <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg">
-                                    <FileText className="h-4 w-4 text-[#2f4aad]" />
+                                    <FileText className="h-4 w-4 text-[var(--brand-primary)]" />
                                 </div>
                                 <div>
-                                    <h3 className="font-black text-slate-800 dark:text-white text-base tracking-tight">High School Certificate</h3>
-                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{student.name}'s Document</p>
+                                    <h3 className="font-black text-[var(--text-primary)] text-base tracking-tight">High School Certificate</h3>
+                                    <p className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">{student.name}'s Document</p>
                                 </div>
                             </div>
                             <button 
                                 onClick={() => setIsCertModalOpen(false)}
-                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-all"
+                                className="p-2 hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-800 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-secondary)] dark:hover:text-slate-200 transition-all"
                             >
                                 <X className="h-6 w-6" />
                             </button>
                         </div>
 
                         {/* Modal Body (Preview) */}
-                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950/20">
-                            <div className="w-full flex justify-center bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 shadow-inner overflow-hidden min-h-[300px]">
+                        <div className="flex-1 overflow-y-auto p-4 bg-[var(--bg-elevated)]/20">
+                            <div className="w-full flex justify-center bg-[var(--bg-card)] rounded-lg border border-[var(--border)] shadow-inner overflow-hidden min-h-[300px]">
                                 {student.educationalBackground?.certificateUrl?.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif)$/) || student.educationalBackground?.certificateUrl?.startsWith('data:image') ? (
                                     <img 
                                         src={student.educationalBackground.certificateUrl} 
@@ -802,17 +802,17 @@ const AdminStudentDetail = () => {
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 bg-white dark:bg-slate-900">
+                        <div className="px-4 py-3 border-t border-[var(--border)] dark:border-slate-800 flex justify-end gap-2 bg-[var(--bg-card)]">
                             <button 
                                 onClick={() => setIsCertModalOpen(false)}
-                                className="px-4 py-2 text-[12px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                                className="px-4 py-2 text-[12px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-secondary)] transition-colors"
                             >
                                 Close Preview
                             </button>
                             <a 
                                 href={student.educationalBackground?.certificateUrl} 
                                 download="High_School_Certificate"
-                                className="flex items-center gap-1.5 bg-[#2f4aad] text-white px-4 py-2 rounded-lg font-black text-[12px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 active:scale-[0.98]"
+                                className="flex items-center gap-1.5 bg-[var(--brand-primary)] text-white px-4 py-2 rounded-lg font-black text-[12px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 active:scale-[0.98]"
                             >
                                 <Download className="h-3.5 w-3.5" /> Download Certificate
                             </a>

@@ -78,8 +78,8 @@ const AdminProfile = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] flex-col items-center justify-center">
-                <Loader2 className="mb-2 h-7 w-7 animate-spin text-[#2f4aad]" />
-                <p className="text-[12px] font-medium text-slate-500">Loading profile...</p>
+                <Loader2 className="mb-2 h-7 w-7 animate-spin text-[var(--brand-primary)]" />
+                <p className="text-[12px] font-medium text-[var(--text-secondary)]">Loading profile...</p>
             </div>
         );
     }
@@ -91,7 +91,7 @@ const AdminProfile = () => {
                 <button
                     type="button"
                     onClick={() => navigate('/admin')}
-                    className="mt-4 text-sm font-bold text-[#2f4aad] hover:underline"
+                    className="mt-4 text-sm font-bold text-[var(--brand-primary)] hover:underline"
                 >
                     Back to dashboard
                 </button>
@@ -121,14 +121,14 @@ const AdminProfile = () => {
             <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-500 hover:text-slate-800"
+                className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
                 <ArrowLeft className="h-4 w-4" />
                 Back
             </button>
 
-            <div className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 dark:bg-slate-900 dark:ring-white/10">
-                <div className="border-b border-slate-100 bg-gradient-to-r from-[#eef2fb] via-white to-[#eef2fb] px-5 py-6 dark:border-white/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900">
+            <div className="overflow-hidden rounded-[1.25rem] bg-[var(--bg-card)] shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-[var(--border)]">
+                <div className="border-b border-[var(--border)] bg-gradient-to-r from-[#eef2fb] via-white to-[#eef2fb] px-5 py-6 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                         <div
                             className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full text-xl font-extrabold text-white ring-4 ring-white shadow-md"
@@ -141,23 +141,23 @@ const AdminProfile = () => {
                             )}
                         </div>
                         <div className="min-w-0">
-                            <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                            <h1 className="truncate text-xl font-extrabold tracking-tight text-[var(--text-primary)]">
                                 {profile?.name || 'Administrator'}
                             </h1>
-                            <p className="mt-0.5 truncate text-[13px] font-medium text-slate-500">
+                            <p className="mt-0.5 truncate text-[13px] font-medium text-[var(--text-secondary)]">
                                 {profile?.email || '—'}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <span className="inline-flex items-center gap-1 rounded-full bg-[#eef2fb] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#2f4aad]">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
                                     <Shield className="h-3 w-3" />
                                     {roles.join(' · ')}
                                 </span>
                                 <span
                                     className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                                        statusActive
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'bg-amber-50 text-amber-700'
-                                    }`}
+ statusActive
+ ? 'bg-emerald-50 text-emerald-700'
+ : 'bg-amber-50 text-amber-700'
+ }`}
                                 >
                                     {statusActive ? 'Active' : 'Inactive'}
                                 </span>
@@ -177,13 +177,13 @@ const AdminProfile = () => {
                     ].map((row) => (
                         <div
                             key={row.label}
-                            className="rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]"
+                            className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] px-3.5 py-3 dark:bg-white/[0.03]"
                         >
-                            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
                                 <row.icon className="h-3.5 w-3.5" />
                                 {row.label}
                             </div>
-                            <p className="truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">
+                            <p className="truncate text-[13px] font-bold text-[var(--text-primary)]">
                                 {row.value || '—'}
                             </p>
                         </div>

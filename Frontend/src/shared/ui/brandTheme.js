@@ -1,27 +1,27 @@
-/** Project Verify brand palette - keep these hex values across public + dashboard UI */
+/** Project Verify brand palette — resolves from CSS theme variables */
 export const PROJECT_NAME = 'Project Verify';
 export const PROJECT_LEGAL_NAME = 'Project Verify Academic Systems';
 export const PRODUCT_TAGLINE = 'Project verification';
 export const BRAND = {
-    primary: '#2a3fa4',
-    primaryHover: '#223688',
-    primaryDeep: '#1d2f82',
-    action: '#1D68E3',
-    actionHover: '#1a5fd4',
-    shell: '#1e56e3',
-    pageBg: '#f8faff',
-    cardBg: '#ffffff',
-    mutedText: '#51628f',
-    darkText: '#0F172A',
-    /** Faculty / student console rail (royal blue) */
-    railFrom: '#2a3fa4',
-    railTo: '#223688',
-    contentBg: '#f8fafc',
-    panelBg: '#f4f7ff',
+    primary: 'var(--brand-primary)',
+    primaryHover: 'var(--brand-primary-hover)',
+    primaryDeep: 'var(--shell-border)',
+    action: 'var(--accent)',
+    actionHover: 'var(--sv-primary-hover)',
+    shell: 'var(--accent)',
+    pageBg: 'var(--bg-page)',
+    cardBg: 'var(--bg-card)',
+    mutedText: 'var(--text-secondary)',
+    darkText: 'var(--text-primary)',
+    /** Faculty / student console rail */
+    railFrom: 'var(--brand-primary)',
+    railTo: 'var(--brand-primary-hover)',
+    contentBg: 'var(--content-bg)',
+    panelBg: 'var(--bg-elevated)',
 };
 
-export const BRAND_GRADIENT = 'linear-gradient(135deg, #2a3fa4 0%, #1D68E3 100%)';
-export const RAIL_GRADIENT = 'linear-gradient(180deg, #2a3fa4 0%, #223688 100%)';
+export const BRAND_GRADIENT = 'linear-gradient(135deg, var(--brand-primary) 0%, var(--accent) 100%)';
+export const RAIL_GRADIENT = 'var(--sidebar-surface)';
 
 /** Short product descriptor shown in faculty/student console sidebars */
 export const PRODUCT_TAGLINE_SIDEBAR = 'Project verification & preview';

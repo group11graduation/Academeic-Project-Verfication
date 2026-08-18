@@ -38,7 +38,7 @@ const StudentMyGroups = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-9 w-9 animate-spin text-[#2a3fa4]" />
+        <Loader2 className="h-9 w-9 animate-spin text-[var(--brand-primary)]" />
       </div>
     );
   }
@@ -46,8 +46,8 @@ const StudentMyGroups = () => {
   return (
     <div className={`${Z_SHELL} space-y-4`}>
       <div>
-        <h1 className="text-xl font-black text-[var(--sv-text)] dark:text-slate-100">My groups</h1>
-        <p className="mt-1 text-[12px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">
+        <h1 className="text-xl font-black text-[var(--sv-text)]">My groups</h1>
+        <p className="mt-1 text-[12px] font-medium text-[var(--sv-muted)]">
           Groups are listed by subject. You can see who is the leader (you or a classmate) on each
           assignment.
         </p>
@@ -62,7 +62,7 @@ const StudentMyGroups = () => {
       {grouped.totalGroups === 0 ? (
         <div className={`${Z_CARD} p-8 text-center`}>
           <Users className="mx-auto h-10 w-10 text-slate-300" />
-          <p className="mt-3 text-sm font-bold text-[var(--sv-text)] dark:text-slate-200">
+          <p className="mt-3 text-sm font-bold text-[var(--sv-text)]">
             You are not in any group yet
           </p>
           <p className="mt-1 text-[12px] text-[var(--sv-muted)]">
@@ -71,7 +71,7 @@ const StudentMyGroups = () => {
           </p>
           <Link
             to="/student/assignments"
-            className="mt-4 inline-flex text-[12px] font-bold text-[#2a3fa4] hover:underline"
+            className="mt-4 inline-flex text-[12px] font-bold text-[var(--brand-primary)] hover:underline"
           >
             Browse assignments →
           </Link>
@@ -80,10 +80,10 @@ const StudentMyGroups = () => {
         <div className="space-y-5">
           {grouped.subjects.map((subject) => (
             <section key={subject.subjectId} className={`${Z_CARD} overflow-hidden`}>
-              <header className="flex items-center gap-2 border-b border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-4 py-3 dark:border-white/10 dark:bg-[#0f172a]">
-                <BookOpen className="h-4 w-4 text-[#2a3fa4]" />
+              <header className="flex items-center gap-2 border-b border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-4 py-3">
+                <BookOpen className="h-4 w-4 text-[var(--brand-primary)]" />
                 <div className="min-w-0">
-                  <h2 className="truncate text-[13px] font-black text-[var(--sv-text)] dark:text-slate-100">
+                  <h2 className="truncate text-[13px] font-black text-[var(--sv-text)]">
                     {subject.subjectName}
                     {subject.subjectCode ? (
                       <span className="ml-2 text-[11px] font-bold text-[var(--sv-muted)]">
@@ -102,7 +102,7 @@ const StudentMyGroups = () => {
                   <div key={`${subject.subjectId}-${g.groupId}`} className="px-4 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-[13px] font-black text-[var(--sv-text)] dark:text-slate-100">
+                        <p className="text-[13px] font-black text-[var(--sv-text)]">
                           {g.groupName}
                         </p>
                         <p className="mt-0.5 text-[11px] font-medium text-[var(--sv-muted)]">
@@ -112,10 +112,10 @@ const StudentMyGroups = () => {
                       </div>
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
-                          g.youAreLeader
-                            ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
-                            : 'bg-[var(--sv-card-muted)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] dark:bg-[#0f172a] dark:text-slate-300 dark:ring-white/10'
-                        }`}
+ g.youAreLeader
+ ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+ : 'bg-[var(--sv-card-muted)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] '
+ }`}
                       >
                         {g.youAreLeader ? (
                           <>
@@ -129,11 +129,11 @@ const StudentMyGroups = () => {
                       </span>
                     </div>
 
-                    <div className="mt-2 rounded-lg bg-[var(--sv-card-muted)] px-3 py-2 dark:bg-[#0f172a]">
+                    <div className="mt-2 rounded-lg bg-[var(--sv-card-muted)] px-3 py-2">
                       <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
                         Group leader
                       </p>
-                      <p className="mt-0.5 text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-100">
+                      <p className="mt-0.5 text-[12px] font-bold text-[var(--sv-text)]">
                         {g.leaderName}
                         {g.youAreLeader ? ' (you)' : ''}
                       </p>
@@ -144,10 +144,10 @@ const StudentMyGroups = () => {
                         <li
                           key={String(m._id || m.name)}
                           className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                            m.role === 'leader'
-                              ? 'bg-amber-100/80 text-amber-900'
-                              : 'bg-[var(--sv-card)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] dark:bg-transparent dark:text-slate-300 dark:ring-white/10'
-                          }`}
+ m.role === 'leader'
+ ? 'bg-amber-100/80 text-amber-900'
+ : 'bg-[var(--sv-card)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] dark:bg-transparent '
+ }`}
                         >
                           {m.name || 'Student'}
                           {m.studentId ? ` · ${m.studentId}` : ''}
@@ -161,13 +161,13 @@ const StudentMyGroups = () => {
                       <div className="mt-3 flex flex-wrap gap-3">
                         <Link
                           to={`/student/assignments/${g.assignmentId}/proposal`}
-                          className="text-[11px] font-bold text-[#2a3fa4] hover:underline"
+                          className="text-[11px] font-bold text-[var(--brand-primary)] hover:underline"
                         >
                           Open proposal →
                         </Link>
                         <Link
                           to={`/student/project/${g.assignmentId}`}
-                          className="text-[11px] font-bold text-[var(--sv-muted)] hover:text-[#2a3fa4] hover:underline"
+                          className="text-[11px] font-bold text-[var(--sv-muted)] hover:text-[var(--brand-primary)] hover:underline"
                         >
                           Project workspace
                         </Link>

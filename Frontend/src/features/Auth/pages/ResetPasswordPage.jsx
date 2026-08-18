@@ -70,7 +70,7 @@ const ResetPasswordPage = () => {
       >
         <Link
           to="/login"
-          className="flex w-full items-center justify-center rounded-xl border border-[#dbe3f5] bg-white/70 py-3 text-[14px] font-semibold text-slate-700 transition hover:bg-white"
+          className="flex w-full items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-3 text-[14px] font-semibold text-[var(--text-primary)] transition hover:brightness-95"
         >
           Back to sign in
         </Link>
@@ -114,7 +114,7 @@ const ResetPasswordPage = () => {
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

@@ -31,16 +31,16 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                     onOpen();
                 }
             }}
-            className="group relative flex flex-col rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:border-[#2f4aad]/40 hover:shadow-md cursor-pointer dark:border-slate-700 dark:bg-slate-900"
+            className="group relative flex flex-col rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3 text-left shadow-sm transition-all hover:border-[#2f4aad]/40 hover:shadow-md cursor-pointer"
         >
             <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span
                         className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                            isFinal
-                                ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                        }`}
+ isFinal
+ ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300'
+ : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] '
+ }`}
                     >
                         {isFinal ? 'Final' : 'Normal'}
                     </span>
@@ -49,7 +49,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                             Collab
                         </span>
                     )}
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                    <span className="rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                         {a.submissionMode === 'group' ? 'Group' : 'Single'}
                     </span>
                 </div>
@@ -61,7 +61,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                             e.stopPropagation();
                             onEdit(e);
                         }}
-                        className="rounded p-1 text-slate-400 opacity-0 transition-all hover:bg-blue-50 hover:text-[#2f4aad] group-hover:opacity-100"
+                        className="rounded p-1 text-[var(--text-secondary)] opacity-0 transition-all hover:bg-blue-50 hover:text-[var(--brand-primary)] group-hover:opacity-100"
                         aria-label="Edit assignment settings"
                         title="Edit assignment"
                     >
@@ -75,7 +75,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                             e.stopPropagation();
                             onDelete(e);
                         }}
-                        className="rounded p-1 text-slate-400 opacity-0 transition-all hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                        className="rounded p-1 text-[var(--text-secondary)] opacity-0 transition-all hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
                         aria-label="Delete assignment"
                     >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -84,12 +84,12 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                 </div>
             </div>
 
-            <h3 className="mb-2 line-clamp-2 text-[13px] font-bold leading-snug text-slate-900 dark:text-slate-100">
+            <h3 className="mb-2 line-clamp-2 text-[13px] font-bold leading-snug text-[var(--text-primary)]">
                 {a.title}
             </h3>
 
             <div className="mb-2 flex flex-wrap gap-1">
-                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-[#2f4aad] dark:bg-blue-500/10">
+                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-[var(--brand-primary)] dark:bg-blue-500/10">
                     {a.subject?.code || '-'}
                 </span>
                 {a.isCollaborative && a.collaborationReviewRole && (
@@ -98,7 +98,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                     </span>
                 )}
                 {a.semester?.name && (
-                    <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                    <span className="rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                         {a.semester.name}
                     </span>
                 )}
@@ -109,17 +109,17 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                 )}
             </div>
 
-            <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-2 dark:border-slate-800">
+            <div className="mt-auto flex items-center justify-between border-t border-[var(--border)] pt-2 dark:border-slate-800">
                 {isFinal ? (
                     <span
-                        className={`text-[10px] font-bold ${pastDeadline ? 'text-rose-500' : 'text-slate-500'}`}
+                        className={`text-[10px] font-bold ${pastDeadline ? 'text-rose-500' : 'text-[var(--text-secondary)]'}`}
                     >
                         Proposal {formatDate(a.proposalDeadline)}
                     </span>
                 ) : (
-                    <span className="text-[10px] font-semibold text-slate-500">File upload</span>
+                    <span className="text-[10px] font-semibold text-[var(--text-secondary)]">File upload</span>
                 )}
-                <ChevronRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#2f4aad]" />
+                <ChevronRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[var(--brand-primary)]" />
             </div>
         </div>
     );
@@ -376,20 +376,20 @@ const Assignments = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] flex-col items-center justify-center">
-                <Loader2 className="mb-2 h-7 w-7 animate-spin text-[#2f4aad]" />
-                <p className="text-[12px] font-medium text-slate-500">Loading assignments...</p>
+                <Loader2 className="mb-2 h-7 w-7 animate-spin text-[var(--brand-primary)]" />
+                <p className="text-[12px] font-medium text-[var(--text-secondary)]">Loading assignments...</p>
             </div>
         );
     }
 
     return (
         <div className="text-[13px] antialiased [font-family:var(--sv-font-sans)]">
-            <div className="mb-3 flex flex-col gap-3 border-b border-[#d5dcf0] pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-3 flex flex-col gap-3 border-b border-[var(--border)] pb-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-[1.15rem] font-bold leading-[1.2] tracking-tight text-[#2f4aad] sm:text-[1.25rem]">
+                    <h1 className="text-[1.15rem] font-bold leading-[1.2] tracking-tight text-[var(--brand-primary)] sm:text-[1.25rem]">
                         Assignments
                     </h1>
-                    <p className="mt-0.5 text-[12px] font-normal text-[#647092]">
+                    <p className="mt-0.5 text-[12px] font-normal text-[var(--text-secondary)]">
                         Proposals first, then project uploads after approval.
                     </p>
                 </div>
@@ -401,7 +401,7 @@ const Assignments = () => {
                                 setYearFilter(e.target.value);
                                 setSemesterFilter('');
                             }}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--text-primary)]"
                         >
                             <option value="">All years</option>
                             {yearOptions.map(([id, label]) => (
@@ -415,7 +415,7 @@ const Assignments = () => {
                         <select
                             value={semesterFilter}
                             onChange={(e) => setSemesterFilter(e.target.value)}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--text-primary)]"
                         >
                             <option value="">All semesters</option>
                             {semesterOptions.map(([id, label]) => (
@@ -443,7 +443,7 @@ const Assignments = () => {
                     <button
                         type="button"
                         onClick={() => navigate('/teacher/assignments/new')}
-                        className="inline-flex items-center gap-1 rounded-lg bg-[#2a3fa4] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#223688]"
+                        className="inline-flex items-center gap-1 rounded-lg bg-[var(--brand-primary)] px-2.5 py-1.5 text-[11px] font-bold text-white hover:brightness-110"
                     >
                         <Plus className="h-3.5 w-3.5" /> New
                     </button>
@@ -451,26 +451,26 @@ const Assignments = () => {
             </div>
 
             {classes.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-card)] py-10">
                     <ClipboardList className="mb-2 h-8 w-8 text-blue-400" />
-                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">No classes assigned yet</h3>
-                    <p className="mt-1 text-[11px] text-slate-500">Ask admin to assign classes and subjects first.</p>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">No classes assigned yet</h3>
+                    <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Ask admin to assign classes and subjects first.</p>
                 </div>
             ) : filteredClasses.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-card)] py-10">
                     <ClipboardList className="mb-2 h-8 w-8 text-slate-300" />
-                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">No classes in this year</h3>
-                    <p className="mt-1 text-[11px] text-slate-500">Try another year or clear the year filter.</p>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">No classes in this year</h3>
+                    <p className="mt-1 text-[11px] text-[var(--text-secondary)]">Try another year or clear the year filter.</p>
                 </div>
             ) : (
                 <>
                     <div className="mb-3 space-y-3">
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                             My classes
                         </p>
                         {classesGroupedByTerm.map((group) => (
                             <div key={group.key}>
-                                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                     {group.heading}
                                 </p>
                                 <div className="flex flex-wrap gap-1.5">
@@ -484,10 +484,10 @@ const Assignments = () => {
                                                 type="button"
                                                 onClick={() => selectClassTab(cid)}
                                                 className={`rounded-lg border px-2.5 py-1.5 text-left transition-all ${
-                                                    active
-                                                        ? 'border-[#2f4aad] bg-blue-50 text-[#2f4aad] dark:bg-blue-500/10'
-                                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
-                                                }`}
+ active
+ ? 'border-[#2f4aad] bg-blue-50 text-[var(--brand-primary)] dark:bg-blue-500/10'
+ : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:border-slate-300 '
+ }`}
                                             >
                                                 <span className="block text-[11px] font-bold leading-none">{cls.code}</span>
                                                 <span className="mt-0.5 block max-w-[140px] truncate text-[9px] font-medium opacity-80">
@@ -502,22 +502,22 @@ const Assignments = () => {
                     </div>
 
                     {activeClass && (
-                        <p className="mb-3 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                            <span className="font-bold text-slate-800 dark:text-slate-200">{activeClass.code}</span>
+                        <p className="mb-3 text-[11px] font-semibold text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
+                            <span className="font-bold text-[var(--text-primary)]">{activeClass.code}</span>
                             {' - '}
                             {activeClass.title}
                         </p>
                     )}
 
                     {activeClassAssignments.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-card)] py-10">
                             <FileText className="mb-2 h-7 w-7 text-slate-300" />
-                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                            <h3 className="text-sm font-bold text-[var(--text-primary)]">
                                 {rawActiveClassAssignments.length > 0 && searchQuery.trim()
                                     ? 'No assignments match your search'
                                     : 'No assignments in this class'}
                             </h3>
-                            <p className="mt-1 text-[11px] text-slate-500">
+                            <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
                                 {rawActiveClassAssignments.length > 0 && searchQuery.trim()
                                     ? 'Try a different title or subject code.'
                                     : 'Use New to create one for this class.'}
@@ -527,15 +527,15 @@ const Assignments = () => {
                         <div className="space-y-4">
                             <section>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                                         Final assignments
                                     </p>
-                                    <span className="text-[10px] font-bold text-slate-400">
+                                    <span className="text-[10px] font-bold text-[var(--text-secondary)]">
                                         {activeClassFinalAssignments.length}
                                     </span>
                                 </div>
                                 {activeClassFinalAssignments.length === 0 ? (
-                                    <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-900/50">
+                                    <p className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-secondary)]/50">
                                         No final assignments.
                                     </p>
                                 ) : (
@@ -556,15 +556,15 @@ const Assignments = () => {
 
                             <section>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                                         Normal assignments
                                     </p>
-                                    <span className="text-[10px] font-bold text-slate-400">
+                                    <span className="text-[10px] font-bold text-[var(--text-secondary)]">
                                         {activeClassNormalAssignments.length}
                                     </span>
                                 </div>
                                 {activeClassNormalAssignments.length === 0 ? (
-                                    <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-900/50">
+                                    <p className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-secondary)]/50">
                                         No normal assignments.
                                     </p>
                                 ) : (
@@ -588,8 +588,8 @@ const Assignments = () => {
             )}
 
             {classes.length > 0 && assignments.length === 0 && (
-                <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900">
-                    No assignments yet - click <span className="font-bold text-[#2f4aad]">New</span> to start.
+                <div className="mt-3 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-center text-[11px] font-semibold text-[var(--text-secondary)]">
+                    No assignments yet - click <span className="font-bold text-[var(--brand-primary)]">New</span> to start.
                 </div>
             )}
         </div>

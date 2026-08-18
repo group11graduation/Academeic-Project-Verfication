@@ -39,15 +39,15 @@ const StudentTeamAbout = () => {
                 <main className="relative">
                     {/* Hero */}
                     <section className="mx-auto max-w-[1200px] px-4 pb-8 pt-6 sm:px-6 sm:pt-8 lg:px-8">
-                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-white/80 px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
+                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-[var(--bg-card)] px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
                             <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/50 blur-3xl" />
                             <div aria-hidden className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#bfdbfe]/45 blur-3xl" />
                             <div className="relative mx-auto max-w-3xl text-center">
-                                <p className="mb-4 text-sm font-bold tracking-tight text-[#2a3fa4]">About</p>
-                                <h1 className="mb-5 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
+                                <p className="mb-4 text-sm font-bold tracking-tight text-[var(--brand-primary)]">About</p>
+                                <h1 className="mb-5 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-[var(--text-primary)] sm:text-4xl md:text-5xl">
                                     Meet the team
                                 </h1>
-                                <p className="mx-auto mb-8 max-w-xl text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                                <p className="mx-auto mb-8 max-w-xl text-sm font-medium leading-relaxed text-[var(--text-secondary)] sm:text-base">
                                     The students and builders behind {PROJECT_NAME} — an academic project verification
                                     platform for proposals, originality checks, and live project previews.
                                 </p>
@@ -62,7 +62,7 @@ const StudentTeamAbout = () => {
                                     </a>
                                     <Link
                                         to="/guide"
-                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-white px-7 py-3 text-sm font-bold text-slate-900 hover:bg-slate-50"
+                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-[var(--bg-card)] px-7 py-3 text-sm font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                                     >
                                         Platform guide
                                     </Link>
@@ -75,14 +75,14 @@ const StudentTeamAbout = () => {
                     <section id="team" className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
                         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                             <div className="max-w-xl">
-                                <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                                <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-3xl">
                                     Graduation project team
                                 </h2>
-                                <p className="text-sm font-medium leading-relaxed text-slate-500 sm:text-base">
+                                <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)] sm:text-base">
                                     Educators, engineers, and visionaries working to secure academic futures.
                                 </p>
                             </div>
-                            <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-2xl bg-white px-4 py-2 text-xs font-bold text-[#2a3fa4] ring-1 ring-slate-200">
+                            <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-2xl bg-[var(--bg-card)] px-4 py-2 text-xs font-bold text-[var(--brand-primary)] ring-1 ring-[var(--border)]">
                                 <GraduationCap className="h-4 w-4" />
                                 Group 11
                             </span>
@@ -92,9 +92,9 @@ const StudentTeamAbout = () => {
                             {team.map((member) => (
                                 <article
                                     key={member.name}
-                                    className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[32px]"
+                                    className="group overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--bg-card)] transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-[32px]"
                                 >
-                                    <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
+                                    <div className="relative aspect-[4/5] overflow-hidden bg-[var(--bg-elevated)]">
                                         <img
                                             src={member.image}
                                             alt={member.name}
@@ -102,7 +102,7 @@ const StudentTeamAbout = () => {
                                         />
                                     </div>
                                     <div className="p-5">
-                                        <h3 className="text-lg font-extrabold leading-snug text-slate-950 sm:text-xl">
+                                        <h3 className="text-lg font-extrabold leading-snug text-[var(--text-primary)] sm:text-xl">
                                             {member.name}
                                         </h3>
                                     </div>
@@ -113,7 +113,7 @@ const StudentTeamAbout = () => {
 
                     {/* Contact */}
                     <section id="careers" className="mx-auto max-w-[1200px] px-4 pb-10 sm:px-6 lg:px-8">
-                        <div className="grid overflow-hidden rounded-[28px] border border-slate-200 bg-white sm:rounded-[36px] lg:grid-cols-2">
+                        <div className="grid overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--bg-card)] sm:rounded-[36px] lg:grid-cols-2">
                             <div
                                 className="relative min-h-[180px] sm:min-h-[240px]"
                                 style={{
@@ -129,10 +129,10 @@ const StudentTeamAbout = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col justify-center p-6 sm:p-10">
-                                <h2 className="mb-3 text-xl font-extrabold tracking-tight text-slate-950 sm:text-2xl">
+                                <h2 className="mb-3 text-xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-2xl">
                                     Questions, demos, or collaboration?
                                 </h2>
-                                <p className="mb-6 text-sm font-medium leading-relaxed text-slate-500">
+                                <p className="mb-6 text-sm font-medium leading-relaxed text-[var(--text-secondary)]">
                                     Reach out to the graduation project group. We are happy to discuss the platform,
                                     demos, or partnership ideas.
                                 </p>
@@ -149,7 +149,7 @@ const StudentTeamAbout = () => {
                                     </a>
                                     <a
                                         href="#team"
-                                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-50"
+                                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] px-5 py-2.5 text-sm font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                                     >
                                         Back to team
                                     </a>
@@ -171,7 +171,7 @@ const StudentTeamAbout = () => {
                             <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                                 <Link
                                     to="/guide"
-                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-bold text-[#2a3fa4]"
+                                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--bg-card)] px-6 py-3 text-sm font-bold text-[var(--brand-primary)]"
                                 >
                                     Platform guide
                                 </Link>

@@ -112,7 +112,7 @@ const StudentHomeDashboard = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center py-24">
-                <Loader2 className="h-9 w-9 animate-spin text-[#2a3fa4]" />
+                <Loader2 className="h-9 w-9 animate-spin text-[var(--brand-primary)]" />
             </div>
         );
     }
@@ -120,7 +120,7 @@ const StudentHomeDashboard = () => {
     return (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_260px] antialiased [font-family:var(--sv-font-sans)]">
             <div className="space-y-3 min-w-0">
-                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
                     <div className="flex flex-wrap gap-1.5 mb-4">
                         {[
                             { id: 'all', label: 'All assignments' },
@@ -132,10 +132,10 @@ const StudentHomeDashboard = () => {
                                 type="button"
                                 onClick={() => setStatTab(tab.id)}
                                 className={`rounded-full px-3 py-1.5 text-[10px] font-bold transition ${
-                                    statTab === tab.id
-                                        ? 'bg-[#2a3fa4] text-white shadow-sm'
-                                        : 'bg-[#f4f7fa] text-[var(--sv-muted)] hover:text-[var(--sv-text)] dark:bg-[#0f172a] dark:text-[var(--sv-muted)] dark:hover:text-slate-100'
-                                }`}
+ statTab === tab.id
+ ? 'bg-[var(--brand-primary)] text-white shadow-sm'
+ : 'bg-[var(--bg-elevated)] text-[var(--sv-muted)] hover:text-[var(--sv-text)] '
+ }`}
                             >
                                 {tab.label}
                             </button>
@@ -157,34 +157,34 @@ const StudentHomeDashboard = () => {
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <div>
-                                <p className="mb-0.5 text-[10px] font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Available</p>
-                                <p className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100">{tabStats.headline}</p>
-                                <p className="mt-0.5 text-[10px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{tabStats.label}</p>
+                                <p className="mb-0.5 text-[10px] font-semibold text-[var(--sv-muted)]">Available</p>
+                                <p className="text-lg font-black text-[var(--sv-text)]">{tabStats.headline}</p>
+                                <p className="mt-0.5 text-[10px] font-medium text-[var(--sv-muted)]">{tabStats.label}</p>
                             </div>
                             <div>
-                                <p className="mb-0.5 text-[10px] font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Submitted</p>
-                                <p className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100">{stats.projectSubmitted}</p>
-                                <p className="mt-0.5 text-[10px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Projects done</p>
+                                <p className="mb-0.5 text-[10px] font-semibold text-[var(--sv-muted)]">Submitted</p>
+                                <p className="text-lg font-black text-[var(--sv-text)]">{stats.projectSubmitted}</p>
+                                <p className="mt-0.5 text-[10px] font-medium text-[var(--sv-muted)]">Projects done</p>
                             </div>
                             <div className="col-span-2 sm:col-span-1">
-                                <p className="mb-0.5 text-[10px] font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Pending</p>
-                                <p className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100">{stats.pending}</p>
-                                <p className="mt-0.5 text-[10px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{tabStats.sub}</p>
+                                <p className="mb-0.5 text-[10px] font-semibold text-[var(--sv-muted)]">Pending</p>
+                                <p className="text-lg font-black text-[var(--sv-text)]">{stats.pending}</p>
+                                <p className="mt-0.5 text-[10px] font-medium text-[var(--sv-muted)]">{tabStats.sub}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
                     <div className="mb-3 flex items-center justify-between">
-                        <h2 className="text-sm font-black text-[var(--sv-text)] dark:text-slate-100">Last activity</h2>
-                        <Link to="/student/assignments" className="text-[10px] font-bold text-[var(--sv-muted)] hover:text-[#2a3fa4] dark:text-[var(--sv-muted)] dark:hover:text-blue-300">
+                        <h2 className="text-sm font-black text-[var(--sv-text)]">Last activity</h2>
+                        <Link to="/student/assignments" className="text-[10px] font-bold text-[var(--sv-muted)] hover:text-[var(--brand-primary)] dark:hover:text-blue-300">
                             View all
                         </Link>
                     </div>
 
                     {recentRows.length === 0 ? (
-                        <p className="py-6 text-center text-[12px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">No assignments yet.</p>
+                        <p className="py-6 text-center text-[12px] font-medium text-[var(--sv-muted)]">No assignments yet.</p>
                     ) : (
                         <div className="space-y-1">
                             {recentRows.map((row) => {
@@ -200,26 +200,26 @@ const StudentHomeDashboard = () => {
                                 return (
                                     <div
                                         key={a._id}
-                                        className="flex flex-col gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--sv-card-muted)] dark:hover:bg-[#0f172a] sm:grid sm:grid-cols-[1fr_auto_auto_auto] sm:items-center sm:gap-3"
+                                        className="flex flex-col gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--sv-card-muted)] hover:bg-[var(--bg-elevated)] sm:grid sm:grid-cols-[1fr_auto_auto_auto] sm:items-center sm:gap-3"
                                     >
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f4f7fa] dark:bg-[#0f172a]">
-                                                <BookOpen className="h-3.5 w-3.5 text-[#2a3fa4]" />
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-elevated)]">
+                                                <BookOpen className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="truncate text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-100">{a.title}</p>
-                                                <p className="text-[10px] font-medium text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{formatDate(deadline)}</p>
+                                                <p className="truncate text-[12px] font-bold text-[var(--sv-text)]">{a.title}</p>
+                                                <p className="text-[10px] font-medium text-[var(--sv-muted)]">{formatDate(deadline)}</p>
                                             </div>
                                         </div>
                                         <Link
                                             to={actionTo}
-                                            className="text-xs font-bold text-[var(--sv-muted)] hover:text-[#2a3fa4] dark:text-slate-300 dark:hover:text-blue-300 sm:text-right"
+                                            className="text-xs font-bold text-[var(--sv-muted)] hover:text-[var(--brand-primary)] dark:hover:text-blue-300 sm:text-right"
                                         >
                                             {action}
                                         </Link>
                                         <Link
                                             to={`/student/assignments/${a._id}`}
-                                            className="hidden text-xs font-semibold text-[var(--sv-muted)] hover:text-[var(--sv-text)] dark:text-[var(--sv-muted)] dark:hover:text-slate-300 sm:inline"
+                                            className="hidden text-xs font-semibold text-[var(--sv-muted)] hover:text-[var(--sv-text)] dark:hover:text-slate-300 sm:inline"
                                         >
                                             Details
                                         </Link>
@@ -236,15 +236,15 @@ const StudentHomeDashboard = () => {
                 </div>
 
                 {groupsBySubject.totalGroups > 0 ? (
-                    <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                    <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
                         <div className="mb-3 flex items-center justify-between">
-                            <h2 className="flex items-center gap-2 text-sm font-black text-[var(--sv-text)] dark:text-slate-100">
-                                <Users className="h-4 w-4 text-[#2a3fa4]" />
+                            <h2 className="flex items-center gap-2 text-sm font-black text-[var(--sv-text)]">
+                                <Users className="h-4 w-4 text-[var(--brand-primary)]" />
                                 My groups by subject
                             </h2>
                             <Link
                                 to="/student/groups"
-                                className="text-[10px] font-bold text-[var(--sv-muted)] hover:text-[#2a3fa4] dark:text-[var(--sv-muted)] dark:hover:text-blue-300"
+                                className="text-[10px] font-bold text-[var(--sv-muted)] hover:text-[var(--brand-primary)] dark:hover:text-blue-300"
                             >
                                 View all
                             </Link>
@@ -260,10 +260,10 @@ const StudentHomeDashboard = () => {
                                         {subject.groups.slice(0, 2).map((g) => (
                                             <div
                                                 key={`${subject.subjectId}-${g.groupId}`}
-                                                className="flex items-center justify-between gap-2 rounded-lg bg-[var(--sv-card-muted)] px-3 py-2 dark:bg-[#0f172a]"
+                                                className="flex items-center justify-between gap-2 rounded-lg bg-[var(--sv-card-muted)] px-3 py-2"
                                             >
                                                 <div className="min-w-0">
-                                                    <p className="truncate text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-100">
+                                                    <p className="truncate text-[12px] font-bold text-[var(--sv-text)]">
                                                         {g.groupName}
                                                     </p>
                                                     <p className="truncate text-[10px] font-medium text-[var(--sv-muted)]">
@@ -273,10 +273,10 @@ const StudentHomeDashboard = () => {
                                                 </div>
                                                 <span
                                                     className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
-                                                        g.youAreLeader
-                                                            ? 'bg-amber-50 text-amber-800'
-                                                            : 'bg-[var(--sv-card)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] dark:bg-transparent dark:ring-white/10'
-                                                    }`}
+ g.youAreLeader
+ ? 'bg-amber-50 text-amber-800'
+ : 'bg-[var(--sv-card)] text-[var(--sv-muted)] ring-1 ring-[var(--sv-border)] dark:bg-transparent'
+ }`}
                                                 >
                                                     {g.youAreLeader ? (
                                                         <>
@@ -297,7 +297,7 @@ const StudentHomeDashboard = () => {
             </div>
 
             <div className="space-y-3">
-                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
                     <div className="mb-1 flex items-center gap-2">
                         {avatarSrc ? (
                             <img
@@ -314,41 +314,41 @@ const StudentHomeDashboard = () => {
                             </div>
                         )}
                         <div className="min-w-0">
-                            <p className="text-[10px] font-semibold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Welcome back,</p>
-                            <p className="truncate text-[12px] font-black text-[var(--sv-text)] dark:text-slate-100">{user?.name || 'Student'}</p>
+                            <p className="text-[10px] font-semibold text-[var(--sv-muted)]">Welcome back,</p>
+                            <p className="truncate text-[12px] font-black text-[var(--sv-text)]">{user?.name || 'Student'}</p>
                         </div>
                     </div>
                     <Link
                         to="/student/profile"
-                        className="inline-block mt-3 text-[10px] font-bold text-[#2a3fa4] hover:underline"
+                        className="inline-block mt-3 text-[10px] font-bold text-[var(--brand-primary)] hover:underline"
                     >
                         View profile
                     </Link>
                 </div>
 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                    <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
                         <div className="mb-2 flex items-center justify-between">
-                            <p className="text-[10px] font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Submitted</p>
+                            <p className="text-[10px] font-bold text-[var(--sv-muted)]">Submitted</p>
                             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-50">
                                 <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
                             </span>
                         </div>
-                        <p className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100">{stats.projectSubmitted}</p>
+                        <p className="text-lg font-black text-[var(--sv-text)]">{stats.projectSubmitted}</p>
                     </div>
-                    <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
+                    <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-3 shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
                         <div className="mb-2 flex items-center justify-between">
-                            <p className="text-[10px] font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">Pending</p>
+                            <p className="text-[10px] font-bold text-[var(--sv-muted)]">Pending</p>
                             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-rose-50">
                                 <ArrowDownRight className="h-3.5 w-3.5 text-rose-500" />
                             </span>
                         </div>
-                        <p className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100">{stats.pending}</p>
+                        <p className="text-lg font-black text-[var(--sv-text)]">{stats.pending}</p>
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-[#111827] dark:shadow-none">
-                    <h3 className="mb-3 text-[12px] font-black text-[var(--sv-text)] dark:text-slate-100">Submission flow</h3>
+                <div className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] p-4 shadow-[0_4px_20px_rgba(15,23,42,0.05)]">
+                    <h3 className="mb-3 text-[12px] font-black text-[var(--sv-text)]">Submission flow</h3>
                     <div className="flex items-center justify-center py-1">
                         <div className="relative h-28 w-28">
                             <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
@@ -367,33 +367,33 @@ const StudentHomeDashboard = () => {
                                 )}
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-base font-black text-[var(--sv-text)] dark:text-slate-100">{submittedPct}%</span>
+                                <span className="text-base font-black text-[var(--sv-text)]">{submittedPct}%</span>
                             </div>
                         </div>
                     </div>
                     <div className="mt-4 space-y-2">
                         <div className="flex items-center justify-between text-xs font-semibold">
-                            <span className="flex items-center gap-2 text-[var(--sv-muted)] dark:text-slate-300">
-                                <span className="h-2.5 w-2.5 rounded-full bg-[#2a3fa4]" />
+                            <span className="flex items-center gap-2 text-[var(--sv-muted)]">
+                                <span className="h-2.5 w-2.5 rounded-full bg-[var(--brand-primary)]" />
                                 Submitted
                             </span>
-                            <span className="font-black text-[var(--sv-text)] dark:text-slate-100">{submittedPct}%</span>
+                            <span className="font-black text-[var(--sv-text)]">{submittedPct}%</span>
                         </div>
                         <div className="flex items-center justify-between text-xs font-semibold">
-                            <span className="flex items-center gap-2 text-[var(--sv-muted)] dark:text-slate-300">
+                            <span className="flex items-center gap-2 text-[var(--sv-muted)]">
                                 <span className="h-2.5 w-2.5 rounded-full bg-[#dbeafe]" />
                                 Remaining
                             </span>
-                            <span className="font-black text-[var(--sv-text)] dark:text-slate-100">{remainingPct}%</span>
+                            <span className="font-black text-[var(--sv-text)]">{remainingPct}%</span>
                         </div>
                     </div>
                 </div>
 
                 <Link
                     to="/student/assignments"
-                    className="flex items-center gap-2 rounded-xl bg-[#f4f7fa] p-3 text-[12px] font-bold text-[var(--sv-text)] transition hover:bg-[#eef1f6] dark:bg-[#111827] dark:text-slate-100 dark:hover:bg-[#162033]"
+                    className="flex items-center gap-2 rounded-xl bg-[var(--bg-elevated)] p-3 text-[12px] font-bold text-[var(--sv-text)] transition hover:bg-[#eef1f6]"
                 >
-                    <FileText className="h-3.5 w-3.5 text-[#2a3fa4]" />
+                    <FileText className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                     Browse all assignments
                 </Link>
             </div>

@@ -111,11 +111,11 @@ const AdminAddClass = () => {
     };
 
     return (
-        <div className="p-8 max-w-[960px] mx-auto font-sans bg-[#F8FAFB] min-h-screen">
+        <div className="p-8 max-w-[960px] mx-auto font-sans bg-[var(--bg-page)] min-h-screen">
             <div className="flex items-center justify-between mb-8">
                 <button
                     onClick={() => navigate('/admin/classes')}
-                    className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold transition-colors group"
+                    className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold transition-colors group"
                 >
                     <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
                     Back to Classes
@@ -123,7 +123,7 @@ const AdminAddClass = () => {
                 <button
                     onClick={handleRegisterClass}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-[#2f4aad] text-white px-6 py-3 rounded-[12px] font-bold text-[14px] hover:bg-blue-700 disabled:opacity-60"
+                    className="flex items-center gap-2 bg-[var(--brand-primary)] text-white px-6 py-3 rounded-[12px] font-bold text-[14px] hover:bg-blue-700 disabled:opacity-60"
                 >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                     Register New Class
@@ -131,35 +131,35 @@ const AdminAddClass = () => {
             </div>
 
             <header className="mb-8">
-                <h1 className="text-[30px] font-extrabold text-[#0F172A] tracking-tight mb-2">New Class Registration</h1>
-                <p className="text-[15px] text-slate-500 font-medium">Create a class section. Course registration is now managed from Subjects page.</p>
+                <h1 className="text-[30px] font-extrabold text-[var(--text-primary)] tracking-tight mb-2">New Class Registration</h1>
+                <p className="text-[15px] text-[var(--text-secondary)] font-medium">Create a class section. Course registration is now managed from Subjects page.</p>
             </header>
 
-            <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm p-8 space-y-5">
+            <div className="bg-[var(--bg-card)] rounded-[24px] border border-[var(--border)] shadow-sm p-8 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Class Name</label>
+                        <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Class Name</label>
                         <input
                             value={className}
                             onChange={(e) => setClassName(e.target.value)}
                             placeholder="e.g. CS 2nd Year Section A"
-                            className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none focus:ring-2 focus:ring-blue-500/20"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none focus:ring-2 focus:ring-blue-500/20"
                         />
                     </div>
                     <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Class Code</label>
+                        <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Class Code</label>
                         <input
                             value={classCode}
                             onChange={(e) => setClassCode(e.target.value)}
                             placeholder="e.g. CS223-A"
-                            className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none focus:ring-2 focus:ring-blue-500/20"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none focus:ring-2 focus:ring-blue-500/20"
                         />
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Faculty</label>
+                        <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Faculty</label>
                         <select
                             value={selectedFaculty}
                             onChange={(e) => {
@@ -167,7 +167,7 @@ const AdminAddClass = () => {
                                 setSelectedDepartment('');
                                 setSelectedSubjectIds([]);
                             }}
-                            className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none"
                         >
                             <option value="">Select Faculty</option>
                             {facultyOptions.map((f) => (
@@ -176,7 +176,7 @@ const AdminAddClass = () => {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Department</label>
+                        <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Department</label>
                         <select
                             value={selectedDepartment}
                             onChange={(e) => {
@@ -184,7 +184,7 @@ const AdminAddClass = () => {
                                 setSelectedSubjectIds([]);
                             }}
                             disabled={!selectedFaculty}
-                            className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none disabled:bg-[var(--bg-elevated)] disabled:text-[var(--text-secondary)]"
                         >
                             <option value="">Select Department</option>
                             {departmentOptions.map((d) => (
@@ -193,11 +193,11 @@ const AdminAddClass = () => {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-[14px] font-bold text-[#0F172A] mb-2">Semester</label>
+                        <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">Semester</label>
                         <select
                             value={selectedSemester}
                             onChange={(e) => setSelectedSemester(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-[12px] py-3 px-4 text-[14px] font-semibold text-black outline-none"
                         >
                             <option value="">Select Semester</option>
                             {semesterOptions.map((s) => (
@@ -208,23 +208,23 @@ const AdminAddClass = () => {
                 </div>
 
                 <div>
-                    <label className="block text-[14px] font-bold text-[#0F172A] mb-2">
+                    <label className="block text-[14px] font-bold text-[var(--text-primary)] mb-2">
                         Subjects for this class (optional)
                     </label>
-                    <div className="rounded-[12px] border border-slate-200 bg-white p-3 max-h-56 overflow-y-auto space-y-2">
+                    <div className="rounded-[12px] border border-[var(--border)] bg-[var(--bg-card)] p-3 max-h-56 overflow-y-auto space-y-2">
                         {!selectedFaculty ? (
-                            <p className="text-[13px] text-slate-500">
+                            <p className="text-[13px] text-[var(--text-secondary)]">
                                 Select a faculty to see its subjects.
                             </p>
                         ) : availableSubjects.length === 0 ? (
-                            <p className="text-[13px] text-slate-500">
+                            <p className="text-[13px] text-[var(--text-secondary)]">
                                 No subjects found for this faculty yet. Create them on the Subjects page first.
                             </p>
                         ) : (
                             availableSubjects.map((s) => (
                                 <label
                                     key={s._id}
-                                    className="flex items-center gap-2 text-[13px] text-slate-700 font-medium cursor-pointer"
+                                    className="flex items-center gap-2 text-[13px] text-[var(--text-primary)] font-medium cursor-pointer"
                                 >
                                     <input
                                         type="checkbox"
@@ -235,7 +235,7 @@ const AdminAddClass = () => {
                                     <span>
                                         {s.name} ({s.code})
                                         {getSubjectDepartments(s).length > 0 ? (
-                                            <span className="text-slate-400 font-medium">
+                                            <span className="text-[var(--text-secondary)] font-medium">
                                                 {' '}
                                                 - {getSubjectDepartments(s).join(', ')}
                                             </span>
@@ -246,7 +246,7 @@ const AdminAddClass = () => {
                         )}
                     </div>
                     {selectedSubjectIds.length > 0 && (
-                        <p className="mt-2 text-[12px] font-semibold text-slate-500">
+                        <p className="mt-2 text-[12px] font-semibold text-[var(--text-secondary)]">
                             {selectedSubjectIds.length} subject{selectedSubjectIds.length === 1 ? '' : 's'} selected
                         </p>
                     )}

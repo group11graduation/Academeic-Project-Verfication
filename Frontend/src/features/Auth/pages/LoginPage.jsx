@@ -112,13 +112,13 @@ const LoginPage = () => {
           <button
             type="button"
             onClick={() => logout()}
-            className="w-full rounded-xl border border-[#dbe3f5] bg-white/70 py-3 text-[14px] font-semibold text-slate-700 transition hover:bg-white"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-3 text-[14px] font-semibold text-[var(--text-primary)] transition hover:brightness-95"
           >
             Sign out and use another account
           </button>
           <Link
             to="/"
-            className="flex w-full items-center justify-center py-2 text-[13px] font-normal text-slate-500 transition hover:text-slate-800"
+            className="flex w-full items-center justify-center py-2 text-[13px] font-normal text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
           >
             Back to overview
           </Link>
@@ -159,7 +159,7 @@ const LoginPage = () => {
 
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <label htmlFor="login-password" className="text-[12px] font-medium text-slate-500">
+            <label htmlFor="login-password" className="text-[12px] font-medium text-[var(--text-secondary)]">
               Password
             </label>
             <Link to="/forgot-password" className={authMutedLinkClass}>
@@ -181,7 +181,7 @@ const LoginPage = () => {
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -192,12 +192,12 @@ const LoginPage = () => {
           ) : null}
         </div>
 
-        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] font-normal text-slate-500">
+        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] font-normal text-[var(--text-secondary)]">
           <input
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 rounded border-[#dbe3f5] bg-white text-[#2a3fa4] focus:ring-[#1D68E3]/40 focus:ring-offset-0"
+            className="h-4 w-4 rounded border-[#dbe3f5] bg-[var(--bg-card)] text-[var(--brand-primary)] focus:ring-[#1D68E3]/40 focus:ring-offset-0"
           />
           Remember me
         </label>

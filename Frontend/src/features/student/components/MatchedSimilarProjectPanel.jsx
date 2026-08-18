@@ -41,8 +41,8 @@ export default function MatchedSimilarProjectPanel({
                     type="button"
                     onClick={() => screenshotUrls.length && setLightboxOpen(true)}
                     className={`relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] text-left transition hover:ring-2 hover:ring-[#1D68E3]/40 ${
-                        screenshotUrls.length ? 'cursor-zoom-in' : 'cursor-default'
-                    }`}
+ screenshotUrls.length ? 'cursor-zoom-in' : 'cursor-default'
+ }`}
                     title={screenshotUrls.length ? 'View project screenshots' : 'No screenshot uploaded'}
                 >
                     {thumb ? (
@@ -62,7 +62,7 @@ export default function MatchedSimilarProjectPanel({
 
                 <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[#2a3fa4]">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[var(--brand-primary)]">
                             <ShieldCheck className="h-3 w-3" />
                             Verified archive
                         </span>
@@ -72,12 +72,12 @@ export default function MatchedSimilarProjectPanel({
                             </span>
                         ) : null}
                     </div>
-                    <h3 className="text-lg font-black text-[var(--sv-text)] dark:text-white">{match.title}</h3>
+                    <h3 className="text-lg font-black text-[var(--sv-text)]">{match.title}</h3>
                     {match.author ? (
                         <p className="mt-1 text-xs font-semibold text-[var(--sv-muted)]">By {match.author}</p>
                     ) : null}
                     {match.description ? (
-                        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--sv-muted)] dark:text-slate-300">
+                        <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--sv-muted)]">
                             {match.description}
                         </p>
                     ) : null}
@@ -87,7 +87,7 @@ export default function MatchedSimilarProjectPanel({
                                 to={galleryPath}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a4dcc]"
+                                className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a4dcc]"
                             >
                                 Open in verified projects
                                 <ExternalLink className="h-4 w-4" />
@@ -95,7 +95,7 @@ export default function MatchedSimilarProjectPanel({
                         ) : (
                             <Link
                                 to="/gallery"
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a4dcc]"
+                                className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a4dcc]"
                             >
                                 Browse verified projects
                                 <ExternalLink className="h-4 w-4" />
@@ -105,7 +105,7 @@ export default function MatchedSimilarProjectPanel({
                             <button
                                 type="button"
                                 onClick={() => setLightboxOpen(true)}
-                                className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-2 text-sm font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-4 py-2 text-sm font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)]"
                             >
                                 View screenshots
                                 <ArrowRight className="h-4 w-4" />
@@ -116,7 +116,7 @@ export default function MatchedSimilarProjectPanel({
             </div>
 
             {(recommendation || suggestedFeatures.length > 0) && (
-                <div className="border-t border-amber-200/80 bg-white/70 dark:bg-slate-900/50 px-4 py-4">
+                <div className="border-t border-amber-200/80 bg-[var(--bg-elevated)] px-4 py-4">
                     {recommendation ? (
                         <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">{recommendation}</p>
                     ) : null}

@@ -49,8 +49,8 @@ const AppRoutes = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#F8FAFB]">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+            <div className="min-h-screen flex items-center justify-center bg-[var(--bg-page)]">
+                <Loader2 className="h-10 w-10 text-[var(--accent)] animate-spin" />
             </div>
         );
     }
@@ -134,13 +134,13 @@ const AppRoutes = () => {
                 <Route
                     path="chat"
                     element={
-                        <div className="p-6 sm:p-8 md:p-10 text-xl sm:text-2xl font-bold text-slate-400">Group Chat (Coming Soon)</div>
+                        <div className="p-6 sm:p-8 md:p-10 text-xl sm:text-2xl font-bold text-[var(--text-secondary)]">Group Chat (Coming Soon)</div>
                     }
                 />
                 <Route
                     path="submissions"
                     element={
-                        <div className="p-6 sm:p-8 md:p-10 text-xl sm:text-2xl font-bold text-slate-400">Submissions (Coming Soon)</div>
+                        <div className="p-6 sm:p-8 md:p-10 text-xl sm:text-2xl font-bold text-[var(--text-secondary)]">Submissions (Coming Soon)</div>
                     }
                 />
             </Route>

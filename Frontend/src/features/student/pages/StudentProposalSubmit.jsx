@@ -403,10 +403,10 @@ const StudentProposalSubmit = () => {
                 {showRequirementWarning && (
                     <div
                         className={`mb-6 rounded-xl px-4 py-3 text-sm ${
-                            requirementCheck.passed
-                                ? 'border border-amber-200 bg-amber-50 text-amber-900'
-                                : 'border border-rose-200 bg-rose-50 text-rose-800'
-                        }`}
+ requirementCheck.passed
+ ? 'border border-amber-200 bg-amber-50 text-amber-900'
+ : 'border border-rose-200 bg-rose-50 text-rose-800'
+ }`}
                     >
                         <p className="font-black uppercase tracking-wider text-[11px] mb-1.5">
                             Teacher Requirement Check
@@ -468,21 +468,21 @@ const StudentProposalSubmit = () => {
                     </div>
                 )}
 
-                <div className="mb-4 inline-flex rounded-xl border border-[var(--sv-border)] dark:border-slate-700 p-0.5 bg-[var(--sv-card)] dark:bg-slate-900">
+                <div className="mb-4 inline-flex rounded-xl border border-[var(--sv-border)] p-0.5 bg-[var(--sv-card)]">
                     <button
                         type="button"
                         onClick={() => {
                             setInputMode('text');
                             clearAttachedProposalFile();
                         }}
-                        className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg ${inputMode === 'text' ? 'bg-[#1D68E3] text-white' : 'text-[var(--sv-muted)] dark:text-slate-300'}`}
+                        className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg ${inputMode === 'text' ? 'bg-[var(--accent)] text-white' : 'text-[var(--sv-muted)] '}`}
                     >
                         Fill form
                     </button>
                     <button
                         type="button"
                         onClick={() => setInputMode('file')}
-                        className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg ${inputMode === 'file' ? 'bg-[#1D68E3] text-white' : 'text-[var(--sv-muted)] dark:text-slate-300'}`}
+                        className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg ${inputMode === 'file' ? 'bg-[var(--accent)] text-white' : 'text-[var(--sv-muted)] '}`}
                     >
                         Upload proposal file
                     </button>
@@ -502,13 +502,13 @@ const StudentProposalSubmit = () => {
                             className={`${Z_INPUT} text-[12px]`}
                         />
                         {parsingFile && (
-                            <p className="mt-2 text-sm font-semibold text-[var(--sv-muted)] dark:text-slate-300 inline-flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin text-[#1D68E3]" /> Extracting title, description, and features…
+                            <p className="mt-2 text-sm font-semibold text-[var(--sv-muted)] inline-flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" /> Extracting title, description, and features…
                             </p>
                         )}
                         {proposalFile && !parsingFile && (
-                            <p className="mt-2 text-sm font-semibold text-[var(--sv-muted)] dark:text-slate-300 inline-flex items-center gap-2">
-                                <UploadCloud className="h-4 w-4 text-[#1D68E3]" />
+                            <p className="mt-2 text-sm font-semibold text-[var(--sv-muted)] inline-flex items-center gap-2">
+                                <UploadCloud className="h-4 w-4 text-[var(--accent)]" />
                                 {parsedFileLabel || proposalFile.name}
                             </p>
                         )}
@@ -518,7 +518,7 @@ const StudentProposalSubmit = () => {
                         <p className="mt-2 text-xs font-semibold text-[var(--sv-muted)]">
                             Required labels (any order, anywhere in the file):
                         </p>
-                        <pre className="mt-1 overflow-x-auto rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-2 text-[11px] leading-relaxed text-[var(--sv-text)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">{`Title: Your project title
+                        <pre className="mt-1 overflow-x-auto rounded-lg border border-[var(--sv-border)] bg-[var(--sv-card-muted)] p-2 text-[11px] leading-relaxed text-[var(--sv-text)]">{`Title: Your project title
 
 Description: What the project does and who it is for.
 
@@ -540,7 +540,7 @@ Features:
                 )}
 
                 {group && (
-                    <div className="mb-6 rounded-xl bg-[var(--sv-card-muted)] dark:bg-slate-800 px-4 py-3 text-sm font-semibold text-[var(--sv-text)] dark:text-slate-200">
+                    <div className="mb-6 rounded-xl bg-[var(--sv-card-muted)] px-4 py-3 text-sm font-semibold text-[var(--sv-text)]">
                         Group: {group.name} - you are the leader.
                     </div>
                 )}
@@ -582,7 +582,7 @@ Features:
                         </p>
                         <Link
                             to="/gallery"
-                            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2 text-xs font-bold text-white hover:bg-[#1a4dcc]"
+                            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-xs font-bold text-white hover:bg-[#1a4dcc]"
                         >
                             Browse verified projects
                         </Link>
@@ -624,17 +624,17 @@ Features:
                 )}
 
                 {(proposal?.teacherProposalScore != null || (proposal?.teacherVsAi && proposal.teacherVsAi !== 'not_set')) && (
-                    <div className="mb-6 rounded-xl border border-[var(--sv-border)] dark:border-slate-700 bg-[var(--sv-card-muted)] dark:bg-slate-800/50 px-4 py-3">
-                        <p className="text-[11px] font-black uppercase tracking-widest text-[var(--sv-muted)] dark:text-[var(--sv-muted)] mb-1.5">
+                    <div className="mb-6 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)]/50 px-4 py-3">
+                        <p className="text-[11px] font-black uppercase tracking-widest text-[var(--sv-muted)] mb-1.5">
                             Teacher review (separate from AI similarity)
                         </p>
                         {proposal.teacherProposalScore != null && (
-                            <p className="text-sm font-bold text-[var(--sv-text)] dark:text-slate-100">
+                            <p className="text-sm font-bold text-[var(--sv-text)]">
                                 Teacher quality score: {proposal.teacherProposalScore} / 100
                             </p>
                         )}
                         {proposal.teacherVsAi && proposal.teacherVsAi !== 'not_set' && (
-                            <p className="text-xs text-[var(--sv-muted)] dark:text-slate-300 mt-1">
+                            <p className="text-xs text-[var(--sv-muted)] mt-1">
                                 {proposal.teacherVsAi === 'aligns' && 'Your teacher agreed with the AI risk assessment.'}
                                 {proposal.teacherVsAi === 'stricter' && 'Your teacher applied a stricter standard than the AI hint.'}
                                 {proposal.teacherVsAi === 'lenient' && 'Your teacher considered the AI too harsh and accepted the direction of your work.'}
@@ -661,7 +661,7 @@ Features:
                         </div>
                     )}
                     <div>
-                        <label className="block text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-200 mb-1.5">Title</label>
+                        <label className="block text-[12px] font-bold text-[var(--sv-text)] mb-1.5">Title</label>
                         <input
                             value={title}
                             onChange={(e) => {
@@ -674,7 +674,7 @@ Features:
                         />
                     </div>
                     <div>
-                        <label className="block text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-200 mb-1.5">
+                        <label className="block text-[12px] font-bold text-[var(--sv-text)] mb-1.5">
                             Description
                         </label>
                         <textarea
@@ -691,11 +691,11 @@ Features:
                     </div>
                     <div>
                         <div className="flex items-center justify-between mb-1.5">
-                            <label className="text-[12px] font-bold text-[var(--sv-text)] dark:text-slate-200">Features</label>
+                            <label className="text-[12px] font-bold text-[var(--sv-text)]">Features</label>
                             <button
                                 type="button"
                                 onClick={addFeature}
-                                className="text-[12px] font-bold text-[#1D68E3] flex items-center gap-1"
+                                className="text-[12px] font-bold text-[var(--accent)] flex items-center gap-1"
                             >
                                 <Plus className="h-3.5 w-3.5" /> Add feature
                             </button>
@@ -752,7 +752,7 @@ Features:
                         </button>
                     </div>
                     {submitting && (
-                        <p className="mt-3 text-xs font-semibold text-[var(--sv-muted)] dark:text-slate-300">
+                        <p className="mt-3 text-xs font-semibold text-[var(--sv-muted)]">
                             AI similarity analysis can take 1–3 minutes. Keep this page open until it finishes.
                         </p>
                     )}

@@ -14,7 +14,7 @@ const ProtectedRoute = ({ children, allow, redirectTo = '/login' }) => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#F8FAFB] dark:bg-[#0F172A]">
+            <div className="min-h-screen flex items-center justify-center bg-[var(--bg-page)]">
                 <div className="h-10 w-10 border-4 border-[#1D68E3] border-t-transparent rounded-full animate-spin" />
             </div>
         );

@@ -539,8 +539,8 @@ const AdminClassDetail = () => {
     if (loading) {
         return (
             <div className="admin-page min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading class details...</p>
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin mb-2" />
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium">Loading class details...</p>
             </div>
         );
     }
@@ -548,7 +548,7 @@ const AdminClassDetail = () => {
     if (!classInfo) {
         return (
             <div className="admin-page min-h-[40vh] flex flex-col items-center justify-center">
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Class not found.</p>
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium">Class not found.</p>
                 <button onClick={() => navigate('/admin/classes')} className="mt-3 text-blue-500 text-[12px] font-bold hover:underline">
                     Back to Directory
                 </button>
@@ -561,7 +561,7 @@ const AdminClassDetail = () => {
             <div className="flex items-center justify-between mb-3 gap-2">
                 <button
                     onClick={() => navigate('/admin/classes')}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 hover:text-[#2f4aad] transition-all group"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-bold text-[12px] hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-750 hover:text-[var(--brand-primary)] transition-all group"
                 >
                     <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
                     Back to Classes
@@ -579,37 +579,37 @@ const AdminClassDetail = () => {
                         {deletingClass ? 'Deleting…' : 'Delete class'}
                     </button>
                     <div className="relative w-full max-w-[220px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
                         <input
                             type="text"
                             placeholder="Global search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 dark:text-white transition-colors"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-3 text-[12px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-colors"
                         />
                     </div>
                 </div>
             </div>
 
             <div className="mb-4">
-                <h1 className="text-lg font-black text-[#0F172A] dark:text-white tracking-tight leading-none">{classInfo.code}</h1>
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{classInfo.description}</p>
+                <h1 className="text-lg font-black text-[var(--text-primary)] tracking-tight leading-none">{classInfo.code}</h1>
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium mt-0.5">{classInfo.description}</p>
             </div>
 
-            <div className="flex items-center gap-6 border-b border-slate-200 dark:border-slate-700 mb-4 transition-colors">
+            <div className="flex items-center gap-6 border-b border-[var(--border)] mb-4 transition-colors">
                 <button
                     onClick={() => { setActiveTab('students'); setSearchQuery(''); }}
-                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'students' ? 'text-[#2f4aad]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'students' ? 'text-[var(--brand-primary)]' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)] hover:text-[var(--text-secondary)] dark:hover:text-slate-300'}`}
                 >
                     Students
-                    {activeTab === 'students' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#2f4aad] rounded-full" />}
+                    {activeTab === 'students' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[var(--brand-primary)] rounded-full" />}
                 </button>
                 <button
                     onClick={() => { setActiveTab('teachers'); setSearchQuery(''); }}
-                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'teachers' ? 'text-[#2f4aad]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'teachers' ? 'text-[var(--brand-primary)]' : 'text-[var(--text-secondary)] dark:text-[var(--text-secondary)] hover:text-[var(--text-secondary)] dark:hover:text-slate-300'}`}
                 >
                     Teachers
-                    {activeTab === 'teachers' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#2f4aad] rounded-full" />}
+                    {activeTab === 'teachers' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[var(--brand-primary)] rounded-full" />}
                 </button>
             </div>
 
@@ -620,49 +620,49 @@ const AdminClassDetail = () => {
                     { label: 'Department', value: classInfo.department || '-' },
                     { label: 'Total Teachers', value: teachers.length },
                 ].map((stat, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm transition-colors">
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1 transition-colors">{stat.label}</p>
-                        <h3 className="text-base font-black text-[#0F172A] dark:text-white tracking-tight leading-tight truncate transition-colors">{stat.value}</h3>
+                    <div key={i} className="bg-[var(--bg-card)] p-3 rounded-lg border border-[var(--border)] shadow-sm transition-colors">
+                        <p className="text-[10px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mb-1 transition-colors">{stat.label}</p>
+                        <h3 className="text-base font-black text-[var(--text-primary)] tracking-tight leading-tight truncate transition-colors">{stat.value}</h3>
                     </div>
                 ))}
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 mb-4">
-                <h3 className="text-sm font-black text-[#0F172A] dark:text-white mb-3">Class Information & Subjects</h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm p-4 mb-4">
+                <h3 className="text-sm font-black text-[var(--text-primary)] mb-3">Class Information & Subjects</h3>
+                <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mb-3">
                     Update class name, code, faculty, department, semester, and subjects. Duplicate names or codes are not allowed.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
                     <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                             Class Name
                         </label>
                         <input
                             value={editClassName}
                             onChange={(e) => setEditClassName(e.target.value)}
                             placeholder="e.g. CS 2nd Year Section A"
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none dark:text-white"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-2.5 text-[12px] outline-none"
                         />
                     </div>
                     <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                             Class Code
                         </label>
                         <input
                             value={editClassCode}
                             onChange={(e) => setEditClassCode(e.target.value)}
                             placeholder="e.g. CA222"
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] font-semibold outline-none uppercase dark:text-white"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-2.5 text-[12px] font-semibold outline-none uppercase"
                         />
                     </div>
                     <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                             Faculty
                         </label>
                         <select
                             value={editFaculty}
                             onChange={(e) => handleFacultyChange(e.target.value)}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none dark:text-white"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-2.5 text-[12px] outline-none"
                         >
                             <option value="">Select Faculty</option>
                             {facultyOptions.map((f) => (
@@ -671,14 +671,14 @@ const AdminClassDetail = () => {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                             Department
                         </label>
                         <select
                             value={editDepartment}
                             onChange={(e) => handleDepartmentChange(e.target.value)}
                             disabled={!editFaculty}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none disabled:opacity-60 dark:text-white"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-2.5 text-[12px] outline-none disabled:opacity-60"
                         >
                             <option value="">Select Department</option>
                             {departmentOptions.map((d) => (
@@ -687,13 +687,13 @@ const AdminClassDetail = () => {
                         </select>
                     </div>
                     <div className="md:col-span-2">
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                             Semester
                         </label>
                         <select
                             value={editSemester}
                             onChange={(e) => setEditSemester(e.target.value)}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-2.5 text-[12px] outline-none dark:text-white"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 px-2.5 text-[12px] outline-none"
                         >
                             <option value="">Select Semester</option>
                             {semesterOptions.map((s) => (
@@ -702,10 +702,10 @@ const AdminClassDetail = () => {
                         </select>
                     </div>
                 </div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                     Subjects
                 </label>
-                <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-2 max-h-36 overflow-y-auto mb-3">
+                <div className="rounded-lg border border-[var(--border)] p-2 max-h-36 overflow-y-auto mb-3">
                     {availableSubjects.map((s) => (
                         <label key={s._id} className="flex items-center gap-2 text-[11px] py-0.5 cursor-pointer">
                             <input
@@ -713,16 +713,16 @@ const AdminClassDetail = () => {
                                 checked={selectedSubjectIds.includes(String(s._id))}
                                 onChange={() => handleToggleSubject(s._id)}
                             />
-                            <span className="text-slate-700 dark:text-slate-300">
+                            <span className="text-[var(--text-primary)]">
                                 {s.name} ({s.code})
                                 {getSubjectDepartments(s).length > 0 ? (
-                                    <span className="text-slate-400"> - {getSubjectDepartments(s).join(', ')}</span>
+                                    <span className="text-[var(--text-secondary)]"> - {getSubjectDepartments(s).join(', ')}</span>
                                 ) : null}
                             </span>
                         </label>
                     ))}
                     {availableSubjects.length === 0 && (
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-[var(--text-secondary)]">
                             {!editFaculty
                                 ? 'Select a faculty to see matching subjects.'
                                 : 'No subjects found for this faculty/department. Create them on the Subjects page first.'}
@@ -732,16 +732,16 @@ const AdminClassDetail = () => {
                 <button
                     onClick={handleSaveClassInfo}
                     disabled={savingClassInfo}
-                    className="px-3 py-1.5 bg-[#2f4aad] text-white rounded-lg text-[12px] font-bold hover:bg-blue-600 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-[var(--brand-primary)] text-white rounded-lg text-[12px] font-bold hover:bg-blue-600 disabled:opacity-50"
                 >
                     {savingClassInfo ? 'Saving...' : 'Save Class Updates'}
                 </button>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden pb-4 transition-colors">
+            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden pb-4 transition-colors">
 
                 <div className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                    <h3 className="text-sm font-black text-[#0F172A] dark:text-white transition-colors">
+                    <h3 className="text-sm font-black text-[var(--text-primary)] transition-colors">
                         {activeTab === 'students' ? 'Enrolled Students' : 'Class Teachers'}
                     </h3>
 
@@ -751,7 +751,7 @@ const AdminClassDetail = () => {
                                 <select
                                     value={selectedTeacherId}
                                     onChange={(e) => handleTeacherSelect(e.target.value)}
-                                    className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg py-2 px-3 text-[12px] text-slate-900 dark:text-white w-full sm:w-[200px] border border-slate-200 dark:border-slate-700 outline-none"
+                                    className="bg-[var(--bg-page)] rounded-lg py-2 px-3 text-[12px] text-[var(--text-primary)] w-full sm:w-[200px] border border-[var(--border)] outline-none"
                                 >
                                     <option value="">Select teacher...</option>
                                     {(allTeachers || []).map((t) => {
@@ -766,16 +766,16 @@ const AdminClassDetail = () => {
                                     })}
                                 </select>
                                 {(allTeachers || []).length === 0 && (
-                                    <p className="text-[12px] text-slate-500">No teachers in the system yet.</p>
+                                    <p className="text-[12px] text-[var(--text-secondary)]">No teachers in the system yet.</p>
                                 )}
-                                <div className="bg-[#F8FAFB] dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1.5 max-h-28 overflow-y-auto w-full sm:min-w-[200px] text-slate-900 dark:text-white">
+                                <div className="bg-[var(--bg-page)] rounded-lg border border-[var(--border)] px-2 py-1.5 max-h-28 overflow-y-auto w-full sm:min-w-[200px] text-[var(--text-primary)]">
                                     {(classInfo?.subjects || []).length === 0 ? (
-                                        <p className="text-[12px] text-slate-500">
+                                        <p className="text-[12px] text-[var(--text-secondary)]">
                                             Add subjects under Class Information above, save, then assign teachers here.
                                         </p>
                                     ) : (
                                         <>
-                                            <p className="text-[11px] font-semibold text-slate-500 mb-1">
+                                            <p className="text-[11px] font-semibold text-[var(--text-secondary)] mb-1">
                                                 Select one or more subjects (checkboxes)
                                             </p>
                                             {(classInfo?.subjects || []).map((s) => (
@@ -799,7 +799,7 @@ const AdminClassDetail = () => {
                                         assigningTeacher ||
                                         !(classInfo?.subjects || []).length
                                     }
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2f4aad] text-white rounded-lg font-bold text-[11px] hover:bg-blue-600 transition-all disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--brand-primary)] text-white rounded-lg font-bold text-[11px] hover:bg-blue-600 transition-all disabled:opacity-50"
                                 >
                                     {assigningTeacher
                                         ? 'Saving...'
@@ -810,32 +810,32 @@ const AdminClassDetail = () => {
                             </>
                         )}
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
                             <input
                                 type="text"
                                 placeholder={`Filter ${activeTab}...`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="bg-[#F8FAFB] dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] w-full sm:w-[180px] outline-none focus:ring-2 focus:ring-blue-500/10 dark:text-white transition-all"
+                                className="bg-[var(--bg-page)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-3 text-[12px] w-full sm:w-[180px] outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
                             />
                         </div>
                     </div>
                 </div>
                 {activeTab === 'students' && (
                     <>
-                        <p className="px-4 pb-2 text-[10px] text-slate-500 leading-snug max-w-3xl">
+                        <p className="px-4 pb-2 text-[10px] text-[var(--text-secondary)] leading-snug max-w-3xl">
                             Students who are <strong>not in this class</strong> ({studentCandidates.length} available): anyone already in the
                             roster above or with this class on their profile is hidden. Others can be added, or moved here from another profile
                             class (confirm when moving).
                         </p>
                         <div className="px-4 pb-4">
-                            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-[#F8FAFB] dark:bg-slate-900/40 p-3">
+                            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-page)] p-3">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                     <div>
-                                        <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        <h4 className="text-[11px] font-black uppercase tracking-wider text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                             Add students to this class
                                         </h4>
-                                        <p className="mt-0.5 max-w-xl text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                                        <p className="mt-0.5 max-w-xl text-[10px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                             The <strong>Current class</strong> column shows each student&apos;s profile class.{' '}
                                             <strong>Select all</strong> selects everyone in the list; <strong>Add selected</strong> assigns or moves them here.
                                         </p>
@@ -848,7 +848,7 @@ const AdminClassDetail = () => {
                                                 assigningStudent ||
                                                 !filteredStudentCandidates.some((s) => studentCanBeBulkAddedToThisClass(s))
                                             }
-                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--text-primary)] shadow-sm hover:bg-[var(--bg-elevated)] disabled:opacity-50 dark:hover:bg-slate-700"
                                         >
                                             Select all
                                         </button>
@@ -856,7 +856,7 @@ const AdminClassDetail = () => {
                                             type="button"
                                             onClick={clearPickedStudents}
                                             disabled={pickedStudentProfileIds.size === 0 || assigningStudent}
-                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--text-primary)] shadow-sm hover:bg-[var(--bg-elevated)] disabled:opacity-50 dark:hover:bg-slate-700"
                                         >
                                             Clear selection
                                         </button>
@@ -864,7 +864,7 @@ const AdminClassDetail = () => {
                                             type="button"
                                             onClick={handleAddSelectedStudents}
                                             disabled={pickedStudentProfileIds.size === 0 || assigningStudent}
-                                            className="flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-600 disabled:opacity-50"
+                                            className="flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-600 disabled:opacity-50"
                                         >
                                             {assigningStudent ? (
                                                 <>
@@ -878,25 +878,25 @@ const AdminClassDetail = () => {
                                     </div>
                                 </div>
                                 <div className="relative mt-2">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-secondary)]" />
                                     <input
                                         type="text"
                                         value={candidateQuery}
                                         onChange={(e) => setCandidateQuery(e.target.value)}
                                         placeholder="Search by name, ID, email, or class code…"
-                                        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] py-2 pl-9 pr-3 text-[12px] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
                                     />
                                 </div>
-                                <div className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800">
+                                <div className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-card)]">
                                     {filteredStudentCandidates.length === 0 ? (
-                                        <p className="p-3 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                        <p className="p-3 text-[11px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                             {studentCandidates.length === 0
                                                 ? 'No students available to add: everyone is already on this class in their profile, or listed in the table above.'
                                                 : 'No students match your search.'}
                                         </p>
                                     ) : (
                                         <ul className="divide-y divide-slate-100 dark:divide-slate-700">
-                                            <li className="hidden sm:flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-400">
+                                            <li className="hidden sm:flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)]/80 dark:text-[var(--text-secondary)]">
                                                 <span className="w-4 shrink-0" aria-hidden />
                                                 <span className="min-w-0 flex-1">Student</span>
                                                 <span className="w-28 shrink-0 text-right sm:w-32">Current class</span>
@@ -909,22 +909,22 @@ const AdminClassDetail = () => {
                                                 return (
                                                     <li key={k}>
                                                         <label
-                                                            className={`flex items-center gap-2 px-2.5 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/40 ${
-                                                                canAdd ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
-                                                            }`}
+                                                            className={`flex items-center gap-2 px-2.5 py-2 transition-colors hover:bg-[var(--bg-elevated)] dark:hover:bg-slate-700/40 ${
+ canAdd ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+ }`}
                                                         >
                                                             <input
                                                                 type="checkbox"
                                                                 disabled={!canAdd}
-                                                                className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[#2f4aad] focus:ring-[#2f4aad] disabled:cursor-not-allowed"
+                                                                className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[var(--brand-primary)] focus:ring-[#2f4aad] disabled:cursor-not-allowed"
                                                                 checked={pickedStudentProfileIds.has(k)}
                                                                 onChange={() => togglePickStudent(k)}
                                                             />
                                                             <div className="min-w-0 flex-1">
-                                                                <div className="truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                                                                <div className="truncate text-[12px] font-bold text-[var(--text-primary)]">
                                                                     {s.name || 'Unknown'}
                                                                 </div>
-                                                                <div className="truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                                                <div className="truncate text-[10px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                                                     {s.studentId || 'no ID'} · {s.email || '-'}
                                                                 </div>
                                                             </div>
@@ -932,7 +932,7 @@ const AdminClassDetail = () => {
                                                                 {assignedDisplay ? (
                                                                     <Link
                                                                         to={`/admin/classes/${encodeURIComponent(assignedDisplay)}`}
-                                                                        className="inline-block max-w-full truncate font-mono text-[11px] font-bold text-[#2f4aad] hover:underline"
+                                                                        className="inline-block max-w-full truncate font-mono text-[11px] font-bold text-[var(--brand-primary)] hover:underline"
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     >
                                                                         {assignedDisplay}
@@ -980,22 +980,22 @@ const AdminClassDetail = () => {
                                                 state={{ from: location.pathname }}
                                                 className="hover:scale-105 transition-transform"
                                             >
-                                                <img src={item.photo || 'https://via.placeholder.com/150'} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-100 dark:border-slate-700 shadow-sm transition-colors" />
+                                                <img src={item.photo || 'https://via.placeholder.com/150'} alt="" className="w-8 h-8 rounded-full object-cover border border-[var(--border)] shadow-sm transition-colors" />
                                             </Link>
                                             <div>
                                                 <Link
                                                     to={`/admin/${activeTab}/${activeTab === 'students' ? item.studentId : item.teacherId}`}
                                                     state={{ from: location.pathname }}
-                                                    className="text-[12px] font-bold text-[#0F172A] dark:text-white hover:text-[#2f4aad] transition-colors line-clamp-1"
+                                                    className="text-[12px] font-bold text-[var(--text-primary)] hover:text-[var(--brand-primary)] transition-colors line-clamp-1"
                                                 >
                                                     {item.name || 'Unknown User'}
                                                 </Link>
-                                                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors line-clamp-1">{item.email}</p>
+                                                <p className="text-[10px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] transition-colors line-clamp-1">{item.email}</p>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="app-table-td">
-                                        <span className="text-[12px] font-bold text-slate-600 dark:text-slate-300 tracking-tight transition-colors">
+                                        <span className="text-[12px] font-bold text-[var(--text-secondary)] tracking-tight transition-colors">
                                             {activeTab === 'students' ? item.studentId : item.department}
                                         </span>
                                     </td>
@@ -1006,27 +1006,27 @@ const AdminClassDetail = () => {
                                                     item.subjects.map((sub) => (
                                                         <span
                                                             key={sub._id}
-                                                            className="inline-flex rounded-md bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2f4aad]"
+                                                            className="inline-flex rounded-md bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-[var(--brand-primary)]"
                                                         >
                                                             {sub.name}
                                                             {sub.code ? ` (${sub.code})` : ''}
                                                         </span>
                                                     ))
                                                 ) : (
-                                                    <span className="text-[12px] text-slate-400">No subjects</span>
+                                                    <span className="text-[12px] text-[var(--text-secondary)]">No subjects</span>
                                                 )}
                                             </div>
                                         </td>
                                     )}
                                     {activeTab === 'students' && (
                                         <td className="app-table-td">
-                                            <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                                            <span className="font-mono text-[11px] font-bold text-[var(--text-primary)]">
                                                 {currentClassCode || id || '-'}
                                             </span>
                                         </td>
                                     )}
                                     <td className="app-table-td">
-                                        <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 transition-colors">
+                                        <span className="text-[12px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] transition-colors">
                                             {activeTab === 'students'
                                                 ? (item.username ? `${item.username} / ${item.email}` : item.email)
                                                 : item.email}
@@ -1044,7 +1044,7 @@ const AdminClassDetail = () => {
                                                 {(item.hasAccount ?? Boolean(item.userId)) ? 'Has Account' : 'No Account'}
                                             </span>
                                             {generatedPasscodes[String(item._id)] && (
-                                                <div className="mt-1 text-[11px] font-mono text-slate-700">
+                                                <div className="mt-1 text-[11px] font-mono text-[var(--text-primary)]">
                                                     Passcode: {generatedPasscodes[String(item._id)]}
                                                 </div>
                                             )}
@@ -1056,7 +1056,7 @@ const AdminClassDetail = () => {
                                                 <button
                                                     onClick={() => handleGenerateStudentAccount(item._id, item.name || item.studentId)}
                                                     disabled={generatingStudentPasscodeFor === String(item._id)}
-                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] disabled:opacity-60"
                                                 >
                                                     {generatingStudentPasscodeFor === String(item._id) ? 'Generating...' : 'Generate/Reset'}
                                                 </button>
@@ -1073,7 +1073,7 @@ const AdminClassDetail = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleTeacherSelect(String(item.userId || item._id))}
-                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50"
+                                                    className="px-2 py-1 text-[10px] font-bold rounded-md border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                                                 >
                                                     Edit subjects
                                                 </button>

@@ -155,8 +155,8 @@ const AdminAdmins = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading administrators...</p>
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin mb-2" />
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium">Loading administrators...</p>
             </div>
         );
     }
@@ -165,23 +165,23 @@ const AdminAdmins = () => {
         <div className="font-sans text-[13px] transition-colors">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-lg font-extrabold tracking-tight text-[#0F172A] dark:text-white">Admins</h1>
-                    <p className="mt-0.5 text-[11px] font-semibold text-slate-400">System administrators</p>
+                    <h1 className="text-lg font-extrabold tracking-tight text-[var(--text-primary)]">Admins</h1>
+                    <p className="mt-0.5 text-[11px] font-semibold text-[var(--text-secondary)]">System administrators</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="relative w-full sm:w-[260px]">
-                        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
                         <input
                             type="text"
                             placeholder="Search"
-                            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#2f4aad]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                            className="w-full rounded-full border border-[var(--border)] bg-[var(--bg-card)] py-2.5 pl-10 pr-4 text-[12px] font-medium text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#2f4aad]/15"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
                     <Link
                         to="/admin/admins/new"
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#2f4aad] px-4 py-2.5 text-[12px] font-bold text-white transition hover:bg-[#263c96]"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 py-2.5 text-[12px] font-bold text-white transition hover:brightness-110"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New Admin
@@ -189,26 +189,26 @@ const AdminAdmins = () => {
                 </div>
             </div>
 
-            <div className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 dark:bg-slate-900 dark:ring-white/10">
+            <div className="overflow-hidden rounded-[1.25rem] bg-[var(--bg-card)] shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-[var(--border)]">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[720px] border-collapse text-left">
                         <thead>
-                            <tr className="border-b border-slate-100 dark:border-white/10">
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">
-                                    <span className="text-[#2f4aad]">Admin</span>
+                            <tr className="border-b border-[var(--border)]">
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">
+                                    <span className="text-[var(--brand-primary)]">Admin</span>
                                     <span className="text-slate-300"> / ID</span>
                                 </th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Email</th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Passcode</th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Status</th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Created</th>
-                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 text-right">Actions</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">Email</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">Passcode</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">Status</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)]">Created</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-[var(--text-secondary)] text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredAdmins.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-5 py-12 text-center text-[12px] font-medium text-slate-400">
+                                    <td colSpan={6} className="px-5 py-12 text-center text-[12px] font-medium text-[var(--text-secondary)]">
                                         No administrative accounts found.
                                     </td>
                                 </tr>
@@ -219,18 +219,18 @@ const AdminAdmins = () => {
                                     return (
                                         <tr
                                             key={admin._id}
-                                            className="group border-b border-slate-50 transition-colors last:border-0 hover:bg-[#eef2fb]/70 dark:border-white/5 dark:hover:bg-white/5"
+                                            className="group border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--bg-elevated)]/70 dark:hover:bg-white/5"
                                         >
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef2fb] text-[13px] font-extrabold text-[#2f4aad]">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[13px] font-extrabold text-[var(--brand-primary)]">
                                                         {initial}
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <p className="truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">
+                                                        <p className="truncate text-[13px] font-bold text-[var(--text-primary)]">
                                                             {admin.systemId || admin.username || 'Admin'}
                                                         </p>
-                                                        <p className="truncate text-[11px] font-semibold text-[#2f4aad]">
+                                                        <p className="truncate text-[11px] font-semibold text-[var(--brand-primary)]">
                                                             {admin.username || admin.systemId || '—'}
                                                         </p>
                                                     </div>
@@ -242,10 +242,10 @@ const AdminAdmins = () => {
                                                         type="email"
                                                         value={editEmail}
                                                         onChange={(e) => setEditEmail(e.target.value)}
-                                                        className="w-full min-w-[200px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="w-full min-w-[200px] rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] font-semibold text-[var(--text-primary)]"
                                                     />
                                                 ) : (
-                                                    <span className="text-[13px] font-medium text-slate-600 dark:text-slate-300">
+                                                    <span className="text-[13px] font-medium text-[var(--text-secondary)]">
                                                         {admin.email}
                                                     </span>
                                                 )}
@@ -253,13 +253,13 @@ const AdminAdmins = () => {
                                             <td className="px-5 py-4">
                                                 {admin.passcode ? (
                                                     <div className="inline-flex items-center gap-1.5">
-                                                        <span className="font-mono text-[12px] font-bold tracking-wider text-slate-700 dark:text-slate-200">
+                                                        <span className="font-mono text-[12px] font-bold tracking-wider text-[var(--text-primary)]">
                                                             {revealedPasscodes[admin._id] ? admin.passcode : '••••••'}
                                                         </span>
-                                                        <button type="button" onClick={() => handleCopyPasscode(admin._id, admin.passcode)} className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-[#2f4aad]" title="Copy">
+                                                        <button type="button" onClick={() => handleCopyPasscode(admin._id, admin.passcode)} className="rounded-full p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--brand-primary)]" title="Copy">
                                                             {copiedAdminId === admin._id ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                                                         </button>
-                                                        <button type="button" onClick={() => togglePasscode(admin._id)} className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-[#2f4aad]" title="Toggle">
+                                                        <button type="button" onClick={() => togglePasscode(admin._id)} className="rounded-full p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--brand-primary)]" title="Toggle">
                                                             {revealedPasscodes[admin._id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                                                         </button>
                                                     </div>
@@ -268,7 +268,7 @@ const AdminAdmins = () => {
                                                         type="button"
                                                         onClick={() => handleGeneratePasscode(admin._id)}
                                                         disabled={generatingPasscodeId === admin._id}
-                                                        className="inline-flex items-center gap-1 rounded-full bg-[#eef2fb] px-3 py-1.5 text-[11px] font-bold text-[#2f4aad] hover:bg-[#2f4aad] hover:text-white disabled:opacity-60"
+                                                        className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-elevated)] px-3 py-1.5 text-[11px] font-bold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white disabled:opacity-60"
                                                     >
                                                         {generatingPasscodeId === admin._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                                         Generate
@@ -276,12 +276,12 @@ const AdminAdmins = () => {
                                                 )}
                                             </td>
                                             <td className="px-5 py-4">
-                                                <span className="text-[12px] font-medium text-slate-500">
+                                                <span className="text-[12px] font-medium text-[var(--text-secondary)]">
                                                     {admin.accountStatus || 'ACTIVE'}
                                                 </span>
                                             </td>
                                             <td className="px-5 py-4">
-                                                <span className="text-[12px] font-medium text-slate-500">
+                                                <span className="text-[12px] font-medium text-[var(--text-secondary)]">
                                                     {admin.createdAt ? new Date(admin.createdAt).toLocaleDateString() : '—'}
                                                 </span>
                                             </td>
@@ -293,11 +293,11 @@ const AdminAdmins = () => {
                                                                 type="button"
                                                                 onClick={submitEdit}
                                                                 disabled={savingEdit}
-                                                                className="rounded-full bg-[#2f4aad] px-4 py-1.5 text-[11px] font-bold text-white hover:bg-[#263c96] disabled:opacity-60"
+                                                                className="rounded-full bg-[var(--brand-primary)] px-4 py-1.5 text-[11px] font-bold text-white hover:brightness-110 disabled:opacity-60"
                                                             >
                                                                 {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
                                                             </button>
-                                                            <button type="button" onClick={cancelEdit} className="rounded-full px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-100">
+                                                            <button type="button" onClick={cancelEdit} className="rounded-full px-3 py-1.5 text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
                                                                 Cancel
                                                             </button>
                                                         </>
@@ -306,14 +306,14 @@ const AdminAdmins = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => startEdit(admin)}
-                                                                className="rounded-full bg-[#2f4aad] px-4 py-1.5 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100"
+                                                                className="rounded-full bg-[var(--brand-primary)] px-4 py-1.5 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100"
                                                             >
                                                                 View
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => startEdit(admin)}
-                                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300"
+                                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-slate-200 dark:bg-white/10"
                                                                 title="Update"
                                                             >
                                                                 <Pencil className="h-3.5 w-3.5" />
@@ -322,7 +322,7 @@ const AdminAdmins = () => {
                                                                 type="button"
                                                                 onClick={() => handleDelete(admin._id)}
                                                                 disabled={deletingId === admin._id}
-                                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-60 dark:bg-white/10"
+                                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-red-50 hover:text-red-600 disabled:opacity-60 dark:bg-white/10"
                                                                 title="Delete"
                                                             >
                                                                 {deletingId === admin._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}

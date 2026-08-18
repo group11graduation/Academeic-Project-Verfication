@@ -26,7 +26,7 @@ import {
 const CARD_THEMES = [
     { iconBg: 'bg-emerald-50', iconText: 'text-emerald-600', badge: 'bg-emerald-50 text-emerald-700' },
     { iconBg: 'bg-violet-50', iconText: 'text-violet-600', badge: 'bg-violet-50 text-violet-700' },
-    { iconBg: 'bg-[#eef2fb]', iconText: 'text-[#2f4aad]', badge: 'bg-[#eef2fb] text-[#2f4aad]' },
+    { iconBg: 'bg-[var(--bg-elevated)]', iconText: 'text-[var(--brand-primary)]', badge: 'bg-[var(--bg-elevated)] text-[var(--brand-primary)]' },
     { iconBg: 'bg-orange-50', iconText: 'text-orange-600', badge: 'bg-orange-50 text-orange-700' },
     { iconBg: 'bg-sky-50', iconText: 'text-sky-600', badge: 'bg-sky-50 text-sky-700' },
     { iconBg: 'bg-rose-50', iconText: 'text-rose-600', badge: 'bg-rose-50 text-rose-700' },
@@ -260,28 +260,28 @@ const AdminSubjects = () => {
         <div className="admin-page font-sans transition-colors">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-lg font-extrabold leading-[1.2] tracking-tight text-[#0F172A] dark:text-white">
+                    <h1 className="text-lg font-extrabold leading-[1.2] tracking-tight text-[var(--text-primary)]">
                         Subjects
                     </h1>
-                    <p className="mt-0.5 text-[12px] font-normal text-slate-500">
+                    <p className="mt-0.5 text-[12px] font-normal text-[var(--text-secondary)]">
                         Courses grouped by faculty and department
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="relative w-full sm:w-[240px]">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
                         <input
                             type="text"
                             placeholder="Search subjects..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full rounded-full border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] font-normal text-slate-700 outline-none focus:ring-2 focus:ring-[#2f4aad]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                            className="w-full rounded-full border border-[var(--border)] bg-[var(--bg-card)] py-2 pl-9 pr-3 text-[12px] font-normal text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[#2f4aad]/15"
                         />
                     </div>
                     <button
                         type="button"
                         onClick={openCreateModal}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#2f4aad] px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-[#263c96]"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-semibold text-white transition hover:brightness-110"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New Subject
@@ -290,20 +290,20 @@ const AdminSubjects = () => {
             </div>
 
             {showModal && (
-                <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-sm">
                     <div className="mb-3 flex items-center justify-between">
                         <div>
-                            <h2 className="text-sm font-semibold text-slate-800">
+                            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
                                 {isEditing ? 'Edit Course / Subject' : 'New Course Registration'}
                             </h2>
-                            <p className="mt-0.5 text-[11px] font-normal text-slate-500">
+                            <p className="mt-0.5 text-[11px] font-normal text-[var(--text-secondary)]">
                                 Register course subject and map classes/teachers.
                             </p>
                         </div>
                         <button
                             type="button"
                             onClick={() => setShowModal(false)}
-                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-800"
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         >
                             <X className="h-3.5 w-3.5" />
                         </button>
@@ -312,7 +312,7 @@ const AdminSubjects = () => {
                     <form id="subjectForm" onSubmit={handleSubmit} className="space-y-3">
                         <div className="flex flex-col gap-3 sm:flex-row">
                             <div className="flex-1">
-                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                     Course / Subject Name <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -321,11 +321,11 @@ const AdminSubjects = () => {
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="e.g. Advanced Calculus"
-                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#2f4aad]"
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)] focus:border-[#2f4aad]"
                                 />
                             </div>
                             <div className="w-full sm:w-[140px]">
-                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                     Code <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -334,27 +334,27 @@ const AdminSubjects = () => {
                                     value={formData.code}
                                     onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                                     placeholder="MATH301"
-                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[12px] uppercase text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#2f4aad]"
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 font-mono text-[12px] uppercase text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)] focus:border-[#2f4aad]"
                                 />
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                     Faculties
-                                    <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+                                    <span className="ml-1 font-normal normal-case tracking-normal text-[var(--text-secondary)]">
                                         (select one or more)
                                     </span>
                                 </label>
-                                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-2">
                                     {facultyOptions.length === 0 ? (
-                                        <p className="px-1 py-1 text-[11px] text-slate-400">No faculties in academic structure yet.</p>
+                                        <p className="px-1 py-1 text-[11px] text-[var(--text-secondary)]">No faculties in academic structure yet.</p>
                                     ) : (
                                         facultyOptions.map((f) => (
                                             <label
                                                 key={f}
-                                                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-normal text-slate-700 hover:bg-white"
+                                                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-normal text-[var(--text-primary)] hover:bg-[var(--bg-card)]"
                                             >
                                                 <input
                                                     type="checkbox"
@@ -369,22 +369,22 @@ const AdminSubjects = () => {
                                 </div>
                             </div>
                             <div>
-                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                     Departments
-                                    <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+                                    <span className="ml-1 font-normal normal-case tracking-normal text-[var(--text-secondary)]">
                                         (select one or more)
                                     </span>
                                 </label>
-                                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-2">
                                     {formData.faculties.length === 0 ? (
-                                        <p className="px-1 py-1 text-[11px] text-slate-400">Select faculty first.</p>
+                                        <p className="px-1 py-1 text-[11px] text-[var(--text-secondary)]">Select faculty first.</p>
                                     ) : departmentOptions.length === 0 ? (
-                                        <p className="px-1 py-1 text-[11px] text-slate-400">No departments under selected faculties.</p>
+                                        <p className="px-1 py-1 text-[11px] text-[var(--text-secondary)]">No departments under selected faculties.</p>
                                     ) : (
                                         departmentOptions.map((d) => (
                                             <label
                                                 key={d}
-                                                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-normal text-slate-700 hover:bg-white"
+                                                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-normal text-[var(--text-primary)] hover:bg-[var(--bg-card)]"
                                             >
                                                 <input
                                                     type="checkbox"
@@ -401,13 +401,13 @@ const AdminSubjects = () => {
                         </div>
 
                         <div>
-                            <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                            <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                 Teacher (Optional)
                             </label>
                             <select
                                 value={formData.teacherId}
                                 onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })}
-                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-[#2f4aad]"
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[#2f4aad]"
                             >
                                 <option value="">Select Teacher...</option>
                                 {filteredTeachersForSubject.map((t) => (
@@ -418,18 +418,18 @@ const AdminSubjects = () => {
                             </select>
                         </div>
 
-                        <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-3">
                             <button
                                 type="button"
                                 onClick={() => setShowModal(false)}
-                                className="rounded-lg px-4 py-1.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-100"
+                                className="rounded-lg px-4 py-1.5 text-[12px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="inline-flex min-w-[120px] items-center justify-center gap-1.5 rounded-lg bg-[#2f4aad] px-5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#263c96]"
+                                className="inline-flex min-w-[120px] items-center justify-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-5 py-1.5 text-[12px] font-semibold text-white hover:brightness-110"
                             >
                                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEditing ? 'Save' : 'Create'}
                             </button>
@@ -440,27 +440,27 @@ const AdminSubjects = () => {
 
             {loading ? (
                 <div className="flex h-40 items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-[#2f4aad]" />
+                    <Loader2 className="h-8 w-8 animate-spin text-[var(--brand-primary)]" />
                 </div>
             ) : subjects.length === 0 ? (
-                <div className="rounded-[1.25rem] border border-slate-200 bg-white p-10 text-center dark:border-white/10 dark:bg-slate-900">
-                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#eef2fb]">
-                        <BookOpen className="h-6 w-6 text-[#2f4aad]" />
+                <div className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--bg-card)] p-10 text-center">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-elevated)]">
+                        <BookOpen className="h-6 w-6 text-[var(--brand-primary)]" />
                     </div>
-                    <h3 className="mb-1 text-sm font-semibold text-slate-800 dark:text-white">No subjects found</h3>
-                    <p className="mb-4 text-[12px] font-normal text-slate-500">
+                    <h3 className="mb-1 text-sm font-semibold text-[var(--text-primary)]">No subjects found</h3>
+                    <p className="mb-4 text-[12px] font-normal text-[var(--text-secondary)]">
                         Create subjects and map them to teachers and classes.
                     </p>
                     <button
                         type="button"
                         onClick={openCreateModal}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#2f4aad] px-4 py-2 text-[12px] font-semibold text-white hover:bg-[#263c96]"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-semibold text-white hover:brightness-110"
                     >
                         <Plus className="h-3.5 w-3.5" /> Create First Subject
                     </button>
                 </div>
             ) : filteredSubjects.length === 0 ? (
-                <div className="rounded-[1.25rem] border border-slate-100 bg-white px-6 py-12 text-center text-[13px] font-normal text-slate-400">
+                <div className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--bg-card)] px-6 py-12 text-center text-[13px] font-normal text-[var(--text-secondary)]">
                     No subjects match your search.
                 </div>
             ) : (
@@ -470,19 +470,19 @@ const AdminSubjects = () => {
                             <section key={`${faculty}-${department}`}>
                                 <div className="mb-4 flex items-center justify-between gap-3">
                                     <div className="flex min-w-0 items-center gap-3">
-                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2fb] text-[#2f4aad]">
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--bg-elevated)] text-[var(--brand-primary)]">
                                             <Monitor className="h-5 w-5" strokeWidth={2} />
                                         </div>
                                         <div className="min-w-0">
-                                            <h2 className="truncate text-[16px] font-semibold leading-[1.2] text-[#0F172A] dark:text-white">
+                                            <h2 className="truncate text-[16px] font-semibold leading-[1.2] text-[var(--text-primary)]">
                                                 {faculty}
                                             </h2>
-                                            <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.5px] text-slate-400">
+                                            <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                                 {department}
                                             </p>
                                         </div>
                                     </div>
-                                    <span className="shrink-0 rounded-full bg-[#eef2fb] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.5px] text-[#2f4aad]">
+                                    <span className="shrink-0 rounded-full bg-[var(--bg-elevated)] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--brand-primary)]">
                                         {rows.length} subject{rows.length === 1 ? '' : 's'}
                                     </span>
                                 </div>
@@ -495,7 +495,7 @@ const AdminSubjects = () => {
                                         return (
                                             <div
                                                 key={menuKey}
-                                                className="group flex flex-col rounded-[1.25rem] bg-white p-5 shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-20px_rgba(47,74,173,0.28)] dark:bg-slate-900 dark:ring-white/10"
+                                                className="group flex flex-col rounded-[1.25rem] bg-[var(--bg-card)] p-5 shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-[var(--border)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-20px_rgba(47,74,173,0.28)]"
                                             >
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="flex min-w-0 items-start gap-3">
@@ -505,7 +505,7 @@ const AdminSubjects = () => {
                                                             <BookOpen className="h-5 w-5" strokeWidth={2} />
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <h3 className="truncate text-[14px] font-semibold leading-[1.2] text-[#0F172A] dark:text-slate-100">
+                                                            <h3 className="truncate text-[14px] font-semibold leading-[1.2] text-[var(--text-primary)]">
                                                                 {sub.name}
                                                             </h3>
                                                             <span
@@ -522,17 +522,17 @@ const AdminSubjects = () => {
                                                             onClick={() =>
                                                                 setMenuOpenId((prev) => (prev === menuKey ? '' : menuKey))
                                                             }
-                                                            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10"
+                                                            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-secondary)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-secondary)] dark:hover:bg-white/10"
                                                             aria-label="Subject actions"
                                                         >
                                                             <MoreVertical className="h-4 w-4" />
                                                         </button>
                                                         {menuOpenId === menuKey ? (
-                                                            <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-slate-900">
+                                                            <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-1 shadow-lg">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => openEditModal(sub)}
-                                                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10"
+                                                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-white/10"
                                                                 >
                                                                     <Edit2 className="h-3.5 w-3.5" /> Edit
                                                                 </button>
@@ -551,14 +551,14 @@ const AdminSubjects = () => {
                                                 <div className="mt-6 flex-1">
                                                     <div className="mb-1 flex items-center gap-1.5">
                                                         <Users className={`h-3.5 w-3.5 ${theme.iconText}`} />
-                                                        <p className="text-[10px] font-medium uppercase tracking-[0.5px] text-slate-400">
+                                                        <p className="text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-secondary)]">
                                                             Class allocations
                                                         </p>
                                                     </div>
-                                                    <p className="text-[22px] font-extrabold leading-[1.2] text-[#0F172A] dark:text-slate-100">
+                                                    <p className="text-[22px] font-extrabold leading-[1.2] text-[var(--text-primary)]">
                                                         {allocCount}
                                                     </p>
-                                                    <p className="mt-1 text-[12px] font-normal text-slate-400">
+                                                    <p className="mt-1 text-[12px] font-normal text-[var(--text-secondary)]">
                                                         {allocCount === 0
                                                             ? 'No classes allocated'
                                                             : allocCount === 1
@@ -570,7 +570,7 @@ const AdminSubjects = () => {
                                                             {(sub.allocations || []).slice(0, 2).map((alloc, idx) => (
                                                                 <li
                                                                     key={idx}
-                                                                    className="truncate text-[11px] font-normal text-slate-500"
+                                                                    className="truncate text-[11px] font-normal text-[var(--text-secondary)]"
                                                                 >
                                                                     {alloc.className
                                                                         ? `${alloc.classCode || alloc.classId} · ${alloc.className}`
@@ -579,7 +579,7 @@ const AdminSubjects = () => {
                                                                 </li>
                                                             ))}
                                                             {allocCount > 2 ? (
-                                                                <li className="text-[11px] font-normal text-slate-400">
+                                                                <li className="text-[11px] font-normal text-[var(--text-secondary)]">
                                                                     +{allocCount - 2} more
                                                                 </li>
                                                             ) : null}
@@ -590,7 +590,7 @@ const AdminSubjects = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => openEditModal(sub)}
-                                                    className="mt-5 flex w-full items-center justify-between border-t border-slate-100 pt-3 text-[13px] font-semibold text-[#2f4aad] transition hover:text-[#263c96] dark:border-white/10"
+                                                    className="mt-5 flex w-full items-center justify-between border-t border-[var(--border)] pt-3 text-[13px] font-semibold text-[var(--brand-primary)] transition hover:text-[#263c96]"
                                                 >
                                                     View Details
                                                     <ArrowRight className="h-4 w-4" />

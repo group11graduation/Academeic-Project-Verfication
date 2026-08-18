@@ -68,7 +68,7 @@ export default function ProjectVerifyLogo({
 
     const mark = plainMark ? (
         <LogoMarkSvg
-            className={`${s.box} shrink-0 ${onDark ? 'text-white' : 'text-[#2a3fa4]'}`}
+            className={`${s.box} shrink-0 ${onDark ? 'text-[var(--sidebar-fg)]' : 'text-[var(--brand-primary)]'}`}
         />
     ) : (
         <img
@@ -94,21 +94,21 @@ export default function ProjectVerifyLogo({
             {showText ? (
                 <div
                     className={`flex min-w-0 flex-col justify-center leading-none ${
-                        hideTextOnMobile ? 'hidden sm:flex' : ''
-                    } ${textClassName}`}
+ hideTextOnMobile ? 'hidden sm:flex' : ''
+ } ${textClassName}`}
                 >
                     <span
                         className={`block font-extrabold tracking-tight ${s.title} ${
-                            onDark ? 'text-white' : 'text-[var(--sv-text)]'
-                        }`}
+ onDark ? 'text-white' : 'text-[var(--sv-text)]'
+ }`}
                     >
                         {PROJECT_NAME}
                     </span>
                     {tagline ? (
                         <span
                             className={`mt-0.5 block text-[10px] font-medium uppercase tracking-[0.5px] ${
-                                onDark ? 'text-white/65' : 'text-[var(--sv-muted)]'
-                            }`}
+ onDark ? 'text-white/65' : 'text-[var(--sv-muted)]'
+ }`}
                         >
                             {tagline}
                         </span>

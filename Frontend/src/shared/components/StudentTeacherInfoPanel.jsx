@@ -14,16 +14,16 @@ export function TeacherCard({ teacher, size = 'md' }) {
     <div className="flex min-w-0 items-center gap-3">
       <div
         className={`relative shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] shadow-md ring-2 ring-white ${
-          small ? 'h-11 w-11' : 'h-14 w-14'
-        }`}
+ small ? 'h-11 w-11' : 'h-14 w-14'
+ }`}
       >
         {photoUrl ? (
           <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
         ) : (
           <span
             className={`flex h-full w-full items-center justify-center font-bold text-white ${
-              small ? 'text-base' : 'text-lg'
-            }`}
+ small ? 'text-base' : 'text-lg'
+ }`}
           >
             {teacherInitials(name)}
           </span>

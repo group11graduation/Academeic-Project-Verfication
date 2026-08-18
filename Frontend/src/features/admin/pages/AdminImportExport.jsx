@@ -46,28 +46,28 @@ const AdminImportExport = () => {
         }
     };
 
-    const btnPrimary = 'px-3 py-1.5 rounded-lg bg-[#2f4aad] text-white font-bold text-[11px] hover:bg-blue-700 disabled:opacity-60';
-    const btnDark = 'px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold text-[11px] disabled:opacity-60';
+    const btnPrimary = 'px-3 py-1.5 rounded-lg bg-[var(--brand-primary)] text-white font-bold text-[11px] hover:bg-blue-700 disabled:opacity-60';
+    const btnDark = 'px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-[var(--bg-elevated)] text-white dark:text-[var(--text-primary)] font-bold text-[11px] disabled:opacity-60';
 
     return (
         <div className="font-sans text-[13px]">
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#2f4aad]">
+            <div className="flex items-center gap-2 border-b border-[var(--border)] dark:border-slate-800 pb-3 mb-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[var(--brand-primary)]">
                     <FileSpreadsheet className="h-4 w-4" />
                 </div>
                 <div>
-                    <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white leading-none">Import & Export</h1>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    <h1 className="text-base font-extrabold text-[var(--text-primary)] leading-none">Import & Export</h1>
+                    <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mt-0.5">
                         Teachers and students bulk import/export (CSV or Excel).
                     </p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-4 text-center">
-                    <Upload className="h-7 w-7 text-slate-400 mx-auto mb-2" />
-                    <h2 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Import students</h2>
-                    <p className="text-[11px] text-slate-500 mb-3 leading-snug">
+                <div className="bg-[var(--bg-card)] rounded-xl border border-dashed border-slate-300 p-4 text-center">
+                    <Upload className="h-7 w-7 text-[var(--text-secondary)] mx-auto mb-2" />
+                    <h2 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">Import students</h2>
+                    <p className="text-[11px] text-[var(--text-secondary)] mb-3 leading-snug">
                         Upload CSV/Excel to create student accounts in bulk.
                     </p>
                     <button type="button" onClick={() => navigate('/admin/students/import')} className={btnPrimary}>
@@ -75,10 +75,10 @@ const AdminImportExport = () => {
                     </button>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-center">
-                    <Download className="h-7 w-7 text-slate-400 mx-auto mb-2" />
-                    <h2 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Export directory</h2>
-                    <p className="text-[11px] text-slate-500 mb-3 leading-snug">
+                <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 p-4 text-center">
+                    <Download className="h-7 w-7 text-[var(--text-secondary)] mx-auto mb-2" />
+                    <h2 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">Export directory</h2>
+                    <p className="text-[11px] text-[var(--text-secondary)] mb-3 leading-snug">
                         Export current student directory (CSV or Excel).
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-1.5">
@@ -91,10 +91,10 @@ const AdminImportExport = () => {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-4 text-center">
-                    <Upload className="h-7 w-7 text-slate-400 mx-auto mb-2" />
-                    <h2 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Import teachers</h2>
-                    <p className="text-[11px] text-slate-500 mb-3 leading-snug">
+                <div className="bg-[var(--bg-card)] rounded-xl border border-dashed border-slate-300 p-4 text-center">
+                    <Upload className="h-7 w-7 text-[var(--text-secondary)] mx-auto mb-2" />
+                    <h2 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">Import teachers</h2>
+                    <p className="text-[11px] text-[var(--text-secondary)] mb-3 leading-snug">
                         Upload CSV/Excel to create teacher accounts in bulk.
                     </p>
                     <button type="button" onClick={() => navigate('/admin/teachers/import')} className={btnPrimary}>
@@ -102,10 +102,10 @@ const AdminImportExport = () => {
                     </button>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-center">
-                    <Download className="h-7 w-7 text-slate-400 mx-auto mb-2" />
-                    <h2 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Export teachers</h2>
-                    <p className="text-[11px] text-slate-500 mb-3 leading-snug">
+                <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] dark:border-slate-800 p-4 text-center">
+                    <Download className="h-7 w-7 text-[var(--text-secondary)] mx-auto mb-2" />
+                    <h2 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">Export teachers</h2>
+                    <p className="text-[11px] text-[var(--text-secondary)] mb-3 leading-snug">
                         Export current teacher directory (CSV or Excel).
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-1.5">

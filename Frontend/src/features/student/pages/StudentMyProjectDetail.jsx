@@ -435,7 +435,7 @@ const StudentMyProjectDetail = () => {
         <div className={Z_SHELL}>
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
-                    <Loader2 className="h-8 w-8 text-[#1D68E3] dark:text-sky-300 animate-spin" />
+                    <Loader2 className="h-8 w-8 text-[var(--accent)] dark:text-sky-300 animate-spin" />
                     <p className="font-bold text-[var(--sv-muted)] uppercase tracking-widest text-[10px]">Loading project details…</p>
                 </div>
             ) : accessDenied ? (
@@ -471,7 +471,7 @@ const StudentMyProjectDetail = () => {
                 <div className="mb-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <div className="text-[10px] font-bold text-[#1D68E3] dark:text-sky-300 uppercase tracking-[0.2em] mb-1">
+                            <div className="text-[10px] font-bold text-[var(--accent)] dark:text-sky-300 uppercase tracking-[0.2em] mb-1">
                                 {project.classCode} / {project.type?.toUpperCase()}
                             </div>
                             <h2 className="text-base font-bold text-[var(--sv-text)] leading-snug tracking-tight max-w-[800px]">
@@ -501,7 +501,7 @@ const StudentMyProjectDetail = () => {
                         <div className="absolute left-0 right-0 top-5 h-0.5 bg-slate-300 -z-10"></div>
                         
                         <div className="flex flex-col items-center">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${projectSubmitted ? 'bg-[#1D68E3]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${projectSubmitted ? 'bg-[var(--accent)]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
                                 <Check className={`h-4 w-4 ${projectSubmitted ? 'text-white' : ''}`} />
                             </div>
                             <div className="text-[9px] font-bold text-[var(--sv-text)] uppercase tracking-widest">Project submitted</div>
@@ -511,7 +511,7 @@ const StudentMyProjectDetail = () => {
                         </div>
 
                         <div className="flex flex-col items-center">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${teacherPreviewed ? 'bg-[#1D68E3]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${teacherPreviewed ? 'bg-[var(--accent)]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
                                 <Cpu className={`h-4 w-4 ${teacherPreviewed ? 'text-white' : ''}`} />
                             </div>
                             <div className="text-[9px] font-bold text-[var(--sv-text)] uppercase tracking-widest">Teacher preview</div>
@@ -525,13 +525,13 @@ const StudentMyProjectDetail = () => {
                         </div>
 
                         <div className="flex flex-col items-center">
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${feedbackReceived ? 'bg-[#1D68E3]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shadow-[0_0_0_3px_var(--sv-card-muted)] mb-2 ${feedbackReceived ? 'bg-[var(--accent)]' : 'bg-[var(--sv-card)] border-2 border-[var(--sv-border)] text-[var(--sv-muted)]'}`}>
                                 <MessageSquare className={`h-4 w-4 ${feedbackReceived ? 'text-white fill-current' : ''}`} />
                             </div>
-                            <div className={`text-[9px] font-bold uppercase tracking-widest ${feedbackReceived ? 'text-[#1D68E3] dark:text-sky-300' : 'text-[var(--sv-text)]'}`}>
+                            <div className={`text-[9px] font-bold uppercase tracking-widest ${feedbackReceived ? 'text-[var(--accent)] dark:text-sky-300' : 'text-[var(--sv-text)]'}`}>
                                 Teacher feedback
                             </div>
-                            <div className={`text-[9px] font-medium ${feedbackReceived ? 'text-[#1D68E3] dark:text-sky-300' : 'text-[var(--sv-muted)]'}`}>
+                            <div className={`text-[9px] font-medium ${feedbackReceived ? 'text-[var(--accent)] dark:text-sky-300' : 'text-[var(--sv-muted)]'}`}>
                                 {feedbackReceived
                                     ? formatWorkflowDate(teacherFeedbackEntries[0]?.reviewedAt)
                                     : teacherPreviewed
@@ -555,7 +555,7 @@ const StudentMyProjectDetail = () => {
                                 <h3 className="text-sm font-bold text-[var(--sv-text)] tracking-tight">Research abstract</h3>
                                 <button 
                                     onClick={() => setIsEditingAbstract(!isEditingAbstract)}
-                                    className="p-2 text-[var(--sv-muted)] hover:text-[#1D68E3] dark:text-sky-300 hover:bg-blue-50 dark:hover:bg-blue-500/15 dark:bg-blue-500/15 rounded-lg transition-colors"
+                                    className="p-2 text-[var(--sv-muted)] hover:text-[var(--accent)] dark:text-sky-300 hover:bg-blue-50 dark:hover:bg-blue-500/15 dark:bg-blue-500/15 rounded-lg transition-colors"
                                     title="Edit Abstract"
                                 >
                                     <Edit2 className="h-5 w-5" />
@@ -748,7 +748,7 @@ const StudentMyProjectDetail = () => {
                                             Boolean(validateScreenshotFiles(selectedScreenshotFiles))
                                         }
                                         onClick={handleScreenshotUpload}
-                                        className="inline-flex items-center gap-2 rounded-xl border border-[#2a3fa4] bg-[var(--sv-card)] px-6 py-3 text-sm font-black uppercase tracking-widest text-[#2a3fa4] hover:bg-blue-50 disabled:opacity-50 dark:border-sky-400 dark:text-sky-300 dark:hover:bg-blue-500/15"
+                                        className="inline-flex items-center gap-2 rounded-xl border border-[#2a3fa4] bg-[var(--sv-card)] px-6 py-3 text-sm font-black uppercase tracking-widest text-[var(--brand-primary)] hover:bg-blue-50 disabled:opacity-50 dark:border-sky-400 dark:text-sky-300 dark:hover:bg-blue-500/15"
                                     >
                                         {screenshotBusy ? (
                                             <>
@@ -770,12 +770,12 @@ const StudentMyProjectDetail = () => {
                             {codeZipMessage && (
                                 <div
                                     className={`mt-3 rounded-xl border px-3 py-2.5 text-sm font-semibold ${
-                                        codeZipTone === 'success'
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                                            : codeZipTone === 'error'
-                                              ? 'border-rose-200 bg-rose-50 text-rose-900'
-                                              : 'border-[var(--sv-border)] bg-[var(--sv-card-muted)] text-[var(--sv-text)]'
-                                    }`}
+ codeZipTone === 'success'
+ ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+ : codeZipTone === 'error'
+ ? 'border-rose-200 bg-rose-50 text-rose-900'
+ : 'border-[var(--sv-border)] bg-[var(--sv-card-muted)] text-[var(--sv-text)]'
+ }`}
                                 >
                                     <p className="text-[11px] font-black uppercase tracking-wider mb-1">
                                         {codeZipTone === 'success'
@@ -795,7 +795,7 @@ const StudentMyProjectDetail = () => {
                                 <h3 className="text-sm font-bold text-[var(--sv-text)] tracking-tight">Asset repository</h3>
                                 <button 
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="text-[13px] font-black text-[#1D68E3] dark:text-sky-300 flex items-center gap-2 hover:underline"
+                                    className="text-[13px] font-black text-[var(--accent)] dark:text-sky-300 flex items-center gap-2 hover:underline"
                                 >
                                     <Upload className="h-4 w-4" /> Upload New
                                 </button>
@@ -808,7 +808,7 @@ const StudentMyProjectDetail = () => {
                                 onDragLeave={onDragLeave}
                                 onDrop={onDrop}
                                 className={`border-2 border-dashed rounded-xl p-4 mb-4 relative overflow-hidden group transition-all cursor-pointer text-center flex flex-col items-center justify-center 
-                                    ${isDragging ? 'border-[#1D68E3] bg-blue-50/50 dark:bg-blue-500/10' : 'border-[var(--sv-border)] bg-[var(--sv-card)] hover:border-[#1D68E3] hover:bg-blue-50/50 dark:hover:bg-blue-500/10'}`}
+ ${isDragging ? 'border-[#1D68E3] bg-blue-50/50 dark:bg-blue-500/10' : 'border-[var(--sv-border)] bg-[var(--sv-card)] hover:border-[#1D68E3] hover:bg-blue-50/50 dark:hover:bg-blue-500/10'}`}
                             >
                                 <input 
                                     type="file" 
@@ -823,11 +823,11 @@ const StudentMyProjectDetail = () => {
                                 {isUploading ? (
                                     <div className="flex flex-col items-center justify-center py-4">
                                         <div className="w-8 h-8 rounded-full border-4 border-[var(--sv-border)] border-t-[#1D68E3] animate-spin mb-4"></div>
-                                        <div className="text-[13px] font-black text-[#1D68E3] dark:text-sky-300">Uploading to Repository...</div>
+                                        <div className="text-[13px] font-black text-[var(--accent)] dark:text-sky-300">Uploading to Repository...</div>
                                     </div>
                                 ) : (
                                     <div className="py-6">
-                                        <div className="w-12 h-12 bg-slate-400 text-white rounded-full flex items-center justify-center mb-4 mx-auto group-hover:bg-[#1D68E3] transition-colors">
+                                        <div className="w-12 h-12 bg-slate-400 text-white rounded-full flex items-center justify-center mb-4 mx-auto group-hover:bg-[var(--accent)] transition-colors">
                                             <UploadCloud className="h-6 w-6" />
                                         </div>
                                         <div className="text-[14px] font-bold text-[var(--sv-text)] mb-2">
@@ -860,7 +860,7 @@ const StudentMyProjectDetail = () => {
                                         </div>
                                         {/* Optional Download linked if it's not a local dummy link */}
                                         {file.url !== '#' && (
-                                            <a href={`${getApiOrigin()}${file.url}`} target="_blank" rel="noreferrer" className="text-sm font-bold text-[#1D68E3] dark:text-sky-300 px-3">Download</a>
+                                            <a href={`${getApiOrigin()}${file.url}`} target="_blank" rel="noreferrer" className="text-sm font-bold text-[var(--accent)] dark:text-sky-300 px-3">Download</a>
                                         )}
                                     </div>
                                 ))}
@@ -893,7 +893,7 @@ const StudentMyProjectDetail = () => {
                             </div>
                         </div>
 
-                        <div className="bg-[#1D68E3] rounded-xl p-4 text-white relative overflow-hidden">
+                        <div className="bg-[var(--accent)] rounded-xl p-4 text-white relative overflow-hidden">
                             <h3 className="text-sm font-bold mb-3 relative z-10">ML insights</h3>
                             
                             <div className="space-y-3 mb-3 relative z-10">

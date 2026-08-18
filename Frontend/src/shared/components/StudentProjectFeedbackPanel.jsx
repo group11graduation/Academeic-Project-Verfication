@@ -18,12 +18,12 @@ export default function StudentProjectFeedbackPanel({ entries, className = '' })
           {entry.decision ? (
             <p
               className={`mb-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${
-                entry.decision === 'approved'
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : entry.decision === 'rejected'
-                    ? 'bg-rose-100 text-rose-800'
-                    : 'bg-amber-100 text-amber-900'
-              }`}
+ entry.decision === 'approved'
+ ? 'bg-emerald-100 text-emerald-800'
+ : entry.decision === 'rejected'
+ ? 'bg-rose-100 text-rose-800'
+ : 'bg-amber-100 text-amber-900'
+ }`}
             >
               {entry.decision === 'approved'
                 ? 'Approved'

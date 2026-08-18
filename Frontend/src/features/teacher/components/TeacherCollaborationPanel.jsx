@@ -314,14 +314,14 @@ const TeacherCollaborationPanel = ({
         if (row.requesterRole) parts.push(`They: ${roleLabel(row.requesterRole)}`);
         if (row.myRole && row.status === 'accepted') parts.push(`You: ${roleLabel(row.myRole)}`);
         if (!parts.length) return null;
-        return <p className="text-[10px] text-slate-500 mt-0.5">{parts.join(' · ')}</p>;
+        return <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">{parts.join(' · ')}</p>;
     };
 
     return (
         <div className="space-y-3">
-            <div className="rounded-lg border border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-slate-900/30 px-3 py-2 text-[10px] text-slate-600 dark:text-slate-400">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] /30 px-3 py-2 text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                 <p>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">Collaboration status: </span>
+                    <span className="font-bold text-[var(--text-primary)]">Collaboration status: </span>
                     {incoming.length} incoming · {outgoing.length} waiting · {accepted.length} accepted partner
                     {accepted.length === 1 ? '' : 's'}
                 </p>
@@ -349,25 +349,25 @@ const TeacherCollaborationPanel = ({
                         return (
                         <div
                             key={row._id}
-                            className="rounded-lg bg-white dark:bg-[#0B1120] border border-amber-100 dark:border-white/10 px-3 py-2 space-y-2"
+                            className="rounded-lg bg-[var(--bg-card)] border border-amber-100 px-3 py-2 space-y-2"
                         >
                             <div>
-                                <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                                <p className="text-[12px] font-bold text-[var(--text-primary)]">
                                     {row.partner?.name || row.partner?.email}
                                 </p>
-                                <p className="text-[10px] text-slate-500">{row.partner?.email}</p>
+                                <p className="text-[10px] text-[var(--text-secondary)]">{row.partner?.email}</p>
                                 {row.notes && (
-                                    <p className="text-[10px] text-slate-600 mt-0.5 italic">&ldquo;{row.notes}&rdquo;</p>
+                                    <p className="text-[10px] text-[var(--text-secondary)] mt-0.5 italic">&ldquo;{row.notes}&rdquo;</p>
                                 )}
                             </div>
 
-                            <div className="rounded-md border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/40 p-2 space-y-2">
-                                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">From their request</p>
-                                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                            <div className="rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] p-2 space-y-2">
+                                <p className="text-[10px] font-bold text-[var(--text-secondary)]">From their request</p>
+                                <p className="text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                     Class: <strong>{row.class?.code || '-'}</strong>
                                     {row.class?.name ? ` - ${row.class.name}` : ''}
                                 </p>
-                                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                                <p className="text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                     Their role: <strong>{roleLabel(row.requesterRole)}</strong>
                                     {requesterSubject?.code ? (
                                         <> · Their subject: <strong>{requesterSubject.code} - {requesterSubject.name}</strong></>
@@ -376,7 +376,7 @@ const TeacherCollaborationPanel = ({
                             </div>
 
                             <div className="space-y-2">
-                                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300">Your choices before accepting</p>
+                                <p className="text-[10px] font-bold text-[var(--text-secondary)]">Your choices before accepting</p>
                                 <div>
                                     <label className={Z_LABEL}>Your role</label>
                                     <div className="flex gap-2 mt-1">
@@ -387,10 +387,10 @@ const TeacherCollaborationPanel = ({
                                                 disabled={Boolean(busyId) || role === row.requesterRole}
                                                 onClick={() => updateAcceptForm(row._id, { myRole: role })}
                                                 className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold capitalize ${
-                                                    acceptForm.myRole === role
-                                                        ? 'border-indigo-600 bg-indigo-600 text-white'
-                                                        : 'border-slate-200 bg-white text-slate-700 dark:bg-slate-900 dark:border-slate-600'
-                                                } ${role === row.requesterRole ? 'opacity-40 cursor-not-allowed' : ''}`}
+ acceptForm.myRole === role
+ ? 'border-indigo-600 bg-indigo-600 text-white'
+ : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)]'
+ } ${role === row.requesterRole ? 'opacity-40 cursor-not-allowed' : ''}`}
                                             >
                                                 {roleLabel(role)}
                                             </button>
@@ -437,7 +437,7 @@ const TeacherCollaborationPanel = ({
                                     type="button"
                                     disabled={Boolean(busyId)}
                                     onClick={() => handleRespond(row._id, 'decline')}
-                                    className={`${actionBtn} border-slate-200 text-slate-700 hover:bg-slate-50`}
+                                    className={`${actionBtn} border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]`}
                                 >
                                     <UserX className="h-3 w-3" /> Decline
                                 </button>
@@ -450,24 +450,24 @@ const TeacherCollaborationPanel = ({
 
             {outgoing.length > 0 && (
                 <div className={`${Z_FORM_SECTION} space-y-2`}>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Waiting for response</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Waiting for response</p>
                     {outgoing.map((row) => (
                         <div
                             key={row._id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-slate-50 dark:bg-[#0B1120] px-3 py-2"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-[var(--bg-elevated)] px-3 py-2"
                         >
                             <div>
-                                <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                                <p className="text-[12px] font-bold text-[var(--text-primary)]">
                                     {row.partner?.name || row.partner?.email}
                                 </p>
-                                <p className="text-[10px] text-slate-500">Pending - they need to accept</p>
+                                <p className="text-[10px] text-[var(--text-secondary)]">Pending - they need to accept</p>
                                 {renderRequestMeta(row)}
                             </div>
                             <button
                                 type="button"
                                 disabled={Boolean(busyId)}
                                 onClick={() => handleRespond(row._id, 'cancel')}
-                                className={`${actionBtn} border-slate-200 text-slate-600 hover:bg-white`}
+                                className={`${actionBtn} border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card)]`}
                             >
                                 {busyId === `${row._id}-cancel` ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -482,7 +482,7 @@ const TeacherCollaborationPanel = ({
             )}
 
             {incoming.length === 0 && outgoing.length === 0 && accepted.length === 0 && (
-                <p className="text-[11px] text-slate-500 px-1">
+                <p className="text-[11px] text-[var(--text-secondary)] px-1">
                     No collaboration requests yet. Expand <strong>Invite a co-teacher</strong> below to send one.
                 </p>
             )}
@@ -495,13 +495,13 @@ const TeacherCollaborationPanel = ({
                     {accepted.map((row) => (
                         <div
                             key={row._id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-white/80 dark:bg-[#0B1120] border border-emerald-100 dark:border-white/10 px-3 py-2"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-[var(--bg-card)] border border-emerald-100 px-3 py-2"
                         >
                             <div className="min-w-0">
-                                <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">
+                                <p className="text-[12px] font-bold text-[var(--text-primary)]">
                                     {row.partner?.name || row.partner?.email}
                                 </p>
-                                <p className="text-[10px] text-slate-500 truncate">{row.partner?.email}</p>
+                                <p className="text-[10px] text-[var(--text-secondary)] truncate">{row.partner?.email}</p>
                                 {renderRequestMeta(row)}
                             </div>
                             <button
@@ -534,7 +534,7 @@ const TeacherCollaborationPanel = ({
                             Invite a co-teacher
                         </p>
                         {!inviteFormOpen && (
-                            <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">
+                            <p className="text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mt-0.5 truncate">
                                 {inviteCollapsedSummary}
                             </p>
                         )}
@@ -546,13 +546,13 @@ const TeacherCollaborationPanel = ({
 
                 {inviteFormOpen && (
             <form onSubmit={handleSendRequest} className="px-3 pb-3 pt-0 space-y-2.5 border-t border-indigo-200/60 dark:border-indigo-900/30">
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 pt-2">
+                <p className="text-[10px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] pt-2">
                     Choose class and your subject role. Collaboration requires one Frontend teacher and one Backend teacher in the same class - not two frontend or two backend subjects.
                 </p>
                 {catalog.length === 0 ? (
-                    <p className="text-[11px] text-slate-500">No classes assigned yet. Ask admin to assign you to a class first.</p>
+                    <p className="text-[11px] text-[var(--text-secondary)]">No classes assigned yet. Ask admin to assign you to a class first.</p>
                 ) : requestableCandidates.length === 0 ? (
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-[var(--text-secondary)]">
                         No other teachers in this class to invite yet. Pick another class or ask admin to assign a co-teacher.
                     </p>
                 ) : (
@@ -581,10 +581,10 @@ const TeacherCollaborationPanel = ({
                                         type="button"
                                         onClick={() => setMyRole(role)}
                                         className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold capitalize ${
-                                            myRole === role
-                                                ? 'border-indigo-600 bg-indigo-600 text-white'
-                                                : 'border-slate-200 bg-white text-slate-700 dark:bg-slate-900 dark:border-slate-600'
-                                        }`}
+ myRole === role
+ ? 'border-indigo-600 bg-indigo-600 text-white'
+ : 'border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)]'
+ }`}
                                     >
                                         {roleLabel(role)}
                                     </button>

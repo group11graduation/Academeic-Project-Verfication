@@ -62,7 +62,7 @@ const StudentProjectsList = () => {
     if (loading) {
         return (
             <div className={`${Z_SHELL} items-center justify-center py-24`}>
-                <Loader2 className="h-9 w-9 animate-spin text-[#2a3fa4]" />
+                <Loader2 className="h-9 w-9 animate-spin text-[var(--brand-primary)]" />
             </div>
         );
     }
@@ -108,7 +108,7 @@ const StudentProjectsList = () => {
                                     className={`${Z_CARD} group flex flex-col gap-3 p-4 transition hover:shadow-md sm:flex-row sm:items-center`}
                                 >
                                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eef1f6] text-[#2a3fa4]">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eef1f6] text-[var(--brand-primary)]">
                                             <Rocket className="h-4 w-4" />
                                         </div>
                                         <div className="min-w-0">
@@ -124,7 +124,7 @@ const StudentProjectsList = () => {
                                     >
                                         {badge.label}
                                     </span>
-                                    <span className="flex items-center gap-1 text-xs font-bold text-[#2a3fa4] group-hover:underline">
+                                    <span className="flex items-center gap-1 text-xs font-bold text-[var(--brand-primary)] group-hover:underline">
                                         Open <ChevronRight className="h-4 w-4" />
                                     </span>
                                 </Link>

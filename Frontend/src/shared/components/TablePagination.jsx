@@ -24,7 +24,7 @@ export default function TablePagination({
     pageSize,
     totalItems,
     onPageChange,
-    accentClass = 'bg-[#2f4aad] text-white',
+    accentClass = 'bg-[var(--brand-primary)] text-white',
 }) {
     const totalPages = Math.max(1, Math.ceil((totalItems || 0) / Math.max(1, pageSize)));
     const safePage = Math.min(Math.max(1, page), totalPages);
@@ -32,8 +32,8 @@ export default function TablePagination({
 
     if (totalItems <= 0) {
         return (
-            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 dark:border-white/10">
-                <p className="text-[11px] font-medium text-slate-400">Page 0 of 0</p>
+            <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3">
+                <p className="text-[11px] font-medium text-[var(--text-secondary)]">Page 0 of 0</p>
             </div>
         );
     }
@@ -44,11 +44,11 @@ export default function TablePagination({
     };
 
     const navBtn =
-        'flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-35 dark:hover:bg-white/10 dark:hover:text-slate-200';
+        'flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-secondary)] disabled:pointer-events-none disabled:opacity-35 dark:hover:bg-white/10 dark:hover:text-slate-200';
 
     return (
-        <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
-            <p className="text-[11px] font-medium text-slate-400">
+        <div className="flex flex-col gap-2 border-t border-[var(--border)] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[11px] font-medium text-[var(--text-secondary)]">
                 Page {safePage} of {totalPages}
             </p>
             <div className="flex items-center justify-center gap-0.5 sm:justify-end">
@@ -70,10 +70,10 @@ export default function TablePagination({
                             type="button"
                             onClick={() => go(item)}
                             className={`flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[11px] font-bold transition ${
-                                item === safePage
-                                    ? accentClass
-                                    : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10'
-                            }`}
+ item === safePage
+ ? accentClass
+ : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-secondary)] dark:hover:bg-white/10'
+ }`}
                             aria-current={item === safePage ? 'page' : undefined}
                         >
                             {item}

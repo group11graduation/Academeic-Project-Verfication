@@ -1,18 +1,18 @@
-/** Admin console — brighter indigo matching reference dashboard */
+/** Admin console theme — values resolve from CSS variables (light/dark). */
 export const ADMIN = {
-    primary: '#2f4aad',
-    primaryHover: '#263c96',
-    primaryDeep: '#1e317a',
-    primaryDark: '#182863',
-    soft: '#eef2fb',
-    softBorder: '#d5dcf0',
-    contentBg: '#f8f9fd',
-    frameBg: '#f0f2f8',
-    mutedText: '#647092',
+    primary: 'var(--brand-primary)',
+    primaryHover: 'var(--brand-primary-hover)',
+    primaryDeep: 'var(--shell-border)',
+    primaryDark: 'var(--shell-border)',
+    soft: 'var(--bg-elevated)',
+    softBorder: 'var(--border)',
+    contentBg: 'var(--content-bg)',
+    frameBg: 'var(--frame-bg)',
+    mutedText: 'var(--text-secondary)',
 };
 
-export const ADMIN_GRADIENT = 'linear-gradient(135deg, #2f4aad 0%, #4a66c4 100%)';
-/** Soft vertical wash — stays bright, not near-black */
-export const ADMIN_SIDEBAR_GRADIENT = 'linear-gradient(180deg, #3554b8 0%, #2f4aad 55%, #263c96 100%)';
+export const ADMIN_GRADIENT = 'linear-gradient(135deg, var(--brand-primary) 0%, var(--accent) 100%)';
+/** Light: indigo wash; dark: elevated surface via --sidebar-surface */
+export const ADMIN_SIDEBAR_GRADIENT = 'var(--sidebar-surface)';
 export const ADMIN_MOBILE_GRADIENT = ADMIN_SIDEBAR_GRADIENT;
-export const ADMIN_AVATAR_GRADIENT = 'linear-gradient(145deg, #6b84d4 0%, #2f4aad 100%)';
+export const ADMIN_AVATAR_GRADIENT = 'linear-gradient(145deg, var(--accent) 0%, var(--brand-primary) 100%)';

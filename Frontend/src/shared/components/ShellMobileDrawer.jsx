@@ -30,20 +30,24 @@ export default function ShellMobileDrawer({
         <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label={panelTitle}>
             <button
                 type="button"
-                className="absolute inset-0 bg-[#0f1a3d]/55 backdrop-blur-[2px]"
+                className="absolute inset-0 bg-[color-mix(in_srgb,var(--bg-page)_55%,transparent)] backdrop-blur-[2px]"
                 onClick={onClose}
                 aria-label="Close menu"
             />
             <aside
-                className="absolute inset-y-0 left-0 flex w-[min(100vw-2.5rem,22rem)] max-w-full flex-col overflow-hidden border-r border-white/10 text-white shadow-2xl safe-area-px"
+                className="absolute inset-y-0 left-0 flex w-[min(100vw-2.5rem,22rem)] max-w-full flex-col overflow-hidden border-r text-[var(--sidebar-fg)] shadow-2xl safe-area-px"
                 style={{
-                    background: panelGradient || 'linear-gradient(to bottom, #2a3fa4, #223688)',
+                    background: panelGradient || 'var(--sidebar-surface)',
+                    borderColor: 'var(--border)',
                     paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
                     paddingBottom: 'env(safe-area-inset-bottom, 0px)',
                 }}
             >
-                <div className="flex items-center justify-between gap-2 border-b border-white/15 px-4 py-3">
-                    <p className="text-sm font-semibold tracking-tight">{panelTitle}</p>
+                <div
+                    className="flex items-center justify-between gap-2 border-b px-4 py-3"
+                    style={{ borderColor: 'color-mix(in srgb, var(--sidebar-fg) 15%, transparent)' }}
+                >
+                    <p className="text-sm font-semibold tracking-tight text-[var(--sidebar-fg)]">{panelTitle}</p>
                     <button
                         type="button"
                         onClick={onClose}
@@ -63,16 +67,16 @@ export default function ShellMobileDrawer({
                         {profile.showLogo ? (
                             <ProjectVerifyLogo size="md" showText={false} plainMark onDark className="shrink-0" />
                         ) : (
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-semibold text-white">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-semibold text-[var(--sidebar-fg)]">
                                 {profile.initial || 'A'}
                             </div>
                         )}
                         <div className="min-w-0 text-left">
-                            <p className="truncate text-sm font-semibold text-white">{profile.name || 'Profile'}</p>
+                            <p className="truncate text-sm font-semibold text-[var(--sidebar-fg)]">{profile.name || 'Profile'}</p>
                             {profile.email ? (
-                                <p className="truncate text-[11px] font-normal text-white/60">{profile.email}</p>
+                                <p className="truncate text-[11px] font-normal text-[var(--sidebar-fg-muted)]">{profile.email}</p>
                             ) : (
-                                <p className="truncate text-[11px] font-normal text-white/60">View profile</p>
+                                <p className="truncate text-[11px] font-normal text-[var(--sidebar-fg-muted)]">View profile</p>
                             )}
                         </div>
                     </NavLink>
@@ -81,7 +85,7 @@ export default function ShellMobileDrawer({
                 <nav className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Mobile navigation">
                     {navSections.map((section) => (
                         <div key={section.key}>
-                            <p className="px-2 pb-1.5 text-[10px] font-medium uppercase tracking-[0.5px] text-white/55">
+                            <p className="px-2 pb-1.5 text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--sidebar-fg-muted)]">
                                 {section.name}
                             </p>
                             <div className="space-y-1">
@@ -96,8 +100,8 @@ export default function ShellMobileDrawer({
                                             className={({ isActive }) =>
                                                 `flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
                                                     isActive
-                                                        ? 'bg-[var(--sv-card)] font-semibold text-slate-900'
-                                                        : 'font-normal text-white/90 hover:bg-white/12'
+                                                        ? 'bg-[var(--sidebar-active-bg)] font-semibold text-[var(--sidebar-active-text)]'
+                                                        : 'font-normal text-[var(--sidebar-fg-soft)] hover:bg-white/12'
                                                 }`
                                             }
                                         >
@@ -112,12 +116,15 @@ export default function ShellMobileDrawer({
                 </nav>
 
                 {typeof onLogout === 'function' || profile?.to ? (
-                    <div className="space-y-2 border-t border-white/15 p-3">
+                    <div
+                        className="space-y-2 border-t p-3"
+                        style={{ borderColor: 'color-mix(in srgb, var(--sidebar-fg) 15%, transparent)' }}
+                    >
                         {profile?.to ? (
                             <NavLink
                                 to={profile.to}
                                 onClick={onClose}
-                                className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/12"
+                                className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-[var(--sidebar-fg)] transition hover:bg-white/12"
                             >
                                 <User className="h-4 w-4 shrink-0 opacity-80" />
                                 <span className="min-w-0 truncate">{profile.name || 'My profile'}</span>
@@ -130,7 +137,7 @@ export default function ShellMobileDrawer({
                                     onClose();
                                     onLogout();
                                 }}
-                                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/20"
+                                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2.5 text-sm font-bold text-[var(--sidebar-fg)] ring-1 ring-white/20"
                             >
                                 <LogOut className="h-4 w-4" />
                                 Log out

@@ -426,7 +426,7 @@ const ProjectsOverview = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin" />
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin" />
             </div>
         );
     }
@@ -450,29 +450,29 @@ const ProjectsOverview = () => {
 
     return (
         <div className="space-y-3 text-[13px] antialiased [font-family:var(--sv-font-sans)]">
-            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[var(--border)] dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                    <div className="bg-[#2f4aad] p-2 rounded-lg">
+                    <div className="bg-[var(--brand-primary)] p-2 rounded-lg">
                         <BookOpen className="h-4 w-4 text-white" />
                     </div>
-                    <h1 className="text-[1.15rem] font-bold tracking-tight text-[#2f4aad] sm:text-[1.25rem]">Student Projects</h1>
+                    <h1 className="text-[1.15rem] font-bold tracking-tight text-[var(--brand-primary)] sm:text-[1.25rem]">Student Projects</h1>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                     <div className="relative flex-1 sm:w-[220px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-600" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]" />
                         <input
                             type="text"
                             placeholder="Search projects..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-white/10 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-slate-800 dark:text-white placeholder:text-slate-400"
+                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
                         />
                     </div>
                     <button
                         type="button"
                         onClick={scrollToCreateForm}
-                        className="bg-[#2a3fa4] text-white px-3 py-2 rounded-lg font-bold text-[11px] uppercase tracking-wide hover:bg-[#223688] transition-all whitespace-nowrap"
+                        className="bg-[var(--brand-primary)] text-white px-3 py-2 rounded-lg font-bold text-[11px] uppercase tracking-wide hover:brightness-110 transition-all whitespace-nowrap"
                     >
                         Create New
                     </button>
@@ -482,17 +482,17 @@ const ProjectsOverview = () => {
             <section
                 id="teacher-create-groups"
                 ref={createFormSectionRef}
-                className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] p-4 shadow-sm"
+                className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 shadow-sm"
             >
                 <div className="flex items-start gap-2 mb-3">
-                    <div className="rounded-lg bg-[#2f4aad]/10 p-2 text-[#2f4aad] dark:text-blue-400 shrink-0">
+                    <div className="rounded-lg bg-[var(--brand-primary)]/10 p-2 text-[var(--brand-primary)] dark:text-blue-400 shrink-0">
                         <Users className="h-4 w-4" />
                     </div>
                     <div>
-                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                        <h2 className="text-sm font-bold text-[var(--text-primary)] tracking-tight">
                             Create groups
                         </h2>
-                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                        <p className="text-[11px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mt-0.5 leading-snug">
                             Build teams for the class before creating an assignment. When you later create a group-mode assignment for this class, these teams copy automatically.
                         </p>
                     </div>
@@ -500,14 +500,14 @@ const ProjectsOverview = () => {
 
                 <div className="grid gap-3 md:grid-cols-2">
                     <div className="md:col-span-2">
-                        <label htmlFor="create-groups-class" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        <label htmlFor="create-groups-class" className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                             Class
                         </label>
                         <select
                             id="create-groups-class"
                             value={createForm.classCode}
                             onChange={(e) => setCreateForm((p) => ({ ...p, classCode: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2 text-[12px] text-slate-900 dark:text-white"
+                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
                         >
                             <option value="">Select class</option>
                             {myClasses.map((c) => (
@@ -518,8 +518,8 @@ const ProjectsOverview = () => {
                         </select>
                     </div>
 
-                    <div className="md:col-span-2 rounded-lg bg-slate-50 dark:bg-[#0B1120] border border-slate-100 dark:border-white/10 px-3 py-2">
-                        <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                    <div className="md:col-span-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] px-3 py-2">
+                        <p className="text-[10px] font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] leading-relaxed">
                             Use <strong className="font-mono">.csv</strong> or <strong className="font-mono">.xlsx</strong> (first sheet). Columns:{' '}
                             <span className="font-mono">groupName</span>, <span className="font-mono">studentId</span>,{' '}
                             <span className="font-mono">role</span>. Student IDs must match roster enrolment for this class.{' '}
@@ -539,7 +539,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={handleExportCsv}
                             disabled={!createForm.classCode || exportingFile || importingFile || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-white/5 disabled:opacity-50"
                         >
                             {exportingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                             Export CSV
@@ -548,7 +548,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={handleExportXlsx}
                             disabled={!createForm.classCode || exportingFile || importingFile || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-white/5 disabled:opacity-50"
                         >
                             {exportingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                             Export Excel
@@ -557,7 +557,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={() => importInputRef.current?.click()}
                             disabled={!createForm.classCode || importingFile || exportingFile || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] dark:hover:bg-white/5 disabled:opacity-50"
                         >
                             {importingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
                             Preview import
@@ -566,7 +566,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={openTeamEditor}
                             disabled={!createForm.classCode || teamEditorLoading || creating || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#2f4aad] dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--brand-primary)] dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50"
                         >
                             {teamEditorLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                             Edit teams
@@ -575,7 +575,7 @@ const ProjectsOverview = () => {
 
                     {importPreview && (
                         <div className="md:col-span-2 rounded-lg border border-blue-200 dark:border-blue-900/40 bg-blue-50/80 dark:bg-blue-950/25 p-3 text-[12px]">
-                            <p className="font-bold text-slate-800 dark:text-slate-100 mb-1">
+                            <p className="font-bold text-[var(--text-primary)] mb-1">
                                 Preview ready - {importPreview.proposedGroups?.length ?? 0} team(s),{' '}
                                 {(importPreview.proposedGroups || []).reduce((n, g) => n + (g.members?.length || 0), 0)} roster row(s). Nothing is saved until you apply.
                             </p>
@@ -593,12 +593,12 @@ const ProjectsOverview = () => {
                                 </div>
                             )}
                             {(importPreview.skippedGroups?.length ?? 0) > 0 && (
-                                <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                                <p className="mt-2 text-xs text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                     Skipped in file (no valid students): {importPreview.skippedGroups.map((s) => s.groupName).join(', ')}
                                 </p>
                             )}
                             {!(importPreview.proposedGroups?.length > 0) && (
-                                <p className="mt-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                <p className="mt-2 text-xs font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                     No teams to save - every row was skipped or invalid. Fix the file and preview again.
                                 </p>
                             )}
@@ -607,7 +607,7 @@ const ProjectsOverview = () => {
                                     type="button"
                                     onClick={handleApplyImport}
                                     disabled={applyingImport || !(importPreview.proposedGroups?.length > 0)}
-                                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-blue-700 disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
                                     {applyingImport ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                                     Apply import
@@ -616,7 +616,7 @@ const ProjectsOverview = () => {
                                     type="button"
                                     onClick={() => setImportPreview(null)}
                                     disabled={applyingImport}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-primary)] hover:bg-[var(--bg-card)] dark:hover:bg-white/5 disabled:opacity-50"
                                 >
                                     Discard preview
                                 </button>
@@ -626,7 +626,7 @@ const ProjectsOverview = () => {
 
                     {importSummary && !importPreview && (
                         <div className="md:col-span-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-[12px]">
-                            <p className="font-bold text-slate-800 dark:text-slate-100 mb-2">
+                            <p className="font-bold text-[var(--text-primary)] mb-2">
                                 Import complete: {importSummary.createdGroups?.length ?? 0} group(s) created.
                                 {(importSummary.templateGroupsRemoved ?? importSummary.orphanGroupsRemoved ?? 0) > 0 &&
                                     ` Replaced ${importSummary.templateGroupsRemoved ?? importSummary.orphanGroupsRemoved} previous class team row(s).`}
@@ -645,18 +645,18 @@ const ProjectsOverview = () => {
                                 </div>
                             )}
                             {(importSummary.skippedGroups?.length ?? 0) > 0 && (
-                                <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                                <p className="mt-2 text-xs text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                     Skipped (no valid students): {importSummary.skippedGroups.map((s) => s.groupName).join(', ')}
                                 </p>
                             )}
                         </div>
                     )}
 
-                    <div className="md:col-span-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 px-3 py-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    <div className="md:col-span-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)]/30 px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] dark:text-[var(--text-secondary)] mb-1">
                             Auto-generate (system)
                         </p>
-                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                        <p className="text-xs font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)] leading-relaxed">
                             Adds teams only for students <strong>not already in a group</strong> (class templates or assignment groups).
                             Existing teams are kept. The last new team may be smaller if the count does not divide evenly.
                         </p>
@@ -681,14 +681,14 @@ const ProjectsOverview = () => {
                     )}
 
                     <div>
-                        <label htmlFor="create-groups-type" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        <label htmlFor="create-groups-type" className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                             Type
                         </label>
                         <select
                             id="create-groups-type"
                             value={createForm.type}
                             onChange={(e) => setCreateForm((p) => ({ ...p, type: e.target.value }))}
-                            className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2 text-[12px] text-slate-900 dark:text-white"
+                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
                         >
                             <option value="group">Group</option>
                             <option value="individual">Individual</option>
@@ -697,7 +697,7 @@ const ProjectsOverview = () => {
 
                     {createForm.type === 'group' && (
                         <div>
-                            <label htmlFor="create-groups-size" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                            <label htmlFor="create-groups-size" className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1">
                                 Group size
                             </label>
                             <input
@@ -707,18 +707,18 @@ const ProjectsOverview = () => {
                                 max={10}
                                 value={createForm.groupSize}
                                 onChange={(e) => setCreateForm((p) => ({ ...p, groupSize: e.target.value }))}
-                                className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] px-3 py-2 text-[12px] text-slate-900 dark:text-white"
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-[12px] text-[var(--text-primary)]"
                             />
                         </div>
                     )}
                 </div>
 
-                <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-slate-100 dark:border-white/5 pt-3">
+                <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-[var(--border)] pt-3">
                     <button
                         type="button"
                         onClick={resetCreateFormFields}
                         disabled={creating || exportingFile || importingFile || applyingImport}
-                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-[12px] font-bold text-slate-600 dark:text-slate-300 disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-[12px] font-bold text-[var(--text-secondary)] disabled:opacity-50"
                     >
                         Reset
                     </button>
@@ -726,7 +726,7 @@ const ProjectsOverview = () => {
                         type="button"
                         onClick={handleCreateGroups}
                         disabled={creating || !createForm.classCode || applyingImport || importingFile}
-                        className="px-3 py-1.5 rounded-lg bg-[#2a3fa4] text-white text-[12px] font-bold hover:bg-[#223688] disabled:opacity-60"
+                        className="px-3 py-1.5 rounded-lg bg-[var(--brand-primary)] text-white text-[12px] font-bold hover:brightness-110 disabled:opacity-60"
                     >
                         {creating ? 'Generating…' : createForm.type === 'individual' ? 'Generate individuals' : 'Generate teams'}
                     </button>
@@ -734,16 +734,16 @@ const ProjectsOverview = () => {
             </section>
 
             {!hasAnyProjects ? (
-                <div className="bg-white dark:bg-[#0F172A] rounded-xl border-2 border-dashed border-slate-200 dark:border-white/5 p-8 text-center">
-                    <div className="w-12 h-12 bg-slate-50 dark:bg-[#0B1120] rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Layout className="h-6 w-6 text-slate-300 dark:text-slate-700" />
+                <div className="bg-[var(--bg-card)] rounded-xl border-2 border-dashed border-[var(--border)] p-8 text-center">
+                    <div className="w-12 h-12 bg-[var(--bg-elevated)] rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Layout className="h-6 w-6 text-slate-300 dark:text-[var(--text-primary)]" />
                     </div>
-                    <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">No group projects found</h2>
-                    <p className="text-[12px] text-slate-500 mb-4 max-w-md mx-auto">Try adjusting your search or create a new student group assignment.</p>
+                    <h2 className="text-base font-bold text-[var(--text-primary)] mb-1">No group projects found</h2>
+                    <p className="text-[12px] text-[var(--text-secondary)] mb-4 max-w-md mx-auto">Try adjusting your search or create a new student group assignment.</p>
                     <button
                         type="button"
                         onClick={scrollToCreateForm}
-                        className="bg-[#2a3fa4] text-white px-4 py-2 rounded-lg font-bold text-[11px] uppercase tracking-wide hover:bg-[#223688] transition-all"
+                        className="bg-[var(--brand-primary)] text-white px-4 py-2 rounded-lg font-bold text-[11px] uppercase tracking-wide hover:brightness-110 transition-all"
                     >
                         Set up groups
                     </button>
@@ -754,9 +754,9 @@ const ProjectsOverview = () => {
                         <section key={cls.code} className="space-y-2">
                             <div className="flex items-center justify-between group">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-1 h-5 bg-[#2f4aad] rounded-full" />
-                                    <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">{cls.code}: {cls.title}</h2>
-                                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-[#2f4aad] dark:text-blue-400 rounded-full text-[9px] font-bold uppercase tracking-wider">
+                                    <div className="w-1 h-5 bg-[var(--brand-primary)] rounded-full" />
+                                    <h2 className="text-sm font-bold text-[var(--text-primary)] tracking-tight">{cls.code}: {cls.title}</h2>
+                                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-[var(--brand-primary)] dark:text-blue-400 rounded-full text-[9px] font-bold uppercase tracking-wider">
                                         {cls.semester || 'Semester 1'}
                                     </span>
                                 </div>
@@ -764,29 +764,29 @@ const ProjectsOverview = () => {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                                     {cls.projects.map((group) => (
-                                        <div key={group._id} className="bg-white dark:bg-[#0F172A] rounded-xl border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden flex flex-col group hover:border-blue-500/30 transition-all">
+                                        <div key={group._id} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-sm overflow-hidden flex flex-col group hover:border-blue-500/30 transition-all">
                                             <div className="p-3 pb-2">
                                                 <div className="flex justify-between items-start mb-2">
-                                                    <h4 className="text-[10px] font-bold text-[#2f4aad] dark:text-blue-400 uppercase tracking-wider">Group {group.assignmentNumber}</h4>
-                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider ${group.status.toLowerCase() === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-slate-50 dark:bg-[#0B1120] text-slate-400 dark:text-slate-600'}`}>
+                                                    <h4 className="text-[10px] font-bold text-[var(--brand-primary)] dark:text-blue-400 uppercase tracking-wider">Group {group.assignmentNumber}</h4>
+                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider ${group.status.toLowerCase() === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'}`}>
                                                         {group.status.toUpperCase()}
                                                     </span>
                                                 </div>
-                                                <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-3 leading-tight line-clamp-2 min-h-[36px]">
+                                                <h3 className="text-[13px] font-bold text-[var(--text-primary)] mb-3 leading-tight line-clamp-2 min-h-[36px]">
                                                     {group.title}
                                                 </h3>
 
-                                                <div className="space-y-2 pt-2 border-t border-slate-50 dark:border-white/5">
+                                                <div className="space-y-2 pt-2 border-t border-[var(--border)]">
                                                     {group.members.slice(0, 3).map((member, i) => (
                                                         <div key={i} className="flex items-center gap-2">
-                                                            <div className="w-6 h-6 rounded-md bg-slate-50 dark:bg-[#0B1120] flex items-center justify-center text-[9px] font-bold text-slate-700 dark:text-slate-100 uppercase overflow-hidden border border-slate-100 dark:border-white/5">
+                                                            <div className="w-6 h-6 rounded-md bg-[var(--bg-elevated)] flex items-center justify-center text-[9px] font-bold text-[var(--text-primary)] uppercase overflow-hidden border border-[var(--border)]">
                                                                 {member.photo && member.photo !== 'default-student.jpg' ? (
                                                                     <img src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)} className="w-full h-full object-cover" alt="" />
                                                                 ) : member.name[0]}
                                                             </div>
-                                                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                                                            <span className="text-[11px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)] truncate">
                                                                 {member.isLeader ? (
-                                                                    <span className="mr-1.5 text-[10px] font-bold uppercase tracking-wide text-[#2f4aad] dark:text-blue-400">
+                                                                    <span className="mr-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--brand-primary)] dark:text-blue-400">
                                                                         Leader
                                                                     </span>
                                                                 ) : null}
@@ -795,14 +795,14 @@ const ProjectsOverview = () => {
                                                         </div>
                                                     ))}
                                                     {group.members.length > 3 && (
-                                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-600 pl-8 uppercase tracking-wider">+{group.members.length - 3} more</p>
+                                                        <p className="text-[10px] font-bold text-[var(--text-secondary)] pl-8 uppercase tracking-wider">+{group.members.length - 3} more</p>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            <div className="mt-auto px-3 py-2 bg-slate-50/50 dark:bg-[#0B1120] border-t border-slate-50 dark:border-white/5 flex items-center justify-between gap-2">
+                                            <div className="mt-auto px-3 py-2 bg-[var(--bg-elevated)] border-t border-[var(--border)] flex items-center justify-between gap-2">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">SIMILARITY</span>
+                                                    <span className="text-[9px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">SIMILARITY</span>
                                                     <span className={`text-sm font-bold ${group.similarityLevel === 'High' ? 'text-rose-600' : 'text-emerald-500'}`}>
                                                         {group.similarity}%
                                                     </span>
@@ -811,7 +811,7 @@ const ProjectsOverview = () => {
                                                     <button
                                                         type="button"
                                                         onClick={(e) => handleDeleteGroupCard(group, e)}
-                                                        className="p-2 bg-white dark:bg-[#0F172A] rounded-lg border border-slate-100 dark:border-white/5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all"
+                                                        className="p-2 bg-[var(--bg-card)] rounded-lg border border-[var(--border)] text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all"
                                                         title="Delete group"
                                                     >
                                                         <Trash2 className="h-4 w-4" />
@@ -819,7 +819,7 @@ const ProjectsOverview = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => navigate(`/teacher/groups/${group._id}`)}
-                                                        className="p-2 bg-white dark:bg-[#0F172A] rounded-lg border border-slate-100 dark:border-white/5 text-[#2f4aad] dark:text-blue-400 hover:bg-[#2f4aad] hover:text-white transition-all"
+                                                        className="p-2 bg-[var(--bg-card)] rounded-lg border border-[var(--border)] text-[var(--brand-primary)] dark:text-blue-400 hover:bg-[var(--brand-primary)] hover:text-white transition-all"
                                                     >
                                                         <ArrowRight className="h-4 w-4" />
                                                     </button>
@@ -835,20 +835,20 @@ const ProjectsOverview = () => {
 
             {teamEditorOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-                    <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0F172A]">
-                        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4 dark:border-white/10">
+                    <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] shadow-2xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] p-4">
                             <div>
-                                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                                <h2 className="text-base font-bold text-[var(--text-primary)]">
                                     Edit class teams - {createForm.classCode}
                                 </h2>
-                                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                <p className="mt-1 text-xs font-medium text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">
                                     Rename teams, move students, and choose leaders. Existing assignment/project groups remain unchanged; these teams are used for future assignments.
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => !teamEditorSaving && setTeamEditorOpen(false)}
-                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:hover:text-white"
+                                className="rounded-lg p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] dark:hover:bg-white/5 dark:hover:text-white"
                                 aria-label="Close team editor"
                             >
                                 <X className="h-5 w-5" />
@@ -857,29 +857,29 @@ const ProjectsOverview = () => {
 
                         <div className="flex-1 space-y-4 overflow-y-auto p-4">
                             {teamEditorLoading ? (
-                                <div className="flex min-h-56 items-center justify-center gap-2 text-sm font-bold text-slate-500">
-                                    <Loader2 className="h-5 w-5 animate-spin text-[#2f4aad]" />
+                                <div className="flex min-h-56 items-center justify-center gap-2 text-sm font-bold text-[var(--text-secondary)]">
+                                    <Loader2 className="h-5 w-5 animate-spin text-[var(--brand-primary)]" />
                                     Loading class teams…
                                 </div>
                             ) : (
                                 <>
                                     <div className="grid gap-3 md:grid-cols-2">
                                         {teamEditorGroups.length === 0 ? (
-                                            <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs font-medium text-slate-400 md:col-span-2 dark:border-white/10">
+                                            <p className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center text-xs font-medium text-[var(--text-secondary)] md:col-span-2">
                                                 No teams - add a team, or assign students below. Click Save teams to clear all class teams permanently.
                                             </p>
                                         ) : null}
                                         {teamEditorGroups.map((group) => (
                                             <section
                                                 key={group.id}
-                                                className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-[#0B1120]"
+                                                className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-3"
                                             >
                                                 <div className="mb-3 flex items-center gap-2">
                                                     <input
                                                         value={group.name}
                                                         onChange={(event) => renameEditorTeam(group.id, event.target.value)}
                                                         maxLength={80}
-                                                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 dark:border-white/10 dark:bg-[#0F172A] dark:text-white"
+                                                        className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-xs font-bold text-[var(--text-primary)]"
                                                         aria-label="Team name"
                                                     />
                                                     <button
@@ -893,7 +893,7 @@ const ProjectsOverview = () => {
                                                 </div>
 
                                                 {group.members.length === 0 ? (
-                                                    <p className="rounded-lg border border-dashed border-slate-200 p-3 text-center text-xs font-medium text-slate-400 dark:border-white/10">
+                                                    <p className="rounded-lg border border-dashed border-[var(--border)] p-3 text-center text-xs font-medium text-[var(--text-secondary)]">
                                                         Empty team - move an unassigned student here.
                                                     </p>
                                                 ) : (
@@ -901,18 +901,18 @@ const ProjectsOverview = () => {
                                                         {group.members.map((member) => (
                                                             <div
                                                                 key={member.userId}
-                                                                className="rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#0F172A]"
+                                                                className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2"
                                                             >
                                                                 <div className="flex items-center justify-between gap-2">
                                                                     <div className="min-w-0">
-                                                                        <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                                        <p className="truncate text-xs font-bold text-[var(--text-primary)]">
                                                                             {member.name}
                                                                         </p>
-                                                                        <p className="truncate text-[10px] font-mono text-slate-400">
+                                                                        <p className="truncate text-[10px] font-mono text-[var(--text-secondary)]">
                                                                             {member.studentId || member.email}
                                                                         </p>
                                                                     </div>
-                                                                    <label className="flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#2f4aad]">
+                                                                    <label className="flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
                                                                         <input
                                                                             type="radio"
                                                                             name={`leader-${group.id}`}
@@ -929,7 +929,7 @@ const ProjectsOverview = () => {
                                                                             moveEditorStudent(member.userId, event.target.value);
                                                                         }
                                                                     }}
-                                                                    className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 dark:border-white/10 dark:bg-[#0B1120] dark:text-slate-200"
+                                                                    className="mt-2 w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-2 py-1.5 text-[11px] font-bold text-[var(--text-primary)]"
                                                                     aria-label={`Move ${member.name}`}
                                                                 >
                                                                     <option value="">Unassigned</option>
@@ -951,7 +951,7 @@ const ProjectsOverview = () => {
                                         <button
                                             type="button"
                                             onClick={addEditorTeam}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#2f4aad]/40 px-3 py-2 text-xs font-bold text-[#2f4aad] hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#2f4aad]/40 px-3 py-2 text-xs font-bold text-[var(--brand-primary)] hover:bg-blue-50 dark:hover:bg-blue-950/20"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add team
@@ -979,12 +979,12 @@ const ProjectsOverview = () => {
                                                 {editorUnassignedStudents.map((student) => (
                                                     <div
                                                         key={student.userId}
-                                                        className="rounded-lg border border-amber-200 bg-white p-2 dark:border-amber-800/30 dark:bg-[#0F172A]"
+                                                        className="rounded-lg border border-amber-200 bg-[var(--bg-card)] p-2 dark:border-amber-800/30"
                                                     >
-                                                        <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                        <p className="truncate text-xs font-bold text-[var(--text-primary)]">
                                                             {student.name}
                                                         </p>
-                                                        <p className="truncate text-[10px] font-mono text-slate-400">
+                                                        <p className="truncate text-[10px] font-mono text-[var(--text-secondary)]">
                                                             {student.studentId || student.email}
                                                         </p>
                                                         <select
@@ -998,7 +998,7 @@ const ProjectsOverview = () => {
                                                                 }
                                                                 moveEditorStudent(student.userId, value);
                                                             }}
-                                                            className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 dark:border-white/10 dark:bg-[#0B1120] dark:text-slate-200"
+                                                            className="mt-2 w-full rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-2 py-1.5 text-[11px] font-bold text-[var(--text-primary)]"
                                                         >
                                                             <option value="">Choose team…</option>
                                                             <option value="__new__">+ Create new team</option>
@@ -1017,12 +1017,12 @@ const ProjectsOverview = () => {
                             )}
                         </div>
 
-                        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 p-4 dark:border-white/10">
+                        <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border)] p-4">
                             <button
                                 type="button"
                                 onClick={() => setTeamEditorOpen(false)}
                                 disabled={teamEditorSaving}
-                                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                                className="rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50 dark:hover:bg-white/5"
                             >
                                 Cancel
                             </button>
@@ -1030,7 +1030,7 @@ const ProjectsOverview = () => {
                                 type="button"
                                 onClick={saveTeamEditor}
                                 disabled={teamEditorLoading || teamEditorSaving}
-                                className="inline-flex items-center gap-2 rounded-lg bg-[#2f4aad] px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                                className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                             >
                                 {teamEditorSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 Save teams

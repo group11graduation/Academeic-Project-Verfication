@@ -50,33 +50,33 @@ const AdminDashboard = () => {
                 title: 'Students',
                 value: stats.totalStudents,
                 icon: Users,
-                soft: 'bg-[#eef2fb]',
-                iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-[#d5dcf0]',
+                soft: 'bg-[var(--bg-elevated)]',
+                iconBg: 'bg-[var(--bg-card)] text-[var(--brand-primary)]',
+                ring: 'ring-[var(--border)]',
             },
             {
                 title: 'Teachers',
                 value: stats.totalTeachers,
                 icon: GraduationCap,
-                soft: 'bg-[#e8ecf8]',
-                iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-[#d5dcf0]',
+                soft: 'bg-[var(--bg-elevated)]',
+                iconBg: 'bg-[var(--bg-card)] text-[var(--brand-primary)]',
+                ring: 'ring-[var(--border)]',
             },
             {
                 title: 'Classes',
                 value: stats.totalClasses,
                 icon: Building2,
-                soft: 'bg-[#f2f4fb]',
-                iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-[#d5dcf0]',
+                soft: 'bg-[var(--bg-elevated)]',
+                iconBg: 'bg-[var(--bg-card)] text-[var(--brand-primary)]',
+                ring: 'ring-[var(--border)]',
             },
             {
                 title: 'Active Projects',
                 value: stats.activeProjects,
                 icon: Rocket,
-                soft: 'bg-[#e6ebf8]',
-                iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-[#d5dcf0]',
+                soft: 'bg-[var(--bg-elevated)]',
+                iconBg: 'bg-[var(--bg-card)] text-[var(--brand-primary)]',
+                ring: 'ring-[var(--border)]',
                 hint: 'Proposals in review or approved project phase',
             },
         ],
@@ -100,7 +100,7 @@ const AdminDashboard = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-[#2f4aad]" />
+                <Loader2 className="h-6 w-6 animate-spin text-[var(--brand-primary)]" />
             </div>
         );
     }
@@ -120,13 +120,13 @@ const AdminDashboard = () => {
                                     <div className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${card.iconBg}`}>
                                         <Icon className="h-4 w-4" strokeWidth={2.2} />
                                     </div>
-                    <span className="text-[10px] font-bold text-slate-500">{card.title}</span>
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)]">{card.title}</span>
                 </div>
-                <p className="text-xl font-extrabold leading-[1.2] tracking-tight text-[#0f172a]">
+                <p className="text-xl font-extrabold leading-[1.2] tracking-tight text-[var(--text-primary)]">
                     {Number(card.value).toLocaleString()}
                 </p>
                 {card.hint ? (
-                    <p className="mt-1.5 text-[10px] font-normal leading-[1.5] text-slate-500">{card.hint}</p>
+                    <p className="mt-1.5 text-[10px] font-normal leading-[1.5] text-[var(--text-secondary)]">{card.hint}</p>
                 ) : null}
                             </div>
                         );
@@ -136,24 +136,24 @@ const AdminDashboard = () => {
 
             <section className="grid grid-cols-1 gap-2.5 xl:grid-cols-12">
                 <div className="flex flex-col gap-2.5 xl:col-span-3">
-                    <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80">
+                    <div className="rounded-xl bg-[var(--bg-card)] p-3.5 shadow-sm ring-1 ring-[var(--border)]">
                         <div
                             className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm"
                             style={{ background: ADMIN_GRADIENT }}
                         >
                             <Users className="h-4 w-4" />
                         </div>
-                        <p className="text-xl font-extrabold leading-none tracking-tight text-[#0f172a]">
+                        <p className="text-xl font-extrabold leading-none tracking-tight text-[var(--text-primary)]">
                             {(stats.totalStudents + stats.totalTeachers).toLocaleString()}
                         </p>
-                        <p className="mt-1 text-[12px] font-semibold text-slate-500">Total people</p>
-                        <p className="mt-1.5 text-[10px] font-medium text-slate-400">
+                        <p className="mt-1 text-[12px] font-semibold text-[var(--text-secondary)]">Total people</p>
+                        <p className="mt-1.5 text-[10px] font-medium text-[var(--text-secondary)]">
                             {stats.totalStudents} students · {stats.totalTeachers} teachers
                         </p>
                     </div>
 
-                    <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80">
-                        <h3 className="mb-2.5 text-[12px] font-extrabold text-[#0f172a]">Institution mix</h3>
+                    <div className="rounded-xl bg-[var(--bg-card)] p-3.5 shadow-sm ring-1 ring-[var(--border)]">
+                        <h3 className="mb-2.5 text-[12px] font-extrabold text-[var(--text-primary)]">Institution mix</h3>
                         <div className="mx-auto mb-2.5 flex h-20 w-20 items-center justify-center">
                             <div
                                 className="relative h-20 w-20 rounded-full"
@@ -179,15 +179,15 @@ const AdminDashboard = () => {
                                     )}% 100%)`,
                                 }}
                             >
-                                <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-white">
-                                    <span className="text-sm font-extrabold text-[#0f172a]">
+                                <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-[var(--bg-card)]">
+                                    <span className="text-sm font-extrabold text-[var(--text-primary)]">
                                         {stats.totalClasses + stats.activeProjects}
                                     </span>
-                                    <span className="text-[8px] font-bold uppercase tracking-wide text-slate-400">Total</span>
+                                    <span className="text-[8px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Total</span>
                                 </div>
                             </div>
                         </div>
-                        <ul className="space-y-1.5 text-[11px] font-semibold text-slate-600">
+                        <ul className="space-y-1.5 text-[11px] font-semibold text-[var(--text-secondary)]">
                             <li className="flex items-center gap-2">
                                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ADMIN.primary }} />
                                 Classes · {stats.totalClasses}
@@ -200,10 +200,10 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-5">
+                <div className="rounded-xl bg-[var(--bg-card)] p-3.5 shadow-sm ring-1 ring-[var(--border)] xl:col-span-5">
                     <div className="mb-2.5 flex items-center justify-between gap-2">
-                        <h2 className="text-[12px] font-extrabold text-[#0f172a]">Priority Setup Actions</h2>
-                        <Link to="/admin/setup-workflow" className="text-[10px] font-bold text-[#2f4aad] hover:underline">
+                        <h2 className="text-[12px] font-extrabold text-[var(--text-primary)]">Priority Setup Actions</h2>
+                        <Link to="/admin/setup-workflow" className="text-[10px] font-bold text-[var(--brand-primary)] hover:underline">
                             View all
                         </Link>
                     </div>
@@ -214,19 +214,19 @@ const AdminDashboard = () => {
                                 <Link
                                     key={item.to}
                                     to={item.to}
-                                    className="group block rounded-lg border border-slate-100 bg-[#f8faff] p-2.5 transition hover:border-[#c5d0f0] hover:bg-white"
+                                    className="group block rounded-lg border border-[var(--border)] bg-[var(--bg-page)] p-2.5 transition hover:border-[var(--border)] hover:bg-[var(--bg-card)]"
                                 >
                                     <div className="mb-1.5 flex items-center justify-between gap-2">
                                         <div className="flex min-w-0 items-center gap-2">
-                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#2f4aad] shadow-sm ring-1 ring-slate-200/80">
+                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-card)] text-[var(--brand-primary)] shadow-sm ring-1 ring-[var(--border)]">
                                                 <Icon className="h-3.5 w-3.5" />
                                             </span>
                                             <div className="min-w-0">
-                                                <p className="truncate text-[12px] font-extrabold text-[#0f172a]">{item.title}</p>
-                                                <p className="truncate text-[10px] font-medium text-slate-500">{item.desc}</p>
+                                                <p className="truncate text-[12px] font-extrabold text-[var(--text-primary)]">{item.title}</p>
+                                                <p className="truncate text-[10px] font-medium text-[var(--text-secondary)]">{item.desc}</p>
                                             </div>
                                         </div>
-                                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-[#2f4aad]" />
+                                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-[var(--brand-primary)]" />
                                     </div>
                                     <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/80">
                                         <div
@@ -240,11 +240,11 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
-                <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-4">
-                    <h2 className="mb-2.5 text-[12px] font-extrabold text-[#0f172a]">Role Workflow</h2>
+                <div className="rounded-xl bg-[var(--bg-card)] p-3.5 shadow-sm ring-1 ring-[var(--border)] xl:col-span-4">
+                    <h2 className="mb-2.5 text-[12px] font-extrabold text-[var(--text-primary)]">Role Workflow</h2>
                     <div className="space-y-2">
                         {roles.map((role, i) => (
-                            <div key={role.title} className="rounded-lg border border-slate-100 bg-[#f8faff] p-2.5">
+                            <div key={role.title} className="rounded-lg border border-[var(--border)] bg-[var(--bg-page)] p-2.5">
                                 <div className="mb-1 flex items-center gap-2">
                                     <span
                                         className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-extrabold text-white"
@@ -252,19 +252,19 @@ const AdminDashboard = () => {
                                     >
                                         {i + 1}
                                     </span>
-                                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#2f4aad]">
+                                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[var(--brand-primary)]">
                                         {role.title}
                                     </p>
                                 </div>
-                                <p className="text-[11px] font-medium leading-snug text-slate-600">{role.text}</p>
+                                <p className="text-[11px] font-medium leading-snug text-[var(--text-secondary)]">{role.text}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            <section className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80">
-                <h2 className="mb-2.5 text-[12px] font-extrabold text-[#0f172a]">Quick access</h2>
+            <section className="rounded-xl bg-[var(--bg-card)] p-3.5 shadow-sm ring-1 ring-[var(--border)]">
+                <h2 className="mb-2.5 text-[12px] font-extrabold text-[var(--text-primary)]">Quick access</h2>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     {setupLinks.map((item) => {
                         const Icon = item.icon;
@@ -272,14 +272,14 @@ const AdminDashboard = () => {
                             <Link
                                 key={`quick-${item.to}`}
                                 to={item.to}
-                                className="flex items-center gap-2 rounded-lg border border-slate-100 bg-[#f8faff] px-2.5 py-2 transition hover:border-[#c5d0f0] hover:bg-white"
+                                className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-2.5 py-2 transition hover:border-[var(--border)] hover:bg-[var(--bg-card)]"
                             >
-                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#2f4aad] shadow-sm ring-1 ring-slate-200/70">
+                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-card)] text-[var(--brand-primary)] shadow-sm ring-1 ring-[var(--border)]/70">
                                     <Icon className="h-3.5 w-3.5" />
                                 </span>
                                 <span className="min-w-0">
-                                    <span className="block truncate text-[11px] font-extrabold text-[#0f172a]">{item.title}</span>
-                                    <span className="block truncate text-[10px] font-medium text-slate-500">{item.desc}</span>
+                                    <span className="block truncate text-[11px] font-extrabold text-[var(--text-primary)]">{item.title}</span>
+                                    <span className="block truncate text-[10px] font-medium text-[var(--text-secondary)]">{item.desc}</span>
                                 </span>
                             </Link>
                         );

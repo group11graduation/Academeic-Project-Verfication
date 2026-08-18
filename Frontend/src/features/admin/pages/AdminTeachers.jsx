@@ -82,22 +82,22 @@ const AdminTeachers = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading faculty directory...</p>
+                <Loader2 className="h-7 w-7 text-[var(--brand-primary)] animate-spin mb-2" />
+                <p className="text-[12px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium">Loading faculty directory...</p>
             </div>
         );
     }
 
     return (
         <div className="font-sans transition-colors min-w-0 max-w-full">
-            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-3 space-y-3">
+            <div className="border-b border-[var(--border)] dark:border-slate-800 pb-3 mb-3 space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Faculty</h1>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Directory</p>
+                        <h1 className="text-base font-extrabold text-[var(--text-primary)] tracking-tight leading-none">Faculty</h1>
+                        <p className="text-[9px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">Directory</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Link to="/admin/teachers/new" className="inline-flex items-center gap-1.5 bg-[#2f4aad] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors whitespace-nowrap">
+                        <Link to="/admin/teachers/new" className="inline-flex items-center gap-1.5 bg-[var(--brand-primary)] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors whitespace-nowrap">
                             <Plus className="h-3.5 w-3.5" />
                             Add Teacher
                         </Link>
@@ -110,14 +110,14 @@ const AdminTeachers = () => {
                                     appError(err.message || 'Could not download template.');
                                 }
                             }}
-                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-[var(--bg-elevated)] transition-colors whitespace-nowrap"
                         >
                             <Download className="h-3.5 w-3.5" />
                             Excel template
                         </button>
                         <Link
                             to="/admin/teachers/import"
-                            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-[var(--bg-elevated)] transition-colors whitespace-nowrap"
                         >
                             <Upload className="h-3.5 w-3.5" />
                             Import Teachers
@@ -126,18 +126,18 @@ const AdminTeachers = () => {
                 </div>
 
                 <div className="relative w-full sm:max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)] dark:text-[var(--text-secondary)]" />
                     <input
                         type="text"
                         placeholder="Search teachers..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-slate-700 dark:text-slate-200 outline-none"
+                        className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-[var(--text-primary)] outline-none"
                     />
                 </div>
             </div>
 
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-3">Academic staff profiles and assignments.</p>
+            <p className="text-[11px] text-[var(--text-secondary)] dark:text-[var(--text-secondary)] font-medium mb-3">Academic staff profiles and assignments.</p>
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredTeachers.map((teacher) => {
@@ -150,7 +150,7 @@ const AdminTeachers = () => {
                     return (
                         <div
                             key={teacher.id}
-                            className="group flex flex-col items-center rounded-[1.35rem] bg-white px-6 pb-5 pt-7 text-center shadow-[0_10px_30px_-18px_rgba(15,23,42,0.28)] ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_-18px_rgba(47,74,173,0.35)] dark:bg-slate-900 dark:ring-white/10"
+                            className="group flex flex-col items-center rounded-[1.35rem] bg-[var(--bg-card)] px-6 pb-5 pt-7 text-center shadow-[0_10px_30px_-18px_rgba(15,23,42,0.28)] ring-1 ring-[var(--border)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_-18px_rgba(47,74,173,0.35)]"
                         >
                             <Link
                                 to={`/admin/teachers/${teacher.id}`}
@@ -162,11 +162,11 @@ const AdminTeachers = () => {
                                         <img
                                             src={teacher.photo}
                                             alt={teacher.name || 'Teacher'}
-                                            className="h-[88px] w-[88px] rounded-full object-cover ring-4 ring-[#eef2fb]"
+                                            className="h-[88px] w-[88px] rounded-full object-cover ring-4 ring-[var(--border)]"
                                         />
                                     ) : (
                                         <div
-                                            className="flex h-[88px] w-[88px] items-center justify-center rounded-full text-2xl font-extrabold text-white ring-4 ring-[#eef2fb]"
+                                            className="flex h-[88px] w-[88px] items-center justify-center rounded-full text-2xl font-extrabold text-white ring-4 ring-[var(--border)]"
                                             style={{ background: 'linear-gradient(145deg, #6b84d4 0%, #2f4aad 100%)' }}
                                         >
                                             {initial}
@@ -174,56 +174,56 @@ const AdminTeachers = () => {
                                     )}
                                 </div>
 
-                                <h3 className="max-w-full truncate text-[15px] font-extrabold tracking-tight text-[#1e293b] dark:text-slate-100">
+                                <h3 className="max-w-full truncate text-[15px] font-extrabold tracking-tight text-[var(--text-primary)]">
                                     {teacher.name}
                                 </h3>
-                                <p className="mt-0.5 max-w-full truncate text-[12px] font-medium text-slate-400">
+                                <p className="mt-0.5 max-w-full truncate text-[12px] font-medium text-[var(--text-secondary)]">
                                     {roleLabel}
                                 </p>
 
-                                <div className="mt-5 grid w-full grid-cols-3 gap-2 border-t border-slate-100 pt-4 dark:border-white/10">
+                                <div className="mt-5 grid w-full grid-cols-3 gap-2 border-t border-[var(--border)] pt-4">
                                     <div>
-                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Classes</p>
-                                        <p className="mt-1 text-[17px] font-extrabold text-[#1e293b] dark:text-slate-100">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Classes</p>
+                                        <p className="mt-1 text-[17px] font-extrabold text-[var(--text-primary)]">
                                             {teacher.classesCount}
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Subjects</p>
-                                        <p className="mt-1 text-[17px] font-extrabold text-[#1e293b] dark:text-slate-100">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Subjects</p>
+                                        <p className="mt-1 text-[17px] font-extrabold text-[var(--text-primary)]">
                                             {teacher.subjectsCount}
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Projects</p>
-                                        <p className="mt-1 text-[17px] font-extrabold text-[#1e293b] dark:text-slate-100">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Projects</p>
+                                        <p className="mt-1 text-[17px] font-extrabold text-[var(--text-primary)]">
                                             {teacher.projectsCount}
                                         </p>
                                     </div>
                                 </div>
                             </Link>
 
-                            <div className="mt-4 flex w-full items-center justify-center gap-1.5 border-t border-slate-100 pt-3 dark:border-white/10">
+                            <div className="mt-4 flex w-full items-center justify-center gap-1.5 border-t border-[var(--border)] pt-3">
                                 {teacher.passcode ? (
                                     <button
                                         type="button"
                                         onClick={() => togglePasscode(teacher.id)}
-                                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                        className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-elevated)] px-2.5 py-1.5 text-[10px] font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-card)]"
                                         title="Toggle passcode"
                                     >
-                                        <ShieldCheck className="h-3.5 w-3.5 text-[#2f4aad]" />
+                                        <ShieldCheck className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                                         {showPasscodes[teacher.id] ? teacher.passcode : '••••••'}
                                         {showPasscodes[teacher.id] ? (
-                                            <EyeOff className="h-3.5 w-3.5 text-[#2f4aad]" />
+                                            <EyeOff className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                                         ) : (
-                                            <Eye className="h-3.5 w-3.5 text-[#2f4aad]" />
+                                            <Eye className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
                                         )}
                                     </button>
                                 ) : null}
                                 <button
                                     type="button"
                                     onClick={() => navigate(`/admin/teachers/${teacher.id}/edit`)}
-                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#2f4aad] hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
+                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-card)] text-[var(--brand-primary)] hover:bg-[var(--bg-elevated)]"
                                     title="Update"
                                     aria-label="Update"
                                 >
@@ -250,12 +250,12 @@ const AdminTeachers = () => {
 
                 <Link
                     to="/admin/teachers/new"
-                    className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border-2 border-dashed border-slate-200 bg-[#F8FAFB] text-slate-400 transition hover:border-[#2f4aad]/40 hover:bg-white dark:border-slate-700 dark:bg-slate-900/40"
+                    className="flex min-h-[280px] flex-col items-center justify-center rounded-[1.35rem] border-2 border-dashed border-[var(--border)] bg-[var(--bg-page)] text-[var(--text-secondary)] transition hover:border-[#2f4aad]/40 hover:bg-[var(--bg-card)]"
                 >
-                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm dark:bg-slate-800">
-                        <Plus className="h-5 w-5 text-slate-400" />
+                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-card)] shadow-sm">
+                        <Plus className="h-5 w-5 text-[var(--text-secondary)]" />
                     </div>
-                    <span className="text-[12px] font-bold text-slate-500 dark:text-slate-400">Register New Faculty</span>
+                    <span className="text-[12px] font-bold text-[var(--text-secondary)] dark:text-[var(--text-secondary)]">Register New Faculty</span>
                 </Link>
             </div>
         </div>

@@ -49,7 +49,7 @@ export default function VerifiedProjectCard({
     const canZoom = Boolean(screenshotUrls.length && onOpenScreenshots);
 
     return (
-        <article className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_6px_20px_rgba(15,23,42,0.05)] ring-1 ring-slate-900/[0.04] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(42,63,164,0.12)] hover:ring-[#2a3fa4]/15">
+        <article className="group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--bg-card)] shadow-[0_6px_20px_rgba(15,23,42,0.05)] ring-1 ring-slate-900/[0.04] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(42,63,164,0.12)] hover:ring-[#2a3fa4]/15">
             <div className="relative p-2.5 pb-0">
                 <div className="relative aspect-[16/9] overflow-hidden rounded-xl bg-[#eef2ff]">
                     <button
@@ -58,15 +58,15 @@ export default function VerifiedProjectCard({
                             canZoom ? onOpenScreenshots({ title: project.title, urls: screenshotUrls }) : undefined
                         }
                         className={`absolute inset-0 block w-full text-left ${
-                            canZoom ? 'cursor-zoom-in' : 'cursor-default'
-                        }`}
+ canZoom ? 'cursor-zoom-in' : 'cursor-default'
+ }`}
                         title={canZoom ? 'View screenshots' : undefined}
                         aria-label={canZoom ? `Preview ${project.title}` : project.title}
                     >
                         <Cover project={project} />
                     </button>
 
-                    <span className="pointer-events-none absolute left-2 top-2 z-[1] rounded-full bg-white/95 px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.1em] text-slate-700 shadow-sm backdrop-blur-md">
+                    <span className="pointer-events-none absolute left-2 top-2 z-[1] rounded-full bg-[var(--bg-card)] px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.1em] text-[var(--text-primary)] shadow-sm backdrop-blur-md">
                         {category}
                     </span>
 
@@ -80,10 +80,10 @@ export default function VerifiedProjectCard({
                                 onToggleLike(project);
                             }}
                             className={`absolute right-2 top-2 z-[1] inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold shadow-sm backdrop-blur-md transition disabled:opacity-60 ${
-                                isLiked
-                                    ? 'bg-rose-500 text-white'
-                                    : 'bg-white/95 text-slate-600 hover:bg-white'
-                            }`}
+ isLiked
+ ? 'bg-rose-500 text-white'
+ : 'bg-[var(--bg-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-card)]'
+ }`}
                             title={isLiked ? 'Remove love' : 'Love this project'}
                         >
                             {likeBusy ? (
@@ -94,7 +94,7 @@ export default function VerifiedProjectCard({
                             <span className="tabular-nums">{totalLikes}</span>
                         </button>
                     ) : (
-                        <span className="absolute right-2 top-2 z-[1] inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm backdrop-blur-md">
+                        <span className="absolute right-2 top-2 z-[1] inline-flex items-center gap-1 rounded-full bg-[var(--bg-card)] px-2 py-1 text-[10px] font-bold text-[var(--text-secondary)] shadow-sm backdrop-blur-md">
                             <Heart className="h-3 w-3" />
                             <span className="tabular-nums">{totalLikes}</span>
                         </span>
@@ -103,24 +103,24 @@ export default function VerifiedProjectCard({
             </div>
 
             <div className="flex flex-1 flex-col px-3.5 pb-3.5 pt-3 sm:px-4 sm:pb-4">
-                <h3 className="mb-1 line-clamp-2 text-[0.95rem] font-extrabold leading-snug tracking-tight text-slate-950">
+                <h3 className="mb-1 line-clamp-2 text-[0.95rem] font-extrabold leading-snug tracking-tight text-[var(--text-primary)]">
                     <Link
                         to={`/gallery/${project.id}`}
-                        className="transition-colors hover:text-[#2a3fa4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a3fa4]/40"
+                        className="transition-colors hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a3fa4]/40"
                     >
                         {project.title}
                     </Link>
                 </h3>
 
-                <p className="mb-3 line-clamp-1 text-xs font-medium text-slate-500">
-                    By <span className="font-semibold text-slate-800">{project.author || 'Student'}</span>
+                <p className="mb-3 line-clamp-1 text-xs font-medium text-[var(--text-secondary)]">
+                    By <span className="font-semibold text-[var(--text-primary)]">{project.author || 'Student'}</span>
                     <span className="text-slate-300"> · </span>
-                    <span className="text-slate-400">{technology}</span>
+                    <span className="text-[var(--text-secondary)]">{technology}</span>
                 </p>
 
                 <Link
                     to={`/gallery/${project.id}`}
-                    className="mt-auto inline-flex min-h-8 w-fit items-center gap-1.5 rounded-full bg-[#eef2ff] px-3 py-1.5 text-xs font-bold text-[#2a3fa4] transition hover:bg-[#2a3fa4] hover:text-white"
+                    className="mt-auto inline-flex min-h-8 w-fit items-center gap-1.5 rounded-full bg-[#eef2ff] px-3 py-1.5 text-xs font-bold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary)] hover:text-white"
                 >
                     View project
                     <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
