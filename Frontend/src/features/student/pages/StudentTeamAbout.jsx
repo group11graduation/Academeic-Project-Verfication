@@ -27,7 +27,7 @@ const team = [
 const StudentTeamAbout = () => {
     return (
         <StudentPublicShell>
-            <div className="relative min-h-screen overflow-x-clip bg-[#f0f1f3] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
+            <div className="relative min-h-screen overflow-x-clip bg-[var(--bg-page)] text-[var(--text-primary)] antialiased [font-family:var(--sv-font-sans)]">
                 <div
                     aria-hidden
                     className="pointer-events-none absolute inset-x-0 top-0 h-[520px]"
@@ -39,9 +39,9 @@ const StudentTeamAbout = () => {
                 <main className="relative">
                     {/* Hero */}
                     <section className="mx-auto max-w-[1200px] px-4 pb-8 pt-6 sm:px-6 sm:pt-8 lg:px-8">
-                        <div className="relative overflow-hidden rounded-[28px] border border-white/80 bg-[var(--bg-card)] px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
-                            <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#c7d2fe]/50 blur-3xl" />
-                            <div aria-hidden className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[#bfdbfe]/45 blur-3xl" />
+                        <div className="relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--bg-card)] px-5 py-10 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:rounded-[40px] sm:px-10 sm:py-14 lg:px-14">
+                            <div aria-hidden className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[var(--accent)]/20 blur-3xl" />
+                            <div aria-hidden className="pointer-events-none absolute -right-16 top-8 h-56 w-56 rounded-full bg-[var(--accent)]/15 blur-3xl" />
                             <div className="relative mx-auto max-w-3xl text-center">
                                 <p className="mb-4 text-sm font-bold tracking-tight text-[var(--brand-primary)]">About</p>
                                 <h1 className="mb-5 text-[1.85rem] font-extrabold leading-[1.15] tracking-tight text-[var(--text-primary)] sm:text-4xl md:text-5xl">
@@ -62,7 +62,7 @@ const StudentTeamAbout = () => {
                                     </a>
                                     <Link
                                         to="/guide"
-                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-[var(--bg-card)] px-7 py-3 text-sm font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+                                        className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] px-7 py-3 text-sm font-bold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                                     >
                                         Platform guide
                                     </Link>

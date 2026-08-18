@@ -12,18 +12,17 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
     const isAlert = status === 'alert';
 
     return (
-        <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--bg-card)] shadow-[0_10px_30px_-18px_rgba(47,74,173,0.45)] ring-1 ring-[var(--border)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-18px_rgba(47,74,173,0.55)] [font-family:var(--sv-font-sans)]">
-            {/* Soft header wash */}
+        <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--bg-card)] shadow-sm ring-1 ring-[var(--border)] transition duration-300 hover:-translate-y-0.5 hover:shadow-md [font-family:var(--sv-font-sans)]">
             <div
-                className="relative px-4 pb-4 pt-4"
+                className="relative border-b border-[var(--border)] px-4 pb-4 pt-4"
                 style={{
                     background:
-                        'linear-gradient(165deg, #e8eeff 0%, #f4f7ff 45%, #ffffff 100%)',
+                        'linear-gradient(165deg, color-mix(in srgb, var(--accent) 16%, var(--bg-elevated)) 0%, var(--bg-elevated) 55%, var(--bg-card) 100%)',
                 }}
             >
                 <div
                     aria-hidden
-                    className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full opacity-40 blur-2xl"
+                    className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full opacity-25 blur-2xl"
                     style={{ background: TEACHER_PRIMARY }}
                 />
                 <div className="relative flex items-start gap-3">
@@ -39,7 +38,7 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
                             <h4 className="truncate text-[15px] font-bold tracking-tight text-[var(--text-primary)]">
                                 {code}
                             </h4>
-                            <span className="shrink-0 rounded-full bg-[var(--bg-card)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-primary)] ring-1 ring-[var(--border)]">
+                            <span className="shrink-0 rounded-full bg-[var(--bg-card)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--accent)] ring-1 ring-[var(--border)]">
                                 Sec {section}
                             </span>
                         </div>
@@ -51,9 +50,8 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
             </div>
 
             <div className="flex flex-1 flex-col px-4 pb-4">
-                {/* Stats row */}
-                <div className="mt-1 grid grid-cols-2 gap-2">
-                    <div className="rounded-xl bg-[var(--content-bg)] px-3 py-2.5 ring-1 ring-[var(--border)]">
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl bg-[var(--bg-elevated)] px-3 py-2.5 ring-1 ring-[var(--border)]">
                         <div className="mb-1 flex items-center gap-1.5 text-[var(--text-secondary)]">
                             <Users className="h-3 w-3" strokeWidth={2.2} />
                             <span className="text-[9px] font-semibold uppercase tracking-[0.5px]">Students</span>
@@ -62,47 +60,44 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
                             {students}
                         </p>
                     </div>
-                    <div className="rounded-xl bg-[var(--content-bg)] px-3 py-2.5 ring-1 ring-[var(--border)]">
+                    <div className="rounded-xl bg-[var(--bg-elevated)] px-3 py-2.5 ring-1 ring-[var(--border)]">
                         <div className="mb-1 flex items-center gap-1.5 text-[var(--text-secondary)]">
                             <Clock3 className="h-3 w-3" strokeWidth={2.2} />
                             <span className="text-[9px] font-semibold uppercase tracking-[0.5px]">Pending</span>
                         </div>
                         <p
                             className={`text-lg font-bold leading-none tracking-tight ${
- pendingCount > 0 ? 'text-rose-600' : 'text-[var(--text-primary)]'
- }`}
+                                pendingCount > 0 ? 'text-rose-400' : 'text-[var(--text-primary)]'
+                            }`}
                         >
                             {pendingCount}
                         </p>
                     </div>
                 </div>
 
-                {/* Status */}
                 <div className="mt-3">
                     {isAlert ? (
-                        <div className="flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 ring-1 ring-rose-100">
-                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
-                            <span className="text-[11px] font-semibold text-rose-700">
+                        <div className="flex items-center gap-2 rounded-xl bg-rose-500/15 px-3 py-2 ring-1 ring-rose-500/25">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+                            <span className="text-[11px] font-semibold text-rose-300">
                                 {alerts} review alert{alerts === 1 ? '' : 's'}
                             </span>
                         </div>
                     ) : (
-                        <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
+                        <div className="flex items-center gap-2 rounded-xl bg-emerald-500/15 px-3 py-2 ring-1 ring-emerald-500/25">
                             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white">
                                 <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
                             </span>
-                            <span className="text-[11px] font-semibold text-emerald-700">Verified integrity</span>
+                            <span className="text-[11px] font-semibold text-emerald-300">Verified integrity</span>
                         </div>
                     )}
                 </div>
 
-                {/* CTA */}
                 <div className="mt-auto pt-3">
                     {isAlert && showReviewButton ? (
                         <Link
                             to={`/teacher/classes/${code}?focus=alerts`}
-                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold text-white transition hover:brightness-110 active:scale-[0.99]"
-                            style={{ background: TEACHER_GRADIENT }}
+                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[var(--accent)] py-2.5 text-[11px] font-semibold text-white transition hover:brightness-110 active:scale-[0.99]"
                         >
                             Review Alerts
                             <ArrowRight className="h-3.5 w-3.5" />
@@ -110,8 +105,7 @@ const ClassCard = ({ code, title, section, students, pending, status, alerts, sh
                     ) : (
                         <Link
                             to={`/teacher/classes/${code}/students`}
-                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold text-white transition hover:brightness-110 active:scale-[0.99]"
-                            style={{ background: TEACHER_GRADIENT }}
+                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[var(--accent)] py-2.5 text-[11px] font-semibold text-white transition hover:brightness-110 active:scale-[0.99]"
                         >
                             Manage Class
                             <ArrowRight className="h-3.5 w-3.5 opacity-90 transition group-hover:translate-x-0.5" />

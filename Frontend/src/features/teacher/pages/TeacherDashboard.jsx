@@ -186,7 +186,7 @@ const TeacherDashboard = () => {
 const ActionLink = ({ to, icon: Icon, title, desc }) => (
     <Link
         to={to}
-        className="block rounded-xl border border-[var(--border)] bg-[var(--content-bg)] p-3 transition hover:border-[#2f4aad]/35 hover:bg-[var(--bg-elevated)]"
+        className="block rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-3 transition hover:border-[var(--accent)]/40 hover:brightness-110"
     >
         <div className="mb-1 flex items-center gap-2">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-card)] text-[var(--brand-primary)] shadow-sm ring-1 ring-[var(--border)]">

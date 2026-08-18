@@ -82,8 +82,8 @@ const StudentHeader = ({ forcePublic = false }) => {
     const desktopNavClass = ({ isActive }) =>
         `rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
             isActive
-                ? 'bg-[#f0f1f3] text-[var(--text-primary)]'
-                : 'text-[var(--text-secondary)] hover:bg-[#f5f5f7] hover:text-[var(--text-primary)]'
+                ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] ring-1 ring-[var(--border)]'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
         }`;
 
     const mobileIcon = (path) => {
@@ -100,7 +100,7 @@ const StudentHeader = ({ forcePublic = false }) => {
     if (isPublicMarketing) {
         return (
             <header className="sticky top-0 z-50 [font-family:var(--sv-font-sans)]">
-                <div className="border-b border-white/40 bg-white/70 backdrop-blur-xl">
+                <div className="border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--bg-elevated)_88%,transparent)] backdrop-blur-xl">
                     <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
                         <div className="flex h-[84px] items-center justify-between gap-3">
                             <Link to="/" className="group shrink-0" onClick={() => setMobileOpen(false)}>
@@ -166,8 +166,8 @@ const StudentHeader = ({ forcePublic = false }) => {
                                             className={({ isActive }) =>
                                                 `flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${
                                                     isActive
-                                                        ? 'bg-[#f0f1f3] text-[var(--text-primary)]'
-                                                        : 'text-[var(--text-primary)] hover:bg-[#f5f5f7]'
+                                                        ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] ring-1 ring-[var(--border)]'
+                                                        : 'text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'
                                                 }`
                                             }
                                         >

@@ -106,35 +106,36 @@ const StudentGallery = () => {
 
     return (
         <StudentPublicShell>
-            <div className="relative min-h-screen overflow-x-clip bg-[#eef1f6] text-[var(--sv-text)] antialiased [font-family:var(--sv-font-sans)]">
+            <div className="relative min-h-screen overflow-x-clip bg-[var(--bg-page)] text-[var(--text-primary)] antialiased [font-family:var(--sv-font-sans)]">
                 <div
                     aria-hidden
                     className="pointer-events-none absolute inset-0"
                     style={{
                         background:
-                            'radial-gradient(ellipse 80% 45% at 50% 0%, rgba(42,63,164,0.12), transparent 55%), radial-gradient(ellipse 50% 40% at 100% 20%, rgba(29,104,227,0.10), transparent 50%), radial-gradient(ellipse 45% 35% at 0% 30%, rgba(165,180,252,0.18), transparent 50%)',
+                            'radial-gradient(ellipse 80% 45% at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%), radial-gradient(ellipse 50% 40% at 100% 20%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 50%), radial-gradient(ellipse 45% 35% at 0% 30%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 50%)',
                     }}
                 />
 
                 <main className="relative px-3 pb-12 pt-4 sm:px-4 sm:pt-5 md:px-5 lg:px-6">
                     {/* Floating gradient panel — near edges, not touching */}
                     <div
-                        className="relative overflow-hidden rounded-[28px] border border-white/70 px-4 py-6 shadow-[0_24px_80px_rgba(15,23,42,0.07)] sm:rounded-[36px] sm:px-6 sm:py-8 md:rounded-[40px] lg:px-8 lg:py-10"
+                        className="relative overflow-hidden rounded-[28px] border border-[var(--border)] px-4 py-6 shadow-sm sm:rounded-[36px] sm:px-6 sm:py-8 md:rounded-[40px] lg:px-8 lg:py-10"
                         style={{
-                            background: 'linear-gradient(180deg, #e8eeff 0%, #f5f7ff 32%, #ffffff 78%)',
+                            background:
+                                'linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--bg-elevated)) 0%, var(--bg-elevated) 40%, var(--bg-card) 100%)',
                         }}
                     >
                         <div
                             aria-hidden
-                            className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-[#c7d2fe]/45 blur-3xl"
+                            className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-[var(--accent)]/15 blur-3xl"
                         />
                         <div
                             aria-hidden
-                            className="pointer-events-none absolute -right-20 top-0 h-64 w-64 rounded-full bg-[#bfdbfe]/40 blur-3xl"
+                            className="pointer-events-none absolute -right-20 top-0 h-64 w-64 rounded-full bg-[var(--accent)]/12 blur-3xl"
                         />
 
                         <div className="relative mb-8 mx-auto max-w-3xl text-center">
-                            <p className="mb-3 text-sm font-bold tracking-tight text-[var(--brand-primary)]">Verified projects</p>
+                            <p className="mb-3 text-sm font-bold tracking-tight text-[var(--accent)]">Verified projects</p>
                             <h1 className="mb-3 text-[1.75rem] font-extrabold leading-[1.15] tracking-tight text-[var(--text-primary)] sm:text-4xl md:text-5xl">
                                 Approved student submissions
                             </h1>
@@ -144,7 +145,7 @@ const StudentGallery = () => {
                             </p>
                         </div>
 
-                        <div className="relative mb-8 rounded-[24px] border border-white/80 bg-white/70 p-4 shadow-sm backdrop-blur-sm sm:rounded-[28px] sm:p-5">
+                        <div className="relative mb-8 rounded-[24px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 shadow-sm sm:rounded-[28px] sm:p-5">
                             <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {GALLERY_CATEGORIES.map((cat) => (
                                     <button
@@ -152,10 +153,10 @@ const StudentGallery = () => {
                                         type="button"
                                         onClick={() => setActiveCategory(cat)}
                                         className={`shrink-0 rounded-full px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-widest transition sm:text-xs ${
- activeCategory === cat
- ? 'bg-[var(--brand-primary)] text-white shadow-md shadow-[#2a3fa4]/20'
- : 'bg-[#f0f2f7] text-[var(--text-secondary)] hover:bg-slate-200/80'
- }`}
+                                            activeCategory === cat
+                                                ? 'bg-[var(--accent)] text-white shadow-md'
+                                                : 'bg-[var(--bg-card)] text-[var(--text-secondary)] ring-1 ring-[var(--border)] hover:text-[var(--text-primary)]'
+                                        }`}
                                     >
                                         {cat}
                                     </button>
@@ -170,7 +171,7 @@ const StudentGallery = () => {
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Search projects by title, author, description…"
-                                        className="w-full rounded-full border border-[var(--border)] bg-[var(--bg-card)] py-3 pl-11 pr-4 text-sm font-medium text-[var(--text-primary)] outline-none transition focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15"
+                                        className="w-full rounded-full border border-[var(--border)] bg-[var(--bg-card)] py-3 pl-11 pr-4 text-sm font-medium text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
                                         aria-label="Search verified projects"
                                     />
                                 </div>
@@ -178,11 +179,10 @@ const StudentGallery = () => {
                                     type="button"
                                     onClick={() => setSortBest((v) => !v)}
                                     className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[10px] font-extrabold uppercase tracking-widest transition sm:text-xs ${
- sortBest
- ? 'text-white shadow-md shadow-[#2a3fa4]/20'
- : 'border border-[var(--border)] bg-[var(--bg-card)] text-[var(--brand-primary)] hover:bg-[#eef2ff]'
- }`}
-                                    style={sortBest ? { background: BRAND_GRADIENT } : undefined}
+                                        sortBest
+                                            ? 'bg-[var(--accent)] text-white shadow-md'
+                                            : 'border border-[var(--border)] bg-[var(--bg-card)] text-[var(--accent)] hover:brightness-110'
+                                    }`}
                                 >
                                     <TrendingUp className="h-3.5 w-3.5" />
                                     {sortBest ? 'Most loved' : 'Most recent'}

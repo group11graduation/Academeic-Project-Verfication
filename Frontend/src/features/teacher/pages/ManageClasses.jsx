@@ -108,11 +108,11 @@ const ManageClasses = () => {
                     ))}
                 </div>
             ) : classes.length > 0 ? (
-                <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--content-bg)] py-8 text-center">
+                <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] py-8 text-center">
                     <p className="text-[12px] font-medium text-[var(--text-secondary)]">No classes match your search.</p>
                 </div>
             ) : (
-                <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--content-bg)] py-8 text-center">
+                <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] py-8 text-center">
                     <p className="text-[12px] font-medium text-[var(--text-secondary)]">You have no active classes assigned.</p>
                 </div>
             )}
