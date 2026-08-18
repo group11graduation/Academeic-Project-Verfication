@@ -138,14 +138,42 @@ const AdminLayoutInner = () => {
     const firstName = (user?.name || 'Admin').trim().split(/\s+/)[0];
     const initial = (user?.name || 'A').trim().slice(0, 1).toUpperCase();
 
+    const cutoutActive = (isActive) =>
+        isActive ? (
+            <>
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute -right-px -top-3 h-3 w-3 bg-transparent"
+                    style={{
+                        borderBottomRightRadius: '0.75rem',
+                        boxShadow: `4px 4px 0 0 ${CONTENT_BG}`,
+                    }}
+                />
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute -bottom-3 -right-px h-3 w-3 bg-transparent"
+                    style={{
+                        borderTopRightRadius: '0.75rem',
+                        boxShadow: `4px -4px 0 0 ${CONTENT_BG}`,
+                    }}
+                />
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 -right-3 w-3"
+                    style={{ backgroundColor: CONTENT_BG }}
+                />
+            </>
+        ) : null;
+
+    /** Cutout active: light fill, large left radius, flush to content edge */
     const parentActiveClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-2xl bg-white py-2.5 pl-3 pr-2.5 text-[12px] font-bold text-[#2f4aad] shadow-[0_8px_20px_-12px_rgba(47,74,173,0.55)]';
+        'relative z-[1] flex w-full items-center gap-2.5 rounded-l-[1.5rem] bg-[#f8f9fd] py-2.5 pl-3.5 pr-3 text-[12px] font-bold text-[#2f4aad]';
     const parentIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-2xl py-2.5 pl-3 pr-2.5 text-[12px] font-semibold text-white/90 transition-colors hover:bg-white/12 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl py-2.5 pl-3 pr-2.5 text-[12px] font-semibold text-white/90 transition-colors hover:bg-white/12 hover:text-white';
     const childActiveClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-xl bg-white py-2 pl-3 pr-2.5 text-[11px] font-bold text-[#2f4aad] shadow-[0_6px_16px_-10px_rgba(47,74,173,0.5)]';
+        'relative z-[1] flex w-full items-center gap-2 rounded-l-[1.25rem] bg-[#f8f9fd] py-2 pl-3.5 pr-3 text-[11px] font-bold text-[#2f4aad]';
     const childIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-xl py-2 pl-3 pr-2.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/12 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg py-2 pl-3 pr-2.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/12 hover:text-white';
 
     return (
         <div
@@ -239,13 +267,14 @@ const AdminLayoutInner = () => {
                                         >
                                             {({ isActive }) => (
                                                 <>
+                                                    {cutoutActive(isActive)}
                                                     <SectionIcon
-                                                        className={`h-4 w-4 shrink-0 ${
+                                                        className={`relative z-[1] h-4 w-4 shrink-0 ${
                                                             isActive ? 'text-[#2f4aad]' : 'text-white/80'
                                                         }`}
                                                         strokeWidth={2.15}
                                                     />
-                                                    <span className="truncate">{section.name}</span>
+                                                    <span className="relative z-[1] truncate">{section.name}</span>
                                                 </>
                                             )}
                                         </NavLink>
@@ -288,13 +317,14 @@ const AdminLayoutInner = () => {
                                                         >
                                                             {({ isActive }) => (
                                                                 <>
+                                                                    {cutoutActive(isActive)}
                                                                     <Icon
-                                                                        className={`h-3.5 w-3.5 shrink-0 ${
+                                                                        className={`relative z-[1] h-3.5 w-3.5 shrink-0 ${
                                                                             isActive ? 'text-[#2f4aad]' : 'text-white/75'
                                                                         }`}
                                                                         strokeWidth={2}
                                                                     />
-                                                                    <span className="truncate">{item.name}</span>
+                                                                    <span className="relative z-[1] truncate">{item.name}</span>
                                                                 </>
                                                             )}
                                                         </NavLink>
