@@ -139,7 +139,7 @@ const LoginPage = () => {
         </p>
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" autoComplete="on">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" autoComplete="on">
         {rootMsg ? <div className={authErrorBoxClass}>{rootMsg}</div> : null}
 
         <div>
