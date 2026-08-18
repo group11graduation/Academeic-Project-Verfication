@@ -10,7 +10,6 @@ import {
     LogOut,
     CalendarRange,
     FileSpreadsheet,
-    Workflow,
     Building2,
     Menu,
     Power,
@@ -76,7 +75,6 @@ const AdminLayoutInner = () => {
                 name: 'Academic',
                 icon: BookMarked,
                 links: [
-                    { name: 'Setup Workflow', path: '/admin/setup-workflow', icon: Workflow },
                     { name: 'Classes', path: '/admin/classes', icon: BookOpen },
                     { name: 'Subjects', path: '/admin/subjects', icon: BookMarked },
                     { name: 'Academic Structure', path: '/admin/academic-structure', icon: Building2 },
