@@ -382,6 +382,10 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     if (fsSync.existsSync(laravelAuthPatchSrc)) {
       await fs.copyFile(laravelAuthPatchSrc, path.join(stageDir, 'preview-patch-laravel-auth.php'));
     }
+    const laravelLoginSrc = path.join(templateDir, 'preview-sv-login.php');
+    if (fsSync.existsSync(laravelLoginSrc)) {
+      await fs.copyFile(laravelLoginSrc, path.join(stageDir, 'preview-sv-login.php'));
+    }
   }
 
   return stageDir;
@@ -989,6 +993,7 @@ async function ensurePreviewLaravelReactBaseImage({ forceRebuild = false } = {})
     path.join(templateDir, 'preview-seed-admin.php'),
     path.join(templateDir, 'preview-seed-laravel.php'),
     path.join(templateDir, 'preview-patch-laravel-auth.php'),
+    path.join(templateDir, 'preview-sv-login.php'),
   ]);
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
@@ -1866,13 +1871,16 @@ async function runPreviewContainer({
       ['preview-seed-admin.php', '/preview-seed-admin.php'],
       ['preview-seed-laravel.php', '/preview-seed-laravel.php'],
       ['preview-patch-laravel-auth.php', '/preview-patch-laravel-auth.php'],
+      ['preview-sv-login.php', '/preview-sv-login.php'],
     ];
     for (const [name, dest] of phpOverlayFiles) {
       const src = path.join(sharedPhpDir, name);
       // Only Laravel stack needs the Laravel-specific seed/auth patches.
       if (
         stack !== 'laravel-react-mysql' &&
-        (name === 'preview-seed-laravel.php' || name === 'preview-patch-laravel-auth.php')
+        (name === 'preview-seed-laravel.php' ||
+          name === 'preview-patch-laravel-auth.php' ||
+          name === 'preview-sv-login.php')
       ) {
         continue;
       }

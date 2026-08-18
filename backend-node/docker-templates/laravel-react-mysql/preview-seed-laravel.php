@@ -106,6 +106,12 @@ try {
     // Prefer typing the same value in the Username field: store email=previewadmin when no @.
     $email = str_contains($user, '@') ? $user : $user;
     $emailAlias = str_contains($user, '@') ? $user : ($user . '@preview.local');
+    $credJson = json_encode(
+        ['username' => $user, 'password' => $pass, 'email' => $emailAlias],
+        JSON_UNESCAPED_SLASHES
+    );
+    @file_put_contents('/preview-laravel-credentials.json', $credJson);
+    @file_put_contents('/tmp/preview-laravel-credentials.json', $credJson);
     $mode = sv_seed_detect_password_mode($root);
     sv_log("password mode → {$mode}");
 

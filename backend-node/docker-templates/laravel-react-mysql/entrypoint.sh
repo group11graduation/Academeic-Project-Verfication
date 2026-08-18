@@ -77,6 +77,8 @@ configure_laravel_docroot() {
 <VirtualHost *:80>
   ServerAdmin webmaster@localhost
   DocumentRoot ${APACHE_DOCROOT}
+  SetEnv LARAVEL_ROOT ${LARAVEL_ROOT}
+  PassEnv PREVIEW_SEED_USERNAME PREVIEW_SEED_PASSWORD ADMIN_USERNAME ADMIN_PASSWORD PREVIEW_ADMIN_PASSWORD LARAVEL_ROOT
   <Directory ${APACHE_DOCROOT}>
     Options FollowSymLinks
     AllowOverride All
@@ -91,6 +93,31 @@ configure_laravel_docroot() {
   CustomLog \${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
 EOF
+}
+
+# Persist seed credentials for Apache PHP (getenv often empty under mod_php).
+write_preview_credentials() {
+  php -r '
+    $u = getenv("PREVIEW_SEED_USERNAME") ?: (getenv("ADMIN_USERNAME") ?: "previewadmin");
+    $p = getenv("PREVIEW_SEED_PASSWORD") ?: (getenv("ADMIN_PASSWORD") ?: "Preview123!");
+    if ($p === "" || $p === "preview-root") $p = "Preview123!";
+    $e = str_contains($u, "@") ? $u : ($u . "@preview.local");
+    $json = json_encode(["username" => $u, "password" => $p, "email" => $e], JSON_UNESCAPED_SLASHES);
+    @file_put_contents("/preview-laravel-credentials.json", $json);
+    @file_put_contents("/tmp/preview-laravel-credentials.json", $json);
+    echo "[preview] wrote login credentials for " . $u . PHP_EOL;
+  ' || true
+}
+
+install_preview_login_endpoint() {
+  if [ ! -f /preview-sv-login.php ]; then
+    echo "[preview] preview-sv-login.php missing — hard login endpoint unavailable"
+    return 0
+  fi
+  if [ -d "$APACHE_DOCROOT" ]; then
+    cp -f /preview-sv-login.php "$APACHE_DOCROOT/preview-sv-login.php" 2>/dev/null || true
+    echo "[preview] installed hard login endpoint → ${APACHE_DOCROOT}/preview-sv-login.php"
+  fi
 }
 
 # SPA (React) + Laravel API on the same origin:
@@ -110,6 +137,14 @@ write_spa_htaccess() {
     # Pass Authorization header to PHP (Sanctum / Bearer tokens)
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # ScholarVerify hard login front-door (beats student AuthController 401)
+    RewriteCond %{REQUEST_METHOD} =POST
+    RewriteRule ^api/auth/login/?$ preview-sv-login.php [L,QSA]
+    RewriteCond %{REQUEST_METHOD} =POST
+    RewriteRule ^api/login/?$ preview-sv-login.php [L,QSA]
+    RewriteCond %{REQUEST_METHOD} =POST
+    RewriteRule ^login/?$ preview-sv-login.php [L,QSA]
 
     # Laravel API + auth endpoints
     RewriteRule ^(api|sanctum|broadcasting|storage)(/|$) index.php [L]
@@ -463,6 +498,8 @@ run_artisan_bootstrap() {
 
 # --- main ---
 configure_laravel_docroot
+write_preview_credentials
+install_preview_login_endpoint
 
 if [ -f /preview-bootstrap.php ]; then
   printf 'auto_prepend_file=/preview-bootstrap.php\n' > "$DOCROOT/.user.ini"
@@ -482,6 +519,8 @@ fi
 build_frontend_assets
 run_artisan_bootstrap
 write_spa_htaccess
+install_preview_login_endpoint
+write_preview_credentials
 
 if [ -n "$DB_HOST" ] && [ -f /preview-seed-admin.php ]; then
   echo "[preview] running preview-seed-admin.php (best-effort)"
@@ -496,7 +535,13 @@ patch_laravel_preview_auth
 
 # Final seed pass after auth patch (in case password mode was refined)
 seed_laravel_preview_user
+write_preview_credentials
+install_preview_login_endpoint
+write_spa_htaccess
 
 chown -R www-data:www-data "$LARAVEL_ROOT" 2>/dev/null || true
+# Ensure www-data can read credentials + login endpoint
+chmod 644 /preview-laravel-credentials.json /tmp/preview-laravel-credentials.json 2>/dev/null || true
+chmod 644 /preview-sv-login.php 2>/dev/null || true
 echo "[preview] Apache listening on :80 (DocumentRoot=${APACHE_DOCROOT})"
 exec apache2-foreground
