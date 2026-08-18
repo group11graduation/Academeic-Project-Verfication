@@ -215,13 +215,13 @@ const AdminLayoutInner = () => {
                 }}
             />
 
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-1">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-2.5">
                 <div
-                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-[1.75rem] lg:border lg:shadow-sm"
-                    style={{ borderColor: `${BORDER}88` }}
+                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden lg:rounded-[2rem] lg:border-[5px] lg:shadow-[0_12px_40px_-16px_rgba(30,49,122,0.35)]"
+                    style={{ borderColor: BORDER, backgroundColor: CONTENT_BG }}
                 >
                     <aside
-                        className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden lg:flex"
+                        className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden lg:flex lg:rounded-tr-[2.75rem]"
                         style={{
                             width: SIDEBAR_W,
                             minWidth: SIDEBAR_W,
