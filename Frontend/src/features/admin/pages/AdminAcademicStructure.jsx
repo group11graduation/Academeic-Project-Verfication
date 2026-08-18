@@ -233,7 +233,7 @@ const AdminAcademicStructure = () => {
     if (loading) {
         return (
             <div className="admin-page min-h-[40vh] flex items-center justify-center">
-                <Loader2 className="h-7 w-7 animate-spin text-[#512BD4]" />
+                <Loader2 className="h-7 w-7 animate-spin text-[#1e2b72]" />
             </div>
         );
     }
@@ -242,7 +242,7 @@ const AdminAcademicStructure = () => {
         <div className="admin-page space-y-4 font-sans text-[13px]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#512BD4] dark:bg-blue-500/15 dark:text-blue-300">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#1e2b72] dark:bg-blue-500/15 dark:text-blue-300">
                         <Building2 className="h-4 w-4" />
                     </div>
                     <div>
@@ -274,7 +274,7 @@ const AdminAcademicStructure = () => {
                         type="button"
                         onClick={handleAddFaculty}
                         disabled={structureSaving}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#512BD4] px-4 py-2 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e2b72] px-4 py-2 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         Add Faculty
@@ -286,7 +286,7 @@ const AdminAcademicStructure = () => {
                         <button
                             type="button"
                             onClick={expandAll}
-                            className="text-[10px] font-bold uppercase tracking-wider text-[#512BD4] hover:underline"
+                            className="text-[10px] font-bold uppercase tracking-wider text-[#1e2b72] hover:underline"
                         >
                             Expand all
                         </button>
@@ -319,7 +319,7 @@ const AdminAcademicStructure = () => {
                                             type="button"
                                             onClick={() => handleRenameFaculty(f.name, editingFaculty.value)}
                                             disabled={structureSaving}
-                                            className="rounded-lg bg-[#512BD4] p-1.5 text-white hover:bg-blue-700 disabled:opacity-60"
+                                            className="rounded-lg bg-[#1e2b72] p-1.5 text-white hover:bg-blue-700 disabled:opacity-60"
                                             title="Save faculty name"
                                         >
                                             <Check className="h-3.5 w-3.5" />
@@ -395,7 +395,7 @@ const AdminAcademicStructure = () => {
                                                 type="button"
                                                 onClick={() => handleRenameDepartment(f.name, d, editingDepartment.value)}
                                                 disabled={structureSaving}
-                                                className="rounded-full bg-[#512BD4] p-1 text-white hover:bg-blue-700 disabled:opacity-60"
+                                                className="rounded-full bg-[#1e2b72] p-1 text-white hover:bg-blue-700 disabled:opacity-60"
                                                 title="Save department"
                                             >
                                                 <Check className="h-3 w-3" />

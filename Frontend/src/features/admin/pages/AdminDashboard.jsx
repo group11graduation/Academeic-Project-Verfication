@@ -59,7 +59,7 @@ const AdminDashboard = () => {
                 value: stats.totalTeachers,
                 icon: GraduationCap,
                 soft: 'bg-[#e8eefc]',
-                iconBg: 'bg-white text-[#512BD4]',
+                iconBg: 'bg-white text-[#1e2b72]',
                 ring: 'ring-blue-100',
             },
             {
@@ -100,7 +100,7 @@ const AdminDashboard = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-[#512BD4]" />
+                <Loader2 className="h-6 w-6 animate-spin text-[#1e2b72]" />
             </div>
         );
     }
@@ -167,7 +167,7 @@ const AdminDashboard = () => {
                                                       Math.max(stats.totalClasses + stats.activeProjects, 1)) *
                                                       100
                                               )
-                                    )}%, #c4b5fd ${Math.min(
+                                    )}%, #9aa8d6 ${Math.min(
                                         100,
                                         stats.totalClasses + stats.activeProjects === 0
                                             ? 50
@@ -203,7 +203,7 @@ const AdminDashboard = () => {
                 <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-5">
                     <div className="mb-2.5 flex items-center justify-between gap-2">
                         <h2 className="text-[12px] font-extrabold text-[#0f172a]">Priority Setup Actions</h2>
-                        <Link to="/admin/setup-workflow" className="text-[10px] font-bold text-[#512BD4] hover:underline">
+                        <Link to="/admin/setup-workflow" className="text-[10px] font-bold text-[#1e2b72] hover:underline">
                             View all
                         </Link>
                     </div>
@@ -218,7 +218,7 @@ const AdminDashboard = () => {
                                 >
                                     <div className="mb-1.5 flex items-center justify-between gap-2">
                                         <div className="flex min-w-0 items-center gap-2">
-                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#512BD4] shadow-sm ring-1 ring-slate-200/80">
+                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#1e2b72] shadow-sm ring-1 ring-slate-200/80">
                                                 <Icon className="h-3.5 w-3.5" />
                                             </span>
                                             <div className="min-w-0">
@@ -226,7 +226,7 @@ const AdminDashboard = () => {
                                                 <p className="truncate text-[10px] font-medium text-slate-500">{item.desc}</p>
                                             </div>
                                         </div>
-                                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-[#512BD4]" />
+                                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-[#1e2b72]" />
                                     </div>
                                     <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/80">
                                         <div
@@ -252,7 +252,7 @@ const AdminDashboard = () => {
                                     >
                                         {i + 1}
                                     </span>
-                                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#512BD4]">
+                                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#1e2b72]">
                                         {role.title}
                                     </p>
                                 </div>
@@ -274,7 +274,7 @@ const AdminDashboard = () => {
                                 to={item.to}
                                 className="flex items-center gap-2 rounded-lg border border-slate-100 bg-[#f8faff] px-2.5 py-2 transition hover:border-[#c5d0f0] hover:bg-white"
                             >
-                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#512BD4] shadow-sm ring-1 ring-slate-200/70">
+                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#1e2b72] shadow-sm ring-1 ring-slate-200/70">
                                     <Icon className="h-3.5 w-3.5" />
                                 </span>
                                 <span className="min-w-0">

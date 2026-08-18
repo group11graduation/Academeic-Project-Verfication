@@ -1,17 +1,17 @@
-/** Admin console accent — from Apply CTA indigo */
+/** Admin console — deep navy indigo from dashboard reference */
 export const ADMIN = {
-    primary: '#512BD4',
-    primaryHover: '#4019b0',
-    primaryDeep: '#3a18a8',
-    primaryDark: '#2d1485',
-    soft: '#f3efff',
-    softBorder: '#e8e0ff',
-    contentBg: '#f5f3fb',
-    frameBg: '#f7f5fc',
-    mutedText: '#5b4d8a',
+    primary: '#1e2b72',
+    primaryHover: '#16225c',
+    primaryDeep: '#141c52',
+    primaryDark: '#0f1540',
+    soft: '#eef0f8',
+    softBorder: '#d5dae8',
+    contentBg: '#f3f4f8',
+    frameBg: '#eef0f5',
+    mutedText: '#5a6380',
 };
 
-export const ADMIN_GRADIENT = 'linear-gradient(135deg, #512BD4 0%, #6d4aff 100%)';
-export const ADMIN_SIDEBAR_GRADIENT = 'linear-gradient(180deg, #512BD4 0%, #3a18a8 55%, #2d1485 100%)';
+export const ADMIN_GRADIENT = 'linear-gradient(135deg, #1e2b72 0%, #2f45a0 100%)';
+export const ADMIN_SIDEBAR_GRADIENT = 'linear-gradient(180deg, #1e2b72 0%, #16225c 55%, #0f1540 100%)';
 export const ADMIN_MOBILE_GRADIENT = ADMIN_SIDEBAR_GRADIENT;
-export const ADMIN_AVATAR_GRADIENT = 'linear-gradient(145deg, #7b5cff 0%, #512BD4 100%)';
+export const ADMIN_AVATAR_GRADIENT = 'linear-gradient(145deg, #4a63c7 0%, #1e2b72 100%)';

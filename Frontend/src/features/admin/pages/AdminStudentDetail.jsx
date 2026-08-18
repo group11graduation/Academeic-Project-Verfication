@@ -279,7 +279,7 @@ const AdminStudentDetail = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#512BD4] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#1e2b72] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading student profile...</p>
             </div>
         );
@@ -289,7 +289,7 @@ const AdminStudentDetail = () => {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
                 <p className="text-red-500 font-bold mb-3 text-[13px]">{error}</p>
-                <button onClick={() => navigate(backPath)} className="text-[#512BD4] font-medium underline text-[12px]">Go Back</button>
+                <button onClick={() => navigate(backPath)} className="text-[#1e2b72] font-medium underline text-[12px]">Go Back</button>
             </div>
         );
     }
@@ -339,7 +339,7 @@ const AdminStudentDetail = () => {
                                                 type="button"
                                                 onClick={() => fileInputRef.current?.click()}
                                                 disabled={uploadingPhoto}
-                                                className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 text-[#512BD4] rounded-lg text-[12px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all flex items-center gap-3"
+                                                className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 text-[#1e2b72] rounded-lg text-[12px] font-black uppercase tracking-widest hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all flex items-center gap-3"
                                             >
                                                 {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                                 {uploadingPhoto ? 'Uploading...' : 'Upload Local Image'}
@@ -367,14 +367,14 @@ const AdminStudentDetail = () => {
                                     {student.status || 'Active'}
                                 </span>
                                 <span className="text-slate-300 dark:text-slate-600">•</span>
-                                <span className="text-[#512BD4]">
+                                <span className="text-[#1e2b72]">
                                     Class: {isEditing ? (
                                         <select
                                             name="classId"
                                             value={editForm.classId}
                                             onChange={handleEditChange}
                                             disabled={loadingClasses}
-                                            className="border-b border-blue-500 bg-slate-50 dark:bg-slate-900 outline-none text-[#512BD4] dark:text-blue-400 font-bold px-2 rounded-t-md text-slate-900 dark:text-white transition-colors"
+                                            className="border-b border-blue-500 bg-slate-50 dark:bg-slate-900 outline-none text-[#1e2b72] dark:text-blue-400 font-bold px-2 rounded-t-md text-slate-900 dark:text-white transition-colors"
                                         >
                                             {loadingClasses ? (
                                                 <option>Loading...</option>
@@ -436,10 +436,10 @@ const AdminStudentDetail = () => {
                         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
                             <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between transition-colors">
                                 <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4 text-[#512BD4]" />
+                                    <User className="h-4 w-4 text-[#1e2b72]" />
                                     <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Personal Information</h2>
                                 </div>
-                                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#512BD4] rounded-lg font-bold text-[12px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all">
+                                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#1e2b72] rounded-lg font-bold text-[12px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all">
                                     <Mail className="h-3.5 w-3.5" /> Message
                                 </button>
                             </div>
@@ -486,7 +486,7 @@ const AdminStudentDetail = () => {
                         {/* Educational Background */}
                         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
                             <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <GraduationCap className="h-4 w-4 text-[#512BD4]" />
+                                <GraduationCap className="h-4 w-4 text-[#1e2b72]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Educational Background</h2>
                             </div>
                             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
@@ -517,14 +517,14 @@ const AdminStudentDetail = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => setCertEditMode('local')}
-                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'local' ? 'bg-[#512BD4] text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'local' ? 'bg-[#1e2b72] text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                                 >
                                                     Upload File
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setCertEditMode('url')}
-                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'url' ? 'bg-[#512BD4] text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-md transition-all ${certEditMode === 'url' ? 'bg-[#1e2b72] text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                                 >
                                                     External Link
                                                 </button>
@@ -542,7 +542,7 @@ const AdminStudentDetail = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => editCertificateInputRef.current?.click()}
-                                                        className="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border-2 border-dashed border-blue-200 dark:border-blue-500/20 text-[#512BD4] py-4 rounded-xl font-bold text-[13px] hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all transition-colors"
+                                                        className="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border-2 border-dashed border-blue-200 dark:border-blue-500/20 text-[#1e2b72] py-4 rounded-xl font-bold text-[13px] hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all transition-colors"
                                                     >
                                                         <Upload className="h-4 w-4" />
                                                         {editLocalCertFileName || 'Click to Upload New Certificate'}
@@ -569,7 +569,7 @@ const AdminStudentDetail = () => {
                                             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 transition-colors">
                                                 <div className="flex items-center gap-3 truncate pr-4">
                                                     <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg shrink-0 transition-colors">
-                                                        <FileText className="h-4 w-4 text-[#512BD4]" />
+                                                        <FileText className="h-4 w-4 text-[#1e2b72]" />
                                                     </div>
                                                     <span className="text-[14px] font-bold text-slate-700 dark:text-slate-300 transition-colors truncate">
                                                         {student.educationalBackground.certificateUrl.startsWith('data:')
@@ -580,14 +580,14 @@ const AdminStudentDetail = () => {
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     <button
                                                         onClick={() => setIsCertModalOpen(true)}
-                                                        className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-[#512BD4] transition-all shadow-sm"
+                                                        className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-[#1e2b72] transition-all shadow-sm"
                                                     >
                                                         <Eye className="h-4 w-4" /> View
                                                     </button>
                                                     <a
                                                         href={student.educationalBackground.certificateUrl}
                                                         download="High_School_Certificate"
-                                                        className="flex items-center gap-2 bg-[#512BD4] text-white px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-blue-600 transition-all shadow-sm shadow-blue-500/10"
+                                                        className="flex items-center gap-2 bg-[#1e2b72] text-white px-4 py-2 rounded-lg text-[13px] font-bold hover:bg-blue-600 transition-all shadow-sm shadow-blue-500/10"
                                                     >
                                                         <Download className="h-4 w-4" /> Save
                                                     </a>
@@ -608,7 +608,7 @@ const AdminStudentDetail = () => {
                         {/* Parent Information */}
                         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
                             <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <Users className="h-4 w-4 text-[#512BD4]" />
+                                <Users className="h-4 w-4 text-[#1e2b72]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Parent Information</h2>
                             </div>
                             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
@@ -653,7 +653,7 @@ const AdminStudentDetail = () => {
                         {/* Academic Summary */}
                         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
                             <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <BookOpen className="h-4 w-4 text-[#512BD4]" />
+                                <BookOpen className="h-4 w-4 text-[#1e2b72]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Academic</h2>
                             </div>
                             <div className="p-4 space-y-4">
@@ -716,7 +716,7 @@ const AdminStudentDetail = () => {
                         {/* Security & Access */}
                         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
                             <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700 flex items-center gap-2 transition-colors">
-                                <ShieldCheck className="h-4 w-4 text-[#512BD4]" />
+                                <ShieldCheck className="h-4 w-4 text-[#1e2b72]" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300 transition-colors">Security</h2>
                             </div>
                             <div className="p-4 space-y-3">
@@ -731,7 +731,7 @@ const AdminStudentDetail = () => {
                                                 type="button"
                                                 onClick={handleCopyPasscode}
                                                 disabled={!student.passcode}
-                                                className="text-slate-500 hover:text-[#512BD4] transition-colors disabled:opacity-60"
+                                                className="text-slate-500 hover:text-[#1e2b72] transition-colors disabled:opacity-60"
                                                 title="Copy passcode"
                                             >
                                                 {copiedPasscode ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
@@ -741,7 +741,7 @@ const AdminStudentDetail = () => {
                                 </div>
                                 <button className="w-full flex items-center justify-between p-3 border border-slate-100 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-750 transition-all group transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <Lock className="h-4 w-4 text-slate-400 group-hover:text-[#512BD4] transition-colors" />
+                                        <Lock className="h-4 w-4 text-slate-400 group-hover:text-[#1e2b72] transition-colors" />
                                         <span className="text-[13px] font-bold text-slate-600 dark:text-slate-300 transition-colors">Reset Password</span>
                                     </div>
                                     <ChevronRight className="h-4 w-4 text-slate-300" />
@@ -767,7 +767,7 @@ const AdminStudentDetail = () => {
                         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 z-10">
                             <div className="flex items-center gap-3">
                                 <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg">
-                                    <FileText className="h-4 w-4 text-[#512BD4]" />
+                                    <FileText className="h-4 w-4 text-[#1e2b72]" />
                                 </div>
                                 <div>
                                     <h3 className="font-black text-slate-800 dark:text-white text-base tracking-tight">High School Certificate</h3>
@@ -812,7 +812,7 @@ const AdminStudentDetail = () => {
                             <a 
                                 href={student.educationalBackground?.certificateUrl} 
                                 download="High_School_Certificate"
-                                className="flex items-center gap-1.5 bg-[#512BD4] text-white px-4 py-2 rounded-lg font-black text-[12px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 active:scale-[0.98]"
+                                className="flex items-center gap-1.5 bg-[#1e2b72] text-white px-4 py-2 rounded-lg font-black text-[12px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 active:scale-[0.98]"
                             >
                                 <Download className="h-3.5 w-3.5" /> Download Certificate
                             </a>

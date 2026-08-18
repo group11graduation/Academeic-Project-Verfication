@@ -46,13 +46,13 @@ const AdminImportExport = () => {
         }
     };
 
-    const btnPrimary = 'px-3 py-1.5 rounded-lg bg-[#512BD4] text-white font-bold text-[11px] hover:bg-blue-700 disabled:opacity-60';
+    const btnPrimary = 'px-3 py-1.5 rounded-lg bg-[#1e2b72] text-white font-bold text-[11px] hover:bg-blue-700 disabled:opacity-60';
     const btnDark = 'px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold text-[11px] disabled:opacity-60';
 
     return (
         <div className="font-sans text-[13px]">
             <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#512BD4]">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#1e2b72]">
                     <FileSpreadsheet className="h-4 w-4" />
                 </div>
                 <div>

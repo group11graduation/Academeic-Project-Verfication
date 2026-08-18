@@ -205,7 +205,7 @@ const AdminAddStudent = () => {
     if (loadingClasses) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#512BD4] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#1e2b72] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Initializing enrollment system...</p>
             </div>
         );
@@ -218,7 +218,7 @@ const AdminAddStudent = () => {
                 <button
                     onClick={() => navigate('/admin/students')}
                     type="button"
-                    className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-[#512BD4] dark:hover:text-blue-400 transition-all font-bold text-[12px] group"
+                    className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-[#1e2b72] dark:hover:text-blue-400 transition-all font-bold text-[12px] group"
                 >
                     <div className="bg-slate-50 dark:bg-slate-800 p-1.5 rounded-lg group-hover:bg-blue-50 dark:group-hover:bg-slate-700 transition-all">
                         <ChevronLeft className="h-3.5 w-3.5" />
@@ -236,7 +236,7 @@ const AdminAddStudent = () => {
                     <button
                         onClick={handleSubmit}
                         disabled={isSubmitting}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-[#512BD4] text-white rounded-lg font-bold text-[12px] hover:bg-blue-600 transition-all disabled:opacity-70"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-[#1e2b72] text-white rounded-lg font-bold text-[12px] hover:bg-blue-600 transition-all disabled:opacity-70"
                     >
                         {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
                         {isSubmitting ? 'Registering...' : 'Register Student'}
@@ -263,7 +263,7 @@ const AdminAddStudent = () => {
                         {/* Personal Information */}
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <User className="h-5 w-5 text-[#512BD4] dark:text-blue-400" />
+                                <User className="h-5 w-5 text-[#1e2b72] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Personal Information</h2>
                             </div>
 
@@ -277,7 +277,7 @@ const AdminAddStudent = () => {
                                         value={formData.name}
                                         onChange={handleChange}
                                         placeholder="e.g. Maxamed Cabdi Faarax"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-slate-800 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-slate-800 dark:text-white"
                                     />
                                 </div>
 
@@ -291,7 +291,7 @@ const AdminAddStudent = () => {
                                             value={formData.email}
                                             onChange={handleChange}
                                             placeholder="student@example.com"
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-slate-800 dark:text-white"
                                         />
                                     </div>
                                     <div>
@@ -302,7 +302,7 @@ const AdminAddStudent = () => {
                                             value={formData.phone}
                                             onChange={handleChange}
                                             placeholder="+252 ..."
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-slate-800 dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -314,7 +314,7 @@ const AdminAddStudent = () => {
                                             name="gender"
                                             value={formData.gender}
                                             onChange={handleChange}
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-slate-800 dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-slate-800 dark:text-white"
                                         >
                                             <option>Select Gender</option>
                                             <option>Male</option>
@@ -329,7 +329,7 @@ const AdminAddStudent = () => {
                                             name="dob"
                                             value={formData.dob}
                                             onChange={handleChange}
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-[#0F172A] dark:text-white"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-[#0F172A] dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -339,7 +339,7 @@ const AdminAddStudent = () => {
                         {/* Parent / Guardian Details */}
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <Users className="h-5 w-5 text-[#512BD4] dark:text-blue-400" />
+                                <Users className="h-5 w-5 text-[#1e2b72] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Parent / Guardian Details</h2>
                             </div>
 
@@ -352,7 +352,7 @@ const AdminAddStudent = () => {
                                         value={formData.fatherName}
                                         onChange={handleChange}
                                         placeholder="Father's Name"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -363,7 +363,7 @@ const AdminAddStudent = () => {
                                         value={formData.fatherContact}
                                         onChange={handleChange}
                                         placeholder="+252 ..."
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -377,7 +377,7 @@ const AdminAddStudent = () => {
                                         value={formData.motherName}
                                         onChange={handleChange}
                                         placeholder="Mother's Name"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -388,7 +388,7 @@ const AdminAddStudent = () => {
                                         value={formData.motherContact}
                                         onChange={handleChange}
                                         placeholder="+252 ..."
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -397,7 +397,7 @@ const AdminAddStudent = () => {
                         {/* Educational Background */}
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <FileText className="h-5 w-5 text-[#512BD4] dark:text-blue-400" />
+                                <FileText className="h-5 w-5 text-[#1e2b72] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Educational Background</h2>
                             </div>
 
@@ -410,7 +410,7 @@ const AdminAddStudent = () => {
                                         value={formData.highSchoolName}
                                         onChange={handleChange}
                                         placeholder="Jabir Binu Hayan"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -421,7 +421,7 @@ const AdminAddStudent = () => {
                                         value={formData.graduationYear}
                                         onChange={handleChange}
                                         placeholder="2022"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -433,14 +433,14 @@ const AdminAddStudent = () => {
                                         <button
                                             type="button"
                                             onClick={() => setCertificateMode('local')}
-                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'local' ? 'bg-white dark:bg-slate-700 text-[#512BD4] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'}`}
+                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'local' ? 'bg-white dark:bg-slate-700 text-[#1e2b72] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'}`}
                                         >
                                             Upload File
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setCertificateMode('url')}
-                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'url' ? 'bg-white dark:bg-slate-700 text-[#512BD4] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'}`}
+                                            className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded transition-all ${certificateMode === 'url' ? 'bg-white dark:bg-slate-700 text-[#1e2b72] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'}`}
                                         >
                                             External Link
                                         </button>
@@ -450,7 +450,7 @@ const AdminAddStudent = () => {
                                 {certificateMode === 'local' ? (
                                     <div
                                         onClick={triggerCertificatePicker}
-                                        className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[20px] p-6 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-800/50 group hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-[#512BD4] transition-all cursor-pointer relative overflow-hidden"
+                                        className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[20px] p-6 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-800/50 group hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-[#1e2b72] transition-all cursor-pointer relative overflow-hidden"
                                     >
                                         <input
                                             type="file"
@@ -463,18 +463,18 @@ const AdminAddStudent = () => {
                                         {localCertificateFileName ? (
                                             <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-6 py-3 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 z-10 w-full justify-between">
                                                 <div className="flex items-center gap-3 truncate">
-                                                    <FileText className="h-5 w-5 text-[#512BD4] dark:text-blue-400 shrink-0" />
+                                                    <FileText className="h-5 w-5 text-[#1e2b72] dark:text-blue-400 shrink-0" />
                                                     <span className="text-[14px] font-bold truncate">{localCertificateFileName}</span>
                                                 </div>
                                                 <Check className="h-5 w-5 text-[#10B981] dark:text-emerald-400 shrink-0" />
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="bg-blue-50 dark:bg-blue-900/40 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform text-[#512BD4] dark:text-blue-400">
+                                                <div className="bg-blue-50 dark:bg-blue-900/40 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform text-[#1e2b72] dark:text-blue-400">
                                                     <Upload className="h-6 w-6" />
                                                 </div>
                                                 <p className="text-[14px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                                    Click to <span className="text-[#512BD4] dark:text-blue-400">Upload File</span>
+                                                    Click to <span className="text-[#1e2b72] dark:text-blue-400">Upload File</span>
                                                 </p>
                                                 <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider text-center max-w-[80%]">Supported: PDF, JPG, PNG. Max size 5MB.</p>
                                             </>
@@ -485,7 +485,7 @@ const AdminAddStudent = () => {
                                         <input
                                             type="text"
                                             placeholder="Paste the URL link to the certificate..."
-                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[14px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 font-medium text-[#0F172A] dark:text-slate-200"
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3.5 px-5 text-[14px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 font-medium text-[#0F172A] dark:text-slate-200"
                                             value={certificateUrl}
                                             onChange={(e) => setCertificateUrl(e.target.value)}
                                         />
@@ -498,7 +498,7 @@ const AdminAddStudent = () => {
                         {/* Academic Information */}
                         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <GraduationCap className="h-5 w-5 text-[#512BD4] dark:text-blue-400" />
+                                <GraduationCap className="h-5 w-5 text-[#1e2b72] dark:text-blue-400" />
                                 <h2 className="uppercase font-black text-[12px] tracking-widest text-slate-700 dark:text-slate-300">Academic Information</h2>
                             </div>
 
@@ -509,7 +509,7 @@ const AdminAddStudent = () => {
                                         name="faculty"
                                         value={formData.faculty}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
                                     >
                                         <option value="">Select faculty</option>
                                         {facultySelectOptions.map((name) => (
@@ -526,7 +526,7 @@ const AdminAddStudent = () => {
                                         name="campus"
                                         value={formData.campus}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
                                     >
                                         <option value="">Select Campus</option>
                                         <option>Campus 1</option>
@@ -544,7 +544,7 @@ const AdminAddStudent = () => {
                                         name="studyMode"
                                         value={formData.studyMode}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-[#0F172A] dark:text-white font-medium"
                                     >
                                         <option>Full-time</option>
                                         <option>Part-time</option>
@@ -558,7 +558,7 @@ const AdminAddStudent = () => {
                                         name="entryDate"
                                         value={formData.entryDate}
                                         onChange={handleChange}
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-[#0F172A] dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-[#0F172A] dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -570,7 +570,7 @@ const AdminAddStudent = () => {
                                     value={formData.classId}
                                     onChange={handleChange}
                                     disabled={loadingClasses}
-                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all text-slate-800 dark:text-white font-medium disabled:bg-slate-50 dark:disabled:bg-slate-800/50"
+                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-[13px] appearance-none focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all text-slate-800 dark:text-white font-medium disabled:bg-slate-50 dark:disabled:bg-slate-800/50"
                                 >
                                     {loadingClasses ? (
                                         <option>Loading classes...</option>
@@ -616,7 +616,7 @@ const AdminAddStudent = () => {
                                     <button
                                         type="button"
                                         onClick={() => setPhotoMode('local')}
-                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'local' ? 'bg-white dark:bg-slate-700 text-[#512BD4] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'
+                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'local' ? 'bg-white dark:bg-slate-700 text-[#1e2b72] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'
                                             }`}
                                     >
                                         Local
@@ -624,7 +624,7 @@ const AdminAddStudent = () => {
                                     <button
                                         type="button"
                                         onClick={() => setPhotoMode('url')}
-                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'url' ? 'bg-white dark:bg-slate-700 text-[#512BD4] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'
+                                        className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg transition-all ${photoMode === 'url' ? 'bg-white dark:bg-slate-700 text-[#1e2b72] dark:text-blue-400 shadow-sm' : 'text-slate-400 dark:text-slate-500'
                                             }`}
                                     >
                                         URL
@@ -643,7 +643,7 @@ const AdminAddStudent = () => {
                                         <button
                                             type="button"
                                             onClick={triggerFilePicker}
-                                            className="w-full flex items-center justify-center gap-2 bg-[#512BD4] text-white py-3 rounded-xl font-bold text-[13px] shadow-lg shadow-blue-500/10 hover:bg-blue-600 transition-all mb-3"
+                                            className="w-full flex items-center justify-center gap-2 bg-[#1e2b72] text-white py-3 rounded-xl font-bold text-[13px] shadow-lg shadow-blue-500/10 hover:bg-blue-600 transition-all mb-3"
                                         >
                                             <Upload className="h-4 w-4" />
                                             Choose Image
@@ -656,7 +656,7 @@ const AdminAddStudent = () => {
                                             <input
                                                 type="text"
                                                 placeholder="Enter Image URL..."
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#512BD4] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 font-medium text-[#0F172A] dark:text-slate-200"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-[13px] focus:ring-2 focus:ring-blue-500/10 focus:border-[#1e2b72] outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600 font-medium text-[#0F172A] dark:text-slate-200"
                                                 value={photoUrl}
                                                 onChange={(e) => setPhotoUrl(e.target.value)}
                                             />
@@ -673,7 +673,7 @@ const AdminAddStudent = () => {
                             <h2 className="text-[12px] font-black uppercase tracking-widest mb-4 text-[#0F172A] dark:text-white">Student Enrollment</h2>
                             <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-lg p-4 text-center space-y-1.5">
                                 <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Upon successful registration, the ID and Passcode will be generated.</p>
-                                <p className="text-[11px] font-bold text-[#512BD4] dark:text-blue-400 uppercase tracking-wider">Automated Enrollment</p>
+                                <p className="text-[11px] font-bold text-[#1e2b72] dark:text-blue-400 uppercase tracking-wider">Automated Enrollment</p>
                             </div>
                         </div>
 

@@ -55,7 +55,7 @@ const AdminAdminDetail = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-10 w-10 animate-spin text-[#512BD4]" />
+                <Loader2 className="h-10 w-10 animate-spin text-[#1e2b72]" />
             </div>
         );
     }
@@ -110,7 +110,7 @@ const AdminAdminDetail = () => {
                 </div>
                 <button
                     type="submit"
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#512BD4] px-6 py-3 text-[14px] font-bold text-white hover:bg-blue-700"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#1e2b72] px-6 py-3 text-[14px] font-bold text-white hover:bg-blue-700"
                 >
                     Save
                 </button>

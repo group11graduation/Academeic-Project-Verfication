@@ -103,7 +103,7 @@ const AdminSetupWorkflow = () => {
     if (loading) {
         return (
             <div className="admin-page min-h-[40vh] flex items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#512BD4] animate-spin" />
+                <Loader2 className="h-7 w-7 text-[#1e2b72] animate-spin" />
             </div>
         );
     }
@@ -116,7 +116,7 @@ const AdminSetupWorkflow = () => {
                     Keep setup in its own pages, and follow this order to avoid confusion.
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <p className="text-[11px] font-bold text-[#512BD4]">
+                    <p className="text-[11px] font-bold text-[#1e2b72]">
                         Progress: {completedSteps}/{steps.length} setup steps completed
                     </p>
                     <button
@@ -168,7 +168,7 @@ const AdminSetupWorkflow = () => {
                                             Step {index + 1}
                                         </p>
                                         <h3 className="flex items-center gap-1.5 text-[13px] font-black text-slate-900 dark:text-slate-100">
-                                            <Icon className="h-3.5 w-3.5 text-[#512BD4] shrink-0" />
+                                            <Icon className="h-3.5 w-3.5 text-[#1e2b72] shrink-0" />
                                             <span className="truncate">{step.title}</span>
                                         </h3>
                                         <p className="mt-0.5 text-[11px] font-medium leading-snug text-slate-600 dark:text-slate-300">{step.description}</p>
@@ -176,7 +176,7 @@ const AdminSetupWorkflow = () => {
                                 </div>
                                 <Link
                                     to={step.to}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#512BD4] text-white text-[11px] font-bold hover:bg-blue-700 shrink-0 whitespace-nowrap"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1e2b72] text-white text-[11px] font-bold hover:bg-blue-700 shrink-0 whitespace-nowrap"
                                 >
                                     {step.cta}
                                     <ArrowRight className="h-3.5 w-3.5" />
@@ -191,19 +191,19 @@ const AdminSetupWorkflow = () => {
                 <h2 className="mb-3 text-sm font-black text-slate-900 dark:text-slate-100">Role Workflow (Clear Sequence)</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]">
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
-                        <p className="font-black text-[#512BD4] mb-1.5 text-[12px]">Admin</p>
+                        <p className="font-black text-[#1e2b72] mb-1.5 text-[12px]">Admin</p>
                         <p className="font-medium leading-relaxed text-slate-700 dark:text-slate-300">
                             1) Create faculties/departments in Academic Structure. 2) Create semester/year in Semesters. 3) Create subjects. 4) Create classes and link subjects. 5) Assign teacher+subject from Class Detail. 6) Add/import students.
                         </p>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
-                        <p className="font-black text-[#512BD4] mb-1.5 text-[12px]">Teacher</p>
+                        <p className="font-black text-[#1e2b72] mb-1.5 text-[12px]">Teacher</p>
                         <p className="font-medium leading-relaxed text-slate-700 dark:text-slate-300">
                             1) See assigned classes. 2) Create assignment. 3) Set requirement text + required tech keywords. 4) Review proposals. 5) Approve/reject/revision.
                         </p>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-[#0f172a]">
-                        <p className="font-black text-[#512BD4] mb-1.5 text-[12px]">Student</p>
+                        <p className="font-black text-[#1e2b72] mb-1.5 text-[12px]">Student</p>
                         <p className="font-medium leading-relaxed text-slate-700 dark:text-slate-300">
                             1) Open assignment. 2) Submit proposal matching required technologies. 3) Revise if rejected. 4) Upload project ZIP after approval.
                         </p>

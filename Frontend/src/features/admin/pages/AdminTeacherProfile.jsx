@@ -106,7 +106,7 @@ const AdminTeacherProfile = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#512BD4] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#1e2b72] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading profile...</p>
             </div>
         );
@@ -186,7 +186,7 @@ const AdminTeacherProfile = () => {
                         {teacher.department}
                     </div>
                     <div className="flex gap-2 justify-center md:justify-start flex-wrap">
-                        <button className="flex items-center gap-1.5 px-3 py-2 bg-[#512BD4] text-white rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors">
+                        <button className="flex items-center gap-1.5 px-3 py-2 bg-[#1e2b72] text-white rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors">
                             <MessageSquare className="h-3.5 w-3.5" />
                             Message Teacher
                         </button>
@@ -210,7 +210,7 @@ const AdminTeacherProfile = () => {
                     {/* Personal Info */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 transition-all">
                         <div className="flex items-center gap-2 mb-4">
-                            <User className="h-4 w-4 text-[#512BD4]" />
+                            <User className="h-4 w-4 text-[#1e2b72]" />
                             <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0F172A] dark:text-white transition-colors">Personal Information</h3>
                         </div>
 
@@ -237,7 +237,7 @@ const AdminTeacherProfile = () => {
                     {/* Security & Access */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 transition-all">
                         <div className="flex items-center gap-2 mb-4">
-                            <Shield className="h-4 w-4 text-[#512BD4]" />
+                            <Shield className="h-4 w-4 text-[#1e2b72]" />
                             <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0F172A] dark:text-white transition-colors">Security & Access</h3>
                         </div>
 
@@ -268,11 +268,11 @@ const AdminTeacherProfile = () => {
                                             onClick={() => setShowPasscode(!showPasscode)}
                                             className="p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                                         >
-                                            {showPasscode ? <EyeOff className="h-5 w-5 text-slate-400 dark:text-slate-500" /> : <Eye className="h-5 w-5 text-[#512BD4]" />}
+                                            {showPasscode ? <EyeOff className="h-5 w-5 text-slate-400 dark:text-slate-500" /> : <Eye className="h-5 w-5 text-[#1e2b72]" />}
                                         </button>
                                     </div>
                                 </div>
-                                <div className="bg-blue-100/50 dark:bg-blue-500/10 p-2 rounded-lg text-[#512BD4] transition-colors">
+                                <div className="bg-blue-100/50 dark:bg-blue-500/10 p-2 rounded-lg text-[#1e2b72] transition-colors">
                                     <Shield className="h-4 w-4" />
                                 </div>
                             </div>
@@ -282,7 +282,7 @@ const AdminTeacherProfile = () => {
                     {/* Activity Summary */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 transition-all">
                         <div className="flex items-center gap-2 mb-4">
-                            <BarChart2 className="h-4 w-4 text-[#512BD4]" />
+                            <BarChart2 className="h-4 w-4 text-[#1e2b72]" />
                             <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0F172A] dark:text-white transition-colors">Activity Summary</h3>
                         </div>
 
@@ -290,9 +290,9 @@ const AdminTeacherProfile = () => {
                             <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700 flex items-center justify-between transition-colors">
                                 <div>
                                     <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5 transition-colors">Projects Reviewed</p>
-                                    <p className="text-xl font-extrabold text-[#512BD4] leading-none">{stats.reviewed}</p>
+                                    <p className="text-xl font-extrabold text-[#1e2b72] leading-none">{stats.reviewed}</p>
                                 </div>
-                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center text-[#512BD4] transition-colors">
+                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center text-[#1e2b72] transition-colors">
                                     <CheckCircle2 className="h-4 w-4" />
                                 </div>
                             </div>
@@ -328,12 +328,12 @@ const AdminTeacherProfile = () => {
                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 transition-all">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
-                                <BookOpen className="h-4 w-4 text-[#512BD4]" />
+                                <BookOpen className="h-4 w-4 text-[#1e2b72]" />
                                 <h3 className="text-[12px] font-black uppercase tracking-widest text-[#0F172A] dark:text-white transition-colors">Assigned Subjects & Classes</h3>
                             </div>
                             <button
                                 onClick={handleOpenAssignment}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#512BD4] rounded-lg font-bold text-[12px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-[#1e2b72] rounded-lg font-bold text-[12px] hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all"
                             >
                                 <Users className="h-3.5 w-3.5" />
                                 Assign/Modify Classes
@@ -347,7 +347,7 @@ const AdminTeacherProfile = () => {
                                         key={cls._id || cls.code}
                                         to={`/admin/classes/${encodeURIComponent(cls.code)}`}
                                         state={{ from: location.pathname }}
-                                        className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 hover:shadow-md hover:border-[#512BD4]/40 transition-all group relative overflow-hidden bg-white dark:bg-slate-800/50"
+                                        className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 hover:shadow-md hover:border-[#1e2b72]/40 transition-all group relative overflow-hidden bg-white dark:bg-slate-800/50"
                                     >
                                         <div className="absolute -right-8 -top-8 w-32 h-32 bg-slate-50 dark:bg-slate-700/30 rounded-full blur-2xl group-hover:bg-blue-50/50 dark:group-hover:bg-blue-500/10 transition-colors" />
 
@@ -387,7 +387,7 @@ const AdminTeacherProfile = () => {
                                             )}
 
                                             <div className="flex items-center justify-end">
-                                                <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-[#512BD4] transition-colors">
+                                                <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-[#1e2b72] transition-colors">
                                                     View class
                                                     <ArrowRight className="h-4 w-4" />
                                                 </span>
@@ -454,7 +454,7 @@ const AdminTeacherProfile = () => {
                                                     </div>
                                                     <div className="flex items-center gap-2 shrink-0 text-[11px] font-bold text-slate-500">
                                                         <span>{when}</span>
-                                                        <ArrowRight className="h-3.5 w-3.5 text-[#512BD4]" />
+                                                        <ArrowRight className="h-3.5 w-3.5 text-[#1e2b72]" />
                                                     </div>
                                                 </Link>
                                             ) : (
@@ -502,13 +502,13 @@ const AdminTeacherProfile = () => {
                                             key={cls._id}
                                             onClick={() => handleToggleClass(cls.code)}
                                             className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all group ${selectedClasses.includes(cls.code)
-                                                ? 'border-[#512BD4] bg-blue-50/30 dark:bg-blue-500/10 ring-4 ring-blue-500/5'
+                                                ? 'border-[#1e2b72] bg-blue-50/30 dark:bg-blue-500/10 ring-4 ring-blue-500/5'
                                                 : 'border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-4">
                                                 <div className={`h-12 w-12 rounded-xl flex items-center justify-center transition-colors ${selectedClasses.includes(cls.code)
-                                                    ? 'bg-[#512BD4] text-white'
+                                                    ? 'bg-[#1e2b72] text-white'
                                                     : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 group-hover:bg-slate-200 dark:group-hover:bg-slate-600'
                                                     }`}>
                                                     <BookOpen className="h-6 w-6" />
@@ -519,7 +519,7 @@ const AdminTeacherProfile = () => {
                                                 </div>
                                             </div>
                                             <div className={`h-7 w-7 rounded-full border-2 flex items-center justify-center transition-all ${selectedClasses.includes(cls.code)
-                                                ? 'bg-[#512BD4] border-[#512BD4] text-white scale-110'
+                                                ? 'bg-[#1e2b72] border-[#1e2b72] text-white scale-110'
                                                 : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-transparent'
                                                 }`}>
                                                 <CheckCircle2 className="h-4 w-4" />
@@ -537,7 +537,7 @@ const AdminTeacherProfile = () => {
                         <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between transition-colors">
                             <div className="flex items-center gap-2">
                                 <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></div>
-                                <p className="text-[12px] font-black text-[#512BD4] uppercase tracking-wider">
+                                <p className="text-[12px] font-black text-[#1e2b72] uppercase tracking-wider">
                                     {selectedClasses.length} Selected
                                 </p>
                             </div>
@@ -551,7 +551,7 @@ const AdminTeacherProfile = () => {
                                 <button
                                     onClick={handleSaveAssignments}
                                     disabled={loadingAssignments}
-                                    className="px-5 py-2 bg-[#512BD4] text-white rounded-lg font-black text-[12px] hover:bg-blue-600 transition-all flex items-center gap-1.5 disabled:opacity-70"
+                                    className="px-5 py-2 bg-[#1e2b72] text-white rounded-lg font-black text-[12px] hover:bg-blue-600 transition-all flex items-center gap-1.5 disabled:opacity-70"
                                 >
                                     {loadingAssignments ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-blue-200" />}
                                     {loadingAssignments ? 'Updating...' : 'Confirm Assignment'}
