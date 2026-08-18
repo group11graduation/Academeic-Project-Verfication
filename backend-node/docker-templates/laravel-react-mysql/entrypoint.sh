@@ -89,6 +89,14 @@ configure_laravel_docroot() {
     AllowOverride All
     Require all granted
   </Directory>
+  RewriteEngine On
+  # Hard front-doors (work even if public/.htaccess is missing/ignored)
+  RewriteCond %{REQUEST_METHOD} =GET
+  RewriteRule ^/api/bootstrap/?$ /preview-sv-bootstrap.php [L,QSA]
+  RewriteCond %{REQUEST_METHOD} =POST
+  RewriteRule ^/api/auth/login/?$ /preview-sv-login.php [L,QSA]
+  RewriteCond %{REQUEST_METHOD} =POST
+  RewriteRule ^/api/login/?$ /preview-sv-login.php [L,QSA]
   ErrorLog \${APACHE_LOG_DIR}/error.log
   CustomLog \${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
@@ -110,13 +118,19 @@ write_preview_credentials() {
 }
 
 install_preview_login_endpoint() {
-  if [ ! -f /preview-sv-login.php ]; then
-    echo "[preview] preview-sv-login.php missing — hard login endpoint unavailable"
-    return 0
-  fi
   if [ -d "$APACHE_DOCROOT" ]; then
-    cp -f /preview-sv-login.php "$APACHE_DOCROOT/preview-sv-login.php" 2>/dev/null || true
-    echo "[preview] installed hard login endpoint → ${APACHE_DOCROOT}/preview-sv-login.php"
+    if [ -f /preview-sv-login.php ]; then
+      cp -f /preview-sv-login.php "$APACHE_DOCROOT/preview-sv-login.php" 2>/dev/null || true
+      echo "[preview] installed hard login endpoint → ${APACHE_DOCROOT}/preview-sv-login.php"
+    else
+      echo "[preview] preview-sv-login.php missing — hard login endpoint unavailable"
+    fi
+    if [ -f /preview-sv-bootstrap.php ]; then
+      cp -f /preview-sv-bootstrap.php "$APACHE_DOCROOT/preview-sv-bootstrap.php" 2>/dev/null || true
+      echo "[preview] installed hard bootstrap endpoint → ${APACHE_DOCROOT}/preview-sv-bootstrap.php"
+    else
+      echo "[preview] preview-sv-bootstrap.php missing — bootstrap front-door unavailable"
+    fi
   fi
 }
 
@@ -145,6 +159,12 @@ write_spa_htaccess() {
     RewriteRule ^api/login/?$ preview-sv-login.php [L,QSA]
     RewriteCond %{REQUEST_METHOD} =POST
     RewriteRule ^login/?$ preview-sv-login.php [L,QSA]
+
+    # ScholarVerify bootstrap front-door (never let /api/bootstrap 500 the SPA)
+    RewriteCond %{REQUEST_METHOD} =GET
+    RewriteRule ^api/bootstrap/?$ preview-sv-bootstrap.php [L,QSA]
+    RewriteCond %{REQUEST_METHOD} =GET
+    RewriteRule ^bootstrap/?$ preview-sv-bootstrap.php [L,QSA]
 
     # Laravel API + auth endpoints
     RewriteRule ^(api|sanctum|broadcasting|storage)(/|$) index.php [L]
@@ -465,6 +485,30 @@ patch_laravel_preview_auth() {
   (
     cd "$LARAVEL_ROOT"
     export LARAVEL_ROOT="$LARAVEL_ROOT"
+    # Emergency strip of broken shim injects left by older preview runs.
+    php -r '
+      foreach (["routes/api.php", "routes/web.php"] as $rel) {
+        $p = getenv("LARAVEL_ROOT") . "/" . $rel;
+        $bak = $p . ".sv-original";
+        if (is_file($bak)) {
+          $orig = file_get_contents($bak);
+          if ($orig !== false && $orig !== "") {
+            file_put_contents($p, $orig);
+            echo "[preview] restored $rel from .sv-original\n";
+            continue;
+          }
+        }
+        if (!is_file($p)) continue;
+        $src = file_get_contents($p);
+        if ($src === false || !str_contains($src, "preview_sv_auth")) continue;
+        $clean = preg_replace("/^.*preview_sv_auth\\.php.*$/mi", "", $src);
+        $clean = preg_replace("/\\n\\/\\/\\s*SV_PREVIEW_AUTH_SHIM\\s*\\n/i", "\n", $clean ?? $src);
+        if (is_string($clean) && $clean !== $src) {
+          file_put_contents($p, $clean);
+          echo "[preview] stripped broken shim from $rel\n";
+        }
+      }
+    ' 2>&1 || true
     php /preview-patch-laravel-auth.php 2>&1 | tee -a /tmp/preview-mysql.log || true
     php artisan route:clear 2>/dev/null || true
     php artisan config:clear 2>/dev/null || true

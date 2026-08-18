@@ -171,39 +171,47 @@ PHP;
     return true;
 }
 
-function sv_auth_repair_route_inject(string $path): void
+function sv_auth_strip_shim_requires(string $src): string
 {
-    if (!is_file($path)) {
-        return;
-    }
-    $src = (string) file_get_contents($path);
-    if ($src === '' || !str_contains($src, 'preview_sv_auth.php')) {
-        return;
-    }
-
-    // Remove any prior shim requires so we can re-place them safely.
     $cleaned = preg_replace(
         '/\n?\/\/\s*SV_PREVIEW_AUTH_SHIM\s*\n(?:if\s*\(\s*file_exists\s*\(\s*__DIR__\s*\.\s*\'\/preview_sv_auth\.php\'\s*\)\s*\)\s*\{\s*)?require\s+__DIR__\s*\.\s*\'\/preview_sv_auth\.php\'\s*;\s*\}?\s*/i',
         "\n",
         $src
     );
-    if (!is_string($cleaned)) {
+    return is_string($cleaned) ? $cleaned : $src;
+}
+
+function sv_auth_restore_routes_file(string $path): void
+{
+    if (!is_file($path)) {
         return;
     }
+    $bak = $path . '.sv-original';
+    $src = (string) file_get_contents($path);
 
-    $inject = str_contains(basename($path), 'web')
-        ? "\n// SV_PREVIEW_AUTH_SHIM\nif (file_exists(__DIR__ . '/preview_sv_auth.php')) { require __DIR__ . '/preview_sv_auth.php'; }\n"
-        : "\n// SV_PREVIEW_AUTH_SHIM\nrequire __DIR__ . '/preview_sv_auth.php';\n";
-
-    if (preg_match('/^<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?/i', $cleaned, $m)) {
-        $fixed = $m[0] . $inject . substr($cleaned, strlen($m[0]));
-    } else {
-        $fixed = "<?php\n" . $inject . $cleaned;
+    // First-run backup of the pristine student file (before any of our injects).
+    if (!is_file($bak) && !str_contains($src, 'preview_sv_auth.php') && !str_contains($src, 'SV_PREVIEW_AUTH_SHIM')) {
+        @copy($path, $bak);
+        sv_auth_log('backed up ' . $path);
     }
 
-    if ($fixed !== $src) {
-        file_put_contents($path, $fixed);
-        sv_auth_log('repaired shim placement in ' . $path);
+    // Prefer restoring the pristine copy — earlier injects before declare(strict_types)
+    // could leave routes/api.php in a permanently fatal state.
+    if (is_file($bak)) {
+        $original = (string) file_get_contents($bak);
+        if ($original !== '' && $original !== $src) {
+            file_put_contents($path, $original);
+            sv_auth_log('restored pristine ' . $path);
+            return;
+        }
+    }
+
+    if (str_contains($src, 'preview_sv_auth.php') || str_contains($src, 'SV_PREVIEW_AUTH_SHIM')) {
+        $cleaned = sv_auth_strip_shim_requires($src);
+        if ($cleaned !== $src) {
+            file_put_contents($path, $cleaned);
+            sv_auth_log('stripped shim requires from ' . $path);
+        }
     }
 }
 
@@ -217,7 +225,9 @@ function sv_auth_write_route_shim(string $root): void
     $shim = <<<'PHP'
 <?php
 /**
- * ScholarVerify preview auth shim — registered first so /api/auth/login accepts previewadmin.
+ * ScholarVerify preview auth shim (optional).
+ * Login is primarily handled by Apache front-door preview-sv-login.php.
+ * This file is kept for manual require / debugging only — do NOT inject into api.php.
  * SV_PREVIEW_AUTH_SHIM
  */
 use Illuminate\Http\Request;
@@ -304,74 +314,19 @@ if (!function_exists('sv_preview_auth_login_handler')) {
             }
         }
 
-        // Seed identity bypass when DB row missing or hash mode mismatch.
         $loginMatchesSeed =
             $login !== ''
             && (
                 strcasecmp($login, $seedUser) === 0
                 || strcasecmp($login, $seedEmail) === 0
-                || strcasecmp($login, $seedUser . '@preview.local') === 0
                 || strcasecmp($login, 'previewadmin') === 0
-                || strcasecmp($login, 'previewadmin@preview.local') === 0
                 || strcasecmp($login, 'admin') === 0
-                || strcasecmp($login, 'admin@preview.demo') === 0
             );
         $passwordMatchesSeed = $password !== '' && in_array($password, $acceptedPasswords, true);
         if (!$ok && $loginMatchesSeed && $passwordMatchesSeed) {
-            if (!$user && $userModel) {
-                try {
-                    $table = (new $userModel())->getTable();
-                    $cols = Schema::getColumnListing($table);
-                    $row = [];
-                    if (in_array('name', $cols, true)) {
-                        $row['name'] = $seedUser;
-                    }
-                    if (in_array('username', $cols, true)) {
-                        $row['username'] = $seedUser;
-                    }
-                    if (in_array('email', $cols, true)) {
-                        $row['email'] = $seedEmail !== '' ? $seedEmail : ($seedUser . '@preview.local');
-                    }
-                    if (in_array('password', $cols, true)) {
-                        $row['password'] = Hash::make($seedPass);
-                    }
-                    if (in_array('role', $cols, true)) {
-                        $row['role'] = 'admin';
-                    }
-                    if (in_array('is_admin', $cols, true)) {
-                        $row['is_admin'] = 1;
-                    }
-                    if (in_array('created_at', $cols, true)) {
-                        $row['created_at'] = now();
-                    }
-                    if (in_array('updated_at', $cols, true)) {
-                        $row['updated_at'] = now();
-                    }
-                    \Illuminate\Support\Facades\DB::table($table)->insert($row);
-                    $user = $userModel::query()
-                        ->when(in_array('username', $cols, true), fn ($q) => $q->orWhere('username', $seedUser))
-                        ->when(in_array('email', $cols, true), fn ($q) => $q->orWhere('email', $row['email'] ?? ''))
-                        ->first();
-                } catch (\Throwable $e) {
-                    try {
-                        $user = $userModel::query()->orderBy('id')->first();
-                    } catch (\Throwable $e2) {
-                        $user = null;
-                    }
-                }
-            }
             if ($user) {
                 $ok = true;
-                try {
-                    \Illuminate\Support\Facades\DB::table((new $userModel())->getTable())
-                        ->where('id', $user->getKey())
-                        ->update(['password' => Hash::make($password)]);
-                    $user->refresh();
-                } catch (\Throwable $e) {
-                    /* ignore */
-                }
             } else {
-                // Still succeed for SPA when credentials match but no User model/table.
                 $token = base64_encode('sv-preview|' . $seedUser . '|' . time());
                 $fake = [
                     'id' => 1,
@@ -380,24 +335,15 @@ if (!function_exists('sv_preview_auth_login_handler')) {
                     'email' => $seedEmail,
                     'role' => 'admin',
                     'isAdmin' => true,
-                    'is_admin' => true,
                 ];
                 return response()->json([
                     'message' => 'Login successful',
                     'success' => true,
                     'token' => $token,
                     'access_token' => $token,
-                    'accessToken' => $token,
                     'role' => 'admin',
-                    'isAdmin' => true,
                     'user' => $fake,
-                    'data' => [
-                        'token' => $token,
-                        'access_token' => $token,
-                        'user' => $fake,
-                        'role' => 'admin',
-                        'success' => true,
-                    ],
+                    'data' => ['token' => $token, 'user' => $fake, 'role' => 'admin'],
                 ]);
             }
         }
@@ -409,104 +355,38 @@ if (!function_exists('sv_preview_auth_login_handler')) {
         try {
             Auth::login($user);
         } catch (\Throwable $e) {
-            // continue — token paths below
         }
 
-        $token = null;
+        $token = base64_encode('sv-preview|' . $user->getAuthIdentifier() . '|' . time());
         try {
             if (method_exists($user, 'createToken')) {
                 $token = $user->createToken('preview')->plainTextToken;
             }
         } catch (\Throwable $e) {
-            $token = null;
-        }
-        if (!$token) {
-            try {
-                if (class_exists(\Tymon\JWTAuth\Facades\JWTAuth::class)) {
-                    $token = \Tymon\JWTAuth\Facades\JWTAuth::fromUser($user);
-                }
-            } catch (\Throwable $e) {
-                $token = null;
-            }
-        }
-        if (!$token) {
-            $token = base64_encode('sv-preview|' . $user->getAuthIdentifier() . '|' . time());
         }
 
-        $payload = [
+        return response()->json([
             'message' => 'Login successful',
             'success' => true,
             'token' => $token,
             'access_token' => $token,
-            'accessToken' => $token,
             'role' => 'admin',
-            'isAdmin' => true,
             'user' => $user,
-            'data' => [
-                'token' => $token,
-                'access_token' => $token,
-                'user' => $user,
-                'role' => 'admin',
-                'success' => true,
-            ],
-        ];
-        return response()->json($payload);
+            'data' => ['token' => $token, 'user' => $user, 'role' => 'admin'],
+        ]);
     }
-}
-
-$svLoginPaths = [
-    '/auth/login',
-    '/login',
-    '/users/login',
-    '/user/login',
-    '/admin/login',
-    '/v1/auth/login',
-];
-foreach ($svLoginPaths as $svPath) {
-    Route::post($svPath, function (Request $request) {
-        return sv_preview_auth_login_handler($request);
-    });
 }
 
 PHP;
 
     $shimPath = $routesDir . '/preview_sv_auth.php';
     file_put_contents($shimPath, $shim);
-    sv_auth_log('wrote ' . $shimPath);
+    sv_auth_log('wrote ' . $shimPath . ' (not injected — Apache front-door handles login)');
 
-    $apiPath = $routesDir . '/api.php';
-    if (is_file($apiPath)) {
-        // Always repair placement (handles older broken inject before declare(strict_types=1)).
-        sv_auth_repair_route_inject($apiPath);
-        $api = (string) file_get_contents($apiPath);
-        if (!str_contains($api, 'preview_sv_auth.php')) {
-            $inject = "\n// SV_PREVIEW_AUTH_SHIM\nrequire __DIR__ . '/preview_sv_auth.php';\n";
-            // Must stay AFTER declare(strict_types=1) — injecting before it fatals every /api/* request.
-            if (preg_match('/^<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?/i', $api, $m)) {
-                $api = $m[0] . $inject . substr($api, strlen($m[0]));
-            } else {
-                $api = "<?php\n" . $inject . $api;
-            }
-            file_put_contents($apiPath, $api);
-            sv_auth_log('injected shim into routes/api.php');
-        }
-    }
-
-    // Laravel 11+ may load api routes via bootstrap/app.php only — also try web.php for SPA posts.
-    $webPath = $routesDir . '/web.php';
-    if (is_file($webPath)) {
-        sv_auth_repair_route_inject($webPath);
-        $web = (string) file_get_contents($webPath);
-        if (!str_contains($web, 'preview_sv_auth.php')) {
-            $inject = "\n// SV_PREVIEW_AUTH_SHIM\nif (file_exists(__DIR__ . '/preview_sv_auth.php')) { require __DIR__ . '/preview_sv_auth.php'; }\n";
-            if (preg_match('/^<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?/i', $web, $m)) {
-                $web = $m[0] . $inject . substr($web, strlen($m[0]));
-            } else {
-                $web = "<?php\n" . $inject . $web;
-            }
-            file_put_contents($webPath, $web);
-            sv_auth_log('injected shim into routes/web.php');
-        }
+    // CRITICAL: restore routes files and DO NOT inject.
+    // Prior injects before declare(strict_types=1) caused fatal 500 on every /api/* route.
+    foreach (['api.php', 'web.php'] as $routesFile) {
+        sv_auth_restore_routes_file($routesDir . '/' . $routesFile);
     }
 }
 
