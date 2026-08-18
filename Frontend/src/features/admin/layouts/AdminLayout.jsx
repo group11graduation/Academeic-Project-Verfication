@@ -14,6 +14,7 @@ import {
     Menu,
     Power,
     ChevronDown,
+    User,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
 import { ShellSearchProvider } from '../../../context/shellSearchContext';
@@ -209,7 +210,7 @@ const AdminLayoutInner = () => {
                 panelGradient={ADMIN_MOBILE_GRADIENT}
                 profile={{
                     to: '/admin/profile',
-                    name: PROJECT_NAME,
+                    name: displayName,
                     showLogo: true,
                 }}
             />
@@ -335,7 +336,24 @@ const AdminLayoutInner = () => {
                             })}
                         </nav>
 
-                        <div className="mt-auto shrink-0 border-t border-white/15 px-3 py-3">
+                        <div className="mt-auto shrink-0 space-y-2 border-t border-white/15 px-3 py-3">
+                            <Link
+                                to="/admin/profile"
+                                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-white/12"
+                                title="View my profile"
+                            >
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/20">
+                                    <User className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[12px] font-semibold text-white">
+                                        {displayName}
+                                    </span>
+                                    <span className="block truncate text-[10px] font-normal text-white/55">
+                                        My profile
+                                    </span>
+                                </span>
+                            </Link>
                             <button
                                 type="button"
                                 onClick={requestLogout}

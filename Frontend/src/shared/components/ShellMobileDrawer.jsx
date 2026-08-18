@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LogOut, X } from 'lucide-react';
+import { LogOut, User, X } from 'lucide-react';
 import ProjectVerifyLogo from './ProjectVerifyLogo';
 
 /**
@@ -111,19 +111,31 @@ export default function ShellMobileDrawer({
                     ))}
                 </nav>
 
-                {typeof onLogout === 'function' ? (
-                    <div className="border-t border-white/15 p-3">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                onClose();
-                                onLogout();
-                            }}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/20"
-                        >
-                            <LogOut className="h-4 w-4" />
-                            Log out
-                        </button>
+                {typeof onLogout === 'function' || profile?.to ? (
+                    <div className="space-y-2 border-t border-white/15 p-3">
+                        {profile?.to ? (
+                            <NavLink
+                                to={profile.to}
+                                onClick={onClose}
+                                className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-white/12"
+                            >
+                                <User className="h-4 w-4 shrink-0 opacity-80" />
+                                <span className="min-w-0 truncate">{profile.name || 'My profile'}</span>
+                            </NavLink>
+                        ) : null}
+                        {typeof onLogout === 'function' ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onClose();
+                                    onLogout();
+                                }}
+                                className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-white/15 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/20"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                Log out
+                            </button>
+                        ) : null}
                     </div>
                 ) : null}
             </aside>

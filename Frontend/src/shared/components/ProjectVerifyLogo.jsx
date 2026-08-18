@@ -4,7 +4,7 @@ import { PRODUCT_TAGLINE, PROJECT_NAME } from '../ui/brandTheme';
 const SIZE = {
     sm: { box: 'h-12 w-12', img: 'h-10 w-10', title: 'text-[14px]', gap: 'gap-1.5' },
     md: { box: 'h-16 w-16', img: 'h-14 w-14', title: 'text-[17px]', gap: 'gap-2' },
-    lg: { box: 'h-[4.75rem] w-[4.75rem]', img: 'h-[4.25rem] w-[4.25rem]', title: 'text-[19px]', gap: 'gap-2' },
+    lg: { box: 'h-[4.75rem] w-[4.75rem]', img: 'h-[4.25rem] w-[4.25rem]', title: 'text-[15px]', gap: 'gap-2' },
     xl: { box: 'h-[5.5rem] w-[5.5rem]', img: 'h-20 w-20', title: 'text-[22px]', gap: 'gap-2.5' },
 };
 
