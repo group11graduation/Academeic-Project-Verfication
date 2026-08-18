@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { LogOut, X } from 'lucide-react';
+import ProjectVerifyLogo from './ProjectVerifyLogo';
 
 /**
  * Full-height slide-out navigation for admin/teacher shells on phones & tablets.
@@ -59,12 +60,20 @@ export default function ShellMobileDrawer({
                         onClick={onClose}
                         className="mx-3 mt-3 flex items-center gap-3 rounded-xl bg-white/10 px-3 py-3 ring-1 ring-white/15 transition hover:bg-white/15"
                     >
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-semibold text-white">
-                            {profile.initial || 'A'}
-                        </div>
+                        {profile.showLogo ? (
+                            <ProjectVerifyLogo size="sm" showText={false} framed className="shrink-0" />
+                        ) : (
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-semibold text-white">
+                                {profile.initial || 'A'}
+                            </div>
+                        )}
                         <div className="min-w-0 text-left">
                             <p className="truncate text-sm font-semibold text-white">{profile.name || 'Profile'}</p>
-                            <p className="truncate text-[11px] font-normal text-white/60">{profile.email || 'View profile'}</p>
+                            {profile.email ? (
+                                <p className="truncate text-[11px] font-normal text-white/60">{profile.email}</p>
+                            ) : (
+                                <p className="truncate text-[11px] font-normal text-white/60">View profile</p>
+                            )}
                         </div>
                     </NavLink>
                 ) : null}

@@ -23,7 +23,6 @@ import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
 import NotificationBell from '../../../shared/components/NotificationBell';
 import {
     ADMIN,
-    ADMIN_AVATAR_GRADIENT,
     ADMIN_SIDEBAR_GRADIENT,
     ADMIN_MOBILE_GRADIENT,
 } from '../ui/adminTheme';
@@ -131,8 +130,8 @@ const AdminLayoutInner = () => {
         navigate('/');
     };
 
-    const firstName = (user?.name || 'Admin').trim().split(/\s+/)[0];
-    const initial = (user?.name || 'A').trim().slice(0, 1).toUpperCase();
+    const displayName = (user?.name || 'Admin').trim();
+    const firstName = displayName.split(/\s+/)[0];
 
     const cutoutActive = (isActive) =>
         isActive ? (
@@ -209,9 +208,8 @@ const AdminLayoutInner = () => {
                 panelGradient={ADMIN_MOBILE_GRADIENT}
                 profile={{
                     to: '/admin/profile',
-                    name: user?.name || 'Admin',
-                    email: user?.email || '',
-                    initial,
+                    name: displayName,
+                    showLogo: true,
                 }}
             />
 
@@ -230,25 +228,17 @@ const AdminLayoutInner = () => {
                     >
                         <Link
                             to="/admin/profile"
-                            className="group flex shrink-0 flex-col items-center px-3 pb-3 pt-5 text-center outline-none transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-white/40"
+                            className="group flex shrink-0 flex-col items-center gap-2.5 px-3 pb-3 pt-5 text-center outline-none transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-white/40"
                             title="View my profile"
                         >
-                            <div className="relative mb-2.5">
-                                <div
-                                    className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-extrabold text-white transition group-hover:scale-[1.03]"
-                                    style={{
-                                        background: ADMIN_AVATAR_GRADIENT,
-                                        boxShadow: '0 0 0 3px rgba(255,255,255,0.22), 0 0 18px rgba(38,60,150,0.45)',
-                                    }}
-                                >
-                                    {initial}
-                                </div>
-                            </div>
+                            <ProjectVerifyLogo
+                                size="md"
+                                showText={false}
+                                framed
+                                className="justify-center transition group-hover:scale-[1.03]"
+                            />
                             <p className="max-w-full truncate text-[13px] font-semibold tracking-tight text-white">
-                                {user?.name || 'Admin'}
-                            </p>
-                            <p className="mt-0.5 max-w-full truncate text-[10px] font-normal text-white/55 group-hover:text-white/75">
-                                {user?.email || 'admin@projectverify'}
+                                {displayName}
                             </p>
                         </Link>
 
