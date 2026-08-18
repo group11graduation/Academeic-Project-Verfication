@@ -208,37 +208,40 @@ const AdminTeachers = () => {
                                     <button
                                         type="button"
                                         onClick={() => togglePasscode(teacher.id)}
-                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                         title="Toggle passcode"
                                     >
-                                        <ShieldCheck className="h-3 w-3 text-[#2f4aad]" />
+                                        <ShieldCheck className="h-3.5 w-3.5 text-[#2f4aad]" />
                                         {showPasscodes[teacher.id] ? teacher.passcode : '••••••'}
                                         {showPasscodes[teacher.id] ? (
-                                            <EyeOff className="h-3 w-3 text-slate-400" />
+                                            <EyeOff className="h-3.5 w-3.5 text-[#2f4aad]" />
                                         ) : (
-                                            <Eye className="h-3 w-3 text-slate-400" />
+                                            <Eye className="h-3.5 w-3.5 text-[#2f4aad]" />
                                         )}
                                     </button>
                                 ) : null}
                                 <button
                                     type="button"
                                     onClick={() => navigate(`/admin/teachers/${teacher.id}/edit`)}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-[#2f4aad] hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900"
+                                    title="Update"
+                                    aria-label="Update"
                                 >
-                                    <Pencil className="h-3 w-3" /> Update
+                                    <Pencil className="h-3.5 w-3.5" />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => handleDeleteTeacher(teacher.id)}
                                     disabled={deletingId === teacher.id}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-60"
+                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60"
+                                    title="Delete"
+                                    aria-label="Delete"
                                 >
                                     {deletingId === teacher.id ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                     ) : (
-                                        <Trash2 className="h-3 w-3" />
+                                        <Trash2 className="h-3.5 w-3.5" />
                                     )}
-                                    Delete
                                 </button>
                             </div>
                         </div>

@@ -13,12 +13,11 @@ import {
     Workflow,
     Building2,
     Menu,
-    Search,
     Power,
     ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../../../context/authContext';
-import { ShellSearchProvider, useShellSearch } from '../../../context/shellSearchContext';
+import { ShellSearchProvider } from '../../../context/shellSearchContext';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
@@ -46,7 +45,6 @@ const AdminLayoutInner = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, logout } = useAuth();
-    const { query, setQuery, placeholder } = useShellSearch();
 
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -65,7 +63,7 @@ const AdminLayoutInner = () => {
             },
             {
                 key: 'people',
-                name: 'People',
+                name: 'Users',
                 icon: Users,
                 links: [
                     { name: 'Admins', path: '/admin/admins', icon: Shield },
@@ -371,18 +369,7 @@ const AdminLayoutInner = () => {
                                 <p className="mt-0.5 text-[12px] font-semibold text-[#647092]">Over View</p>
                             </div>
 
-                            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                                <label className="relative hidden min-w-0 max-w-md flex-1 xl:block">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                                    <input
-                                        type="search"
-                                        value={query}
-                                        onChange={(e) => setQuery(e.target.value)}
-                                        placeholder={placeholder || 'Search…'}
-                                        className="h-9 w-full rounded-full border-0 bg-white pl-9 pr-3 text-[12px] font-medium text-slate-800 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2f4aad]/25"
-                                    />
-                                </label>
-
+                            <div className="flex shrink-0 items-center gap-2">
                                 <ThemeToggle
                                     compact
                                     className="h-9 rounded-xl border-0 bg-white px-2.5 shadow-sm ring-1 ring-slate-200/80"
@@ -390,19 +377,6 @@ const AdminLayoutInner = () => {
                                 <NotificationBell variant="admin" />
                             </div>
                         </header>
-
-                        <div className="hidden px-5 pb-2 lg:block xl:hidden">
-                            <label className="relative block">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                                <input
-                                    type="search"
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    placeholder={placeholder || 'Search…'}
-                                    className="h-9 w-full rounded-full border-0 bg-white pl-9 pr-3 text-[12px] font-medium text-slate-800 shadow-sm outline-none ring-1 ring-slate-200/80 placeholder:text-slate-400 focus:ring-2 focus:ring-[#2f4aad]/25"
-                                />
-                            </label>
-                        </div>
 
                         <main className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:px-4 lg:px-5">
                             <div className="app-shell-page app-page">
