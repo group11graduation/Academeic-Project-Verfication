@@ -33,6 +33,9 @@ import {
 import { usePageSearch } from '../../../context/shellSearchContext';
 import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import TablePagination, { slicePage } from '../../../shared/components/TablePagination';
+
+const PAGE_SIZE = 8;
 
 const AdminStudents = () => {
     const location = useLocation();
@@ -40,6 +43,7 @@ const AdminStudents = () => {
     const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search students…');
     const [classFilter, setClassFilter] = useState('');
     const [facultyFilter, setFacultyFilter] = useState('');
+    const [page, setPage] = useState(1);
     const [students, setStudents] = useState([]);
     const [revealedPasscodes, setRevealedPasscodes] = useState({});
     const [classes, setClasses] = useState([]);
@@ -268,6 +272,20 @@ const AdminStudents = () => {
                 String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
             );
     }, [students, searchQuery, classFilter, facultyFilter, classes]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery, classFilter, facultyFilter]);
+
+    useEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
+        if (page > totalPages) setPage(totalPages);
+    }, [filteredStudents.length, page]);
+
+    const pagedStudents = useMemo(
+        () => slicePage(filteredStudents, page, PAGE_SIZE),
+        [filteredStudents, page]
+    );
 
     const selectedClass = useMemo(
         () => classes.find((c) => c.code === addForm.classId),
@@ -770,7 +788,7 @@ const AdminStudents = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredStudents.map((student, index) => {
+                                pagedStudents.map((student, index) => {
                                     const photo = student.photo || 'https://via.placeholder.com/150';
                                     const name = student.name || 'Unknown Student';
                                     const sid = student.studentId || '';
@@ -899,11 +917,12 @@ const AdminStudents = () => {
                         </tbody>
                     </table>
                 </div>
-                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 dark:border-white/10">
-                    <p className="text-[11px] font-medium text-slate-400">
-                        Page 1 of 1
-                    </p>
-                </div>
+                <TablePagination
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    totalItems={filteredStudents.length}
+                    onPageChange={setPage}
+                />
             </div>
         </div>
     );

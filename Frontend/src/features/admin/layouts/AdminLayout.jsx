@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
@@ -211,6 +211,12 @@ const AdminLayoutInner = () => {
                 onLogout={requestLogout}
                 panelTitle="Admin menu"
                 panelGradient={ADMIN_MOBILE_GRADIENT}
+                profile={{
+                    to: '/admin/profile',
+                    name: user?.name || 'Admin',
+                    email: user?.email || '',
+                    initial,
+                }}
             />
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-1">
@@ -226,10 +232,14 @@ const AdminLayoutInner = () => {
                             background: ADMIN_SIDEBAR_GRADIENT,
                         }}
                     >
-                        <div className="flex shrink-0 flex-col items-center px-3 pb-3 pt-5 text-center">
+                        <Link
+                            to="/admin/profile"
+                            className="group flex shrink-0 flex-col items-center px-3 pb-3 pt-5 text-center outline-none transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-white/40"
+                            title="View my profile"
+                        >
                             <div className="relative mb-2.5">
                                 <div
-                                    className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-extrabold text-white"
+                                    className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-extrabold text-white transition group-hover:scale-[1.03]"
                                     style={{
                                         background: ADMIN_AVATAR_GRADIENT,
                                         boxShadow: '0 0 0 3px rgba(255,255,255,0.22), 0 0 18px rgba(38,60,150,0.45)',
@@ -241,10 +251,10 @@ const AdminLayoutInner = () => {
                             <p className="max-w-full truncate text-[13px] font-extrabold tracking-tight text-white">
                                 {user?.name || 'Admin'}
                             </p>
-                            <p className="mt-0.5 max-w-full truncate text-[10px] font-medium text-white/55">
+                            <p className="mt-0.5 max-w-full truncate text-[10px] font-medium text-white/55 group-hover:text-white/75">
                                 {user?.email || 'admin@projectverify'}
                             </p>
-                        </div>
+                        </Link>
 
                         <nav
                             className="relative flex min-h-0 flex-1 flex-col justify-start gap-0.5 overflow-y-auto overflow-x-hidden pb-2 pl-2.5 pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"

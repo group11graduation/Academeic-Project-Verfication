@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Loader2, Pencil, Trash2, Plus, Eye, EyeOff, Copy, Check, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import adminUserService from '../../../services/adminUserService';
@@ -6,11 +6,15 @@ import { usePageSearch } from '../../../context/shellSearchContext';
 import { copyTextToClipboard } from '../../../shared/utils/clipboard';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
 import { appAlert, appConfirm, appError, appSuccess, appWarning } from '../../../lib/appDialog';
+import TablePagination, { slicePage } from '../../../shared/components/TablePagination';
+
+const PAGE_SIZE = 8;
 
 const AdminAdmins = () => {
     const { query: searchQuery, setQuery: setSearchQuery } = usePageSearch('Search admins…');
     const [admins, setAdmins] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
     const [editingId, setEditingId] = useState('');
     const [editEmail, setEditEmail] = useState('');
     const [savingEdit, setSavingEdit] = useState(false);
@@ -35,8 +39,26 @@ const AdminAdmins = () => {
         fetchAdmins();
     }, []);
 
-    const filteredAdmins = admins.filter((admin) =>
-        matchesSearchQuery(searchQuery, admin.systemId, admin.email, admin.username)
+    const filteredAdmins = useMemo(
+        () =>
+            admins.filter((admin) =>
+                matchesSearchQuery(searchQuery, admin.systemId, admin.email, admin.username)
+            ),
+        [admins, searchQuery]
+    );
+
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery]);
+
+    useEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(filteredAdmins.length / PAGE_SIZE));
+        if (page > totalPages) setPage(totalPages);
+    }, [filteredAdmins.length, page]);
+
+    const pagedAdmins = useMemo(
+        () => slicePage(filteredAdmins, page, PAGE_SIZE),
+        [filteredAdmins, page]
     );
 
     const startEdit = (admin) => {
@@ -191,7 +213,7 @@ const AdminAdmins = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredAdmins.map((admin) => {
+                                pagedAdmins.map((admin) => {
                                     const initial = String(admin.email || admin.systemId || 'A').trim().slice(0, 1).toUpperCase();
                                     const isEditing = editingId === admin._id;
                                     return (
@@ -316,11 +338,12 @@ const AdminAdmins = () => {
                         </tbody>
                     </table>
                 </div>
-                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 dark:border-white/10">
-                    <p className="text-[11px] font-medium text-slate-400">
-                        Showing {filteredAdmins.length} of {admins.length}
-                    </p>
-                </div>
+                <TablePagination
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    totalItems={filteredAdmins.length}
+                    onPageChange={setPage}
+                />
             </div>
         </div>
     );

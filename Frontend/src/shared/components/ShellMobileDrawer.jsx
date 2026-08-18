@@ -12,6 +12,7 @@ export default function ShellMobileDrawer({
     onLogout,
     panelTitle = 'Menu',
     panelGradient,
+    profile = null,
 }) {
     useEffect(() => {
         if (!open) return undefined;
@@ -51,6 +52,22 @@ export default function ShellMobileDrawer({
                         <X className="h-5 w-5" />
                     </button>
                 </div>
+
+                {profile?.to ? (
+                    <NavLink
+                        to={profile.to}
+                        onClick={onClose}
+                        className="mx-3 mt-3 flex items-center gap-3 rounded-xl bg-white/10 px-3 py-3 ring-1 ring-white/15 transition hover:bg-white/15"
+                    >
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-extrabold text-white">
+                            {profile.initial || 'A'}
+                        </div>
+                        <div className="min-w-0 text-left">
+                            <p className="truncate text-sm font-extrabold text-white">{profile.name || 'Profile'}</p>
+                            <p className="truncate text-[11px] font-medium text-white/60">{profile.email || 'View profile'}</p>
+                        </div>
+                    </NavLink>
+                ) : null}
 
                 <nav className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Mobile navigation">
                     {navSections.map((section) => (

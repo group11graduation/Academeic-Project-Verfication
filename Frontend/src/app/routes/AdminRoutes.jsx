@@ -21,6 +21,7 @@ import AdminSemesters from '../../features/admin/pages/AdminSemesters';
 import AdminAcademicStructure from '../../features/admin/pages/AdminAcademicStructure';
 import AdminImportExport from '../../features/admin/pages/AdminImportExport';
 import AdminSetupWorkflow from '../../features/admin/pages/AdminSetupWorkflow';
+import AdminProfile from '../../features/admin/pages/AdminProfile';
 
 const AdminRoutes = () => {
     return (
@@ -28,6 +29,7 @@ const AdminRoutes = () => {
             {/* This component is already mounted at `/admin/*` from AppRoutes, so routes here should be relative. */}
             <Route element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
+                <Route path="profile" element={<AdminProfile />} />
                 <Route path="admins/new" element={<AdminAddAdmin />} />
                 <Route path="admins/:id" element={<AdminAdminDetail />} />
                 <Route path="admins" element={<AdminAdmins />} />
