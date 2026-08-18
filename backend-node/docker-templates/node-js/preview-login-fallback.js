@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V24:
+ * Marker V25:
+ * - Shop/Harmony: also set localStorage.role / isAdmin (many SPAs read bare "role" key).
+ * - After login, promote /profile|/orders customer dash → /admin once (admin@preview.demo).
+ * V24:
  * - Stop login↔logout / login↔admin redirect loops (max 1 admin landing; abort on bounce).
  * - Patch JWT role to admin for ALL apps (not only Sky) so ProtectedRoute keeps the session.
  * V23:
@@ -34,10 +37,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V24__) {
-    console.log('[DEBUG-SHIM] already installed V24 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V25__) {
+    console.log('[DEBUG-SHIM] already installed V25 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V25__ = true;
   window.__SV_LOGIN_FALLBACK_V24__ = true;
   window.__SV_LOGIN_FALLBACK_V23__ = true;
   window.__SV_LOGIN_FALLBACK_V22__ = true;
@@ -57,7 +61,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v24', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v25', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -999,8 +1003,9 @@
     // Skincare / Harmony / ecommerce: admin panel is almost always /admin even if
     // the bundle scan missed the route string.
     if (
+      isShopStyleApp() ||
       /harmony|skin\s*care|skincare|shop|ecommerce|e-commerce|store/i.test(pageHintHtml()) ||
-      /\/shop/i.test(String(location.pathname || ''))
+      /\/(shop|profile|orders)/i.test(String(location.pathname || ''))
     ) {
       return '/admin';
     }
@@ -1201,7 +1206,11 @@
       } catch (_e3) {}
     }
 
-    if (!changed && !becameSkyAdmin) return false;
+    if (!changed && !becameSkyAdmin) {
+      writeBareRoleKeys(targetRole);
+      return false;
+    }
+    writeBareRoleKeys(targetRole);
     try {
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new Event('userChanged'));
@@ -1242,6 +1251,65 @@
     if (role === 'MEMBER' && hasRoute('/portal')) return '/portal';
     if (role === 'BORROWER' && hasRoute('/dashboard')) return '/dashboard';
     return defaultAdminHomePath();
+  }
+
+  function isHarmonySkinApp() {
+    try {
+      if (window.__SV_HARMONY_SKIN__) return true;
+    } catch (_e) {}
+    var html = pageHintHtml();
+    if (/harmony\s*skin|harmony\s*skincare|botanical orders|skincare routine/i.test(html)) {
+      try {
+        window.__SV_HARMONY_SKIN__ = true;
+      } catch (_e2) {}
+      return true;
+    }
+    return false;
+  }
+
+  function isShopStyleApp() {
+    if (isHarmonySkinApp()) return true;
+    var html = pageHintHtml();
+    return /skincare|skin\s*care|\/shop|ecommerce|e-commerce|botanical/i.test(html);
+  }
+
+  function writeBareRoleKeys(role) {
+    var r = String(role || mainAdminRoleForApp() || 'admin');
+    try {
+      // Many student SPAs (Harmony-style) gate admin UI with localStorage.getItem('role').
+      localStorage.setItem('role', r);
+      localStorage.setItem('userRole', r);
+      localStorage.setItem('user_role', r);
+      localStorage.setItem('isAdmin', 'true');
+      localStorage.setItem('is_admin', 'true');
+      sessionStorage.setItem('role', r);
+      sessionStorage.setItem('isAdmin', 'true');
+    } catch (_e) {}
+  }
+
+  function looksLikePreviewAdminSession() {
+    try {
+      var email = '';
+      var raw =
+        localStorage.getItem('user') ||
+        localStorage.getItem('userInfo') ||
+        localStorage.getItem('loan_user') ||
+        '';
+      if (raw) {
+        try {
+          var parsed = JSON.parse(raw);
+          email = String(
+            (parsed && (parsed.email || parsed.username)) ||
+              (parsed && parsed.user && (parsed.user.email || parsed.user.username)) ||
+              ''
+          ).toLowerCase();
+        } catch (_e) {}
+      }
+      if (!email) email = String(localStorage.getItem('email') || '').toLowerCase();
+      return /previewadmin|admin@preview\.demo|preview\.demo/i.test(email);
+    } catch (_e2) {
+      return false;
+    }
   }
 
   function isAdminNavAborted() {
@@ -1328,7 +1396,9 @@
         sessionStorage.removeItem('__sv_admin_nav_count__');
         sessionStorage.removeItem('__sv_post_login_nav__');
         sessionStorage.removeItem('__sv_loop_break__');
+        sessionStorage.removeItem('__sv_profile_promoted__');
       } catch (_c) {}
+      writeBareRoleKeys((user && user.role) || mainAdminRoleForApp());
       goAdminHome(user, 'post-login');
       // Single delayed check: if SPA won the race and left us on /shop, try once more
       // only when the first attempt never ran (count still 0).
@@ -1368,19 +1438,39 @@
   function ensureAdminLandingFromCustomerPath(reason) {
     try {
       if (isAdminNavAborted()) return;
-      if (sessionStorage.getItem('__sv_post_login_nav__') === 'done') return;
       var path = String((window.location && window.location.pathname) || '');
-      // Only auto-promote from shop-like paths right after login — not bare "/" forever.
-      if (!/^\/(shop|store|home|products)(\/|$)/i.test(path)) return;
+      // Harmony/user dash: PROFILE + ORDERS — promote preview admin to /admin.
+      var customerDash = /^\/(shop|store|home|products|profile|orders|account|dashboard)(\/|$)/i.test(path);
+      if (!customerDash) return;
+      if (!isShopStyleApp() && !looksLikePreviewAdminSession() && !/^\/(shop|profile|orders)(\/|$)/i.test(path)) {
+        return;
+      }
       var token =
         localStorage.getItem('token') ||
         localStorage.getItem('accessToken') ||
         localStorage.getItem('loan_token');
-      if (!token) return;
+      if (!token && !looksLikePreviewAdminSession()) return;
+      // Allow exactly one promote from customer dash even if post-login nav already ran
+      // (SPA often wins the race and lands on /profile after our first /admin assign).
+      var promoted = sessionStorage.getItem('__sv_profile_promoted__') === '1';
+      if (promoted) return;
       fixStoredPreviewUserRole();
+      writeBareRoleKeys(mainAdminRoleForApp());
       var user = readStoredPreviewUser();
-      if (!user) return;
-      goAdminHome(user, reason || 'customer-path-rescue');
+      if (!user && !looksLikePreviewAdminSession()) return;
+      sessionStorage.setItem('__sv_profile_promoted__', '1');
+      // Reset one-shot landing so goAdminHome can run again for this promote.
+      sessionStorage.removeItem('__sv_post_login_nav__');
+      var count = Number(sessionStorage.getItem('__sv_admin_nav_count__') || '0');
+      if (count >= 2) {
+        abortAdminNav('profile promote exhausted');
+        return;
+      }
+      // Allow second attempt specifically for /profile race.
+      if (count >= 1) {
+        sessionStorage.setItem('__sv_admin_nav_count__', '0');
+      }
+      goAdminHome(user || { role: mainAdminRoleForApp(), email: 'admin@preview.demo' }, reason || 'customer-dash-promote');
     } catch (_e) {}
   }
 
@@ -1472,19 +1562,66 @@
     }
   } catch (_eEarly) {}
   // Sky Property paints "SKY PROPERTY" after React mount — re-check role for sidebar links.
-  // Do NOT keep forcing /admin from timers (that caused login/logout loops).
+  // Harmony often lands on /profile after login — promote to /admin shortly after.
   try {
     setTimeout(function () {
       fixStoredPreviewUserRole();
+      writeBareRoleKeys(mainAdminRoleForApp());
       noteLoginBounceFromAdmin();
+      ensureAdminLandingFromCustomerPath('t400');
     }, 400);
     setTimeout(function () {
       fixStoredPreviewUserRole();
+      writeBareRoleKeys(mainAdminRoleForApp());
+      ensureAdminLandingFromCustomerPath('t1200');
     }, 1200);
     setTimeout(function () {
       fixStoredPreviewUserRole();
-    }, 3000);
+      ensureAdminLandingFromCustomerPath('t2500');
+    }, 2500);
   } catch (_eLate) {}
+
+  /** Rewrite client-side navigations from /profile → /admin right after preview login. */
+  function installHistoryAdminPromote() {
+    try {
+      if (window.__SV_HISTORY_ADMIN_PROMOTE__) return;
+      window.__SV_HISTORY_ADMIN_PROMOTE__ = true;
+      var wrap = function (fnName) {
+        var orig = history[fnName];
+        if (typeof orig !== 'function') return;
+        history[fnName] = function () {
+          try {
+            if (!isAdminNavAborted() && looksLikePreviewAdminSession()) {
+              var url = arguments.length > 2 ? arguments[2] : '';
+              var path = '';
+              try {
+                path = String(url || '');
+                if (path && path.charAt(0) !== '/') {
+                  path = new URL(path, location.href).pathname;
+                } else {
+                  path = path.split('?')[0] || '';
+                }
+              } catch (_u) {
+                path = String(url || '').split('?')[0];
+              }
+              if (/^\/(profile|orders|shop)(\/|$)/i.test(path)) {
+                writeBareRoleKeys(mainAdminRoleForApp());
+                if (sessionStorage.getItem('__sv_profile_promoted__') !== '1') {
+                  sessionStorage.setItem('__sv_profile_promoted__', '1');
+                  console.log('[DEBUG-SHIM] history', fnName, path, '→ /admin');
+                  arguments[2] = '/admin';
+                }
+              }
+            }
+          } catch (_e) {}
+          return orig.apply(this, arguments);
+        };
+      };
+      wrap('pushState');
+      wrap('replaceState');
+    } catch (_e2) {}
+  }
+  installHistoryAdminPromote();
 
   /**
    * Student UIs often do `if (res.data.success)` before storing the token / clearing
@@ -1582,10 +1719,16 @@
         // LoanFlow-style apps: loan_token / loan_user.
         localStorage.setItem('loan_user', JSON.stringify(user));
         if (token) localStorage.setItem('loan_token', token);
+        if (user.email) localStorage.setItem('email', String(user.email));
       }
+      writeBareRoleKeys((user && user.role) || adminRole || 'admin');
+      try {
+        sessionStorage.removeItem('__sv_profile_promoted__');
+      } catch (_clr) {}
       console.log('[DEBUG-SHIM] normalizeLoginBody wrote localStorage', {
         hasToken: !!token,
         role: user && user.role,
+        bareRole: localStorage.getItem('role'),
         name: user && user.name,
         success: true,
       });

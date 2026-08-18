@@ -502,18 +502,25 @@ function loadPreviewEnv() {
       const enumValues = rolePath?.enumValues?.map((v) => String(v)) || [];
       // Use the same role picker as create — LoanFlow gets admin; SYADA/Sky get super_admin.
       const preferredRole = pickDefaultRole();
-      if (preferredRole && user && String(user.role) !== preferredRole) {
-        await User.updateOne({ _id: user._id }, { $set: { role: preferredRole } });
-        user.role = preferredRole;
-        console.log('[preview-seed] set role to', preferredRole, enumValues.length ? `(enum=${enumValues.join(',')})` : '(no enum)');
+      if (preferredRole && user) {
+        if (String(user.role) !== preferredRole) {
+          await User.updateOne({ _id: user._id }, { $set: { role: preferredRole } });
+          user.role = preferredRole;
+          console.log('[preview-seed] set role to', preferredRole, enumValues.length ? `(enum=${enumValues.join(',')})` : '(no enum)');
+        } else {
+          // Still force-write so lean documents / stale caches cannot keep role:"user".
+          await User.updateOne({ _id: user._id }, { $set: { role: preferredRole } });
+          console.log('[preview-seed] confirmed role', preferredRole);
+        }
       }
       lastSeededRole = String((user && user.role) || preferredRole || 'admin');
 
       if (user?._id) {
-        const flagSet = {};
+        const flagSet = { role: lastSeededRole };
         const paths = User.schema?.paths || {};
         if (paths.isActive) flagSet.isActive = true;
         if (paths.isAdmin) flagSet.isAdmin = true;
+        if (paths.is_admin) flagSet.is_admin = true;
         if (paths.status) flagSet.status = 'active';
         if (paths.isVerified) flagSet.isVerified = true;
         if (paths.verified) flagSet.verified = true;
@@ -523,10 +530,11 @@ function loadPreviewEnv() {
         if (paths.active) flagSet.active = true;
         if (paths.blocked) flagSet.blocked = false;
         if (paths.isBlocked) flagSet.isBlocked = false;
-        if (Object.keys(flagSet).length) {
-          await User.updateOne({ _id: user._id }, { $set: flagSet });
-          console.log('[preview-seed] ensured account flags', JSON.stringify(flagSet));
-        }
+        // Always $set role + flags even when schema is strict:false / missing path defs.
+        flagSet.role = lastSeededRole;
+        flagSet.isAdmin = true;
+        await User.updateOne({ _id: user._id }, { $set: flagSet });
+        console.log('[preview-seed] ensured account flags', JSON.stringify(flagSet));
       }
 
       const verified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
