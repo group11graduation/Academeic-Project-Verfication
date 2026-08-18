@@ -1,6 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+  --font-weight-thin: 400;
+  --font-weight-extralight: 400;
+  --font-weight-light: 400;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 700;
+  --font-weight-black: 700;
+}
 
 @utility safe-area-px {
   padding-left: max(0px, env(safe-area-inset-left));
@@ -27,8 +41,8 @@
     --sv-input-text: #0f172a;
     --sv-input-placeholder: #6b7280;
     /* Single product font family across public + app UI */
-    --sv-font-sans: "Plus Jakarta Sans", "Segoe UI", sans-serif;
-    --sv-font-display: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    --sv-font-sans: "Inter", sans-serif;
+    --sv-font-display: "Inter", sans-serif;
   }
 
   .dark {
@@ -69,10 +83,11 @@
     @apply antialiased transition-colors duration-300;
     background-color: var(--sv-page-bg);
     color: var(--sv-text);
-    font-family: var(--sv-font-sans);
+    font-family: "Inter", sans-serif;
+    font-weight: 400;
     font-size: 1rem;
-    line-height: 1.55;
-    letter-spacing: -0.011em;
+    line-height: 1.5;
+    letter-spacing: 0;
     margin: 0;
     width: 100%;
     max-width: 100%;
@@ -82,16 +97,46 @@
   h1,
   h2,
   h3,
-  .font-display {
-    font-family: var(--sv-font-display);
-    letter-spacing: -0.02em;
+  h4,
+  h5,
+  h6 {
+    font-family: "Inter", sans-serif;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    font-weight: 700;
+  }
+
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+  }
+
+  p,
+  li,
+  dd,
+  dt,
+  label,
+  span,
+  td,
+  th {
+    font-weight: inherit;
   }
 
   button,
   input,
   textarea,
   select {
-    font-family: var(--sv-font-sans);
+    font-family: "Inter", sans-serif;
+  }
+
+  button {
+    font-weight: 600;
   }
 
   /* Content images only — do not apply to inline SVG icons (Lucide) */
@@ -106,12 +151,85 @@
   select,
   option {
     color: var(--sv-input-text) !important;
+    font-weight: 400;
   }
 
   input::placeholder,
   textarea::placeholder {
     color: var(--sv-input-placeholder) !important;
     opacity: 1;
+    font-weight: 400;
+  }
+}
+
+/* Remap heavy Tailwind weight utilities to the Inter scale (400–700 only) */
+@layer utilities {
+  .font-thin,
+  .font-extralight,
+  .font-light,
+  .font-normal {
+    font-weight: 400 !important;
+  }
+
+  .font-medium {
+    font-weight: 500 !important;
+  }
+
+  .font-semibold,
+  .font-bold {
+    font-weight: 600 !important;
+  }
+
+  .font-extrabold,
+  .font-black {
+    font-weight: 700 !important;
+  }
+
+  /*
+   * Soften muted body/description text that was incorrectly marked bold/semibold.
+   * Keep uppercase captions at 500. Do not soften buttons.
+   */
+  :where(p, span, div, li, td, th, label, small, h1, h2, h3, h4, h5, h6):is(
+      .text-slate-400,
+      .text-slate-500,
+      .text-slate-600,
+      .text-slate-700,
+      .dark\:text-slate-300,
+      .dark\:text-slate-400,
+      .dark\:text-slate-500,
+      .text-\[\#647092\],
+      .text-\[\#51628f\]
+    ):not(.uppercase):not([class*='uppercase']) {
+    font-weight: 400 !important;
+  }
+
+  .uppercase.font-medium,
+  .uppercase.font-semibold,
+  .uppercase.font-bold,
+  .uppercase.font-extrabold,
+  .uppercase.font-black,
+  [class*='uppercase'].font-medium,
+  [class*='uppercase'].font-semibold,
+  [class*='uppercase'].font-bold,
+  [class*='uppercase'].font-extrabold,
+  [class*='uppercase'].font-black {
+    font-weight: 500 !important;
+    letter-spacing: 0.5px;
+  }
+
+  /* Stats / large numbers stay heavy */
+  .text-xl.font-extrabold,
+  .text-xl.font-black,
+  .text-lg.font-extrabold,
+  .text-lg.font-black,
+  .text-2xl.font-extrabold,
+  .text-2xl.font-black,
+  .text-3xl.font-extrabold,
+  .text-3xl.font-black,
+  .text-\[17px\].font-extrabold,
+  .text-\[19px\].font-extrabold,
+  .text-\[1\.35rem\].font-extrabold {
+    font-weight: 700 !important;
   }
 }
 
@@ -129,12 +247,16 @@
   /** Compact inner pages — admin, teacher, student authenticated shells */
   .app-page,
   .admin-page {
-    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[12px] leading-normal;
+    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[12px];
+    font-weight: 400;
+    line-height: 1.5;
   }
 
   .app-shell-page.app-page,
   .app-shell-page .app-page-root {
-    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[12px] leading-normal;
+    @apply w-full max-w-[1600px] mx-auto min-w-0 text-[12px];
+    font-weight: 400;
+    line-height: 1.5;
   }
 
   /** Login & standalone auth screens — compact frosted card */
@@ -203,7 +325,8 @@
   }
 
   .app-table-th {
-    @apply px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em];
+    @apply px-3 py-2 text-[10px] font-medium uppercase;
+    letter-spacing: 0.5px;
     color: var(--sv-muted);
   }
 
@@ -217,12 +340,12 @@
   }
 
   .app-table-td {
-    @apply px-3 py-2 text-[12px] font-medium;
+    @apply px-3 py-2 text-[12px] font-normal;
     color: var(--sv-text);
   }
 
   .app-table-empty {
-    @apply py-8 text-center text-[12px] font-semibold;
+    @apply py-8 text-center text-[12px] font-normal;
     color: var(--sv-muted);
   }
 
@@ -266,5 +389,36 @@
   /** Two-column layouts that stack on mobile */
   .app-split-grid {
     @apply grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6 xl:gap-10;
+  }
+
+  /** Typography role helpers */
+  .type-page-title {
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .type-section-title {
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .type-body {
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  .type-caption {
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .type-stat {
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .type-button {
+    font-weight: 600;
   }
 }

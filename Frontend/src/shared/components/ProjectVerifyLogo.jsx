@@ -51,7 +51,7 @@ export default function ProjectVerifyLogo({
             {showText ? (
                 <div className={`leading-tight min-w-0 ${hideTextOnMobile ? 'hidden sm:block' : ''} ${textClassName}`}>
                     <span
-                        className={`block font-extrabold tracking-tight ${s.title} ${
+                        className={`block font-extrabold tracking-tight leading-[1.2] ${s.title} ${
                             onDark ? 'text-white' : 'text-[var(--sv-text)]'
                         }`}
                     >
@@ -59,7 +59,7 @@ export default function ProjectVerifyLogo({
                     </span>
                     {tagline ? (
                         <span
-                            className={`block text-[10px] font-bold uppercase tracking-[0.14em] ${
+                            className={`block text-[10px] font-medium uppercase tracking-[0.5px] ${
                                 onDark ? 'text-white/65' : 'text-[var(--sv-muted)]'
                             }`}
                         >

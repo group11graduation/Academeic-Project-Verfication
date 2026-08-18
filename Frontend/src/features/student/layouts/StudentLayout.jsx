@@ -84,8 +84,8 @@ const StudentLayoutInner = () => {
                                     end={end}
                                     onClick={() => setMobileOpen(false)}
                                     className={({ isActive }) =>
-                                        `flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold ${
-                                            isActive ? 'bg-[var(--sv-card)] text-[#1d2f82]' : 'text-white/85'
+                                        `flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
+                                            isActive ? 'bg-[var(--sv-card)] font-semibold text-[#1d2f82]' : 'font-normal text-white/85'
                                         }`
                                     }
                                 >
@@ -99,7 +99,7 @@ const StudentLayoutInner = () => {
                                     logout();
                                     navigate('/');
                                 }}
-                                className="flex w-full items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-rose-300"
+                                className="flex w-full items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-rose-300"
                             >
                                 <LogOut className="h-4 w-4" /> Logout
                             </button>
@@ -107,12 +107,12 @@ const StudentLayoutInner = () => {
                     )}
 
                     <header className="flex flex-col gap-2 px-4 pb-1 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
-                        <h1 className="text-lg font-black tracking-tight text-[var(--sv-text)] dark:text-slate-100 sm:text-xl">{title}</h1>
+                        <h1 className="text-lg font-extrabold tracking-tight text-[var(--sv-text)] dark:text-slate-100 sm:text-xl">{title}</h1>
                         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                             <ThemeToggle compact className="hidden sm:inline-flex" />
                             <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-[var(--sv-card)] px-3 py-1.5 text-[12px] font-bold text-[var(--sv-muted)] shadow-sm dark:border-white/10 dark:bg-[#111827] dark:text-slate-300"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-[var(--sv-card)] px-3 py-1.5 text-[12px] font-semibold text-[var(--sv-muted)] shadow-sm dark:border-white/10 dark:bg-[#111827] dark:text-slate-300"
                             >
                                 {today}
                                 <ChevronDown className="h-3.5 w-3.5 text-[var(--sv-muted)] dark:text-[var(--sv-muted)]" />

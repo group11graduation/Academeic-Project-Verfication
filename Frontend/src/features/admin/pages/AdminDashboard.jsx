@@ -120,14 +120,14 @@ const AdminDashboard = () => {
                                     <div className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${card.iconBg}`}>
                                         <Icon className="h-4 w-4" strokeWidth={2.2} />
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-500">{card.title}</span>
-                                </div>
-                                <p className="text-xl font-extrabold leading-none tracking-tight text-[#0f172a]">
-                                    {Number(card.value).toLocaleString()}
-                                </p>
-                                {card.hint ? (
-                                    <p className="mt-1.5 text-[10px] font-medium leading-snug text-slate-500">{card.hint}</p>
-                                ) : null}
+                    <span className="text-[10px] font-bold text-slate-500">{card.title}</span>
+                </div>
+                <p className="text-xl font-extrabold leading-[1.2] tracking-tight text-[#0f172a]">
+                    {Number(card.value).toLocaleString()}
+                </p>
+                {card.hint ? (
+                    <p className="mt-1.5 text-[10px] font-normal leading-[1.5] text-slate-500">{card.hint}</p>
+                ) : null}
                             </div>
                         );
                     })}

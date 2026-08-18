@@ -42,7 +42,7 @@ export default function ShellMobileDrawer({
                 }}
             >
                 <div className="flex items-center justify-between gap-2 border-b border-white/15 px-4 py-3">
-                    <p className="text-sm font-black tracking-tight">{panelTitle}</p>
+                    <p className="text-sm font-semibold tracking-tight">{panelTitle}</p>
                     <button
                         type="button"
                         onClick={onClose}
@@ -59,12 +59,12 @@ export default function ShellMobileDrawer({
                         onClick={onClose}
                         className="mx-3 mt-3 flex items-center gap-3 rounded-xl bg-white/10 px-3 py-3 ring-1 ring-white/15 transition hover:bg-white/15"
                     >
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-extrabold text-white">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-semibold text-white">
                             {profile.initial || 'A'}
                         </div>
                         <div className="min-w-0 text-left">
-                            <p className="truncate text-sm font-extrabold text-white">{profile.name || 'Profile'}</p>
-                            <p className="truncate text-[11px] font-medium text-white/60">{profile.email || 'View profile'}</p>
+                            <p className="truncate text-sm font-semibold text-white">{profile.name || 'Profile'}</p>
+                            <p className="truncate text-[11px] font-normal text-white/60">{profile.email || 'View profile'}</p>
                         </div>
                     </NavLink>
                 ) : null}
@@ -72,7 +72,7 @@ export default function ShellMobileDrawer({
                 <nav className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Mobile navigation">
                     {navSections.map((section) => (
                         <div key={section.key}>
-                            <p className="px-2 pb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+                            <p className="px-2 pb-1.5 text-[10px] font-medium uppercase tracking-[0.5px] text-white/55">
                                 {section.name}
                             </p>
                             <div className="space-y-1">
@@ -85,8 +85,10 @@ export default function ShellMobileDrawer({
                                             end={Boolean(item.end)}
                                             onClick={onClose}
                                             className={({ isActive }) =>
-                                                `flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors ${
-                                                    isActive ? 'bg-[var(--sv-card)] text-slate-900' : 'text-white/90 hover:bg-white/12'
+                                                `flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                                                    isActive
+                                                        ? 'bg-[var(--sv-card)] font-semibold text-slate-900'
+                                                        : 'font-normal text-white/90 hover:bg-white/12'
                                                 }`
                                             }
                                         >

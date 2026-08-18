@@ -165,13 +165,13 @@ const AdminLayoutInner = () => {
 
     /** Cutout active: light fill, large left radius, flush to content edge */
     const parentActiveClass =
-        'relative z-[1] flex w-full items-center gap-2.5 rounded-l-[1.5rem] bg-[#f8f9fd] py-2.5 pl-3.5 pr-3 text-[12px] font-bold text-[#2f4aad]';
+        'relative z-[1] flex w-full items-center gap-2.5 rounded-l-[1.5rem] bg-[#f8f9fd] py-2.5 pl-3.5 pr-3 text-[12px] font-semibold text-[#2f4aad]';
     const parentIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl py-2.5 pl-3 pr-2.5 text-[12px] font-semibold text-white/90 transition-colors hover:bg-white/12 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl py-2.5 pl-3 pr-2.5 text-[12px] font-normal text-white/90 transition-colors hover:bg-white/12 hover:text-white';
     const childActiveClass =
-        'relative z-[1] flex w-full items-center gap-2 rounded-l-[1.25rem] bg-[#f8f9fd] py-2 pl-3.5 pr-3 text-[11px] font-bold text-[#2f4aad]';
+        'relative z-[1] flex w-full items-center gap-2 rounded-l-[1.25rem] bg-[#f8f9fd] py-2 pl-3.5 pr-3 text-[11px] font-semibold text-[#2f4aad]';
     const childIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg py-2 pl-3 pr-2.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/12 hover:text-white';
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg py-2 pl-3 pr-2.5 text-[11px] font-normal text-white/80 transition-colors hover:bg-white/12 hover:text-white';
 
     return (
         <div
@@ -246,10 +246,10 @@ const AdminLayoutInner = () => {
                                     {initial}
                                 </div>
                             </div>
-                            <p className="max-w-full truncate text-[13px] font-extrabold tracking-tight text-white">
+                            <p className="max-w-full truncate text-[13px] font-semibold tracking-tight text-white">
                                 {user?.name || 'Admin'}
                             </p>
-                            <p className="mt-0.5 max-w-full truncate text-[10px] font-medium text-white/55 group-hover:text-white/75">
+                            <p className="mt-0.5 max-w-full truncate text-[10px] font-normal text-white/55 group-hover:text-white/75">
                                 {user?.email || 'admin@projectverify'}
                             </p>
                         </Link>
@@ -363,10 +363,10 @@ const AdminLayoutInner = () => {
                     >
                         <header className="hidden shrink-0 items-center justify-between gap-3 px-5 pb-2 pt-4 lg:flex">
                             <div className="min-w-0">
-                                <h1 className="truncate text-[1.35rem] font-extrabold leading-tight tracking-tight text-[#2f4aad]">
+                                <h1 className="truncate text-[1.35rem] font-extrabold leading-[1.2] tracking-tight text-[#2f4aad]">
                                     Welcome {firstName} !
                                 </h1>
-                                <p className="mt-0.5 text-[12px] font-semibold text-[#647092]">Over View</p>
+                                <p className="mt-0.5 text-[12px] font-normal text-[#647092]">Over View</p>
                             </div>
 
                             <div className="flex shrink-0 items-center gap-2">
@@ -410,11 +410,11 @@ const AdminLayoutInner = () => {
                                     <LogOut className="h-5 w-5" strokeWidth={2.25} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#51628f]">Session</p>
-                                    <h3 id="logout-dialog-title" className="mt-0.5 text-base font-black tracking-tight text-[#1e317a]">
+                                    <p className="text-[9px] font-medium uppercase tracking-[0.5px] text-[#51628f]">Session</p>
+                                    <h3 id="logout-dialog-title" className="mt-0.5 text-base font-semibold tracking-tight text-[#1e317a]">
                                         Sign out of your account?
                                     </h3>
-                                    <p className="mt-1.5 text-[12px] font-medium leading-snug text-[#51628f]">
+                                    <p className="mt-1.5 text-[12px] font-normal leading-[1.5] text-[#51628f]">
                                         You will need to sign in again to access the admin panel and management tools.
                                     </p>
                                 </div>
