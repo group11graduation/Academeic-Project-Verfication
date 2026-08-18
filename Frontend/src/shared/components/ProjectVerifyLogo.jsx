@@ -2,13 +2,13 @@ import React from 'react';
 import { PRODUCT_TAGLINE, PROJECT_NAME } from '../ui/brandTheme';
 
 const SIZE = {
-    sm: { box: 'h-12 w-12', img: 'h-10 w-10', title: 'text-[14px]', gap: 'gap-1.5' },
-    md: { box: 'h-16 w-16', img: 'h-14 w-14', title: 'text-[17px]', gap: 'gap-2' },
-    lg: { box: 'h-[4.75rem] w-[4.75rem]', img: 'h-[4.25rem] w-[4.25rem]', title: 'text-[15px]', gap: 'gap-2' },
-    xl: { box: 'h-[5.5rem] w-[5.5rem]', img: 'h-20 w-20', title: 'text-[22px]', gap: 'gap-2.5' },
+    sm: { box: 'h-9 w-9', title: 'text-[14px]', gap: 'gap-1.5' },
+    md: { box: 'h-11 w-11', title: 'text-[17px]', gap: 'gap-2' },
+    lg: { box: 'h-12 w-12', title: 'text-[15px]', gap: 'gap-2' },
+    xl: { box: 'h-14 w-14', title: 'text-[22px]', gap: 'gap-2.5' },
 };
 
-/** Shield + code + motion lines — no check-circle badge */
+/** Shield + code mark — transparent SVG (no baked white background). */
 function LogoMarkSvg({ className = '' }) {
     return (
         <svg
@@ -47,9 +47,8 @@ function LogoMarkSvg({ className = '' }) {
 }
 
 /**
- * Shared Project Verify logo - image mark + optional wordmark.
- * Use `framed` (or `onDark`) for a white circle plate on blue/dark UI.
- * Use `plainMark` for the shield mark without the check badge / circle plate (sidebar).
+ * Shared Project Verify logo — transparent SVG mark + optional wordmark.
+ * No white plate / image background.
  */
 export default function ProjectVerifyLogo({
     showText = true,
@@ -59,56 +58,34 @@ export default function ProjectVerifyLogo({
     textClassName = '',
     tagline = PRODUCT_TAGLINE,
     onDark = false,
-    framed,
-    plainMark = false,
     hideTextOnMobile = false,
+    /** @deprecated Ignored — mark is always transparent SVG */
+    framed: _framed,
+    /** @deprecated Ignored — mark is always transparent SVG */
+    plainMark: _plainMark,
 }) {
     const s = SIZE[size] || SIZE.md;
-    const useFrame = plainMark ? false : framed ?? onDark;
-
-    const mark = plainMark ? (
-        <LogoMarkSvg
-            className={`${s.box} shrink-0 ${onDark ? 'text-[var(--sidebar-fg)]' : 'text-[var(--brand-primary)]'}`}
-        />
-    ) : (
-        <img
-            src="/logo.png"
-            alt={PROJECT_NAME}
-            className={`${useFrame ? s.img : s.box} shrink-0 object-contain`}
-        />
-    );
+    const markColor = onDark ? 'text-[var(--sidebar-fg)]' : 'text-[var(--accent)]';
+    const titleColor = onDark ? 'text-[var(--sidebar-fg)]' : 'text-[var(--text-primary)]';
+    const tagColor = onDark ? 'text-[var(--sidebar-fg-muted)]' : 'text-[var(--text-secondary)]';
 
     return (
         <div className={`flex items-center ${s.gap} shrink-0 ${className}`}>
             {showMark ? (
-                useFrame ? (
-                    <span
-                        className={`${s.box} inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--sv-card)] shadow-[0_4px_18px_rgba(15,23,42,0.18)] ring-1 ring-white/50`}
-                    >
-                        {mark}
-                    </span>
-                ) : (
-                    mark
-                )
+                <LogoMarkSvg className={`${s.box} shrink-0 bg-transparent ${markColor}`} />
             ) : null}
             {showText ? (
                 <div
                     className={`flex min-w-0 flex-col justify-center leading-none ${
- hideTextOnMobile ? 'hidden sm:flex' : ''
- } ${textClassName}`}
+                        hideTextOnMobile ? 'hidden sm:flex' : ''
+                    } ${textClassName}`}
                 >
-                    <span
-                        className={`block font-extrabold tracking-tight ${s.title} ${
- onDark ? 'text-white' : 'text-[var(--sv-text)]'
- }`}
-                    >
+                    <span className={`block font-extrabold tracking-tight ${s.title} ${titleColor}`}>
                         {PROJECT_NAME}
                     </span>
                     {tagline ? (
                         <span
-                            className={`mt-0.5 block text-[10px] font-medium uppercase tracking-[0.5px] ${
- onDark ? 'text-white/65' : 'text-[var(--sv-muted)]'
- }`}
+                            className={`mt-0.5 block text-[10px] font-medium uppercase tracking-[0.5px] ${tagColor}`}
                         >
                             {tagline}
                         </span>
