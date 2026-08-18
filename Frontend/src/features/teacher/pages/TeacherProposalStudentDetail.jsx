@@ -151,31 +151,59 @@ function DetailRow({ label, value }) {
 function getProposalRequirementIssue(proposal) {
     const liveReview = proposal?.requirementReview || null;
     const storedFailed = proposal?.requirementCheckPassed === false;
+    const status = String(proposal?.status || proposal?.displayStatus || '');
     const statusRejected =
-        proposal?.status === 'requirements_rejected' ||
-        proposal?.displayStatus === 'requirements_rejected';
+        status === 'requirements_rejected' || proposal?.displayStatus === 'requirements_rejected';
     const needsReview =
-        proposal?.status === 'requirements_review' ||
+        status === 'requirements_review' ||
         proposal?.displayStatus === 'requirements_review' ||
-        proposal?.requirementNeedsTeacherReview === true;
-    const liveFailed = liveReview?.passed === false;
-    // Show red "not met" only for real rejects - not for teacher-review routing.
-    const failed = statusRejected || (!needsReview && (storedFailed || liveFailed));
-    const summary =
-        proposal?.requirementCheckSummary ||
-        liveReview?.summary ||
-        (failed ? 'This proposal does not match the assignment requirements.' : '');
+        (proposal?.requirementNeedsTeacherReview === true &&
+            (status === 'requirements_review' || status === 'pending_teacher_approval' || status === ''));
+
+    const historySummary = proposal?.submissionHistorySummary || {};
+    const latestRequirementPassed = historySummary.latestRequirementPassed !== false;
+    const resolvedAfterFailure = Boolean(historySummary.resolvedAfterFailure);
+
+    // Once the student clears the gate (or teacher already acted), never keep showing
+    // the first-attempt red banner — even if a live re-score still mentions old tech.
+    const pastRequirementGate = [
+        'pending_teacher_approval',
+        'teacher_approved',
+        'teacher_rejected',
+        'revision_required',
+        'ai_flagged_previous_semester',
+        'ai_rejected_same_semester',
+        'submitted',
+    ].includes(status);
+
+    const requirementsCleared =
+        pastRequirementGate ||
+        (resolvedAfterFailure && latestRequirementPassed && !storedFailed && !statusRejected) ||
+        (!storedFailed && latestRequirementPassed && !statusRejected && status !== 'requirements_review');
+
+    // Current blocking issue only (stored gate / status). Do not use liveFailed alone —
+    // teacher list re-runs evaluateProposalAgainstAssignmentRequirements and can resurface
+    // disallowed tech from earlier wording after a successful resubmit.
+    const failed = !requirementsCleared && (statusRejected || (!needsReview && storedFailed));
+
+    const summary = failed
+        ? proposal?.requirementCheckSummary ||
+          liveReview?.summary ||
+          'This proposal does not match the assignment requirements.'
+        : '';
     const similarity =
-        proposal?.requirementSemanticSimilarity != null
+        failed && proposal?.requirementSemanticSimilarity != null
             ? Number(proposal.requirementSemanticSimilarity)
             : null;
+
     return {
         failed,
-        needsReview,
-        isPrimaryIssue: failed && proposal?.status !== 'ai_rejected_same_semester',
+        needsReview: Boolean(needsReview && !requirementsCleared && !pastRequirementGate),
+        isPrimaryIssue: failed && status !== 'ai_rejected_same_semester',
         summary,
         similarity,
-        review: liveReview,
+        // Only attach live review details while the issue is still current.
+        review: failed || (needsReview && !requirementsCleared) ? liveReview : null,
     };
 }
 

@@ -244,7 +244,18 @@ const TeacherAssignmentProposals = () => {
                                         </div>
                                         <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
                                             <span className="text-xs font-bold text-[var(--text-primary)]">{statusLabel(p.status, p)}</span>
-                                            {p.requirementReview?.passed === false || p.requirementCheckPassed === false ? (
+                                            {(p.status === 'requirements_rejected' ||
+                                                p.displayStatus === 'requirements_rejected' ||
+                                                (p.requirementCheckPassed === false &&
+                                                    ![
+                                                        'pending_teacher_approval',
+                                                        'teacher_approved',
+                                                        'teacher_rejected',
+                                                        'revision_required',
+                                                        'ai_flagged_previous_semester',
+                                                        'ai_rejected_same_semester',
+                                                        'submitted',
+                                                    ].includes(String(p.status || '')))) ? (
                                                 <span className="text-[10px] font-semibold text-rose-600">
                                                     Requirements not met
                                                 </span>
