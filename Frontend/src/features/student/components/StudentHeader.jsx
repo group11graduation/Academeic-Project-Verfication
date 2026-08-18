@@ -102,10 +102,10 @@ const StudentHeader = ({ forcePublic = false }) => {
             <header className="sticky top-0 z-50 [font-family:var(--sv-font-sans)]">
                 <div className="border-b border-white/40 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1220]/85">
                     <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-                        <div className="flex h-[72px] items-center justify-between gap-3">
+                        <div className="flex h-[84px] items-center justify-between gap-3">
                             <Link to="/" className="group shrink-0" onClick={() => setMobileOpen(false)}>
                                 <ProjectVerifyLogo
-                                    size="md"
+                                    size="lg"
                                     hideTextOnMobile
                                     className="transition-opacity hover:opacity-95"
                                     tagline=""

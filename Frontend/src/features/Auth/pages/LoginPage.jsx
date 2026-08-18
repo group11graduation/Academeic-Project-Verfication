@@ -6,7 +6,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../../../context/authContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { BRAND_GRADIENT, PROJECT_NAME } from '../../../shared/ui/brandTheme';
-import AuthShell, { authFieldClass, authPrimaryBtnClass } from '../components/AuthShell';
+import AuthShell, {
+  authErrorBoxClass,
+  authFieldClass,
+  authFooterTextClass,
+  authIconClass,
+  authLabelClass,
+  authMutedLinkClass,
+  authPrimaryBtnClass,
+} from '../components/AuthShell';
 import {
   clearRememberedCredentials,
   getRememberedCredentials,
@@ -105,13 +113,13 @@ const LoginPage = () => {
           <button
             type="button"
             onClick={() => logout()}
-            className="w-full rounded-xl border border-white/15 bg-white/5 py-3 text-[14px] font-semibold text-white transition hover:bg-white/10"
+            className="w-full rounded-xl border border-[#dbe3f5] bg-white/60 py-3 text-[14px] font-semibold text-slate-700 transition hover:bg-white/90"
           >
             Sign out and use another account
           </button>
           <Link
             to="/"
-            className="flex w-full items-center justify-center py-2 text-[13px] font-normal text-white/55 transition hover:text-white"
+            className="flex w-full items-center justify-center py-2 text-[13px] font-normal text-slate-500 transition hover:text-slate-800"
           >
             Back to overview
           </Link>
@@ -125,25 +133,21 @@ const LoginPage = () => {
       title="Sign in"
       subtitle={`Access your ${PROJECT_NAME} academic workspace`}
       footer={
-        <p className="mt-7 text-center text-[13px] font-normal text-white/50">
+        <p className={authFooterTextClass}>
           Don&apos;t have an account?{' '}
-          <span className="font-semibold text-[#8ea4f0]">Ask your institution administrator</span>
+          <span className="font-semibold text-[#2a3fa4]">Ask your institution administrator</span>
         </p>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" autoComplete="on">
-        {rootMsg ? (
-          <div className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-2.5 text-[13px] font-normal text-rose-100">
-            {rootMsg}
-          </div>
-        ) : null}
+        {rootMsg ? <div className={authErrorBoxClass}>{rootMsg}</div> : null}
 
         <div>
-          <label htmlFor="login-identifier" className="mb-1.5 block text-left text-[12px] font-medium text-white/60">
+          <label htmlFor="login-identifier" className={authLabelClass}>
             Email or ID
           </label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <Mail className={authIconClass} />
             <input
               id="login-identifier"
               type="text"
@@ -156,21 +160,21 @@ const LoginPage = () => {
             />
           </div>
           {errors.identifier ? (
-            <p className="mt-1.5 text-[12px] font-normal text-rose-300">{errors.identifier.message}</p>
+            <p className="mt-1.5 text-[12px] font-normal text-rose-600">{errors.identifier.message}</p>
           ) : null}
         </div>
 
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <label htmlFor="login-password" className="text-[12px] font-medium text-white/60">
+            <label htmlFor="login-password" className="text-[12px] font-medium text-slate-500">
               Password
             </label>
-            <Link to="/forgot-password" className="text-[12px] font-medium text-[#8ea4f0] hover:text-white hover:underline">
+            <Link to="/forgot-password" className={authMutedLinkClass}>
               Forgot password?
             </Link>
           </div>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <Lock className={authIconClass} />
             <input
               id="login-password"
               type={showPassword ? 'text' : 'password'}
@@ -184,23 +188,23 @@ const LoginPage = () => {
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/40 transition-colors hover:text-white/80"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {errors.password ? (
-            <p className="mt-1.5 text-[12px] font-normal text-rose-300">{errors.password.message}</p>
+            <p className="mt-1.5 text-[12px] font-normal text-rose-600">{errors.password.message}</p>
           ) : null}
         </div>
 
-        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] font-normal text-white/55">
+        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] font-normal text-slate-500">
           <input
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 rounded border-white/25 bg-white/10 text-[#1D68E3] focus:ring-[#1D68E3]/40 focus:ring-offset-0"
+            className="h-4 w-4 rounded border-[#dbe3f5] bg-white/70 text-[#2a3fa4] focus:ring-[#1D68E3]/40 focus:ring-offset-0"
           />
           Remember me
         </label>

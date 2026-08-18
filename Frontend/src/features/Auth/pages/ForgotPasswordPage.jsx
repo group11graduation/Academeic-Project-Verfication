@@ -3,7 +3,17 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Loader2, Mail } from 'lucide-react';
 import api from '../../../lib/api';
 import { BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
-import AuthShell, { PROJECT_NAME, authFieldClass, authPrimaryBtnClass } from '../components/AuthShell';
+import AuthShell, {
+  PROJECT_NAME,
+  authErrorBoxClass,
+  authFieldClass,
+  authFooterTextClass,
+  authIconClass,
+  authInfoBoxClass,
+  authLabelClass,
+  authMutedLinkClass,
+  authPrimaryBtnClass,
+} from '../components/AuthShell';
 
 const ForgotPasswordPage = () => {
   const [identifier, setIdentifier] = useState('');
@@ -44,31 +54,23 @@ const ForgotPasswordPage = () => {
       title="Forgot password?"
       subtitle={`Enter the email or ID you use for ${PROJECT_NAME}. We'll send a secure reset link.`}
       footer={
-        <p className="mt-7 text-center text-[13px] font-normal text-white/50">
+        <p className={authFooterTextClass}>
           Remembered it?{' '}
-          <Link to="/login" className="font-semibold text-[#8ea4f0] hover:text-white hover:underline">
+          <Link to="/login" className={authMutedLinkClass}>
             Back to sign in
           </Link>
         </p>
       }
     >
       <form onSubmit={onSubmit} className="space-y-5">
-        {error ? (
-          <div className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-2.5 text-[13px] font-normal text-rose-100">
-            {error}
-          </div>
-        ) : null}
-        {info ? (
-          <div className="rounded-xl border border-sky-400/30 bg-sky-500/15 px-3 py-2.5 text-[13px] font-normal text-sky-100">
-            {info}
-          </div>
-        ) : null}
+        {error ? <div className={authErrorBoxClass}>{error}</div> : null}
+        {info ? <div className={authInfoBoxClass}>{info}</div> : null}
         <div>
-          <label htmlFor="forgot-identifier" className="mb-1.5 block text-left text-[12px] font-medium text-white/60">
+          <label htmlFor="forgot-identifier" className={authLabelClass}>
             Email or ID
           </label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <Mail className={authIconClass} />
             <input
               id="forgot-identifier"
               type="text"

@@ -2,10 +2,10 @@ import React from 'react';
 import { PRODUCT_TAGLINE, PROJECT_NAME } from '../ui/brandTheme';
 
 const SIZE = {
-    sm: { box: 'h-12 w-12', img: 'h-10 w-10', title: 'text-[13px]' },
-    md: { box: 'h-14 w-14', img: 'h-12 w-12', title: 'text-[15px]' },
-    lg: { box: 'h-20 w-20', img: 'h-[4.5rem] w-[4.5rem]', title: 'text-[16px]' },
-    xl: { box: 'h-28 w-28', img: 'h-24 w-24', title: 'text-[18px]' },
+    sm: { box: 'h-12 w-12', img: 'h-10 w-10', title: 'text-[14px]', gap: 'gap-1.5' },
+    md: { box: 'h-16 w-16', img: 'h-14 w-14', title: 'text-[17px]', gap: 'gap-2' },
+    lg: { box: 'h-[4.75rem] w-[4.75rem]', img: 'h-[4.25rem] w-[4.25rem]', title: 'text-[19px]', gap: 'gap-2' },
+    xl: { box: 'h-32 w-32', img: 'h-28 w-28', title: 'text-[22px]', gap: 'gap-2.5' },
 };
 
 /**
@@ -36,7 +36,7 @@ export default function ProjectVerifyLogo({
     );
 
     return (
-        <div className={`flex items-center gap-3 shrink-0 ${className}`}>
+        <div className={`flex items-center ${s.gap} shrink-0 ${className}`}>
             {showMark ? (
                 useFrame ? (
                     <span
@@ -49,9 +49,13 @@ export default function ProjectVerifyLogo({
                 )
             ) : null}
             {showText ? (
-                <div className={`leading-tight min-w-0 ${hideTextOnMobile ? 'hidden sm:block' : ''} ${textClassName}`}>
+                <div
+                    className={`flex min-w-0 flex-col justify-center leading-none ${
+                        hideTextOnMobile ? 'hidden sm:flex' : ''
+                    } ${textClassName}`}
+                >
                     <span
-                        className={`block font-extrabold tracking-tight leading-[1.2] ${s.title} ${
+                        className={`block font-extrabold tracking-tight ${s.title} ${
                             onDark ? 'text-white' : 'text-[var(--sv-text)]'
                         }`}
                     >
@@ -59,7 +63,7 @@ export default function ProjectVerifyLogo({
                     </span>
                     {tagline ? (
                         <span
-                            className={`block text-[10px] font-medium uppercase tracking-[0.5px] ${
+                            className={`mt-0.5 block text-[10px] font-medium uppercase tracking-[0.5px] ${
                                 onDark ? 'text-white/65' : 'text-[var(--sv-muted)]'
                             }`}
                         >

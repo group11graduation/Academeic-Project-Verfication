@@ -3,7 +3,16 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
 import api from '../../../lib/api';
 import { BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
-import AuthShell, { authFieldClass, authPrimaryBtnClass } from '../components/AuthShell';
+import AuthShell, {
+  authErrorBoxClass,
+  authFieldClass,
+  authFooterTextClass,
+  authIconClass,
+  authLabelClass,
+  authMutedLinkClass,
+  authPrimaryBtnClass,
+  authSuccessBoxClass,
+} from '../components/AuthShell';
 
 const ResetPasswordPage = () => {
   const navigate = useNavigate();
@@ -52,8 +61,8 @@ const ResetPasswordPage = () => {
         title="Reset link missing"
         subtitle="Use Forgot password from the login page to get a new secure reset link."
         footer={
-          <p className="mt-7 text-center text-[13px]">
-            <Link to="/forgot-password" className="font-semibold text-[#8ea4f0] hover:text-white hover:underline">
+          <p className={authFooterTextClass}>
+            <Link to="/forgot-password" className={authMutedLinkClass}>
               Request a new reset
             </Link>
           </p>
@@ -61,7 +70,7 @@ const ResetPasswordPage = () => {
       >
         <Link
           to="/login"
-          className="flex w-full items-center justify-center rounded-xl border border-white/15 bg-white/5 py-3 text-[14px] font-semibold text-white transition hover:bg-white/10"
+          className="flex w-full items-center justify-center rounded-xl border border-[#dbe3f5] bg-white/60 py-3 text-[14px] font-semibold text-slate-700 transition hover:bg-white/90"
         >
           Back to sign in
         </Link>
@@ -74,31 +83,23 @@ const ResetPasswordPage = () => {
       title="Set a new password"
       subtitle="Choose a new password for your account. This link expires in 30 minutes."
       footer={
-        <p className="mt-7 text-center text-[13px] font-normal text-white/50">
-          <Link to="/login" className="font-semibold text-[#8ea4f0] hover:text-white hover:underline">
+        <p className={authFooterTextClass}>
+          <Link to="/login" className={authMutedLinkClass}>
             Back to sign in
           </Link>
         </p>
       }
     >
       <form onSubmit={onSubmit} className="space-y-5">
-        {error ? (
-          <div className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-2.5 text-[13px] font-normal text-rose-100">
-            {error}
-          </div>
-        ) : null}
-        {success ? (
-          <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-2.5 text-[13px] font-normal text-emerald-100">
-            {success}
-          </div>
-        ) : null}
+        {error ? <div className={authErrorBoxClass}>{error}</div> : null}
+        {success ? <div className={authSuccessBoxClass}>{success}</div> : null}
 
         <div>
-          <label htmlFor="reset-password" className="mb-1.5 block text-left text-[12px] font-medium text-white/60">
+          <label htmlFor="reset-password" className={authLabelClass}>
             New password
           </label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <Lock className={authIconClass} />
             <input
               id="reset-password"
               type={showPassword ? 'text' : 'password'}
@@ -113,7 +114,7 @@ const ResetPasswordPage = () => {
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/40 transition-colors hover:text-white/80"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -122,11 +123,11 @@ const ResetPasswordPage = () => {
         </div>
 
         <div>
-          <label htmlFor="reset-confirm" className="mb-1.5 block text-left text-[12px] font-medium text-white/60">
+          <label htmlFor="reset-confirm" className={authLabelClass}>
             Confirm password
           </label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <Lock className={authIconClass} />
             <input
               id="reset-confirm"
               type={showPassword ? 'text' : 'password'}
