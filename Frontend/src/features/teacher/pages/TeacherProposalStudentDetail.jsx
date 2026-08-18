@@ -56,6 +56,15 @@ function previewStackLabel(stack, sess) {
 /** Teacher can open the preview URL only when the real student app is served (not the install placeholder). */
 function isPreviewOpenReady(sess) {
     if (!sess?.previewUrl) return false;
+    // Spring Boot + Thymeleaf: TCP/port open is enough (HTTP probes often fail from Docker / Coolify).
+    if (
+        sess?.previewStack === 'java-spring-thymeleaf' &&
+        (sess?.status === 'running' || sess?.status === 'starting') &&
+        sess?.portReachable === true
+    ) {
+        return true;
+    }
+    // Only block on the real install placeholder — not flaky HTTP probes mislabeled as empty.
     if (sess?.previewAppReadyReason === 'placeholder_or_empty') return false;
     if (sess?.previewAppReady === true) {
         return sess?.status === 'running' || sess?.status === 'starting';

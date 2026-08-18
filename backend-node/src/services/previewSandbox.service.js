@@ -520,6 +520,14 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (wait.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
+      // Unlock Open preview immediately — waitForPreviewReady already proved the app is up
+      // (HTTP and/or TCP). Session refresh must not keep teachers stuck on "building…".
+      session.previewAppReady = true;
+      session.previewAppReadyReason = wait.reason || 'ready';
+      session.previewApiReady =
+        wait.apiReady === true ||
+        deployResult.stack === 'java-spring-thymeleaf' ||
+        !deployResult.apiHostPort;
       if (deployResult.stack === 'php-apache' || deployResult.stack === 'laravel-react-mysql') {
         await refreshPhpPreviewLoginHint(session, deployResult);
       }
@@ -838,6 +846,9 @@ async function finalizePreviewReadiness(sessionId, deployResult, extractDir) {
     if (!diagnosis.failed && diagnosis.ready) {
       session.status = 'running';
       session.previewStack = deployResult.stack || session.previewStack;
+      session.previewAppReady = true;
+      session.previewAppReadyReason = diagnosis.reason || 'log';
+      session.previewApiReady = true;
       if (deployResult.stack === 'php-apache' || deployResult.stack === 'laravel-react-mysql') {
         await refreshPhpPreviewLoginHint(session, deployResult);
       }
@@ -1451,17 +1462,26 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             apiPreviewUrl: session.previewApiUrl || '',
             stack,
           });
-          if (probe.reason === 'placeholder_or_empty') {
+          const bodyIsPlaceholder = probe.reason === 'placeholder_or_empty';
+          // Thymeleaf has no React install placeholder — port open + container running means ready.
+          // Host HTTP probes often fail from inside Docker (public IP / Coolify hairpin).
+          const thymeleafPortReady =
+            stack === 'java-spring-thymeleaf' && session.portReachable === true && running;
+
+          if (bodyIsPlaceholder && !thymeleafPortReady) {
             // Still the install holder page - keep Open preview locked.
             session.previewAppReady = false;
             session.previewAppReadyReason = 'placeholder_or_empty';
             session.previewApiReady = probe.apiReady === true;
-          } else if (probe.ready) {
+          } else if (probe.ready || thymeleafPortReady) {
             session.previewAppReady = true;
-            session.previewAppReadyReason = probe.reason;
-            session.previewApiReady = probe.apiReady === true;
+            session.previewAppReadyReason = probe.ready
+              ? probe.reason
+              : session.previewAppReadyReason || 'tcp_spring_thymeleaf';
+            session.previewApiReady =
+              probe.apiReady === true || stack === 'java-spring-thymeleaf' || session.previewApiReady === true;
           } else if (logAlreadyReady) {
-            // HTTP probe inconclusive (Coolify networking) but logs show real serve static.
+            // HTTP probe inconclusive (Coolify networking) but we already unlocked.
             session.previewApiReady = probe.apiReady === true || session.previewApiReady === true;
           } else {
             session.previewAppReady = false;
@@ -1474,12 +1494,12 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
           session.previewApiReady = false;
         }
 
-        // Spring: if UI responds while readiness job is still waiting on Maven, unlock teachers now.
+        // Spring / Thymeleaf: promote starting → running as soon as UI/port is ready.
         if (
           session.status === 'starting' &&
           session.previewAppReady &&
           running &&
-          stack === 'java-spring-react'
+          (stack === 'java-spring-react' || stack === 'java-spring-thymeleaf')
         ) {
           session.status = 'running';
           const alreadyNoted = (session.logs || []).some(
@@ -1489,16 +1509,18 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             appendLog(
               session,
               'info',
-              session.previewApiReady
-                ? `Preview ready (UI + Spring API) at ${session.previewUrl}.`
-                : `Preview UI ready at ${session.previewUrl}. Spring API on :${apiPort} may still be starting - login can fail until it listens.`
+              stack === 'java-spring-thymeleaf'
+                ? `Preview ready (Spring Boot + Thymeleaf) at ${session.previewUrl}.`
+                : session.previewApiReady
+                  ? `Preview ready (UI + Spring API) at ${session.previewUrl}.`
+                  : `Preview UI ready at ${session.previewUrl}. Spring API on :${apiPort} may still be starting - login can fail until it listens.`
             );
           }
           await schedulePreviewTtl(session);
           await session.save();
         }
 
-        // Spring: API down for a while → pull diagnosis once so teachers see why login fails.
+        // Spring React: API down for a while → pull diagnosis once so teachers see why login fails.
         if (
           stack === 'java-spring-react' &&
           running &&

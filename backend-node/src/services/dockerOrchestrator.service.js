@@ -3112,19 +3112,38 @@ export async function checkPreviewAppHttpReady({
   }
 
   let uiReady = false;
+  let sawRealPlaceholder = false;
+  let sawHttpOk = false;
   const seenUrls = new Set();
   for (const url of urlsToTry) {
     if (seenUrls.has(url)) continue;
     seenUrls.add(url);
     const hit = await fetchPreviewHttp(url);
     if (!hit.ok) continue;
+    sawHttpOk = true;
     // Empty bodies / bare redirects are not proof the student SPA is up (serve
     // placeholder handoff and 301s previously unlocked preview too early).
-    if (hit.redirect && (!hit.body || hit.body.length < 32)) continue;
+    if (hit.redirect && (!hit.body || hit.body.length < 32)) {
+      // Spring Security often 302s / → /login with an empty body — still means the app is up.
+      if (stack === 'java-spring-thymeleaf' && hit.status >= 300 && hit.status < 400) {
+        uiReady = true;
+        break;
+      }
+      continue;
+    }
     // Spring Security login redirects / short HTML pages are valid for Thymeleaf apps.
-    const minBody = stack === 'java-spring-thymeleaf' ? 24 : 64;
-    if (!hit.body || hit.body.length < minBody) continue;
-    if (isPreviewPlaceholderBody(hit.body)) continue;
+    const minBody = stack === 'java-spring-thymeleaf' ? 8 : 64;
+    if (!hit.body || hit.body.length < minBody) {
+      if (stack === 'java-spring-thymeleaf' && hit.status >= 200 && hit.status < 500) {
+        uiReady = true;
+        break;
+      }
+      continue;
+    }
+    if (isPreviewPlaceholderBody(hit.body)) {
+      sawRealPlaceholder = true;
+      continue;
+    }
     if (hit.status >= 200 && hit.status < 500) {
       uiReady = true;
       break;
@@ -3132,6 +3151,13 @@ export async function checkPreviewAppHttpReady({
   }
 
   if (!uiReady) {
+    if (sawRealPlaceholder) {
+      return { ready: false, reason: 'placeholder_or_empty' };
+    }
+    // Distinguish flaky Docker→host HTTP from the install placeholder page.
+    if (stack === 'java-spring-thymeleaf') {
+      return { ready: false, reason: sawHttpOk ? 'http_inconclusive' : 'http_unreachable' };
+    }
     return { ready: false, reason: 'placeholder_or_empty' };
   }
 
@@ -3424,6 +3450,20 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
     // API-only signal - do not unlock Open preview (UI may still be the placeholder).
     if (springApiUp) {
       return { ready: false, reason: 'log_spring_api_listening', apiReady: true };
+    }
+    return null;
+  }
+
+  if (stack === 'java-spring-thymeleaf') {
+    if (
+      /Started\s+\S+Application\s+in\s+/i.test(logText) ||
+      /Tomcat started on port/i.test(logText) ||
+      /Netty started on port/i.test(logText) ||
+      /\[preview\]\s*Spring( Boot)? (app |Thymeleaf )?listening/i.test(logText) ||
+      /\[preview\]\s*Thymeleaf/i.test(logText) ||
+      /Returned 200/i.test(logText)
+    ) {
+      return { ready: true, reason: 'log_spring_thymeleaf', apiReady: true };
     }
     return null;
   }
