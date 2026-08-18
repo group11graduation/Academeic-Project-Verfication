@@ -61,7 +61,7 @@ export default function ShellMobileDrawer({
                         className="mx-3 mt-3 flex items-center gap-3 rounded-xl bg-white/10 px-3 py-3 ring-1 ring-white/15 transition hover:bg-white/15"
                     >
                         {profile.showLogo ? (
-                            <ProjectVerifyLogo size="sm" showText={false} framed className="shrink-0" />
+                            <ProjectVerifyLogo size="md" showText={false} plainMark onDark className="shrink-0" />
                         ) : (
                             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-base font-semibold text-white">
                                 {profile.initial || 'A'}

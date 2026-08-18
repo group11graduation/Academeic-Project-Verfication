@@ -21,6 +21,7 @@ import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 import ThemeToggle from '../../../shared/components/ThemeToggle';
 import ShellMobileDrawer from '../../../shared/components/ShellMobileDrawer';
 import NotificationBell from '../../../shared/components/NotificationBell';
+import { PROJECT_NAME } from '../../../shared/ui/brandTheme';
 import {
     ADMIN,
     ADMIN_SIDEBAR_GRADIENT,
@@ -208,7 +209,7 @@ const AdminLayoutInner = () => {
                 panelGradient={ADMIN_MOBILE_GRADIENT}
                 profile={{
                     to: '/admin/profile',
-                    name: displayName,
+                    name: PROJECT_NAME,
                     showLogo: true,
                 }}
             />
@@ -232,13 +233,14 @@ const AdminLayoutInner = () => {
                             title="View my profile"
                         >
                             <ProjectVerifyLogo
-                                size="md"
+                                size="xl"
                                 showText={false}
-                                framed
+                                plainMark
+                                onDark
                                 className="justify-center transition group-hover:scale-[1.03]"
                             />
                             <p className="max-w-full truncate text-[13px] font-semibold tracking-tight text-white">
-                                {displayName}
+                                {PROJECT_NAME}
                             </p>
                         </Link>
 
