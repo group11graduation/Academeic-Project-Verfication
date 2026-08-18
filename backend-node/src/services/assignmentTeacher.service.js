@@ -34,6 +34,7 @@ import {
   notifySafe,
   notifyStudentUsersInClasses,
 } from './notification.service.js';
+import { attachExtractedRequirementTexts } from './requirementFileText.service.js';
 
 function resolveViewerSubject(assignment, viewerTeacherId = null) {
   if (!assignment?.isCollaborative || !viewerTeacherId) {
@@ -385,7 +386,14 @@ export async function getAssignmentForTeacher(teacherId, assignmentId) {
     .populate('frontendTeacherId', 'name email')
     .populate('backendTeacherId', 'name email')
     .lean();
-  return a ? normalizeAssignmentClasses(a, teacherId) : null;
+  if (!a) return null;
+  const normalized = normalizeAssignmentClasses(a, teacherId);
+  try {
+    await attachExtractedRequirementTexts(normalized);
+  } catch {
+    /* extraction is best-effort for teacher UI */
+  }
+  return normalized;
 }
 
 export async function getTeacherCatalog(teacherId) {

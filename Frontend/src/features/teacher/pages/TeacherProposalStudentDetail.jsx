@@ -670,6 +670,47 @@ const TeacherProposalStudentDetail = () => {
         }
     };
 
+    const requirementsPlain = useMemo(() => {
+        if (!assignment) return '';
+        const extracted = String(assignment._extractedAssignmentFileText || '').trim();
+        if (assignment.isCollaborative) {
+            const fe = assignment.frontendTechRequirements || {};
+            const be = assignment.backendTechRequirements || {};
+            const parts = [];
+            const feTyped = [fe.requirementText, fe.description]
+                .map((x) => String(x || '').trim())
+                .filter(Boolean)
+                .join('\n\n');
+            const beTyped = [be.requirementText, be.description]
+                .map((x) => String(x || '').trim())
+                .filter(Boolean)
+                .join('\n\n');
+            const feFile = String(fe._extractedFileText || '').trim();
+            const beFile = String(be._extractedFileText || '').trim();
+            const feBlock = [feTyped, feFile].filter(Boolean).join('\n\n');
+            const beBlock = [beTyped, beFile].filter(Boolean).join('\n\n');
+            if (feBlock) parts.push(`FRONTEND REQUIREMENTS\n${feBlock}`);
+            if (beBlock) parts.push(`BACKEND REQUIREMENTS\n${beBlock}`);
+            if (parts.length) return parts.join('\n\n──────────────\n\n');
+            return extracted;
+        }
+        const typed = [assignment.requirementText, assignment.description]
+            .map((x) => String(x || '').trim())
+            .filter(Boolean)
+            .join('\n\n');
+        return [typed, extracted].filter(Boolean).join('\n\n──────────────\n\n');
+    }, [assignment]);
+
+    const copyRequirements = async () => {
+        if (!requirementsPlain) return;
+        try {
+            await copyTextToClipboard(requirementsPlain);
+            await appSuccess('Requirements text copied');
+        } catch {
+            await appWarning('Could not copy requirements text automatically.');
+        }
+    };
+
     const assignmentTitle = assignment?.title || 'Assignment';
     const classCrumb = resolveAssignmentClassCrumb(assignment);
     const subj = assignment?.subject;
@@ -797,23 +838,6 @@ const TeacherProposalStudentDetail = () => {
             seen.add(l.url);
             return true;
         });
-    })();
-    const requirementTextDisplay = (() => {
-        if (!assignment) return '';
-        if (isCollaborative) {
-            const fe = assignment.frontendTechRequirements || {};
-            const be = assignment.backendTechRequirements || {};
-            const parts = [];
-            const feText = [fe.requirementText, fe.description].map((x) => String(x || '').trim()).filter(Boolean).join('\n\n');
-            const beText = [be.requirementText, be.description].map((x) => String(x || '').trim()).filter(Boolean).join('\n\n');
-            if (feText) parts.push(`FRONTEND REQUIREMENTS\n${feText}`);
-            if (beText) parts.push(`BACKEND REQUIREMENTS\n${beText}`);
-            if (parts.length) return parts.join('\n\n──────────────\n\n');
-        }
-        return [assignment.requirementText, assignment.description]
-            .map((x) => String(x || '').trim())
-            .filter(Boolean)
-            .join('\n\n');
     })();
     const zipSizeLabel =
         zip?.sizeBytes != null
@@ -1318,25 +1342,25 @@ const TeacherProposalStudentDetail = () => {
                                                     </div>
                                                 ))}
                                             </div>
+                                        ) : null}
+                                        {requirementsPlain ? (
+                                            <DocumentPane
+                                                title="Extracted-style view"
+                                                subtitle={
+                                                    requirementFileLinks[0]?.name ||
+                                                    assignment?.title ||
+                                                    'Requirements'
+                                                }
+                                                text={requirementsPlain}
+                                                onCopy={copyRequirements}
+                                            />
                                         ) : (
-                                            <p className="text-sm text-[var(--sv-muted)]">
-                                                No requirements file was uploaded for this assignment.
+                                            <p className="rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-4 py-6 text-sm text-[var(--sv-muted)]">
+                                                {requirementFileLinks.length > 0
+                                                    ? 'Could not extract text from the requirements file. Download or open the file above to read it.'
+                                                    : 'No requirements file or typed requirement text for this assignment.'}
                                             </p>
                                         )}
-                                        <div>
-                                            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
-                                                Requirement text
-                                            </label>
-                                            <textarea
-                                                readOnly
-                                                value={
-                                                    requirementTextDisplay ||
-                                                    'No typed requirement text for this assignment.'
-                                                }
-                                                rows={14}
-                                                className="w-full resize-y rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3 text-sm leading-relaxed text-[var(--sv-text)]"
-                                            />
-                                        </div>
                                     </div>
                                 )}
                                 {tab === 'activity' && (
@@ -2289,7 +2313,7 @@ const TeacherProposalStudentDetail = () => {
                                               </div>
                                           </li>
                                       ))
-                                    : requirementTextDisplay
+                                    : requirementsPlain
                                       ? (
                                             <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
                                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">

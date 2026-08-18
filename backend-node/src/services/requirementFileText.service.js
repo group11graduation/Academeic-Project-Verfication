@@ -128,5 +128,55 @@ export async function loadCollaborativeRequirementFileTexts(assignment) {
     backendFileLoaded: Boolean(be.requirementFile),
     frontendFileEmpty: Boolean(fe.requirementFile) && !feFileText && !feTyped,
     backendFileEmpty: Boolean(be.requirementFile) && !beFileText && !beTyped,
+    frontendFileText: feFileText,
+    backendFileText: beFileText,
   };
+}
+
+/**
+ * Attach extracted requirement document text onto an assignment DTO for teacher UI.
+ * Does not mutate the DB — only enriches the in-memory object.
+ */
+export async function attachExtractedRequirementTexts(assignment) {
+  if (!assignment || typeof assignment !== 'object') return assignment;
+
+  if (assignment.isCollaborative) {
+    const loaded = await loadCollaborativeRequirementFileTexts(assignment);
+    const fe = { ...(assignment.frontendTechRequirements || {}) };
+    const be = { ...(assignment.backendTechRequirements || {}) };
+    fe._extractedFileText = loaded.frontendFileText || '';
+    be._extractedFileText = loaded.backendFileText || '';
+    assignment.frontendTechRequirements = fe;
+    assignment.backendTechRequirements = be;
+    assignment._extractedAssignmentFileText = [loaded.frontendFileText, loaded.backendFileText]
+      .filter(Boolean)
+      .join('\n\n──────────────\n\n')
+      .trim();
+    assignment._requirementFileLoadMeta = {
+      frontendFileLoaded: loaded.frontendFileLoaded,
+      backendFileLoaded: loaded.backendFileLoaded,
+      frontendFileEmpty: loaded.frontendFileEmpty,
+      backendFileEmpty: loaded.backendFileEmpty,
+    };
+    return assignment;
+  }
+
+  const fileRef = assignment.assignmentFile;
+  if (fileRef) {
+    const text = await extractRequirementFileText(fileRef);
+    assignment._extractedAssignmentFileText = text;
+    assignment._requirementFileLoadMeta = {
+      assignmentFileLoaded: true,
+      assignmentFileEmpty: !String(text || '').trim(),
+      assignmentFileChars: String(text || '').length,
+    };
+  } else {
+    assignment._extractedAssignmentFileText = '';
+    assignment._requirementFileLoadMeta = {
+      assignmentFileLoaded: false,
+      assignmentFileEmpty: false,
+      assignmentFileChars: 0,
+    };
+  }
+  return assignment;
 }
