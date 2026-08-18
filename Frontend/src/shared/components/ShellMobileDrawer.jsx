@@ -5,7 +5,14 @@ import { LogOut, X } from 'lucide-react';
 /**
  * Full-height slide-out navigation for admin/teacher shells on phones & tablets.
  */
-export default function ShellMobileDrawer({ open, onClose, navSections = [], onLogout, panelTitle = 'Menu' }) {
+export default function ShellMobileDrawer({
+    open,
+    onClose,
+    navSections = [],
+    onLogout,
+    panelTitle = 'Menu',
+    panelGradient,
+}) {
     useEffect(() => {
         if (!open) return undefined;
         const prev = document.body.style.overflow;
@@ -26,8 +33,12 @@ export default function ShellMobileDrawer({ open, onClose, navSections = [], onL
                 aria-label="Close menu"
             />
             <aside
-                className="absolute inset-y-0 left-0 flex w-[min(100vw-2.5rem,22rem)] max-w-full flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-[#2a3fa4] to-[#223688] text-white shadow-2xl safe-area-px"
-                style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+                className="absolute inset-y-0 left-0 flex w-[min(100vw-2.5rem,22rem)] max-w-full flex-col overflow-hidden border-r border-white/10 text-white shadow-2xl safe-area-px"
+                style={{
+                    background: panelGradient || 'linear-gradient(to bottom, #2a3fa4, #223688)',
+                    paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                }}
             >
                 <div className="flex items-center justify-between gap-2 border-b border-white/15 px-4 py-3">
                     <p className="text-sm font-black tracking-tight">{panelTitle}</p>
@@ -58,7 +69,7 @@ export default function ShellMobileDrawer({ open, onClose, navSections = [], onL
                                             onClick={onClose}
                                             className={({ isActive }) =>
                                                 `flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors ${
-                                                    isActive ? 'bg-[var(--sv-card)] text-[#1d2f82]' : 'text-white/90 hover:bg-white/12'
+                                                    isActive ? 'bg-[var(--sv-card)] text-slate-900' : 'text-white/90 hover:bg-white/12'
                                                 }`
                                             }
                                         >

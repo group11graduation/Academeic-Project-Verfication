@@ -12,7 +12,7 @@ import {
     Workflow,
 } from 'lucide-react';
 import adminDashboardService from '../../../services/adminDashboardService';
-import { BRAND, BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
+import { ADMIN, ADMIN_GRADIENT } from '../ui/adminTheme';
 
 const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
@@ -59,7 +59,7 @@ const AdminDashboard = () => {
                 value: stats.totalTeachers,
                 icon: GraduationCap,
                 soft: 'bg-[#e8eefc]',
-                iconBg: 'bg-white text-[#2a3fa4]',
+                iconBg: 'bg-white text-[#512BD4]',
                 ring: 'ring-blue-100',
             },
             {
@@ -100,7 +100,7 @@ const AdminDashboard = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-[#1D68E3]" />
+                <Loader2 className="h-6 w-6 animate-spin text-[#512BD4]" />
             </div>
         );
     }
@@ -139,7 +139,7 @@ const AdminDashboard = () => {
                     <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80">
                         <div
                             className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm"
-                            style={{ background: BRAND_GRADIENT }}
+                            style={{ background: ADMIN_GRADIENT }}
                         >
                             <Users className="h-4 w-4" />
                         </div>
@@ -158,7 +158,7 @@ const AdminDashboard = () => {
                             <div
                                 className="relative h-20 w-20 rounded-full"
                                 style={{
-                                    background: `conic-gradient(${BRAND.primary} 0% ${Math.min(
+                                    background: `conic-gradient(${ADMIN.primary} 0% ${Math.min(
                                         100,
                                         stats.totalClasses + stats.activeProjects === 0
                                             ? 50
@@ -167,7 +167,7 @@ const AdminDashboard = () => {
                                                       Math.max(stats.totalClasses + stats.activeProjects, 1)) *
                                                       100
                                               )
-                                    )}%, #93c5fd ${Math.min(
+                                    )}%, #c4b5fd ${Math.min(
                                         100,
                                         stats.totalClasses + stats.activeProjects === 0
                                             ? 50
@@ -189,11 +189,11 @@ const AdminDashboard = () => {
                         </div>
                         <ul className="space-y-1.5 text-[11px] font-semibold text-slate-600">
                             <li className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: BRAND.primary }} />
+                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ADMIN.primary }} />
                                 Classes · {stats.totalClasses}
                             </li>
                             <li className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-sky-300" />
+                                <span className="h-2 w-2 rounded-full bg-violet-300" />
                                 Active projects · {stats.activeProjects}
                             </li>
                         </ul>
@@ -203,7 +203,7 @@ const AdminDashboard = () => {
                 <div className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200/80 xl:col-span-5">
                     <div className="mb-2.5 flex items-center justify-between gap-2">
                         <h2 className="text-[12px] font-extrabold text-[#0f172a]">Priority Setup Actions</h2>
-                        <Link to="/admin/setup-workflow" className="text-[10px] font-bold text-[#2a3fa4] hover:underline">
+                        <Link to="/admin/setup-workflow" className="text-[10px] font-bold text-[#512BD4] hover:underline">
                             View all
                         </Link>
                     </div>
@@ -218,7 +218,7 @@ const AdminDashboard = () => {
                                 >
                                     <div className="mb-1.5 flex items-center justify-between gap-2">
                                         <div className="flex min-w-0 items-center gap-2">
-                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/80">
+                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-[#512BD4] shadow-sm ring-1 ring-slate-200/80">
                                                 <Icon className="h-3.5 w-3.5" />
                                             </span>
                                             <div className="min-w-0">
@@ -226,12 +226,12 @@ const AdminDashboard = () => {
                                                 <p className="truncate text-[10px] font-medium text-slate-500">{item.desc}</p>
                                             </div>
                                         </div>
-                                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-[#2a3fa4]" />
+                                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition group-hover:text-[#512BD4]" />
                                     </div>
                                     <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/80">
                                         <div
                                             className="h-full rounded-full"
-                                            style={{ width: `${item.bar}%`, background: BRAND_GRADIENT }}
+                                            style={{ width: `${item.bar}%`, background: ADMIN_GRADIENT }}
                                         />
                                     </div>
                                 </Link>
@@ -248,11 +248,11 @@ const AdminDashboard = () => {
                                 <div className="mb-1 flex items-center gap-2">
                                     <span
                                         className="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-extrabold text-white"
-                                        style={{ background: BRAND_GRADIENT }}
+                                        style={{ background: ADMIN_GRADIENT }}
                                     >
                                         {i + 1}
                                     </span>
-                                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#2a3fa4]">
+                                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#512BD4]">
                                         {role.title}
                                     </p>
                                 </div>
@@ -274,7 +274,7 @@ const AdminDashboard = () => {
                                 to={item.to}
                                 className="flex items-center gap-2 rounded-lg border border-slate-100 bg-[#f8faff] px-2.5 py-2 transition hover:border-[#c5d0f0] hover:bg-white"
                             >
-                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#2a3fa4] shadow-sm ring-1 ring-slate-200/70">
+                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#512BD4] shadow-sm ring-1 ring-slate-200/70">
                                     <Icon className="h-3.5 w-3.5" />
                                 </span>
                                 <span className="min-w-0">
