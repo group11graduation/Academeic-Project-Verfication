@@ -22,17 +22,9 @@ const AdminTeachers = () => {
                 const response = await adminTeacherService.getTeachers();
                 if (response.success) {
                     setTeachers(response.data.map(t => {
-                        const classesCount = (t.assignedClassCodes || t.assignedClasses || []).length;
-                        const subjectsCount = (t.skills || []).length;
-                        const progressCount = Math.min(classesCount, subjectsCount || classesCount);
-                        const productivity = Math.min(
-                            100,
-                            Math.round(
-                                (t.status === 'ACTIVE' || t.isActive !== false ? 40 : 10) +
-                                    classesCount * 12 +
-                                    subjectsCount * 8
-                            )
-                        );
+                        const classesCount = Number(t.classesCount ?? (t.assignedClassCodes || t.assignedClasses || []).length) || 0;
+                        const subjectsCount = Number(t.subjectsCount) || 0;
+                        const projectsCount = Number(t.projectsCount) || 0;
                         return {
                             id: t._id || t.teacherId,
                             name: t.name,
@@ -44,8 +36,7 @@ const AdminTeachers = () => {
                             email: t.email,
                             classesCount,
                             subjectsCount,
-                            progressCount,
-                            productivity,
+                            projectsCount,
                         };
                     }));
                 }
@@ -166,7 +157,7 @@ const AdminTeachers = () => {
                                 state={{ from: location.pathname }}
                                 className="flex w-full flex-col items-center"
                             >
-                                <div className="relative mb-3">
+                                <div className="mb-3">
                                     {hasPhoto ? (
                                         <img
                                             src={teacher.photo}
@@ -181,15 +172,6 @@ const AdminTeachers = () => {
                                             {initial}
                                         </div>
                                     )}
-                                    <span
-                                        className={`absolute -bottom-0.5 right-0 rounded-full px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide ring-2 ring-white ${
-                                            teacher.status === 'ACTIVE'
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-amber-100 text-amber-700'
-                                        }`}
-                                    >
-                                        {teacher.status === 'ACTIVE' ? 'On' : 'Off'}
-                                    </span>
                                 </div>
 
                                 <h3 className="max-w-full truncate text-[15px] font-extrabold tracking-tight text-[#1e293b] dark:text-slate-100">
@@ -213,21 +195,11 @@ const AdminTeachers = () => {
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Progress</p>
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Projects</p>
                                         <p className="mt-1 text-[17px] font-extrabold text-[#1e293b] dark:text-slate-100">
-                                            {teacher.progressCount}
+                                            {teacher.projectsCount}
                                         </p>
                                     </div>
-                                </div>
-
-                                <p className="mt-4 text-[12px] font-bold text-[#2f4aad]">
-                                    Productivity: {teacher.productivity}%
-                                </p>
-                                <div className="mt-2 h-1.5 w-[85%] overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                                    <div
-                                        className="h-full rounded-full bg-[#2f4aad] transition-[width]"
-                                        style={{ width: `${teacher.productivity}%` }}
-                                    />
                                 </div>
                             </Link>
 

@@ -13,6 +13,7 @@ import { notifySafe, notifyAllAdmins } from './notification.service.js';
 import { logger } from '../config/logger.js';
 import { Proposal } from '../models/Proposal.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
+import { Assignment } from '../models/Assignment.js';
 import { distinctAssignmentIdsForTeacher } from './teacherAssignmentAccess.service.js';
 
 function randomPasscode() {
@@ -172,9 +173,99 @@ async function generateUniqueTeacherId() {
   return candidate;
 }
 
+/**
+ * Batch class / subject / project counts for the faculty directory cards.
+ * Classes + subjects come from Class.teacherAssignments (plus legacy assignedClassCodes).
+ * Projects are ProjectSubmission rows on assignments where the teacher is primary or co-teacher.
+ */
+async function attachTeacherDirectoryCounts(teachers) {
+  const rows = (teachers || []).filter(Boolean);
+  const userIds = rows.map((t) => t.userId).filter(Boolean);
+  if (!userIds.length) return teachers;
+
+  const [classRows, assignments] = await Promise.all([
+    Class.find({ 'teacherAssignments.teacher': { $in: userIds } })
+      .select('code teacherAssignments.teacher teacherAssignments.subjects')
+      .lean(),
+    Assignment.find({
+      isActive: true,
+      $or: [{ teacher: { $in: userIds } }, { coTeacherId: { $in: userIds } }],
+    })
+      .select('_id teacher coTeacherId')
+      .lean(),
+  ]);
+
+  const classCodesByUser = new Map();
+  const subjectIdsByUser = new Map();
+
+  for (const cls of classRows) {
+    for (const assignment of cls.teacherAssignments || []) {
+      const tid = String(assignment.teacher || '');
+      if (!tid) continue;
+      if (!classCodesByUser.has(tid)) classCodesByUser.set(tid, new Set());
+      if (cls.code) classCodesByUser.get(tid).add(String(cls.code).toUpperCase());
+      if (!subjectIdsByUser.has(tid)) subjectIdsByUser.set(tid, new Set());
+      for (const subject of assignment.subjects || []) {
+        const sid = subject?._id || subject;
+        if (sid) subjectIdsByUser.get(tid).add(String(sid));
+      }
+    }
+  }
+
+  for (const teacher of rows) {
+    const tid = String(teacher.userId);
+    if (!classCodesByUser.has(tid)) classCodesByUser.set(tid, new Set());
+    for (const code of teacher.assignedClassCodes || teacher.assignedClasses || []) {
+      const normalized = String(code || '').trim().toUpperCase();
+      if (normalized) classCodesByUser.get(tid).add(normalized);
+    }
+  }
+
+  const assignmentIdsByUser = new Map();
+  for (const assignment of assignments) {
+    for (const key of ['teacher', 'coTeacherId']) {
+      if (!assignment[key]) continue;
+      const tid = String(assignment[key]);
+      if (!assignmentIdsByUser.has(tid)) assignmentIdsByUser.set(tid, new Set());
+      assignmentIdsByUser.get(tid).add(String(assignment._id));
+    }
+  }
+
+  const allAssignmentObjectIds = [
+    ...new Set(assignments.map((a) => String(a._id))),
+  ]
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+
+  const projectCountRows = allAssignmentObjectIds.length
+    ? await ProjectSubmission.aggregate([
+        { $match: { assignment: { $in: allAssignmentObjectIds } } },
+        { $group: { _id: '$assignment', count: { $sum: 1 } } },
+      ])
+    : [];
+  const projectsByAssignment = new Map(
+    projectCountRows.map((row) => [String(row._id), Number(row.count) || 0])
+  );
+
+  for (const teacher of rows) {
+    const tid = String(teacher.userId);
+    let projectsCount = 0;
+    for (const assignmentId of assignmentIdsByUser.get(tid) || []) {
+      projectsCount += projectsByAssignment.get(assignmentId) || 0;
+    }
+    teacher.classesCount = classCodesByUser.get(tid)?.size || 0;
+    teacher.subjectsCount = subjectIdsByUser.get(tid)?.size || 0;
+    teacher.projectsCount = projectsCount;
+  }
+
+  return teachers;
+}
+
 export async function listTeachers() {
   const profiles = await TeacherProfile.find().populate('user');
-  return profiles.map((p) => formatTeacher(p));
+  const teachers = profiles.map((p) => formatTeacher(p)).filter(Boolean);
+  await attachTeacherDirectoryCounts(teachers);
+  return teachers;
 }
 
 function formatTeacher(profile) {
