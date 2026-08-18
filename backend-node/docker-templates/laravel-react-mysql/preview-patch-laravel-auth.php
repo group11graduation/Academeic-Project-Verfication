@@ -171,6 +171,42 @@ PHP;
     return true;
 }
 
+function sv_auth_repair_route_inject(string $path): void
+{
+    if (!is_file($path)) {
+        return;
+    }
+    $src = (string) file_get_contents($path);
+    if ($src === '' || !str_contains($src, 'preview_sv_auth.php')) {
+        return;
+    }
+
+    // Remove any prior shim requires so we can re-place them safely.
+    $cleaned = preg_replace(
+        '/\n?\/\/\s*SV_PREVIEW_AUTH_SHIM\s*\n(?:if\s*\(\s*file_exists\s*\(\s*__DIR__\s*\.\s*\'\/preview_sv_auth\.php\'\s*\)\s*\)\s*\{\s*)?require\s+__DIR__\s*\.\s*\'\/preview_sv_auth\.php\'\s*;\s*\}?\s*/i',
+        "\n",
+        $src
+    );
+    if (!is_string($cleaned)) {
+        return;
+    }
+
+    $inject = str_contains(basename($path), 'web')
+        ? "\n// SV_PREVIEW_AUTH_SHIM\nif (file_exists(__DIR__ . '/preview_sv_auth.php')) { require __DIR__ . '/preview_sv_auth.php'; }\n"
+        : "\n// SV_PREVIEW_AUTH_SHIM\nrequire __DIR__ . '/preview_sv_auth.php';\n";
+
+    if (preg_match('/^<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?/i', $cleaned, $m)) {
+        $fixed = $m[0] . $inject . substr($cleaned, strlen($m[0]));
+    } else {
+        $fixed = "<?php\n" . $inject . $cleaned;
+    }
+
+    if ($fixed !== $src) {
+        file_put_contents($path, $fixed);
+        sv_auth_log('repaired shim placement in ' . $path);
+    }
+}
+
 function sv_auth_write_route_shim(string $root): void
 {
     $routesDir = $root . '/routes';
@@ -440,11 +476,13 @@ PHP;
 
     $apiPath = $routesDir . '/api.php';
     if (is_file($apiPath)) {
+        // Always repair placement (handles older broken inject before declare(strict_types=1)).
+        sv_auth_repair_route_inject($apiPath);
         $api = (string) file_get_contents($apiPath);
         if (!str_contains($api, 'preview_sv_auth.php')) {
             $inject = "\n// SV_PREVIEW_AUTH_SHIM\nrequire __DIR__ . '/preview_sv_auth.php';\n";
-            // Prepend after <?php so our routes register first.
-            if (preg_match('/^<\?php\s*/', $api, $m)) {
+            // Must stay AFTER declare(strict_types=1) — injecting before it fatals every /api/* request.
+            if (preg_match('/^<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?/i', $api, $m)) {
                 $api = $m[0] . $inject . substr($api, strlen($m[0]));
             } else {
                 $api = "<?php\n" . $inject . $api;
@@ -457,10 +495,11 @@ PHP;
     // Laravel 11+ may load api routes via bootstrap/app.php only — also try web.php for SPA posts.
     $webPath = $routesDir . '/web.php';
     if (is_file($webPath)) {
+        sv_auth_repair_route_inject($webPath);
         $web = (string) file_get_contents($webPath);
         if (!str_contains($web, 'preview_sv_auth.php')) {
             $inject = "\n// SV_PREVIEW_AUTH_SHIM\nif (file_exists(__DIR__ . '/preview_sv_auth.php')) { require __DIR__ . '/preview_sv_auth.php'; }\n";
-            if (preg_match('/^<\?php\s*/', $web, $m)) {
+            if (preg_match('/^<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?/i', $web, $m)) {
                 $web = $m[0] . $inject . substr($web, strlen($m[0]));
             } else {
                 $web = "<?php\n" . $inject . $web;

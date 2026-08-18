@@ -469,6 +469,8 @@ patch_laravel_preview_auth() {
     php artisan route:clear 2>/dev/null || true
     php artisan config:clear 2>/dev/null || true
     php artisan cache:clear 2>/dev/null || true
+    # Drop cached routes that may still reference a broken api.php from a prior preview.
+    rm -f bootstrap/cache/routes-v7.php bootstrap/cache/routes.php 2>/dev/null || true
   )
 }
 
