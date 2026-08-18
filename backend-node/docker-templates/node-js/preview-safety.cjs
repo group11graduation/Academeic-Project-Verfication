@@ -84,7 +84,12 @@ function normalizeLoginResponseBody(body) {
 
   if (user && typeof user === 'object' && looksPreviewAdmin) {
     const adminRole =
-      process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+      String(
+        process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+          process.env.PREVIEW_MAIN_ROLE ||
+          process.env.PREVIEW_ADMIN_ROLE ||
+          ''
+      ).trim() ||
       (String(user.role || '').toUpperCase().includes('SUPER') ? user.role : 'admin');
     user = {
       ...user,
@@ -276,8 +281,16 @@ function sanitizeUser(user) {
 
   // Seeded teacher preview account must never leave the API as a customer "user".
   if (isPreviewAccount) {
-    if (!role || /^(user|customer|client|member|buyer)$/i.test(String(role))) {
-      role = process.env.PREVIEW_FORCE_ADMIN_ROLE || 'admin';
+    const forced = String(
+      process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+        process.env.PREVIEW_MAIN_ROLE ||
+        process.env.PREVIEW_ADMIN_ROLE ||
+        ''
+    ).trim();
+    if (forced) {
+      role = forced;
+    } else if (!role || /^(user|customer|client|member|buyer)$/i.test(String(role))) {
+      role = 'admin';
     }
   }
 
@@ -443,7 +456,13 @@ async function previewUniversalLogin(req, res, next, options = {}) {
     if (isPreviewAdminAttempt(email, password)) {
       try {
         const User = pickUserModel(mongoose);
-        const adminRole = process.env.PREVIEW_FORCE_ADMIN_ROLE || 'admin';
+        const adminRole =
+          String(
+            process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+              process.env.PREVIEW_MAIN_ROLE ||
+              process.env.PREVIEW_ADMIN_ROLE ||
+              ''
+          ).trim() || 'admin';
         if (User && user._id) {
           await User.updateOne(
             { _id: user._id },

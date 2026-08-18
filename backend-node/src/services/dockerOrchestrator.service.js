@@ -18,6 +18,7 @@ import {
   discoverLoginApiPaths,
   preferLoginApiPath,
   resolveNodeMysqlDatabaseName,
+  discoverPrivilegedRoleFromProject,
 } from './previewMern.service.js';
 import {
   patchPhpForPreview,
@@ -2767,6 +2768,27 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
         publicApiUrl,
         loginApiPath,
       });
+    }
+    // Discover the project's main privileged role (admin / manager / super_admin / …)
+    // from the ZIP so preview seed + login use the same casing the SPA checks.
+    try {
+      const priv = await discoverPrivilegedRoleFromProject(buildContext, {
+        frontendSubdir: mernPair?.frontendSubdir || flutterPair?.frontendSubdir || '',
+        backendSubdir: splitStackPair.backendSubdir || '',
+      });
+      if (priv?.role) {
+        mergedCredentialEnv = {
+          ...mergedCredentialEnv,
+          PREVIEW_FORCE_ADMIN_ROLE: priv.role,
+          PREVIEW_MAIN_ROLE: priv.role,
+          PREVIEW_ADMIN_HOME_PATH: priv.homePath || '/admin',
+        };
+        logger.info(
+          `Preview privileged role from ZIP → "${priv.role}" home=${priv.homePath || '/admin'} (found: ${(priv.rolesFound || []).join(', ') || priv.role})`
+        );
+      }
+    } catch (err) {
+      logger.warn(`Privileged role discovery skipped: ${err.message || err}`);
     }
     const mongoUri =
       mergedCredentialEnv.MONGO_URI ||

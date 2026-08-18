@@ -1661,3 +1661,199 @@ export async function discoverLoginApiPaths(extractDir, backendSubdir = '') {
 
   return [...found];
 }
+
+/**
+ * Scan student ZIP (frontend + backend) for the highest-privilege role string and
+ * the admin home path. Preview seed + login shim must use THESE exact values so
+ * manager / super_admin / Admin / sub_admin projects work — not a hardcoded "admin".
+ */
+const PRIVILEGED_ROLE_RANK = [
+  'SUPER_ADMIN',
+  'super_admin',
+  'SuperAdmin',
+  'SUPERADMIN',
+  'superadmin',
+  'ADMIN',
+  'Admin',
+  'admin',
+  'MANAGER',
+  'Manager',
+  'manager',
+  'SUB_ADMIN',
+  'sub_admin',
+  'SubAdmin',
+  'subadmin',
+  'SUB_MANAGER',
+  'sub_manager',
+  'officer',
+  'Officer',
+  'OFFICER',
+  'editor',
+  'Editor',
+  'EDITOR',
+];
+
+function rankPrivilegedRole(role) {
+  const s = String(role || '');
+  const idx = PRIVILEGED_ROLE_RANK.findIndex((r) => r === s);
+  if (idx >= 0) return idx;
+  const key = s.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  const fuzzy = PRIVILEGED_ROLE_RANK.findIndex(
+    (r) => r.toUpperCase().replace(/[\s-]+/g, '_') === key
+  );
+  return fuzzy >= 0 ? fuzzy : 999;
+}
+
+function collectPrivilegedRoleHits(blob, hits) {
+  if (!blob) return;
+  const patterns = [
+    /enum\s*:\s*\[\s*([^\]]{0,400})\]/gi,
+    /role\s*===\s*['"`]([A-Za-z0-9_-]+)['"`]/g,
+    /role\s*==\s*['"`]([A-Za-z0-9_-]+)['"`]/g,
+    /role\s*!==\s*['"`]([A-Za-z0-9_-]+)['"`]/g,
+    /['"`]role['"`]\s*:\s*['"`]([A-Za-z0-9_-]+)['"`]/g,
+    /allowedRoles\s*[:=]\s*\[([^\]]{0,400})\]/gi,
+    /roles\s*[:=]\s*\[([^\]]{0,400})\]/gi,
+    /userRole\s*===\s*['"`]([A-Za-z0-9_-]+)['"`]/g,
+  ];
+  for (const re of patterns) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(blob))) {
+      const raw = m[1] || '';
+      if (raw.includes(',') || raw.includes("'") || raw.includes('"')) {
+        const parts = raw.match(/['"`]([A-Za-z0-9_-]+)['"`]/g) || [];
+        for (const p of parts) {
+          const role = p.replace(/['"`]/g, '');
+          if (rankPrivilegedRole(role) < 900) hits.add(role);
+        }
+      } else if (rankPrivilegedRole(raw) < 900) {
+        hits.add(raw);
+      }
+    }
+  }
+}
+
+function collectAdminHomeHits(blob, homes) {
+  if (!blob) return;
+  const patterns = [
+    /(?:to|path|navigate|href)\s*[=(]\s*['"`](\/admin(?:\/[A-Za-z0-9_-]+)?)['"`]/gi,
+    /['"`](\/admin(?:\/[A-Za-z0-9_-]+)?)['"`]/g,
+    /window\.location(?:\.href|\.assign|\.replace)?\s*=\s*['"`](\/admin(?:\/[A-Za-z0-9_-]+)?)['"`]/gi,
+  ];
+  for (const re of patterns) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(blob))) {
+      const p = String(m[1] || '').split('?')[0];
+      if (p && /^\/admin/i.test(p)) homes.add(p);
+    }
+  }
+  // Post-login ternaries: role === 'admin' ? '/admin' : '/profile'
+  const ternary = blob.matchAll(
+    /role\s*===?\s*['"`]([A-Za-z0-9_-]+)['"`]\s*\?\s*['"`](\/[^'"`]+)['"`]\s*:\s*['"`](\/[^'"`]+)['"`]/gi
+  );
+  for (const m of ternary) {
+    if (rankPrivilegedRole(m[1]) < 900) {
+      homes.add(String(m[2]).split('?')[0]);
+    }
+  }
+}
+
+async function walkSourceBlobs(root, onFile, depth = 0) {
+  if (!root || depth > 8) return;
+  let entries = [];
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const ent of entries) {
+    const name = ent.name;
+    if (
+      name === 'node_modules' ||
+      name === 'dist' ||
+      name === 'build' ||
+      name === '.git' ||
+      name === 'coverage' ||
+      name === 'vendor'
+    ) {
+      continue;
+    }
+    const full = path.join(root, name);
+    if (ent.isDirectory()) {
+      await walkSourceBlobs(full, onFile, depth + 1);
+      continue;
+    }
+    const ext = path.extname(name).toLowerCase();
+    if (!SOURCE_EXT.has(ext) && !/\.(jsx?|tsx?|mjs|cjs)$/i.test(name)) continue;
+    try {
+      const st = await fs.stat(full);
+      if (st.size > 900_000) continue;
+      const content = await fs.readFile(full, 'utf8');
+      onFile(content, full);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export async function discoverPrivilegedRoleFromProject(
+  extractDir,
+  { frontendSubdir = '', backendSubdir = '' } = {}
+) {
+  const hits = new Set();
+  const homes = new Set();
+  const roots = [];
+  const fe = frontendSubdir
+    ? path.join(extractDir, frontendSubdir)
+    : extractDir;
+  const be = backendSubdir ? path.join(extractDir, backendSubdir) : extractDir;
+  roots.push(fe, be, extractDir);
+  const seen = new Set();
+  for (const root of roots) {
+    const key = path.resolve(root);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (!(await pathExists(root))) continue;
+    await walkSourceBlobs(root, (content) => {
+      collectPrivilegedRoleHits(content, hits);
+      collectAdminHomeHits(content, homes);
+    });
+  }
+
+  const roles = [...hits].sort((a, b) => rankPrivilegedRole(a) - rankPrivilegedRole(b));
+  const role = roles[0] || 'admin';
+
+  const homePreference = [
+    '/admin/dashboard',
+    '/admin/products',
+    '/admin/users',
+    '/admin',
+    '/admindashboard',
+    '/Admin',
+    '/manDash',
+    '/dashboard',
+  ];
+  let homePath = '';
+  for (const pref of homePreference) {
+    if ([...homes].some((h) => h.toLowerCase() === pref.toLowerCase())) {
+      homePath = [...homes].find((h) => h.toLowerCase() === pref.toLowerCase()) || pref;
+      break;
+    }
+  }
+  if (!homePath && homes.size) {
+    homePath = [...homes].sort((a, b) => a.length - b.length)[0];
+  }
+  if (!homePath) {
+    // Shop apps almost always mount admin at /admin even when scan missed literals.
+    homePath = '/admin';
+  }
+
+  return {
+    role,
+    homePath,
+    rolesFound: roles.slice(0, 12),
+    homesFound: [...homes].slice(0, 12),
+  };
+}

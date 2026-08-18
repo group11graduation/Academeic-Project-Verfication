@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V25:
+ * Marker V26:
+ * - Use ZIP-discovered main role (__SV_MAIN_ADMIN_ROLE__) + admin home path from gateway.
+ * - Seed/login always match project roles: admin, manager, super_admin, sub_admin, …
+ * V25:
  * - Shop/Harmony: also set localStorage.role / isAdmin (many SPAs read bare "role" key).
  * - After login, promote /profile|/orders customer dash → /admin once (admin@preview.demo).
  * V24:
@@ -37,10 +40,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V25__) {
-    console.log('[DEBUG-SHIM] already installed V25 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V26__) {
+    console.log('[DEBUG-SHIM] already installed V26 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V26__ = true;
   window.__SV_LOGIN_FALLBACK_V25__ = true;
   window.__SV_LOGIN_FALLBACK_V24__ = true;
   window.__SV_LOGIN_FALLBACK_V23__ = true;
@@ -61,10 +65,12 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v25', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v26', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
+    mainRole: window.__SV_MAIN_ADMIN_ROLE__ || null,
+    adminHome: window.__SV_ADMIN_HOME_PATH__ || null,
   });
 
   var PATHS = [
@@ -923,9 +929,15 @@
 
   /**
    * The single "main admin" role this SPA expects for teacher preview login.
-   * Examples: admin (skincare), super_admin (SYADA), SUPER_ADMIN (Sky), officer/admin (LoanFlow).
+   * Prefer ZIP-discovered role injected by the gateway (exact project casing).
    */
   function mainAdminRoleForApp() {
+    try {
+      var fromZip = String(window.__SV_MAIN_ADMIN_ROLE__ || '').trim();
+      if (fromZip && !/^(user|customer|client|member|buyer|borrower)$/i.test(fromZip)) {
+        return fromZip;
+      }
+    } catch (_e) {}
     ensureHintsBeforeLogin();
     if (isLoanStyleApp()) return 'admin';
     if (isSkyPropertyApp()) return 'SUPER_ADMIN';
@@ -937,7 +949,10 @@
     var html = pageHintHtml();
     if (/role\s*===\s*['"`]SUPER_ADMIN['"`]/.test(html) || /manDash/.test(html)) return 'SUPER_ADMIN';
     if (/role\s*===\s*['"`]super_admin['"`]/.test(html)) return 'super_admin';
+    if (/role\s*===\s*['"`]Admin['"`]/.test(html)) return 'Admin';
     if (/role\s*===\s*['"`]admin['"`]/.test(html) || hasRoute('/admin')) return 'admin';
+    if (/role\s*===\s*['"`]manager['"`]/.test(html)) return 'manager';
+    if (/role\s*===\s*['"`]sub_admin['"`]/.test(html)) return 'sub_admin';
     return 'admin';
   }
 
@@ -990,6 +1005,10 @@
 
   function defaultAdminHomePath() {
     ensureHintsBeforeLogin();
+    try {
+      var fromZip = String(window.__SV_ADMIN_HOME_PATH__ || '').trim();
+      if (fromZip && fromZip.charAt(0) === '/') return fromZip;
+    } catch (_e) {}
     if (isLoanStyleApp()) return '/admin/loans';
     if (isStaffSetApp()) return '/admin/dashboard';
     if (isSkyPropertyApp()) {
@@ -999,6 +1018,7 @@
     }
     if (hasRoute('/admin/loans')) return '/admin/loans';
     if (hasRoute('/admin/dashboard')) return '/admin/dashboard';
+    if (hasRoute('/admin/products')) return '/admin/products';
     if (hasRoute('/admin')) return '/admin';
     // Skincare / Harmony / ecommerce: admin panel is almost always /admin even if
     // the bundle scan missed the route string.

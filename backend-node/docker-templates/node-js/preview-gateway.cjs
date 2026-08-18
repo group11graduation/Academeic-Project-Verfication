@@ -50,6 +50,19 @@ function loginPath() {
   return String(process.env.PREVIEW_LOGIN_API_PATH || '/api/users/login').trim() || '/api/users/login';
 }
 
+function mainRoleFromEnv() {
+  return String(
+    process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+      process.env.PREVIEW_MAIN_ROLE ||
+      process.env.PREVIEW_ADMIN_ROLE ||
+      'admin'
+  ).trim() || 'admin';
+}
+
+function adminHomeFromEnv() {
+  return String(process.env.PREVIEW_ADMIN_HOME_PATH || '/admin').trim() || '/admin';
+}
+
 let cachedFallbackJs = null;
 function loadFallbackJs() {
   if (cachedFallbackJs != null) return cachedFallbackJs;
@@ -64,10 +77,14 @@ function loadFallbackJs() {
 function wrapHtml(html) {
   const base = apiBaseForBrowser();
   const pathLogin = loginPath();
+  const mainRole = mainRoleFromEnv();
+  const adminHome = adminHomeFromEnv();
   const boot =
     `<meta name="sv-api-base" content="${base.replace(/"/g, '&quot;')}" />` +
     `<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=${JSON.stringify(base)};` +
-    `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};</script>`;
+    `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};` +
+    `window.__SV_MAIN_ADMIN_ROLE__=${JSON.stringify(mainRole)};` +
+    `window.__SV_ADMIN_HOME_PATH__=${JSON.stringify(adminHome)};</script>`;
   const fallback = loadFallbackJs();
   // Escape so a literal </script> inside the shim cannot break HTML parsing (and drop CSS links).
   const safeFallback = fallback ? String(fallback).replace(/<\/script/gi, '<\\/script') : '';

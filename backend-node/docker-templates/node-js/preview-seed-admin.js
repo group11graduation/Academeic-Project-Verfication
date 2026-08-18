@@ -281,11 +281,25 @@ function loadPreviewEnv() {
     };
 
     function pickDefaultRole() {
+      const forced = String(
+        process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+          process.env.PREVIEW_MAIN_ROLE ||
+          process.env.PREVIEW_ADMIN_ROLE ||
+          ''
+      ).trim();
       const rolePath = User.schema?.paths?.role;
       const enumValues = rolePath?.enumValues;
       if (Array.isArray(enumValues) && enumValues.length) {
         const vals = enumValues.map((v) => String(v));
-        // Always pick the project's MAIN admin / privileged role (exact casing from enum).
+        // Prefer env role from ZIP discovery when it exists in the schema enum.
+        if (forced) {
+          const exact = vals.find((v) => v === forced);
+          if (exact) return exact;
+          const fuzzy = vals.find(
+            (v) => v.toLowerCase().replace(/[\s_-]/g, '') === forced.toLowerCase().replace(/[\s_-]/g, '')
+          );
+          if (fuzzy) return fuzzy;
+        }
         const hasBorrower = vals.some((v) => /^borrower$/i.test(v));
         const hasOfficer = vals.some((v) => /^officer$/i.test(v));
         const adminExact = vals.find((v) => /^admin$/i.test(v));
@@ -305,6 +319,9 @@ function loadPreviewEnv() {
           'Admin',
           'MANAGER',
           'manager',
+          'Manager',
+          'SUB_ADMIN',
+          'sub_admin',
           'officer',
           'Officer',
           'editor',
@@ -327,9 +344,8 @@ function loadPreviewEnv() {
         if (fuzzy) return fuzzy;
         return vals[0];
       }
-      // No enum: default "admin" — most MERN/skincare apps use role === 'admin'.
-      // Shim upgrades to super_admin / SUPER_ADMIN when the SPA requires those.
-      return 'admin';
+      // No enum: ZIP-discovered role wins, else "admin".
+      return forced || 'admin';
     }
 
     function passwordFieldName() {
