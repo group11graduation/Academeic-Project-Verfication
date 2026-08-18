@@ -126,22 +126,6 @@ const StudentHeader = ({ forcePublic = false }) => {
                             </nav>
 
                             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                                {user ? (
-                                    <Link
-                                        to={workspacePath}
-                                        className="hidden text-sm font-semibold text-slate-700 hover:text-slate-950 sm:inline-flex"
-                                    >
-                                        Student portal
-                                    </Link>
-                                ) : (
-                                    <Link
-                                        to="/login"
-                                        className="hidden text-sm font-semibold text-slate-700 hover:text-slate-950 sm:inline-flex"
-                                    >
-                                        Student portal
-                                    </Link>
-                                )}
-
                                 <ThemeToggle compact className="hidden sm:inline-flex" />
 
                                 <button
@@ -151,8 +135,8 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     style={{ background: BRAND_GRADIENT }}
                                 >
                                     <GraduationCap className="h-4 w-4 shrink-0" />
-                                    <span className="sm:hidden">{user ? 'Portal' : 'Apply'}</span>
-                                    <span className="hidden sm:inline">{user ? 'Open portal' : 'Apply'}</span>
+                                    <span className="sm:hidden">{user ? 'Portal' : 'Sign in'}</span>
+                                    <span className="hidden sm:inline">{user ? 'Open portal' : 'Sign in'}</span>
                                 </button>
 
                                 <button
@@ -199,7 +183,7 @@ const StudentHeader = ({ forcePublic = false }) => {
                                     style={{ background: BRAND_GRADIENT }}
                                 >
                                     <GraduationCap className="h-4 w-4" />
-                                    {user ? 'Open portal' : 'Apply'}
+                                    {user ? 'Open portal' : 'Sign in'}
                                 </Link>
                                 {user && (
                                     <button
