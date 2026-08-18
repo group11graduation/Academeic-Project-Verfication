@@ -14,7 +14,7 @@ const PublicSiteFooter = () => (
         <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-10 px-4 py-14 sm:px-6 md:grid-cols-4 lg:px-8">
             <div className="md:col-span-1">
                 <Link to="/" className="mb-4 inline-block">
-                    <ProjectVerifyLogo size="lg" showMark={false} onDark tagline={PRODUCT_TAGLINE} />
+                    <ProjectVerifyLogo size="lg" onDark tagline={PRODUCT_TAGLINE} />
                 </Link>
                 <p className="text-sm font-medium leading-relaxed text-blue-100/70">
                     Automated Academic Project Verification Using Machine Learning with Integrated Docker-Based
