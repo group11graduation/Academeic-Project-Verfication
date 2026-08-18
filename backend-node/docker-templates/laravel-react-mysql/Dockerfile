@@ -39,6 +39,7 @@ WORKDIR /var/www/html
 COPY preview-bootstrap.php /preview-bootstrap.php
 COPY preview-seed-admin.php /preview-seed-admin.php
 COPY preview-seed-laravel.php /preview-seed-laravel.php
+COPY preview-patch-laravel-auth.php /preview-patch-laravel-auth.php
 COPY entrypoint.sh /preview-entrypoint.sh
 RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh
 

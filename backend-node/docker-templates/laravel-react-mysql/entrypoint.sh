@@ -415,7 +415,25 @@ seed_laravel_preview_user() {
   (
     cd "$LARAVEL_ROOT"
     export LARAVEL_ROOT="$LARAVEL_ROOT"
-    php /preview-seed-laravel.php 2>&1 || true
+    # Mirror to preview-mysql.log so teacher credential hints parse the seed line.
+    php /preview-seed-laravel.php 2>&1 | tee -a /tmp/preview-mysql.log || true
+  )
+}
+
+patch_laravel_preview_auth() {
+  [ -f "$LARAVEL_ROOT/artisan" ] || return 0
+  if [ ! -f /preview-patch-laravel-auth.php ]; then
+    echo "[preview] preview-patch-laravel-auth.php missing — skip auth patch"
+    return 0
+  fi
+  echo "[preview] patching Laravel auth for preview login"
+  (
+    cd "$LARAVEL_ROOT"
+    export LARAVEL_ROOT="$LARAVEL_ROOT"
+    php /preview-patch-laravel-auth.php 2>&1 | tee -a /tmp/preview-mysql.log || true
+    php artisan route:clear 2>/dev/null || true
+    php artisan config:clear 2>/dev/null || true
+    php artisan cache:clear 2>/dev/null || true
   )
 }
 
@@ -471,6 +489,12 @@ if [ -n "$DB_HOST" ] && [ -f /preview-seed-admin.php ]; then
 fi
 
 # Re-run Laravel seed after classic PHP seed (ensures previewadmin exists even if db:seed wiped rows)
+seed_laravel_preview_user
+
+# Patch Auth controllers + register /api/auth/login shim (username OR email → seeded user)
+patch_laravel_preview_auth
+
+# Final seed pass after auth patch (in case password mode was refined)
 seed_laravel_preview_user
 
 chown -R www-data:www-data "$LARAVEL_ROOT" 2>/dev/null || true

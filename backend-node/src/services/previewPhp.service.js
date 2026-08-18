@@ -761,7 +761,7 @@ export function parsePhpBootstrapCredentialsFromLog(logText = '') {
   if (!logText?.trim()) return null;
 
   const seeded = logText.match(
-    /ScholarVerify admin seeded[^:]*:\s*username=([^\s]+)(?:\s+email=([^\s]+))?\s+password=([^\s<]+)/i
+    /ScholarVerify(?:\s+Laravel)?\s+admin seeded[^:]*:\s*username=([^\s]+)(?:\s+email=([^\s]+))?\s+password=([^\s<]+)/i
   );
   if (seeded) {
     const username = sanitizeBootstrapCredential(seeded[1], 'username');

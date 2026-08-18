@@ -377,6 +377,10 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     if (fsSync.existsSync(laravelSeedSrc)) {
       await fs.copyFile(laravelSeedSrc, path.join(stageDir, 'preview-seed-laravel.php'));
     }
+    const laravelAuthPatchSrc = path.join(templateDir, 'preview-patch-laravel-auth.php');
+    if (fsSync.existsSync(laravelAuthPatchSrc)) {
+      await fs.copyFile(laravelAuthPatchSrc, path.join(stageDir, 'preview-patch-laravel-auth.php'));
+    }
   }
 
   return stageDir;
@@ -983,6 +987,7 @@ async function ensurePreviewLaravelReactBaseImage({ forceRebuild = false } = {})
     path.join(templateDir, 'preview-bootstrap.php'),
     path.join(templateDir, 'preview-seed-admin.php'),
     path.join(templateDir, 'preview-seed-laravel.php'),
+    path.join(templateDir, 'preview-patch-laravel-auth.php'),
   ]);
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
@@ -1859,9 +1864,17 @@ async function runPreviewContainer({
       ['preview-bootstrap.php', '/preview-bootstrap.php'],
       ['preview-seed-admin.php', '/preview-seed-admin.php'],
       ['preview-seed-laravel.php', '/preview-seed-laravel.php'],
+      ['preview-patch-laravel-auth.php', '/preview-patch-laravel-auth.php'],
     ];
     for (const [name, dest] of phpOverlayFiles) {
       const src = path.join(sharedPhpDir, name);
+      // Only Laravel stack needs the Laravel-specific seed/auth patches.
+      if (
+        stack !== 'laravel-react-mysql' &&
+        (name === 'preview-seed-laravel.php' || name === 'preview-patch-laravel-auth.php')
+      ) {
+        continue;
+      }
       const stagedName = `php-${path.basename(dest).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       const staged = stagePreviewOverlayFile(src, stagedName);
       if (!staged) continue;
@@ -2700,7 +2713,7 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       PREVIEW_ADMIN_PASSWORD: safeSeedPass,
       DEFAULT_ADMIN_USERNAME: seedUser,
       DEFAULT_ADMIN_PASSWORD: safeSeedPass,
-      PREVIEW_PASSWORD_MODE: 'bcrypt',
+      PREVIEW_PASSWORD_MODE: stack === 'laravel-react-mysql' ? 'auto' : 'bcrypt',
       // Keep classic admin rows usable with the same password we show teachers.
       PREVIEW_SEED_ALSO_RESET_ADMIN: '1',
     };
