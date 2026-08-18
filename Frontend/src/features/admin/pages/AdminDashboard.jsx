@@ -50,33 +50,33 @@ const AdminDashboard = () => {
                 title: 'Students',
                 value: stats.totalStudents,
                 icon: Users,
-                soft: 'bg-[#e8f5ef]',
-                iconBg: 'bg-white text-emerald-600',
-                ring: 'ring-emerald-100',
+                soft: 'bg-[#eef2fb]',
+                iconBg: 'bg-white text-[#2f4aad]',
+                ring: 'ring-[#d5dcf0]',
             },
             {
                 title: 'Teachers',
                 value: stats.totalTeachers,
                 icon: GraduationCap,
-                soft: 'bg-[#e8eefc]',
+                soft: 'bg-[#e8ecf8]',
                 iconBg: 'bg-white text-[#2f4aad]',
-                ring: 'ring-blue-100',
+                ring: 'ring-[#d5dcf0]',
             },
             {
                 title: 'Classes',
                 value: stats.totalClasses,
                 icon: Building2,
-                soft: 'bg-[#eef0f4]',
-                iconBg: 'bg-white text-slate-600',
-                ring: 'ring-slate-200',
+                soft: 'bg-[#f2f4fb]',
+                iconBg: 'bg-white text-[#2f4aad]',
+                ring: 'ring-[#d5dcf0]',
             },
             {
                 title: 'Active Projects',
                 value: stats.activeProjects,
                 icon: Rocket,
-                soft: 'bg-[#fff1e8]',
-                iconBg: 'bg-white text-orange-600',
-                ring: 'ring-orange-100',
+                soft: 'bg-[#e6ebf8]',
+                iconBg: 'bg-white text-[#2f4aad]',
+                ring: 'ring-[#d5dcf0]',
                 hint: 'Proposals in review or approved project phase',
             },
         ],
@@ -193,7 +193,7 @@ const AdminDashboard = () => {
                                 Classes · {stats.totalClasses}
                             </li>
                             <li className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-violet-300" />
+                                <span className="h-2 w-2 rounded-full bg-[#9aabd4]" />
                                 Active projects · {stats.activeProjects}
                             </li>
                         </ul>
