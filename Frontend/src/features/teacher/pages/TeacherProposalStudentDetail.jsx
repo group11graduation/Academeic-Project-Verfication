@@ -767,6 +767,54 @@ const TeacherProposalStudentDetail = () => {
             : zip?.downloadPath
               ? `${apiOrigin}/${String(zip.downloadPath).replace(/^\//, '')}`
               : '';
+    const requirementFileLinks = (() => {
+        if (!assignment) return [];
+        const links = [];
+        const push = (path, name, label) => {
+            if (!path) return;
+            const url = String(path).startsWith('http')
+                ? path
+                : `${apiOrigin}${String(path).startsWith('/') ? path : `/${path}`}`;
+            links.push({ url, name: name || 'Requirements document', label });
+        };
+        if (assignment.assignmentFile) {
+            push(assignment.assignmentFile, assignment.originalFileName, 'Assignment requirements');
+        }
+        if (isCollaborative) {
+            const fe = assignment.frontendTechRequirements || {};
+            const be = assignment.backendTechRequirements || {};
+            if (fe.requirementFile) {
+                push(fe.requirementFile, fe.originalFileName, 'Frontend requirements');
+            }
+            if (be.requirementFile) {
+                push(be.requirementFile, be.originalFileName, 'Backend requirements');
+            }
+        }
+        // Dedupe by URL
+        const seen = new Set();
+        return links.filter((l) => {
+            if (seen.has(l.url)) return false;
+            seen.add(l.url);
+            return true;
+        });
+    })();
+    const requirementTextDisplay = (() => {
+        if (!assignment) return '';
+        if (isCollaborative) {
+            const fe = assignment.frontendTechRequirements || {};
+            const be = assignment.backendTechRequirements || {};
+            const parts = [];
+            const feText = [fe.requirementText, fe.description].map((x) => String(x || '').trim()).filter(Boolean).join('\n\n');
+            const beText = [be.requirementText, be.description].map((x) => String(x || '').trim()).filter(Boolean).join('\n\n');
+            if (feText) parts.push(`FRONTEND REQUIREMENTS\n${feText}`);
+            if (beText) parts.push(`BACKEND REQUIREMENTS\n${beText}`);
+            if (parts.length) return parts.join('\n\n──────────────\n\n');
+        }
+        return [assignment.requirementText, assignment.description]
+            .map((x) => String(x || '').trim())
+            .filter(Boolean)
+            .join('\n\n');
+    })();
     const zipSizeLabel =
         zip?.sizeBytes != null
             ? zip.sizeBytes >= 1_048_576
@@ -1206,6 +1254,7 @@ const TeacherProposalStudentDetail = () => {
                             <div className="flex flex-wrap gap-1 border-b border-[var(--sv-border)] px-2 pt-2">
                                 {[
                                     { id: 'proposal', label: 'Proposal content' },
+                                    { id: 'requirements', label: 'Requirements' },
                                     { id: 'activity', label: 'Submission activity' },
                                 ].map((t) => (
                                     <button
@@ -1230,6 +1279,65 @@ const TeacherProposalStudentDetail = () => {
                                         text={proposalPlain}
                                         onCopy={copyProposal}
                                     />
+                                )}
+                                {tab === 'requirements' && (
+                                    <div className="space-y-4">
+                                        {requirementFileLinks.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {requirementFileLinks.map((file) => (
+                                                    <div
+                                                        key={file.url}
+                                                        className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3"
+                                                    >
+                                                        <FileText className="h-5 w-5 shrink-0 text-[var(--brand-primary)]" />
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="truncate text-sm font-bold text-[var(--sv-text)]">
+                                                                {file.name}
+                                                            </p>
+                                                            <p className="text-xs text-[var(--sv-muted)]">{file.label}</p>
+                                                        </div>
+                                                        <a
+                                                            href={file.url}
+                                                            download={file.name}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-flex items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-3 py-2 text-xs font-bold text-white hover:bg-[#1a4dcc]"
+                                                        >
+                                                            <Download className="h-3.5 w-3.5" />
+                                                            Download
+                                                        </a>
+                                                        <a
+                                                            href={file.url}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card)] px-3 py-2 text-xs font-bold text-[var(--sv-text)] hover:bg-[var(--sv-card-muted)]"
+                                                        >
+                                                            <ExternalLink className="h-3.5 w-3.5" />
+                                                            Open
+                                                        </a>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-[var(--sv-muted)]">
+                                                No requirements file was uploaded for this assignment.
+                                            </p>
+                                        )}
+                                        <div>
+                                            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-[var(--sv-muted)]">
+                                                Requirement text
+                                            </label>
+                                            <textarea
+                                                readOnly
+                                                value={
+                                                    requirementTextDisplay ||
+                                                    'No typed requirement text for this assignment.'
+                                                }
+                                                rows={14}
+                                                className="w-full resize-y rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3 text-sm leading-relaxed text-[var(--sv-text)]"
+                                            />
+                                        </div>
+                                    </div>
                                 )}
                                 {tab === 'activity' && (
                                     <div>
@@ -2132,10 +2240,79 @@ const TeacherProposalStudentDetail = () => {
                                 <span className="text-xs font-semibold text-[var(--sv-muted)]">Text submission</span>
                             </div>
                             <p className="text-xs text-[var(--sv-muted)]">
-                                Text proposal fields render in the left panel like extracted uploads. When the student submits a project
-                                archive, it appears here too.
+                                Assignment requirements, proposal text, and project archive links for this student.
                             </p>
                             <ul className="mt-4 space-y-2">
+                                {requirementFileLinks.length > 0
+                                    ? requirementFileLinks.map((file) => (
+                                          <li
+                                              key={file.url}
+                                              className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3"
+                                          >
+                                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
+                                                  <FileText className="h-5 w-5 text-violet-600" />
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                  <p className="truncate text-sm font-bold text-[var(--sv-text)]">
+                                                      {file.name}
+                                                  </p>
+                                                  <p className="text-xs font-medium text-[var(--sv-muted)]">{file.label}</p>
+                                              </div>
+                                              <div className="flex shrink-0 gap-1">
+                                                  <a
+                                                      href={file.url}
+                                                      download={file.name}
+                                                      target="_blank"
+                                                      rel="noreferrer"
+                                                      className="rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[var(--brand-primary)]"
+                                                      title="Download requirements"
+                                                  >
+                                                      <Download className="h-4 w-4" />
+                                                  </a>
+                                                  <a
+                                                      href={file.url}
+                                                      target="_blank"
+                                                      rel="noreferrer"
+                                                      className="rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[var(--brand-primary)]"
+                                                      title="Open requirements"
+                                                  >
+                                                      <ExternalLink className="h-4 w-4" />
+                                                  </a>
+                                                  <button
+                                                      type="button"
+                                                      onClick={() => setTab('requirements')}
+                                                      className="rounded-lg p-2 text-[var(--sv-muted)] transition hover:bg-[var(--sv-card-muted)] hover:text-[var(--brand-primary)]"
+                                                      title="View requirement text"
+                                                  >
+                                                      <FileText className="h-4 w-4" />
+                                                  </button>
+                                              </div>
+                                          </li>
+                                      ))
+                                    : requirementTextDisplay
+                                      ? (
+                                            <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
+                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
+                                                    <FileText className="h-5 w-5 text-violet-600" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-bold text-[var(--sv-text)]">
+                                                        Assignment requirements
+                                                    </p>
+                                                    <p className="text-xs font-medium text-[var(--sv-muted)]">
+                                                        Typed requirements (no file uploaded)
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setTab('requirements')}
+                                                    className="rounded-lg px-3 py-2 text-xs font-bold text-[var(--brand-primary)] transition hover:bg-[var(--sv-card)]"
+                                                >
+                                                    View text
+                                                </button>
+                                            </li>
+                                        )
+                                      : null}
                                 <li className="flex items-center gap-3 rounded-xl border border-[var(--sv-border)] bg-[var(--sv-card-muted)] px-3 py-3">
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sv-card)] shadow-sm ring-1 ring-[var(--sv-border)]">
                                         <FileText className="h-5 w-5 text-[var(--brand-primary)]" />
