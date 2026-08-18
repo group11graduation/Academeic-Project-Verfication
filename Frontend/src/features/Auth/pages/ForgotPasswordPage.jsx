@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2, Mail } from 'lucide-react';
 import api from '../../../lib/api';
-import { BRAND } from '../../../shared/ui/brandTheme';
+import { BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import AuthShell, { PROJECT_NAME, authFieldClass, authPrimaryBtnClass } from '../components/AuthShell';
 
 const ForgotPasswordPage = () => {
@@ -42,49 +42,50 @@ const ForgotPasswordPage = () => {
   return (
     <AuthShell
       title="Forgot password?"
-      subtitle={`Enter the email or ID you use to sign in to ${PROJECT_NAME}. We'll email you a secure link to set a new password.`}
-      rightTitle="Reset securely"
-      rightSubtitle="We'll send a time-limited link so you can choose a new password for your account."
+      subtitle={`Enter the email or ID you use for ${PROJECT_NAME}. We'll send a secure reset link.`}
       footer={
-        <p className="mt-8 text-center text-[13px] font-normal text-[#51628f]">
+        <p className="mt-7 text-center text-[13px] font-normal text-white/50">
           Remembered it?{' '}
-          <Link to="/login" className="font-semibold text-[#2a3fa4] hover:underline">
+          <Link to="/login" className="font-semibold text-[#8ea4f0] hover:text-white hover:underline">
             Back to sign in
           </Link>
         </p>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-5">
         {error ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] font-normal text-rose-700">
+          <div className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-2.5 text-[13px] font-normal text-rose-100">
             {error}
           </div>
         ) : null}
         {info ? (
-          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-normal text-sky-800">
+          <div className="rounded-xl border border-sky-400/30 bg-sky-500/15 px-3 py-2.5 text-[13px] font-normal text-sky-100">
             {info}
           </div>
         ) : null}
         <div>
-          <label htmlFor="forgot-identifier" className="mb-1.5 block text-left text-[13px] font-medium text-[#0F172A]">
+          <label htmlFor="forgot-identifier" className="mb-1.5 block text-left text-[12px] font-medium text-white/60">
             Email or ID
           </label>
-          <input
-            id="forgot-identifier"
-            type="text"
-            autoComplete="username"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            disabled={submitting || Boolean(info)}
-            placeholder="Email, student ID, or employee ID"
-            className={authFieldClass}
-          />
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <input
+              id="forgot-identifier"
+              type="text"
+              autoComplete="username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              disabled={submitting || Boolean(info)}
+              placeholder="Email, student ID, or employee ID"
+              className={authFieldClass}
+            />
+          </div>
         </div>
         <button
           type="submit"
           disabled={submitting || Boolean(info)}
           className={authPrimaryBtnClass}
-          style={{ backgroundColor: BRAND.primary }}
+          style={{ background: BRAND_GRADIENT }}
         >
           {submitting ? (
             <>
@@ -94,7 +95,10 @@ const ForgotPasswordPage = () => {
           ) : info ? (
             'Email sent'
           ) : (
-            'Send reset link'
+            <>
+              Send reset link
+              <ArrowRight className="h-4 w-4" />
+            </>
           )}
         </button>
       </form>

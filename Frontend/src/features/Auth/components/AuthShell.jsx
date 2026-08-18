@@ -1,102 +1,87 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Lock } from 'lucide-react';
 import { BRAND, BRAND_GRADIENT, PROJECT_NAME } from '../../../shared/ui/brandTheme';
 import ProjectVerifyLogo from '../../../shared/components/ProjectVerifyLogo';
 
 /**
- * Split auth layout: brand panel on the left, form on the right (white).
+ * Centered auth card on a branded dark backdrop (login / forgot / reset).
  */
 export default function AuthShell({
-  title,
+  title = 'Sign in',
   subtitle,
   children,
   footer,
-  rightTitle = `Welcome to ${PROJECT_NAME}`,
-  rightSubtitle = 'Sign in to manage academic projects, reviews, and verification workflows.',
+  showLockIcon = true,
 }) {
   return (
-    <div className="fixed inset-0 flex min-h-[100dvh] overflow-hidden bg-white font-sans">
-      {/* Left — brand panel */}
-      <div className="relative hidden min-h-full p-3 lg:flex lg:w-[52%]">
+    <div
+      className="fixed inset-0 flex min-h-[100dvh] flex-col overflow-y-auto font-sans"
+      style={{
+        background: 'linear-gradient(160deg, #0f1a3d 0%, #1d2f82 42%, #2a3fa4 72%, #1a2758 100%)',
+      }}
+    >
+      {/* Soft ambient shapes */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -left-24 top-20 h-72 w-72 rounded-full bg-[#1D68E3]/20 blur-3xl" />
+        <div className="absolute -right-16 bottom-10 h-80 w-80 rounded-full bg-[#4a66c4]/25 blur-3xl" />
         <div
-          className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-r-[2.75rem] rounded-l-[1.25rem] px-10 py-12 text-white xl:px-14"
-          style={{ background: BRAND_GRADIENT }}
-        >
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-            <div
-              className="absolute -left-16 top-16 h-40 w-56 rotate-[18deg] rounded-2xl opacity-30"
-              style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.35), rgba(255,255,255,0.05))' }}
-            />
-            <div
-              className="absolute bottom-24 left-10 h-48 w-64 rotate-[-12deg] rounded-2xl opacity-25"
-              style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.28), rgba(29,47,130,0.35))' }}
-            />
-            <div
-              className="absolute bottom-40 left-28 h-28 w-40 rotate-[8deg] rounded-xl shadow-2xl"
-              style={{
-                background: 'linear-gradient(135deg, #fbbf24 0%, #f97316 55%, #ea580c 100%)',
-                opacity: 0.95,
-              }}
-            />
-            <div
-              className="absolute right-10 top-1/3 h-24 w-36 rotate-[-22deg] rounded-xl opacity-20"
-              style={{ background: 'rgba(255,255,255,0.4)' }}
-            />
-          </div>
-
-          <div className="relative z-10 max-w-md">
-            <p className="text-[11px] font-medium uppercase tracking-[0.5px] text-white/70">Institution access</p>
-            <h2 className="mt-3 text-[2rem] font-semibold leading-[1.2] tracking-tight xl:text-[2.25rem]">
-              {rightTitle}
-            </h2>
-            <p className="mt-3 text-[15px] font-normal leading-[1.5] text-white/80">{rightSubtitle}</p>
-          </div>
-
-          <div className="relative z-10">
-            <div className="rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-md">
-              <p className="text-[13px] font-semibold text-white">Secure academic workspace</p>
-              <p className="mt-1.5 text-[12px] font-normal leading-[1.5] text-white/75">
-                Students, teachers, and admins sign in with institution credentials managed by your administrator.
-              </p>
-            </div>
-            <p className="mt-6 text-[11px] font-normal text-white/55">
-              © {new Date().getFullYear()} {PROJECT_NAME}
-            </p>
-          </div>
-        </div>
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 30%, rgba(255,255,255,0.35) 0, transparent 42%), radial-gradient(circle at 80% 70%, rgba(29,104,227,0.5) 0, transparent 40%)',
+          }}
+        />
       </div>
 
-      {/* Right — form */}
-      <div className="relative flex w-full flex-col overflow-y-auto px-6 py-8 sm:px-10 lg:w-[48%] lg:px-14 xl:px-20">
-        <div className="mb-10 shrink-0 lg:mb-14">
-          <Link to="/" className="inline-flex">
-            <ProjectVerifyLogo size="md" tagline="" />
-          </Link>
-        </div>
+      <header className="relative z-10 flex shrink-0 items-center px-5 py-5 sm:px-8">
+        <Link to="/" className="inline-flex">
+          <ProjectVerifyLogo onDark size="md" tagline="" />
+        </Link>
+      </header>
 
-        <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center pb-10">
-          {title ? (
-            <h1 className="text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-[#0F172A] sm:text-[2rem]">
-              {title}
-            </h1>
-          ) : null}
-          {subtitle ? (
-            <p className="mt-2 text-[14px] font-normal leading-[1.5] text-[#51628f]">{subtitle}</p>
-          ) : null}
+      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-6 sm:px-6">
+        <div
+          className="w-full max-w-[440px] rounded-[1.75rem] border border-white/12 px-6 py-8 shadow-[0_28px_80px_-24px_rgba(0,0,0,0.55)] sm:px-9 sm:py-10"
+          style={{
+            background: 'linear-gradient(165deg, rgba(15,26,61,0.82) 0%, rgba(29,47,130,0.72) 100%)',
+            backdropFilter: 'blur(18px)',
+            WebkitBackdropFilter: 'blur(18px)',
+          }}
+        >
+          <div className="mb-7 text-center">
+            {showLockIcon ? (
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-white/20 bg-white/5 text-white">
+                <Lock className="h-5 w-5" strokeWidth={2} />
+              </div>
+            ) : null}
+            {title ? (
+              <h1 className="text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-white">{title}</h1>
+            ) : null}
+            {subtitle ? (
+              <p className="mx-auto mt-2 max-w-[320px] text-[14px] font-normal leading-[1.5] text-white/65">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
 
-          <div className={title || subtitle ? 'mt-8' : ''}>{children}</div>
+          {children}
           {footer}
         </div>
-      </div>
+      </main>
+
+      <footer className="relative z-10 shrink-0 px-4 pb-5 pt-2 text-center text-[11px] font-normal text-white/40">
+        © {new Date().getFullYear()} {PROJECT_NAME}. All rights reserved.
+      </footer>
     </div>
   );
 }
 
-/** Light-theme field styles for the split auth form */
+/** Dark-theme field styles for the centered auth card */
 export const authFieldClass =
-  'w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] font-normal text-[#0F172A] outline-none transition placeholder:text-slate-400 focus:border-[#2a3fa4] focus:ring-2 focus:ring-[#2a3fa4]/15 disabled:opacity-60';
+  'w-full rounded-xl border border-white/15 bg-[#0c1635]/55 py-3 pl-11 pr-3.5 text-[14px] font-normal text-white outline-none transition placeholder:text-white/35 focus:border-[#6b84d4] focus:ring-2 focus:ring-[#1D68E3]/25 disabled:opacity-60';
 
 export const authPrimaryBtnClass =
-  'inline-flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-[14px] font-semibold text-white transition hover:brightness-105 active:scale-[0.99] disabled:opacity-60';
+  'inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-semibold text-white shadow-[0_12px_32px_-12px_rgba(29,104,227,0.65)] transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60';
 
 export { BRAND, BRAND_GRADIENT, PROJECT_NAME };

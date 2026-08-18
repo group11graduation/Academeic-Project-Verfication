@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
 import api from '../../../lib/api';
-import { BRAND } from '../../../shared/ui/brandTheme';
+import { BRAND_GRADIENT } from '../../../shared/ui/brandTheme';
 import AuthShell, { authFieldClass, authPrimaryBtnClass } from '../components/AuthShell';
 
 const ResetPasswordPage = () => {
@@ -51,11 +51,9 @@ const ResetPasswordPage = () => {
       <AuthShell
         title="Reset link missing"
         subtitle="Use Forgot password from the login page to get a new secure reset link."
-        rightTitle="Need a new link?"
-        rightSubtitle="Password reset links expire for security. Request another from the forgot password page."
         footer={
-          <p className="mt-8 text-center text-[13px]">
-            <Link to="/forgot-password" className="font-semibold text-[#2a3fa4] hover:underline">
+          <p className="mt-7 text-center text-[13px]">
+            <Link to="/forgot-password" className="font-semibold text-[#8ea4f0] hover:text-white hover:underline">
               Request a new reset
             </Link>
           </p>
@@ -63,7 +61,7 @@ const ResetPasswordPage = () => {
       >
         <Link
           to="/login"
-          className="flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white py-2.5 text-[14px] font-semibold text-[#0F172A] transition hover:bg-slate-50"
+          className="flex w-full items-center justify-center rounded-xl border border-white/15 bg-white/5 py-3 text-[14px] font-semibold text-white transition hover:bg-white/10"
         >
           Back to sign in
         </Link>
@@ -75,33 +73,32 @@ const ResetPasswordPage = () => {
     <AuthShell
       title="Set a new password"
       subtitle="Choose a new password for your account. This link expires in 30 minutes."
-      rightTitle="Almost done"
-      rightSubtitle="Pick a strong password you haven't used here before, then sign in again."
       footer={
-        <p className="mt-8 text-center text-[13px] font-normal text-[#51628f]">
-          <Link to="/login" className="font-semibold text-[#2a3fa4] hover:underline">
+        <p className="mt-7 text-center text-[13px] font-normal text-white/50">
+          <Link to="/login" className="font-semibold text-[#8ea4f0] hover:text-white hover:underline">
             Back to sign in
           </Link>
         </p>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-5">
         {error ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] font-normal text-rose-700">
+          <div className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-2.5 text-[13px] font-normal text-rose-100">
             {error}
           </div>
         ) : null}
         {success ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] font-normal text-emerald-800">
+          <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-2.5 text-[13px] font-normal text-emerald-100">
             {success}
           </div>
         ) : null}
 
         <div>
-          <label htmlFor="reset-password" className="mb-1.5 block text-left text-[13px] font-medium text-[#0F172A]">
+          <label htmlFor="reset-password" className="mb-1.5 block text-left text-[12px] font-medium text-white/60">
             New password
           </label>
           <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
             <input
               id="reset-password"
               type={showPassword ? 'text' : 'password'}
@@ -110,13 +107,13 @@ const ResetPasswordPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               disabled={submitting || Boolean(success)}
               placeholder="At least 6 characters"
-              className={`${authFieldClass} pr-10`}
+              className={`${authFieldClass} pr-11`}
             />
             <button
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/40 transition-colors hover:text-white/80"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -125,26 +122,29 @@ const ResetPasswordPage = () => {
         </div>
 
         <div>
-          <label htmlFor="reset-confirm" className="mb-1.5 block text-left text-[13px] font-medium text-[#0F172A]">
+          <label htmlFor="reset-confirm" className="mb-1.5 block text-left text-[12px] font-medium text-white/60">
             Confirm password
           </label>
-          <input
-            id="reset-confirm"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            disabled={submitting || Boolean(success)}
-            placeholder="Re-enter new password"
-            className={authFieldClass}
-          />
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+            <input
+              id="reset-confirm"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              disabled={submitting || Boolean(success)}
+              placeholder="Re-enter new password"
+              className={authFieldClass}
+            />
+          </div>
         </div>
 
         <button
           type="submit"
           disabled={submitting || Boolean(success)}
           className={authPrimaryBtnClass}
-          style={{ backgroundColor: BRAND.primary }}
+          style={{ background: BRAND_GRADIENT }}
         >
           {submitting ? (
             <>
@@ -152,7 +152,10 @@ const ResetPasswordPage = () => {
               Saving…
             </>
           ) : (
-            'Update password'
+            <>
+              Update password
+              <ArrowRight className="h-4 w-4" />
+            </>
           )}
         </button>
       </form>

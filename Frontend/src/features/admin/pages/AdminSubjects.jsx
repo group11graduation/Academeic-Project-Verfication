@@ -490,7 +490,7 @@ const AdminSubjects = () => {
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                                     {rows.map((sub, index) => {
                                         const theme = themeForSubject(sub, index);
-                                        const allocCount = (sub.allocations || []).length;
+                                        const allocCount = Number(sub.classesCount ?? (sub.allocations || []).length) || 0;
                                         const menuKey = `${faculty}-${department}-${sub._id}`;
                                         return (
                                             <div
@@ -572,7 +572,9 @@ const AdminSubjects = () => {
                                                                     key={idx}
                                                                     className="truncate text-[11px] font-normal text-slate-500"
                                                                 >
-                                                                    {alloc.classId || alloc.classCode || 'Class'}
+                                                                    {alloc.className
+                                                                        ? `${alloc.classCode || alloc.classId} · ${alloc.className}`
+                                                                        : alloc.classId || alloc.classCode || 'Class'}
                                                                     {alloc.teacher?.name ? ` · ${alloc.teacher.name}` : ''}
                                                                 </li>
                                                             ))}

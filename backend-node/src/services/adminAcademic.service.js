@@ -551,13 +551,97 @@ function serializeSubject(doc) {
   };
 }
 
+/**
+ * Map subjectId -> class allocation rows (from Class.subjects + teacherAssignments).
+ */
+async function buildSubjectAllocationsMap(subjectIds = null) {
+  const filter = {};
+  if (Array.isArray(subjectIds) && subjectIds.length) {
+    filter.$or = [
+      { subjects: { $in: subjectIds } },
+      { 'teacherAssignments.subjects': { $in: subjectIds } },
+    ];
+  }
+
+  const classes = await Class.find(filter)
+    .select('code name subjects teacherAssignments')
+    .populate('teacherAssignments.teacher', 'name email')
+    .lean();
+
+  const allowed = subjectIds?.length
+    ? new Set(subjectIds.map((id) => String(id)))
+    : null;
+  const map = new Map(); // subjectId -> Map(classCode -> allocation)
+
+  for (const cls of classes) {
+    const subjectIdSet = new Set(
+      (cls.subjects || []).map((s) => String(s?._id || s)).filter(Boolean)
+    );
+    for (const assignment of cls.teacherAssignments || []) {
+      for (const s of assignment.subjects || []) {
+        subjectIdSet.add(String(s?._id || s));
+      }
+    }
+
+    for (const sid of subjectIdSet) {
+      if (allowed && !allowed.has(sid)) continue;
+      if (!map.has(sid)) map.set(sid, new Map());
+      const byClass = map.get(sid);
+      if (byClass.has(cls.code)) continue;
+
+      const teachersForSubject = (cls.teacherAssignments || [])
+        .filter((a) => (a.subjects || []).some((s) => String(s?._id || s) === sid))
+        .map((a) => a.teacher)
+        .filter(Boolean);
+
+      const primary = teachersForSubject[0];
+      byClass.set(cls.code, {
+        classId: cls.code,
+        classCode: cls.code,
+        className: cls.name || '',
+        teacher: primary
+          ? {
+              _id: primary._id || primary,
+              name: primary.name || '',
+              email: primary.email || '',
+            }
+          : null,
+      });
+    }
+  }
+
+  const out = new Map();
+  for (const [sid, byClass] of map.entries()) {
+    out.set(sid, [...byClass.values()]);
+  }
+  return out;
+}
+
 export async function listSubjects() {
   const rows = await Subject.find().sort({ createdAt: -1 }).lean();
-  return rows.map(serializeSubject);
+  const ids = rows.map((r) => r._id);
+  const allocationsBySubject = await buildSubjectAllocationsMap(ids);
+  return rows.map((row) => {
+    const base = serializeSubject(row);
+    const allocations = allocationsBySubject.get(String(row._id)) || [];
+    return {
+      ...base,
+      allocations,
+      classesCount: allocations.length,
+    };
+  });
 }
 
 export async function getSubject(id) {
-  return serializeSubject(await Subject.findById(id).lean());
+  const row = await Subject.findById(id).lean();
+  if (!row) return null;
+  const allocationsBySubject = await buildSubjectAllocationsMap([row._id]);
+  const allocations = allocationsBySubject.get(String(row._id)) || [];
+  return {
+    ...serializeSubject(row),
+    allocations,
+    classesCount: allocations.length,
+  };
 }
 
 async function assertSubjectUnique({ name, code, excludeId }) {
