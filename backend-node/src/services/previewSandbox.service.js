@@ -1463,12 +1463,19 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             stack,
           });
           const bodyIsPlaceholder = probe.reason === 'placeholder_or_empty';
-          // Thymeleaf has no React install placeholder — port open + container running means ready.
-          // Host HTTP probes often fail from inside Docker (public IP / Coolify hairpin).
+          // Thymeleaf: unlock on real HTTP/log readiness, or TCP when the body is NOT the
+          // ScholarVerify install placeholder (Spring crashed → serve fallback looks "ready" on TCP).
           const thymeleafPortReady =
-            stack === 'java-spring-thymeleaf' && session.portReachable === true && running;
+            stack === 'java-spring-thymeleaf' &&
+            session.portReachable === true &&
+            running &&
+            !bodyIsPlaceholder &&
+            (probe.ready ||
+              probe.reason === 'http_inconclusive' ||
+              probe.reason === 'http_unreachable' ||
+              logAlreadyReady);
 
-          if (bodyIsPlaceholder && !thymeleafPortReady) {
+          if (bodyIsPlaceholder) {
             // Still the install holder page - keep Open preview locked.
             session.previewAppReady = false;
             session.previewAppReadyReason = 'placeholder_or_empty';
@@ -1481,7 +1488,7 @@ export async function getPreviewSessionForTeacher(teacherId, sessionId) {
             session.previewApiReady =
               probe.apiReady === true || stack === 'java-spring-thymeleaf' || session.previewApiReady === true;
           } else if (logAlreadyReady) {
-            // HTTP probe inconclusive (Coolify networking) but we already unlocked.
+            // HTTP probe inconclusive (Coolify networking) but we already unlocked on a real app.
             session.previewApiReady = probe.apiReady === true || session.previewApiReady === true;
           } else {
             session.previewAppReady = false;

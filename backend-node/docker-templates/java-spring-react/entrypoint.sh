@@ -542,6 +542,33 @@ serve_dir() {
 serve_fallback_forever() {
   release_port_holder
   diagnose_spring_startup_failures /tmp/preview-spring.log
+  if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
+    # Never replace the student Thymeleaf app with the install placeholder — teachers
+    # open the URL and think the app is "still building" forever. Keep retrying Spring.
+    echo "[preview] Thymeleaf: Spring not healthy — retrying Maven/Spring instead of placeholder page"
+    while true; do
+      echo "[preview] retrying Spring backend…"
+      start_spring_backend_async || true
+      if wait_for_spring_briefly; then
+        echo "[preview] Thymeleaf app recovered on :${API_PORT}"
+        while tcp_port_open "$API_PORT"; do
+          if [ -n "${SPRING_BG_PID:-}" ] && ! kill -0 "$SPRING_BG_PID" 2>/dev/null; then
+            if tcp_port_open "$API_PORT"; then
+              sleep 20
+              continue
+            fi
+            break
+          fi
+          sleep 20
+        done
+        echo "[preview] Spring port closed — will retry"
+      else
+        echo "[preview] Spring still not up — see /tmp/preview-spring.log (retry in 30s)"
+        tail -n 15 /tmp/preview-spring.log 2>/dev/null | sed 's/^/[preview:mvn] /' || true
+        sleep 30
+      fi
+    done
+  fi
   run_serve /preview-fallback "${LISTEN}" 1
 }
 
@@ -741,8 +768,11 @@ if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
   # Keep container alive while Maven/Spring runs; poll so we do not exit early.
   while true; do
     if [ -z "${SPRING_BG_PID:-}" ]; then
-      echo "[preview] no Spring PID — falling back"
-      break
+      echo "[preview] no Spring PID — will retry Spring"
+      start_spring_backend_async || true
+      wait_for_spring_briefly || true
+      sleep 10
+      continue
     fi
     if ! kill -0 "$SPRING_BG_PID" 2>/dev/null; then
       # Parent shell may have exited after exec; check if something still listens.
@@ -751,12 +781,15 @@ if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
         while tcp_port_open "$API_PORT"; do
           sleep 20
         done
-        echo "[preview] Spring port closed"
+        echo "[preview] Spring port closed — retrying"
       else
-        echo "[preview] Spring/Maven process exited — see /tmp/preview-spring.log"
+        echo "[preview] Spring/Maven process exited — see /tmp/preview-spring.log — retrying"
         diagnose_spring_startup_failures /tmp/preview-spring.log
       fi
-      break
+      start_spring_backend_async || true
+      wait_for_spring_briefly || true
+      sleep 5
+      continue
     fi
     if tcp_port_open "$API_PORT"; then
       : # healthy
@@ -767,7 +800,6 @@ if [ "$PREVIEW_THYMELEAF_MODE" = "1" ]; then
     fi
     sleep 15
   done
-  serve_fallback_forever
 fi
 
 if [ "$PREVIEW_SPRING_MODE" = "1" ] && [ -n "$SPRING_SUBDIR" ] && [ -n "$FRONTEND_SUBDIR" ]; then

@@ -1866,6 +1866,39 @@ async function runPreviewContainer({
     }
   }
 
+  // Spring Boot (+ React or Thymeleaf): overlay latest entrypoint without rebuilding the base image.
+  if (stack === 'java-spring-react' || stack === 'java-spring-thymeleaf') {
+    const springDir = path.join(TEMPLATES_ROOT, 'java-spring-react');
+    const springEntrySrc = path.join(springDir, 'entrypoint.sh');
+    if (fsSync.existsSync(springEntrySrc)) {
+      try {
+        const stagingDir = previewOverlayStagingDir();
+        if (!isHostVisibleDockerPath(stagingDir)) {
+          logger.warn('preview Spring entrypoint overlay skipped: cache not host-visible');
+        } else {
+          fsSync.mkdirSync(stagingDir, { recursive: true });
+          const lfPath = path.join(
+            stagingDir,
+            `sv-preview-spring-entrypoint-${sanitizeDockerId(containerName)}.sh`
+          );
+          const body = fsSync
+            .readFileSync(springEntrySrc, 'utf8')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n');
+          fsSync.writeFileSync(lfPath, body, { encoding: 'utf8', mode: 0o755 });
+          try {
+            fsSync.chmodSync(lfPath, 0o755);
+          } catch {
+            /* ignore on Windows */
+          }
+          args.push('-v', `${dockerVolumePath(lfPath)}:/preview-entrypoint.sh:ro`);
+        }
+      } catch (err) {
+        logger.warn(`preview Spring entrypoint overlay skipped: ${err.message || err}`);
+      }
+    }
+  }
+
   if (stack === 'php-apache' || stack === 'laravel-react-mysql') {
     const sharedPhpDir = path.join(
       TEMPLATES_ROOT,
@@ -3353,11 +3386,22 @@ export async function waitForPreviewReady({
       if (
         sawPortOpen &&
         stack !== 'node-js' &&
+        stack !== 'node-js-mysql' &&
         stack !== 'static-html' &&
         stack !== 'static-html-js' &&
-        stack !== 'java-spring-react'
+        stack !== 'java-spring-react' &&
+        stack !== 'java-spring-thymeleaf'
       ) {
         return { ready: true, reason: 'tcp' };
+      }
+      // Thymeleaf: TCP alone is not enough — the install placeholder also binds :8080 after a Spring crash.
+      if (stack === 'java-spring-thymeleaf' && sawPortOpen && probe.reason === 'placeholder_or_empty') {
+        // keep waiting / fall through
+      } else if (stack === 'java-spring-thymeleaf' && sawPortOpen && !probe.ready) {
+        // Flaky HTTP from Docker is OK once the port is open AND body is not the placeholder.
+        if (probe.reason === 'http_inconclusive' || probe.reason === 'http_unreachable') {
+          return { ready: true, reason: 'tcp_spring_thymeleaf', apiReady: true };
+        }
       }
     }
 
@@ -3401,11 +3445,24 @@ export async function waitForPreviewReady({
     };
   }
 
-  // Thymeleaf: if the app port eventually opened, treat as ready even if HTTP probe was picky.
+  // Thymeleaf: only unlock on TCP if a final HTTP check is not the install placeholder.
   if (stack === 'java-spring-thymeleaf' && sawPortOpen) {
+    const finalProbe = await checkPreviewAppHttpReady({
+      previewUrl,
+      apiPreviewUrl: '',
+      stack,
+    });
+    if (finalProbe.reason === 'placeholder_or_empty') {
+      return {
+        ready: false,
+        reason: 'placeholder_or_empty',
+        sawPortOpen,
+        logs: lastLogTail,
+      };
+    }
     return {
       ready: true,
-      reason: 'tcp_spring_thymeleaf',
+      reason: finalProbe.ready ? finalProbe.reason : 'tcp_spring_thymeleaf',
       apiReady: true,
       sawPortOpen,
       logs: lastLogTail,
@@ -3459,9 +3516,9 @@ export function detectPreviewReadyFromLogs(logText, stack = 'node-js') {
       /Started\s+\S+Application\s+in\s+/i.test(logText) ||
       /Tomcat started on port/i.test(logText) ||
       /Netty started on port/i.test(logText) ||
-      /\[preview\]\s*Spring( Boot)? (app |Thymeleaf )?listening/i.test(logText) ||
-      /\[preview\]\s*Thymeleaf/i.test(logText) ||
-      /Returned 200/i.test(logText)
+      /\[preview\]\s*Spring is listening/i.test(logText) ||
+      /\[preview\]\s*Thymeleaf app is UP/i.test(logText) ||
+      /\[preview\]\s*Spring( Boot)? (app |Thymeleaf )?listening/i.test(logText)
     ) {
       return { ready: true, reason: 'log_spring_thymeleaf', apiReady: true };
     }
