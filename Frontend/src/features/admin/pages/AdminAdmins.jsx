@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Shield, Loader2, Pencil, Trash2, Plus, Eye, EyeOff, Copy, Check, RefreshCw } from 'lucide-react';
+import { Search, Loader2, Pencil, Trash2, Plus, Eye, EyeOff, Copy, Check, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import adminUserService from '../../../services/adminUserService';
 import { usePageSearch } from '../../../context/shellSearchContext';
@@ -141,186 +141,186 @@ const AdminAdmins = () => {
 
     return (
         <div className="font-sans text-[13px] transition-colors">
-            <div className="flex flex-col md:flex-row items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-3 gap-3">
-                <div className="relative w-full md:w-[280px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                        type="text"
-                        placeholder="Search admins..."
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 outline-none font-medium text-slate-700 dark:text-slate-200"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h1 className="text-lg font-extrabold tracking-tight text-[#0F172A] dark:text-white">Admins</h1>
+                    <p className="mt-0.5 text-[11px] font-semibold text-slate-400">System administrators</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative w-full sm:w-[260px]">
+                        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search"
+                            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#2f4aad]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
                     <Link
                         to="/admin/admins/new"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#2f4aad] px-4 py-2.5 text-[12px] font-bold text-white transition hover:bg-[#263c96]"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New Admin
                     </Link>
-                    <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                        Total: <span className="font-bold text-slate-700 dark:text-slate-200">{filteredAdmins.length}</span>
-                    </div>
-                    <div className="text-right">
-                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Admins</h1>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">System</p>
-                    </div>
                 </div>
             </div>
 
-            <div className="app-table-shell">
-                <div className="app-table-wrap">
-                <table className="app-table">
-                    <thead>
-                        <tr className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">#</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Admin ID</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Email Address</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Passcode</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Status</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Created At</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100/90 dark:divide-slate-800">
-                        {filteredAdmins.length === 0 ? (
-                            <tr>
-                                <td colSpan={7} className="py-8 text-center text-[12px] font-medium text-slate-400 dark:text-slate-500">
-                                    No administrative accounts found.
-                                </td>
+            <div className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 dark:bg-slate-900 dark:ring-white/10">
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[720px] border-collapse text-left">
+                        <thead>
+                            <tr className="border-b border-slate-100 dark:border-white/10">
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">
+                                    <span className="text-[#2f4aad]">Admin</span>
+                                    <span className="text-slate-300"> / ID</span>
+                                </th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Email</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Passcode</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Status</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400">Created</th>
+                                <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 text-right">Actions</th>
                             </tr>
-                        ) : (
-                            filteredAdmins.map((admin, index) => (
-                                <tr key={admin._id} className="transition-colors hover:bg-blue-50/30 dark:hover:bg-[#162033]">
-                                    <td className="px-3 py-2 text-[12px] font-bold text-slate-400 dark:text-slate-500">{index + 1}</td>
-                                    <td className="px-3 py-2">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="bg-blue-50 p-1.5 rounded-md">
-                                                <Shield className="h-3.5 w-3.5 text-[#2f4aad]" />
-                                            </div>
-                                            <span className="text-[12px] font-bold text-slate-800 dark:text-slate-100">{admin.systemId}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-3 py-2">
-                                        {editingId === admin._id ? (
-                                            <input
-                                                type="email"
-                                                value={editEmail}
-                                                onChange={(e) => setEditEmail(e.target.value)}
-                                                className="w-full min-w-[220px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                                            />
-                                        ) : (
-                                            <span className="text-[13px] font-semibold text-slate-600 dark:text-slate-300">{admin.email}</span>
-                                        )}
-                                    </td>
-                                    <td className="px-3 py-2">
-                                        {admin.passcode ? (
-                                            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
-                                                <span className="font-mono text-[12px] font-black tracking-wider text-slate-700 dark:text-slate-200">
-                                                    {revealedPasscodes[admin._id] ? admin.passcode : '••••••'}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleCopyPasscode(admin._id, admin.passcode)}
-                                                    className="text-slate-500 transition-colors hover:text-[#2f4aad] dark:text-slate-400 dark:hover:text-blue-300"
-                                                    title="Copy passcode"
-                                                >
-                                                    {copiedAdminId === admin._id ? (
-                                                        <Check className="h-4 w-4 text-emerald-500" />
-                                                    ) : (
-                                                        <Copy className="h-4 w-4" />
-                                                    )}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => togglePasscode(admin._id)}
-                                                    className="text-slate-500 transition-colors hover:text-[#2f4aad] dark:text-slate-400 dark:hover:text-blue-300"
-                                                    title={revealedPasscodes[admin._id] ? 'Hide passcode' : 'Show passcode'}
-                                                >
-                                                    {revealedPasscodes[admin._id] ? (
-                                                        <EyeOff className="h-4 w-4" />
-                                                    ) : (
-                                                        <Eye className="h-4 w-4" />
-                                                    )}
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleGeneratePasscode(admin._id)}
-                                                disabled={generatingPasscodeId === admin._id}
-                                                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
-                                            >
-                                                {generatingPasscodeId === admin._id ? (
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                    <RefreshCw className="h-3.5 w-3.5" />
-                                                )}
-                                                Generate
-                                            </button>
-                                        )}
-                                    </td>
-                                    <td className="px-3 py-2">
-                                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                                            {admin.accountStatus || 'ACTIVE'}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2">
-                                        <span className="text-[12px] font-semibold text-slate-500 dark:text-slate-400">
-                                            {new Date(admin.createdAt).toLocaleDateString()}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2">
-                                        <div className="flex items-center justify-center gap-2">
-                                            {editingId === admin._id ? (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        onClick={submitEdit}
-                                                        disabled={savingEdit}
-                                                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
-                                                    >
-                                                        {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
-                                                        Save
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={cancelEdit}
-                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => startEdit(admin)}
-                                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                                                    >
-                                                        <Pencil className="h-3.5 w-3.5" /> Update
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDelete(admin._id)}
-                                                        disabled={deletingId === admin._id}
-                                                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-bold text-red-600 hover:bg-red-100 disabled:opacity-60"
-                                                    >
-                                                        {deletingId === admin._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                                        Delete
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
+                        </thead>
+                        <tbody>
+                            {filteredAdmins.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-12 text-center text-[12px] font-medium text-slate-400">
+                                        No administrative accounts found.
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                            ) : (
+                                filteredAdmins.map((admin) => {
+                                    const initial = String(admin.email || admin.systemId || 'A').trim().slice(0, 1).toUpperCase();
+                                    const isEditing = editingId === admin._id;
+                                    return (
+                                        <tr
+                                            key={admin._id}
+                                            className="group border-b border-slate-50 transition-colors last:border-0 hover:bg-[#eef2fb]/70 dark:border-white/5 dark:hover:bg-white/5"
+                                        >
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef2fb] text-[13px] font-extrabold text-[#2f4aad]">
+                                                        {initial}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">
+                                                            {admin.systemId || admin.username || 'Admin'}
+                                                        </p>
+                                                        <p className="truncate text-[11px] font-semibold text-[#2f4aad]">
+                                                            {admin.username || admin.systemId || '—'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                {isEditing ? (
+                                                    <input
+                                                        type="email"
+                                                        value={editEmail}
+                                                        onChange={(e) => setEditEmail(e.target.value)}
+                                                        className="w-full min-w-[200px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                    />
+                                                ) : (
+                                                    <span className="text-[13px] font-medium text-slate-600 dark:text-slate-300">
+                                                        {admin.email}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                {admin.passcode ? (
+                                                    <div className="inline-flex items-center gap-1.5">
+                                                        <span className="font-mono text-[12px] font-bold tracking-wider text-slate-700 dark:text-slate-200">
+                                                            {revealedPasscodes[admin._id] ? admin.passcode : '••••••'}
+                                                        </span>
+                                                        <button type="button" onClick={() => handleCopyPasscode(admin._id, admin.passcode)} className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-[#2f4aad]" title="Copy">
+                                                            {copiedAdminId === admin._id ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                                        </button>
+                                                        <button type="button" onClick={() => togglePasscode(admin._id)} className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-[#2f4aad]" title="Toggle">
+                                                            {revealedPasscodes[admin._id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleGeneratePasscode(admin._id)}
+                                                        disabled={generatingPasscodeId === admin._id}
+                                                        className="inline-flex items-center gap-1 rounded-full bg-[#eef2fb] px-3 py-1.5 text-[11px] font-bold text-[#2f4aad] hover:bg-[#2f4aad] hover:text-white disabled:opacity-60"
+                                                    >
+                                                        {generatingPasscodeId === admin._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                                        Generate
+                                                    </button>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <span className="text-[12px] font-medium text-slate-500">
+                                                    {admin.accountStatus || 'ACTIVE'}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <span className="text-[12px] font-medium text-slate-500">
+                                                    {admin.createdAt ? new Date(admin.createdAt).toLocaleDateString() : '—'}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {isEditing ? (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={submitEdit}
+                                                                disabled={savingEdit}
+                                                                className="rounded-full bg-[#2f4aad] px-4 py-1.5 text-[11px] font-bold text-white hover:bg-[#263c96] disabled:opacity-60"
+                                                            >
+                                                                {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                                                            </button>
+                                                            <button type="button" onClick={cancelEdit} className="rounded-full px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-100">
+                                                                Cancel
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => startEdit(admin)}
+                                                                className="rounded-full bg-[#2f4aad] px-4 py-1.5 text-[11px] font-bold text-white opacity-0 transition group-hover:opacity-100"
+                                                            >
+                                                                View
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => startEdit(admin)}
+                                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300"
+                                                                title="Update"
+                                                            >
+                                                                <Pencil className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDelete(admin._id)}
+                                                                disabled={deletingId === admin._id}
+                                                                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-60 dark:bg-white/10"
+                                                                title="Delete"
+                                                            >
+                                                                {deletingId === admin._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 dark:border-white/10">
+                    <p className="text-[11px] font-medium text-slate-400">
+                        Showing {filteredAdmins.length} of {admins.length}
+                    </p>
+                </div>
             </div>
         </div>
     );
