@@ -143,7 +143,7 @@ const AssignmentDetail = () => {
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-[var(--sv-card)] dark:bg-[#0B1120]">
-            <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+            <Loader2 className="h-10 w-10 text-[#2f4aad] animate-spin" />
         </div>
     );
 
@@ -187,7 +187,7 @@ const AssignmentDetail = () => {
                     <button
                         type="button"
                         onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
-                        className="font-black text-amber-950 underline hover:no-underline dark:text-amber-100"
+                        className="font-bold text-amber-950 underline hover:no-underline dark:text-amber-100"
                     >
                         Edit assignment
                     </button>{' '}
@@ -201,7 +201,7 @@ const AssignmentDetail = () => {
                     <button
                         type="button"
                         onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
-                        className="font-black text-rose-950 underline hover:no-underline dark:text-rose-100"
+                        className="font-bold text-rose-950 underline hover:no-underline dark:text-rose-100"
                     >
                         Edit assignment
                     </button>{' '}
@@ -216,7 +216,7 @@ const AssignmentDetail = () => {
                     <button
                         type="button"
                         onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
-                        className="font-black text-rose-950 underline hover:no-underline dark:text-rose-100"
+                        className="font-bold text-rose-950 underline hover:no-underline dark:text-rose-100"
                     >
                         Edit assignment
                     </button>{' '}
@@ -233,7 +233,7 @@ const AssignmentDetail = () => {
                     </div>
 
                     <div className="flex-1">
-                        <h1 className="text-xl md:text-2xl font-black text-slate-800 dark:text-slate-100 mb-1">
+                        <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 mb-1">
                             {data.title || 'Assignment'}
                         </h1>
                         <p className="text-slate-400 text-sm font-medium mb-4">
@@ -243,14 +243,14 @@ const AssignmentDetail = () => {
                             <button
                                 type="button"
                                 onClick={() => navigate(`/teacher/assignments/${id}/edit`)}
-                                className="inline-flex items-center gap-2 text-sm font-black text-[#1D68E3] hover:underline"
+                                className="inline-flex items-center gap-2 text-sm font-bold text-[#2f4aad] hover:underline"
                             >
                                 <Pencil className="h-4 w-4" />
                                 Edit assignment
                             </button>
                             <Link
                                 to={`/teacher/assignments/${id}/proposals`}
-                                className="inline-flex items-center gap-2 text-sm font-black text-[#1D68E3] hover:underline"
+                                className="inline-flex items-center gap-2 text-sm font-bold text-[#2f4aad] hover:underline"
                             >
                                 <ClipboardCheck className="h-4 w-4" />
                                 Review proposals
@@ -258,7 +258,7 @@ const AssignmentDetail = () => {
                             {isNormalAssignment && (
                                 <Link
                                     to={`/teacher/assignments/${id}/normal-students`}
-                                    className="inline-flex items-center gap-2 text-sm font-black text-slate-600 dark:text-slate-300 hover:underline"
+                                    className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300 hover:underline"
                                 >
                                     <Users className="h-4 w-4" />
                                     Student cards & extracted text
@@ -276,7 +276,7 @@ const AssignmentDetail = () => {
                             <div className={`flex items-center gap-2 ${isPast(deadline) ? 'text-rose-400' : 'text-slate-500'}`}>
                                 <Calendar className="h-4 w-4" />
                                 <span>Deadline: {deadline ? formatDate(deadline) : 'None'}</span>
-                                {isPast(deadline) && <span className="text-xs bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-full font-black">Closed</span>}
+                                {isPast(deadline) && <span className="text-xs bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-full font-bold">Closed</span>}
                             </div>
                         </div>
                     </div>
@@ -287,7 +287,7 @@ const AssignmentDetail = () => {
                             download={data.originalFileName || true}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-2 bg-[#1D68E3] text-white font-bold text-sm px-5 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 whitespace-nowrap self-start"
+                            className="flex items-center gap-2 bg-[#2f4aad] text-white font-bold text-sm px-5 py-3 rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 whitespace-nowrap self-start"
                         >
                             <Download className="h-4 w-4" /> Download requirements
                         </a>
@@ -297,12 +297,12 @@ const AssignmentDetail = () => {
                 {/* Assignment content the teacher created (same info students see) */}
                 <div className="mt-6 rounded-2xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card-muted)] dark:bg-white/[0.03] p-4 md:p-5 space-y-4">
                     <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">Your assignment details</h2>
-                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">Your assignment details</h2>
+                        <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-white/10 text-slate-600 dark:text-slate-300">
                             {isNormalAssignment ? 'Normal' : 'Final'}
                         </span>
                         {data.submissionMode ? (
-                            <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-300">
+                            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-300">
                                 {data.submissionMode === 'group' ? 'Group' : 'Single'}
                             </span>
                         ) : null}
@@ -310,14 +310,14 @@ const AssignmentDetail = () => {
 
                     {data.description ? (
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Description</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Description</p>
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{data.description}</p>
                         </div>
                     ) : null}
 
                     {data.requirementText ? (
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
                                 {isNormalAssignment ? 'Instructions for students' : 'Teacher requirements'}
                             </p>
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{data.requirementText}</p>
@@ -326,23 +326,23 @@ const AssignmentDetail = () => {
 
                     {!isNormalAssignment && Array.isArray(data.allowedTechnologies) && data.allowedTechnologies.length > 0 ? (
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Allowed technologies</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Allowed technologies</p>
                             <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{data.allowedTechnologies.join(', ')}</p>
                         </div>
                     ) : null}
 
                     {!isNormalAssignment && Array.isArray(data.requiredKeywords) && data.requiredKeywords.length > 0 ? (
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Required keywords</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Required keywords</p>
                             <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{data.requiredKeywords.join(', ')}</p>
                         </div>
                     ) : null}
 
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Requirements file</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Requirements file</p>
                         {data.assignmentFile ? (
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0B1120] px-3 py-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-[#1D68E3]">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-[#2f4aad]">
                                     <FileText className="h-5 w-5" />
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -356,7 +356,7 @@ const AssignmentDetail = () => {
                                     download={data.originalFileName || true}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#1D68E3] px-3.5 py-2 text-xs font-black text-white hover:bg-blue-700"
+                                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#2f4aad] px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-700"
                                 >
                                     <Download className="h-3.5 w-3.5" />
                                     Download
@@ -366,7 +366,7 @@ const AssignmentDetail = () => {
                             <p className="text-xs font-bold text-slate-400">No requirements file uploaded yet.</p>
                         )}
                         <div className="mt-3 flex flex-wrap items-center gap-3">
-                            <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] dark:border-white/10 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-[var(--sv-card)] dark:hover:bg-white/5">
+                            <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--sv-border)] dark:border-white/10 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-[var(--sv-card)] dark:hover:bg-white/5">
                                 {uploadingRequirement
                                     ? 'Uploading...'
                                     : data.assignmentFile
@@ -384,11 +384,11 @@ const AssignmentDetail = () => {
 
                 {isNormalAssignment && normalBundle?.plagiarismExplained && (
                     <div className="mt-6 rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/90 dark:bg-blue-950/25 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-300 leading-relaxed">
-                        <span className="font-black text-[var(--sv-text)] dark:text-white">Normal assignment & plagiarism: </span>
+                        <span className="font-bold text-[var(--sv-text)] dark:text-white">Normal assignment & plagiarism: </span>
                         {normalBundle.plagiarismExplained}
                         {Number(normalBundle.flaggedCount) > 0 && (
                             <span className="block mt-2 font-bold text-rose-700 dark:text-rose-400">
-                                {normalBundle.flaggedCount} submission(s) flagged (≥85% similarity vs another student on this same assignment).
+                                {normalBundle.flaggedCount} submission(s) flagged (â‰¥85% similarity vs another student on this same assignment).
                             </span>
                         )}
                     </div>
@@ -397,10 +397,10 @@ const AssignmentDetail = () => {
                 {/* Progress Bar */}
                 <div className="mt-6 pt-6 border-t border-[var(--sv-border)] dark:border-white/5">
                     <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
                             {isNormalAssignment ? 'Normal assignment uploads (one file per student)' : 'File submission progress'}
                         </span>
-                        <span className="text-sm font-black text-slate-700 dark:text-slate-200">{submittedCount} / {total} students</span>
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{submittedCount} / {total} students</span>
                     </div>
                     <div className="h-2.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
                         <div
@@ -426,7 +426,7 @@ const AssignmentDetail = () => {
                         <div className={`inline-flex p-2.5 rounded-xl mb-3 bg-${stat.color}-500/10 text-${stat.color}-400`}>
                             {stat.icon}
                         </div>
-                        <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{stat.value}</p>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{stat.value}</p>
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">{stat.label}</p>
                     </div>
                 ))}
@@ -438,7 +438,7 @@ const AssignmentDetail = () => {
                     <button
                         key={tab}
                         onClick={() => setFilter(tab)}
-                        className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${filter === tab ? 'bg-[#1D68E3] text-white shadow-lg shadow-blue-500/20' : 'bg-[var(--sv-card)] dark:bg-[#0F172A] text-slate-500 border border-[var(--sv-border)] dark:border-white/5 hover:border-blue-400'}`}
+                        className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${filter === tab ? 'bg-[#2f4aad] text-white shadow-lg shadow-blue-500/20' : 'bg-[var(--sv-card)] dark:bg-[#0F172A] text-slate-500 border border-[var(--sv-border)] dark:border-white/5 hover:border-blue-400'}`}
                     >
                         {tab === 'all' ? `All (${total})` : tab === 'submitted' ? `Submitted (${submittedCount})` : `Pending (${pending.length})`}
                     </button>
@@ -449,7 +449,7 @@ const AssignmentDetail = () => {
             <div className="app-table-shell shadow-xl relative">
                 {loadingNormal && isNormalAssignment && (
                     <div className="absolute inset-0 z-10 bg-white/70 dark:bg-[#0B1120]/70 flex items-center justify-center rounded-[inherit]">
-                        <Loader2 className="h-8 w-8 text-[#1D68E3] animate-spin" />
+                        <Loader2 className="h-8 w-8 text-[#2f4aad] animate-spin" />
                     </div>
                 )}
                 <div className="app-table-wrap">
@@ -477,8 +477,8 @@ const AssignmentDetail = () => {
                                             ? 'Loading class roster and submissions…'
                                             : total === 0
                                                 ? isNormalAssignment
-                                                    ? 'No students matched this assignment’s class(es). Check that student profiles use the correct class code, or wait for uploads.'
-                                                    : 'No per-student file roster is loaded for this assignment. Use “Review proposals” for proposal workflow status.'
+                                                    ? 'No students matched this assignment's class(es). Check that student profiles use the correct class code, or wait for uploads.'
+                                                    : 'No per-student file roster is loaded for this assignment. Use "Review proposals" for proposal workflow status.'
                                                 : 'No students in this view.'}
                                     </td>
                                 </tr>
@@ -488,7 +488,7 @@ const AssignmentDetail = () => {
                                         {/* Name */}
                                         <td className="app-table-td">
                                             <div className="flex items-center gap-3">
-                                                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-black">
+                                                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
                                                     {s.studentName?.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="flex flex-col">
@@ -501,18 +501,18 @@ const AssignmentDetail = () => {
                                         </td>
                                         {/* Class */}
                                         <td className="app-table-td">
-                                            <span className="text-xs font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full">
+                                            <span className="text-xs font-bold uppercase tracking-widest bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full">
                                                 {s.classId}
                                             </span>
                                         </td>
                                         {/* Status */}
                                         <td className="app-table-td">
                                             {s.submitted ? (
-                                                <span className="flex items-center gap-1.5 text-xs font-black text-emerald-500">
+                                                <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500">
                                                     <CheckCircle2 className="h-3.5 w-3.5" /> Submitted
                                                 </span>
                                             ) : (
-                                                <span className="flex items-center gap-1.5 text-xs font-black text-amber-500">
+                                                <span className="flex items-center gap-1.5 text-xs font-bold text-amber-500">
                                                     <Clock className="h-3.5 w-3.5" /> Pending
                                                 </span>
                                             )}
@@ -522,7 +522,7 @@ const AssignmentDetail = () => {
                                                 <td className="app-table-td text-sm">
                                                     {s.submitted ? (
                                                         <span
-                                                            className={`font-black ${s.plagiarismFlag ? 'text-rose-600' : 'text-slate-600'}`}
+                                                            className={`font-bold ${s.plagiarismFlag ? 'text-rose-600' : 'text-slate-600'}`}
                                                             title={s.plagiarismMethod || ''}
                                                         >
                                                             {Math.round((Number(s.plagiarismScore ?? 0)) * 100)}%
@@ -551,7 +551,7 @@ const AssignmentDetail = () => {
                                                     download
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="flex items-center gap-1.5 text-xs font-black text-[#1D68E3] hover:text-blue-700 transition-colors"
+                                                    className="flex items-center gap-1.5 text-xs font-bold text-[#2f4aad] hover:text-blue-700 transition-colors"
                                                 >
                                                     <Download className="h-3.5 w-3.5" />
                                                     {s.originalFileName || 'Download'}
@@ -572,21 +572,21 @@ const AssignmentDetail = () => {
             <div className="mt-6 bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-[28px] border border-[var(--sv-border)] dark:border-white/5 p-6 md:p-7 shadow-xl">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
                     <div>
-                        <h2 className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100">Student proposals</h2>
+                        <h2 className="text-lg font-bold text-[var(--sv-text)] dark:text-slate-100">Student proposals</h2>
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
                             Open each student for full review - extracted-style proposal text, AI signals, and approve / revision / reject.
                         </p>
                     </div>
                     <Link
                         to={`/teacher/assignments/${id}/proposals`}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1D68E3] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2f4aad] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
                     >
                         Open full proposal roster
                     </Link>
                 </div>
                 {loadingProposals ? (
                     <div className="py-8 flex items-center justify-center">
-                        <Loader2 className="h-6 w-6 text-[#1D68E3] animate-spin" />
+                        <Loader2 className="h-6 w-6 text-[#2f4aad] animate-spin" />
                     </div>
                 ) : proposals.length === 0 ? (
                     <p className="text-sm font-semibold text-slate-500">No proposals submitted yet for this assignment.</p>
@@ -600,11 +600,11 @@ const AssignmentDetail = () => {
                                         onClick={() => navigate(`/teacher/assignments/${id}/proposals/${p._id}`)}
                                         className="flex w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/5 md:px-5"
                                     >
-                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1D68E3] to-[#3b74ff] text-sm font-bold text-white">
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2f4aad] to-[#3b74ff] text-sm font-bold text-white">
                                             {(p.submittedBy?.name || p.submittedBy?.email || '?').charAt(0).toUpperCase()}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-black text-[var(--sv-text)] dark:text-slate-100">{proposalStudentLabel(p)}</p>
+                                            <p className="text-sm font-bold text-[var(--sv-text)] dark:text-slate-100">{proposalStudentLabel(p)}</p>
                                             <p className="text-xs font-semibold text-slate-500 truncate">{p.title || 'Untitled proposal'}</p>
                                         </div>
                                         <span className="hidden sm:inline text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">

@@ -31,12 +31,12 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                     onOpen();
                 }
             }}
-            className="group relative flex flex-col rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:border-[#1D68E3]/40 hover:shadow-md cursor-pointer dark:border-slate-700 dark:bg-slate-900"
+            className="group relative flex flex-col rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:border-[#2f4aad]/40 hover:shadow-md cursor-pointer dark:border-slate-700 dark:bg-slate-900"
         >
             <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span
-                        className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                        className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                             isFinal
                                 ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300'
                                 : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
@@ -45,7 +45,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                         {isFinal ? 'Final' : 'Normal'}
                     </span>
                     {a.isCollaborative && (
-                        <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                        <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
                             Collab
                         </span>
                     )}
@@ -61,7 +61,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                             e.stopPropagation();
                             onEdit(e);
                         }}
-                        className="rounded p-1 text-slate-400 opacity-0 transition-all hover:bg-blue-50 hover:text-[#1D68E3] group-hover:opacity-100"
+                        className="rounded p-1 text-slate-400 opacity-0 transition-all hover:bg-blue-50 hover:text-[#2f4aad] group-hover:opacity-100"
                         aria-label="Edit assignment settings"
                         title="Edit assignment"
                     >
@@ -84,12 +84,12 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                 </div>
             </div>
 
-            <h3 className="mb-2 line-clamp-2 text-[13px] font-black leading-snug text-slate-900 dark:text-slate-100">
+            <h3 className="mb-2 line-clamp-2 text-[13px] font-bold leading-snug text-slate-900 dark:text-slate-100">
                 {a.title}
             </h3>
 
             <div className="mb-2 flex flex-wrap gap-1">
-                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-[#1D68E3] dark:bg-blue-500/10">
+                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-[#2f4aad] dark:bg-blue-500/10">
                     {a.subject?.code || '-'}
                 </span>
                 {a.isCollaborative && a.collaborationReviewRole && (
@@ -119,7 +119,7 @@ function AssignmentCard({ assignment: a, onOpen, onEdit, onDelete, showDelete })
                 ) : (
                     <span className="text-[10px] font-semibold text-slate-500">File upload</span>
                 )}
-                <ChevronRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#1D68E3]" />
+                <ChevronRight className="h-4 w-4 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-[#2f4aad]" />
             </div>
         </div>
     );
@@ -376,20 +376,20 @@ const Assignments = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] flex-col items-center justify-center">
-                <Loader2 className="mb-2 h-7 w-7 animate-spin text-[#1D68E3]" />
+                <Loader2 className="mb-2 h-7 w-7 animate-spin text-[#2f4aad]" />
                 <p className="text-[12px] font-medium text-slate-500">Loading assignments...</p>
             </div>
         );
     }
 
     return (
-        <div className="font-sans text-[13px]">
-            <div className="mb-3 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-[13px] antialiased [font-family:var(--sv-font-sans)]">
+            <div className="mb-3 flex flex-col gap-3 border-b border-[#d5dcf0] pb-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-base font-extrabold leading-none text-slate-900 dark:text-white">
+                    <h1 className="text-[1.15rem] font-bold leading-[1.2] tracking-tight text-[#2f4aad] sm:text-[1.25rem]">
                         Assignments
                     </h1>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
+                    <p className="mt-0.5 text-[12px] font-normal text-[#647092]">
                         Proposals first, then project uploads after approval.
                     </p>
                 </div>
@@ -433,7 +433,7 @@ const Assignments = () => {
                         <UserPlus className="h-3.5 w-3.5" /> Collab
                         {collabPendingCount > 0 && (
                             <span
-                                className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-white ring-2 ring-white dark:ring-slate-900"
+                                className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900"
                                 title={`${collabPendingCount} pending collaboration request${collabPendingCount === 1 ? '' : 's'}`}
                             >
                                 {collabPendingCount > 9 ? '9+' : collabPendingCount}
@@ -453,24 +453,24 @@ const Assignments = () => {
             {classes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
                     <ClipboardList className="mb-2 h-8 w-8 text-blue-400" />
-                    <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">No classes assigned yet</h3>
+                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">No classes assigned yet</h3>
                     <p className="mt-1 text-[11px] text-slate-500">Ask admin to assign classes and subjects first.</p>
                 </div>
             ) : filteredClasses.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
                     <ClipboardList className="mb-2 h-8 w-8 text-slate-300" />
-                    <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">No classes in this year</h3>
+                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">No classes in this year</h3>
                     <p className="mt-1 text-[11px] text-slate-500">Try another year or clear the year filter.</p>
                 </div>
             ) : (
                 <>
                     <div className="mb-3 space-y-3">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
                             My classes
                         </p>
                         {classesGroupedByTerm.map((group) => (
                             <div key={group.key}>
-                                <p className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                                     {group.heading}
                                 </p>
                                 <div className="flex flex-wrap gap-1.5">
@@ -485,11 +485,11 @@ const Assignments = () => {
                                                 onClick={() => selectClassTab(cid)}
                                                 className={`rounded-lg border px-2.5 py-1.5 text-left transition-all ${
                                                     active
-                                                        ? 'border-[#1D68E3] bg-blue-50 text-[#1D68E3] dark:bg-blue-500/10'
+                                                        ? 'border-[#2f4aad] bg-blue-50 text-[#2f4aad] dark:bg-blue-500/10'
                                                         : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
                                                 }`}
                                             >
-                                                <span className="block text-[11px] font-black leading-none">{cls.code}</span>
+                                                <span className="block text-[11px] font-bold leading-none">{cls.code}</span>
                                                 <span className="mt-0.5 block max-w-[140px] truncate text-[9px] font-medium opacity-80">
                                                     {count} assignment{count === 1 ? '' : 's'}
                                                 </span>
@@ -503,7 +503,7 @@ const Assignments = () => {
 
                     {activeClass && (
                         <p className="mb-3 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                            <span className="font-black text-slate-800 dark:text-slate-200">{activeClass.code}</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{activeClass.code}</span>
                             {' - '}
                             {activeClass.title}
                         </p>
@@ -512,7 +512,7 @@ const Assignments = () => {
                     {activeClassAssignments.length === 0 ? (
                         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-10 dark:border-slate-700 dark:bg-slate-900">
                             <FileText className="mb-2 h-7 w-7 text-slate-300" />
-                            <h3 className="text-sm font-black text-slate-700 dark:text-slate-200">
+                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
                                 {rawActiveClassAssignments.length > 0 && searchQuery.trim()
                                     ? 'No assignments match your search'
                                     : 'No assignments in this class'}
@@ -527,7 +527,7 @@ const Assignments = () => {
                         <div className="space-y-4">
                             <section>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                                         Final assignments
                                     </p>
                                     <span className="text-[10px] font-bold text-slate-400">
@@ -556,7 +556,7 @@ const Assignments = () => {
 
                             <section>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                                         Normal assignments
                                     </p>
                                     <span className="text-[10px] font-bold text-slate-400">
@@ -589,7 +589,7 @@ const Assignments = () => {
 
             {classes.length > 0 && assignments.length === 0 && (
                 <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-center text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900">
-                    No assignments yet - click <span className="font-black text-[#1D68E3]">New</span> to start.
+                    No assignments yet - click <span className="font-bold text-[#2f4aad]">New</span> to start.
                 </div>
             )}
         </div>

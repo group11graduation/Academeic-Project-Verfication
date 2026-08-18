@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 import ClassCard from '../components/ClassCard';
+import TeacherPage from '../components/TeacherPage';
 import { useShellSearchFilter } from '../../../context/shellSearchContext';
 import { matchesSearchQuery } from '../../../shared/utils/searchUtils';
+import { TEACHER_PRIMARY } from '../ui/teacherTheme';
 
 const ManageClasses = () => {
     const [classes, setClasses] = useState([]);
@@ -18,7 +20,7 @@ const ManageClasses = () => {
                     setClasses(response.data);
                 }
             } catch (error) {
-                console.error("Failed to fetch classes:", error);
+                console.error('Failed to fetch classes:', error);
             } finally {
                 setLoading(false);
             }
@@ -70,29 +72,26 @@ const ManageClasses = () => {
 
     if (loading) {
         return (
-            <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin mb-2" />
-                <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading classes...</p>
+            <div className="flex min-h-[40vh] flex-col items-center justify-center [font-family:var(--sv-font-sans)]">
+                <Loader2 className="mb-2 h-6 w-6 animate-spin" style={{ color: TEACHER_PRIMARY }} />
+                <p className="text-[12px] font-medium text-slate-500">Loading classes...</p>
             </div>
         );
     }
 
     return (
-        <div className="font-sans text-[13px] transition-colors">
-            {/* Header */}
-            <header className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
-                <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">My Classes</h1>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Assigned classes grouped by academic year and semester.</p>
-            </header>
-
+        <TeacherPage
+            title="My Classes"
+            subtitle="Assigned classes grouped by academic year and semester."
+        >
             {filteredClasses.length > 0 ? (
                 <div className="space-y-5">
                     {classesGroupedByTerm.map((group) => (
                         <section key={group.key}>
-                            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.5px] text-slate-500">
                                 {group.heading}
                             </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {group.classes.map((cls, index) => (
                                     <ClassCard
                                         key={cls._id || index}
@@ -109,15 +108,15 @@ const ManageClasses = () => {
                     ))}
                 </div>
             ) : classes.length > 0 ? (
-                <div className="col-span-full text-center py-8 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl transition-colors">
-                    <p className="text-[12px] text-slate-500 dark:text-slate-400 font-bold">No classes match your search.</p>
+                <div className="rounded-xl border border-dashed border-[#d5dcf0] bg-[#f8f9fd] py-8 text-center">
+                    <p className="text-[12px] font-medium text-slate-500">No classes match your search.</p>
                 </div>
             ) : (
-                <div className="col-span-full text-center py-8 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl transition-colors">
-                    <p className="text-[12px] text-slate-500 dark:text-slate-400 font-bold">You have no active classes assigned.</p>
+                <div className="rounded-xl border border-dashed border-[#d5dcf0] bg-[#f8f9fd] py-8 text-center">
+                    <p className="text-[12px] font-medium text-slate-500">You have no active classes assigned.</p>
                 </div>
             )}
-        </div>
+        </TeacherPage>
     );
 };
 

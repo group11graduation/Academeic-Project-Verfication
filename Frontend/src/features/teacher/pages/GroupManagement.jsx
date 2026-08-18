@@ -176,7 +176,7 @@ const GroupManagement = () => {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0B1120]">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+                <Loader2 className="h-10 w-10 text-[#2f4aad] animate-spin" />
             </div>
         );
     }
@@ -186,10 +186,10 @@ const GroupManagement = () => {
             {/* Breadcrumbs & Utility Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div className="space-y-2">
-                    <nav className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-4">
-                        <Link to="/teacher/classes" className="hover:text-[#1D68E3] transition-colors">Classes</Link>
+                    <nav className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-4">
+                        <Link to="/teacher/classes" className="hover:text-[#2f4aad] transition-colors">Classes</Link>
                         <ChevronRight className="h-3 w-3" />
-                        <Link to={`/teacher/classes/${classCode}`} className="hover:text-[#1D68E3] transition-colors">{classCode}</Link>
+                        <Link to={`/teacher/classes/${classCode}`} className="hover:text-[#2f4aad] transition-colors">{classCode}</Link>
                         <ChevronRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />
                         <span className="text-slate-700 dark:text-slate-100">Project Assignments</span>
                     </nav>
@@ -200,7 +200,7 @@ const GroupManagement = () => {
                         >
                             <ArrowLeft className="h-5 w-5 group-hover:-translate-x-0.5 transition-transform" />
                         </Link>
-                        <h1 className="text-3xl md:text-5xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                        <h1 className="text-3xl md:text-5xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
                             Group Management
                         </h1>
                     </div>
@@ -219,7 +219,7 @@ const GroupManagement = () => {
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="bg-[#1D68E3] text-white p-3.5 rounded-2xl shadow-lg shadow-blue-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                        className="bg-[#2f4aad] text-white p-3.5 rounded-2xl shadow-lg shadow-blue-500/20 hover:scale-[1.05] active:scale-[0.95] transition-all"
                         title="Regenerate Groups"
                     >
                         <RotateCw className="h-5 w-5" />
@@ -243,7 +243,7 @@ const GroupManagement = () => {
                     >
                         <X className="h-4 w-4" />
                     </button>
-                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-3">Import result</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 mb-3">Import result</p>
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
                         Created {importSummary.createdGroups?.length ?? 0} group(s).
                         {importSummary.orphanGroupsRemoved > 0
@@ -273,7 +273,7 @@ const GroupManagement = () => {
 
             <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-4 mb-10">
                 <div className="w-full min-w-0 flex-1 sm:min-w-[220px]">
-                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-2 block">
+                    <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-2 block">
                         Group assignment (export / import / generate)
                     </label>
                     <select
@@ -302,7 +302,7 @@ const GroupManagement = () => {
                     type="button"
                     onClick={handleExportCsv}
                     disabled={!selectedAssignmentId || exportingFile || importingFile}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-black text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-bold text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
                 >
                     {exportingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     Export CSV
@@ -311,7 +311,7 @@ const GroupManagement = () => {
                     type="button"
                     onClick={handleExportXlsx}
                     disabled={!selectedAssignmentId || exportingFile || importingFile}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-black text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-bold text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
                 >
                     {exportingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     Export Excel
@@ -320,7 +320,7 @@ const GroupManagement = () => {
                     type="button"
                     onClick={() => importInputRef.current?.click()}
                     disabled={!selectedAssignmentId || importingFile || exportingFile}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-black text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] text-slate-700 dark:text-slate-100 font-bold text-xs uppercase tracking-wider hover:border-blue-300 disabled:opacity-40"
                 >
                     {importingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
                     Import file
@@ -331,17 +331,17 @@ const GroupManagement = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                 <div className="bg-white dark:bg-[#0F172A] p-8 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-2xl transition-all group overflow-hidden relative">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
-                    <p className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Total Groups</p>
+                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Total Groups</p>
                     <div className="flex items-baseline gap-2">
-                        <h3 className="text-4xl font-black text-slate-800 dark:text-slate-100 transition-colors">{groups.length}</h3>
-                        <div className="text-[10px] font-black px-2 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">ACTIVE</div>
+                        <h3 className="text-4xl font-bold text-slate-800 dark:text-slate-100 transition-colors">{groups.length}</h3>
+                        <div className="text-[10px] font-bold px-2 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">ACTIVE</div>
                     </div>
                 </div>
 
                 <div className="bg-white dark:bg-[#0F172A] p-8 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-2xl transition-all group overflow-hidden relative">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
-                    <p className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Avg. Size</p>
-                    <h3 className="text-4xl font-black text-slate-800 dark:text-slate-100 transition-colors">
+                    <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Avg. Size</p>
+                    <h3 className="text-4xl font-bold text-slate-800 dark:text-slate-100 transition-colors">
                         {groups.length > 0 ? (groups.reduce((acc, g) => acc + g.members.length, 0) / groups.length).toFixed(1) : 0}
                     </h3>
                 </div>
@@ -350,13 +350,13 @@ const GroupManagement = () => {
                     <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 rounded-full -mr-24 -mt-24 transition-transform group-hover:scale-110" />
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 h-full">
                         <div>
-                            <p className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">AI Status</p>
-                            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 transition-colors leading-tight">
+                            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">AI Status</p>
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 transition-colors leading-tight">
                                 Proctored Analysis Complete
                             </h3>
                         </div>
                         <div className="flex items-center gap-2 bg-amber-500/10 text-amber-600 dark:text-amber-500 px-4 py-2 rounded-xl border border-amber-100 dark:border-amber-900/30">
-                            <span className="text-[11px] font-black uppercase tracking-wider">Similarity scores verified</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider">Similarity scores verified</span>
                         </div>
                     </div>
                 </div>
@@ -371,11 +371,11 @@ const GroupManagement = () => {
                                     <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600 dark:text-blue-400">
                                         {group.type === 'individual' ? <User className="h-4 w-4" /> : <Users className="h-4 w-4" />}
                                     </div>
-                                    <h4 className="text-sm font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">
+                                    <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
                                         {group.type === 'individual' ? 'Individual' : `Group ${group.assignmentNumber}`}
                                     </h4>
                                 </div>
-                                <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest ${
+                                <span className={`px-3 py-1.5 rounded-xl text-[10px] font-bold tracking-widest ${
                                     group.status === 'SUBMITTED' ? 'bg-orange-500/10 text-orange-600 dark:text-orange-500' :
                                     group.status === 'DRAFT' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
                                     'bg-slate-100 dark:bg-[#0B1120] text-slate-400 dark:text-slate-600'
@@ -383,16 +383,16 @@ const GroupManagement = () => {
                                     {group.status}
                                 </span>
                             </div>
-                            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-8 leading-tight min-h-[56px] transition-colors line-clamp-2">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-8 leading-tight min-h-[56px] transition-colors line-clamp-2">
                                 {group.title}
                             </h3>
 
                              <div className="space-y-4 pt-6 border-t border-slate-100 dark:border-white/5">
-                                <p className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-600 tracking-[0.2em] mb-4">Group Members</p>
+                                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-600 tracking-[0.2em] mb-4">Group Members</p>
                                 <div className="space-y-4">
                                     {group.members.map((member, i) => (
                                         <div key={i} className="flex items-center gap-4 group/member">
-                                            <div className="w-10 h-10 rounded-[12px] bg-slate-50 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 flex items-center justify-center text-[12px] font-black text-slate-700 dark:text-slate-100 shrink-0 overflow-hidden shadow-sm group-hover/member:border-blue-500/20">
+                                            <div className="w-10 h-10 rounded-[12px] bg-slate-50 dark:bg-[#0B1120] border border-slate-100 dark:border-white/5 flex items-center justify-center text-[12px] font-bold text-slate-700 dark:text-slate-100 shrink-0 overflow-hidden shadow-sm group-hover/member:border-blue-500/20">
                                                 {member.photo && member.photo !== 'default-student.jpg' ? (
                                                     <img
                                                         src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)}
@@ -405,7 +405,7 @@ const GroupManagement = () => {
                                             </div>
                                             <span className="text-[15px] font-bold text-slate-500 dark:text-slate-400 group-hover/member:text-blue-600 dark:group-hover/member:text-blue-400">
                                                 {member.isLeader ? (
-                                                    <span className="mr-2 text-[10px] font-black uppercase tracking-wide text-[#1D68E3] dark:text-blue-400">
+                                                    <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-[#2f4aad] dark:text-blue-400">
                                                         Leader
                                                     </span>
                                                 ) : null}
@@ -419,14 +419,14 @@ const GroupManagement = () => {
 
                         <div className="mt-auto px-8 py-6 bg-slate-50 dark:bg-[#0B1120] border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
                             <div className="space-y-1">
-                                <p className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-600 tracking-widest">Similarity</p>
+                                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-600 tracking-widest">Similarity</p>
                                 <div className="flex items-center gap-2">
                                     <div className={`h-2 w-2 rounded-full ${
                                         group.similarityLevel === 'Low' ? 'bg-emerald-500' :
                                         group.similarityLevel === 'High' ? 'bg-rose-600' :
                                         'bg-amber-500'
                                     }`} />
-                                    <p className={`text-base font-black tracking-tight ${
+                                    <p className={`text-base font-bold tracking-tight ${
                                         group.similarityLevel === 'Low' ? 'text-emerald-500' :
                                         group.similarityLevel === 'High' ? 'text-rose-600' :
                                         'text-amber-500'
@@ -447,7 +447,7 @@ const GroupManagement = () => {
                         <div className="p-6 bg-slate-50 dark:bg-[#0B1120] rounded-[32px] mb-6 shadow-xl border border-slate-100 dark:border-white/5">
                             <Plus className="h-12 w-12 text-slate-300 dark:text-slate-600" />
                         </div>
-                        <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 transition-colors">
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 transition-colors">
                             {groups.length === 0 ? 'No Projects Generated' : 'No groups match your search'}
                         </h3>
                         <p className="text-slate-500 dark:text-slate-400 font-bold max-w-[300px] transition-colors">
@@ -466,7 +466,7 @@ const GroupManagement = () => {
                     <div className="bg-white dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] w-full max-w-[540px] relative z-10 shadow-2xl border border-slate-100 dark:border-white/5 transition-colors overflow-hidden animate-in fade-in zoom-in duration-300">
                         <div className="p-4 sm:p-6 lg:p-10 border-b border-slate-100 dark:border-white/5 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center bg-slate-50/50 dark:bg-[#0B1120]/50">
                             <div>
-                                <h3 className="text-2xl font-black text-[#0F172A] dark:text-white transition-colors tracking-tight">Regenerate Assignments</h3>
+                                <h3 className="text-2xl font-bold text-[#0F172A] dark:text-white transition-colors tracking-tight">Regenerate Assignments</h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-400 font-bold mt-1">Configure your project workflow</p>
                             </div>
                             <button onClick={() => setIsModalOpen(false)} className="p-3 bg-white dark:bg-[#0B1120] text-slate-400 dark:text-slate-500 hover:text-rose-500 transition-colors rounded-2xl shadow-sm border border-slate-100 dark:border-white/5">
@@ -476,7 +476,7 @@ const GroupManagement = () => {
                         <div className="p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-10">
                             {groupAssignments.length > 0 && (
                                 <div>
-                                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3 block transition-colors">
+                                    <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3 block transition-colors">
                                         Assignment
                                     </label>
                                     <select
@@ -496,18 +496,18 @@ const GroupManagement = () => {
                                 </p>
                             )}
                             <div>
-                                <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 block transition-colors">Project Type</label>
+                                <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 block transition-colors">Project Type</label>
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
                                     <button
                                         onClick={() => setGenType('group')}
-                                        className={`p-8 rounded-[32px] border-2 font-black transition-all group relative overflow-hidden ${genType === 'group' ? 'border-[#1D68E3] bg-[#1D68E3] text-white shadow-xl shadow-blue-500/30' : 'border-slate-100 dark:border-white/5 text-slate-500 hover:border-slate-200 dark:hover:border-white/10 bg-white dark:bg-[#0B1120]'}`}
+                                        className={`p-8 rounded-[32px] border-2 font-bold transition-all group relative overflow-hidden ${genType === 'group' ? 'border-[#2f4aad] bg-[#2f4aad] text-white shadow-xl shadow-blue-500/30' : 'border-slate-100 dark:border-white/5 text-slate-500 hover:border-slate-200 dark:hover:border-white/10 bg-white dark:bg-[#0B1120]'}`}
                                     >
                                         <Users className={`h-6 w-6 mb-3 mx-auto ${genType === 'group' ? 'text-white' : 'text-slate-400'}`} />
                                         <span className="block text-sm uppercase tracking-widest">Group</span>
                                     </button>
                                     <button
                                         onClick={() => setGenType('individual')}
-                                        className={`p-8 rounded-[32px] border-2 font-black transition-all group relative overflow-hidden ${genType === 'individual' ? 'border-[#1D68E3] bg-[#1D68E3] text-white shadow-xl shadow-blue-500/30' : 'border-slate-100 dark:border-white/5 text-slate-500 hover:border-slate-200 dark:hover:border-white/10 bg-white dark:bg-[#0B1120]'}`}
+                                        className={`p-8 rounded-[32px] border-2 font-bold transition-all group relative overflow-hidden ${genType === 'individual' ? 'border-[#2f4aad] bg-[#2f4aad] text-white shadow-xl shadow-blue-500/30' : 'border-slate-100 dark:border-white/5 text-slate-500 hover:border-slate-200 dark:hover:border-white/10 bg-white dark:bg-[#0B1120]'}`}
                                     >
                                         <Users className={`h-6 w-6 mb-3 mx-auto ${genType === 'individual' ? 'text-white' : 'text-slate-400'}`} />
                                         <span className="block text-sm uppercase tracking-widest">Individual</span>
@@ -517,13 +517,13 @@ const GroupManagement = () => {
 
                             {genType === 'group' && (
                                 <div className="animate-in slide-in-from-top-4 duration-500">
-                                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 block transition-colors">Capacity Per Group</label>
+                                    <label className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 block transition-colors">Capacity Per Group</label>
                                     <div className="flex flex-wrap items-center gap-4">
                                         {[2, 3, 4, 5, 6].map(size => (
                                             <button
                                                 key={size}
                                                 onClick={() => setGroupSize(size)}
-                                                className={`w-14 h-14 rounded-2xl border-2 font-black transition-all ${groupSize === size ? 'border-[#1D68E3] bg-[#1D68E3] text-white shadow-lg shadow-blue-500/20' : 'border-slate-100 dark:border-white/5 text-slate-500 hover:border-slate-200 dark:hover:border-white/10 bg-white dark:bg-[#0B1120]'}`}
+                                                className={`w-14 h-14 rounded-2xl border-2 font-bold transition-all ${groupSize === size ? 'border-[#2f4aad] bg-[#2f4aad] text-white shadow-lg shadow-blue-500/20' : 'border-slate-100 dark:border-white/5 text-slate-500 hover:border-slate-200 dark:hover:border-white/10 bg-white dark:bg-[#0B1120]'}`}
                                             >
                                                 {size}
                                             </button>
@@ -536,7 +536,7 @@ const GroupManagement = () => {
                                 <button
                                     onClick={handleGenerate}
                                     disabled={generating || !groupAssignments.length}
-                                    className="w-full py-5 bg-[#1D68E3] text-white rounded-[24px] font-black text-base shadow-2xl shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 uppercase tracking-[0.2em]"
+                                    className="w-full py-5 bg-[#2f4aad] text-white rounded-[24px] font-bold text-base shadow-2xl shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 uppercase tracking-[0.2em]"
                                 >
                                     {generating ? (
                                         <>
@@ -544,7 +544,7 @@ const GroupManagement = () => {
                                             Analysis in progress...
                                         </>
                                     ) : (
-                                        <>✨ Start AI Generation</>
+                                        <>âœ¨ Start AI Generation</>
                                     )}
                                 </button>
                                 <div className="mt-8 flex items-center justify-center gap-3 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10 py-4 rounded-2xl border border-amber-100 dark:border-amber-900/20 px-6">

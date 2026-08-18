@@ -365,7 +365,7 @@ const AssignmentCreate = () => {
             </button>
 
             <div className={Z_FORM_CARD}>
-                <h1 className="text-base font-black text-slate-900 dark:text-slate-100">
+                <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">
                     {isEdit ? 'Edit Assignment' : 'New Assignment'}
                 </h1>
                 <p className="text-[11px] text-slate-500 mt-0.5 mb-4">
@@ -440,7 +440,7 @@ const AssignmentCreate = () => {
 
                         {isNormal ? (
                             <div className="rounded-lg border border-blue-200 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-950/25 p-3 space-y-3">
-                                <p className="text-[10px] font-black uppercase tracking-wider text-[#2a3fa4] dark:text-blue-300">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#2a3fa4] dark:text-blue-300">
                                     Normal assignment - requirements only
                                 </p>
                                 <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 -mt-1">

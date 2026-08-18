@@ -488,7 +488,7 @@ const CollaborativeAssignmentCreate = () => {
     const renderTechSection = (sectionKey, label, value, onChange, accentClass, editable, ownerTeacher) => (
         <div className={`rounded-lg border p-3 space-y-2 ${accentClass}`}>
             <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-black uppercase tracking-wider">{label}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider">{label}</p>
                 <span
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                         isSectionComplete(value) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
@@ -575,7 +575,7 @@ const CollaborativeAssignmentCreate = () => {
                         <Users className="h-4 w-4 text-indigo-500" />
                     </div>
                     <div>
-                        <h1 className="text-base font-black text-slate-900 dark:text-slate-100">Collaborative Assignment</h1>
+                        <h1 className="text-base font-bold text-slate-900 dark:text-slate-100">Collaborative Assignment</h1>
                         <p className="text-[11px] text-slate-500 mt-0.5">
                             Frontend and backend teachers each fill their own requirements. Either teacher can complete shared fields and publish once both sections are done.
                         </p>
@@ -593,7 +593,7 @@ const CollaborativeAssignmentCreate = () => {
 
                 {collaborators.length > 0 && (
                     <div className="mt-4 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0B1120] p-3 space-y-2">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                             Your partners &amp; drafts ({collaborators.length})
                         </p>
                         <p className="text-[10px] text-slate-500">
@@ -665,7 +665,7 @@ const CollaborativeAssignmentCreate = () => {
                     <>
                         {drafts.length > 0 && !draft && (
                             <div className="mt-4 rounded-lg border border-slate-200 p-3 space-y-2 dark:border-white/10">
-                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Continue a draft</p>
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Continue a draft</p>
                                 {drafts.map((row) => {
                                     const partner =
                                         String(row.initiatedBy?._id || row.initiatedBy) === currentUserId
@@ -761,7 +761,7 @@ const CollaborativeAssignmentCreate = () => {
                             </p>
                         </div>
 
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Shared details (either teacher)</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Shared details (either teacher)</p>
 
                         <div>
                             <label className={Z_LABEL}>Class</label>

@@ -16,7 +16,7 @@ const mdComponents = {
     ul: (props) => <ul className="list-disc pl-5 mb-3 space-y-1 text-[15px] text-slate-800 dark:text-slate-200" {...props} />,
     ol: (props) => <ol className="list-decimal pl-5 mb-3 space-y-1 text-[15px] text-slate-800 dark:text-slate-200" {...props} />,
     li: (props) => <li className="leading-relaxed" {...props} />,
-    a: (props) => <a className="text-[#1D68E3] underline font-medium break-all" target="_blank" rel="noopener noreferrer" {...props} />,
+    a: (props) => <a className="text-[#2f4aad] underline font-medium break-all" target="_blank" rel="noopener noreferrer" {...props} />,
     code: ({ inline, className, children, ...props }) =>
         inline ? (
             <code
@@ -35,7 +35,7 @@ const mdComponents = {
     ),
     blockquote: (props) => (
         <blockquote
-            className="border-l-4 border-[#1D68E3]/40 pl-4 my-3 text-slate-600 dark:text-slate-400 italic"
+            className="border-l-4 border-[#2f4aad]/40 pl-4 my-3 text-slate-600 dark:text-slate-400 italic"
             {...props}
         />
     ),
@@ -59,7 +59,7 @@ function NotebookCell({ cell, highlightNorms, defaultLang }) {
     if (cell.type === 'markdown') {
         return (
             <div className={shell}>
-                <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-b border-slate-200 dark:border-slate-700">
                     Markdown
                 </div>
                 <div className="px-4 py-3 bg-white dark:bg-[#0f172a]">
@@ -78,7 +78,7 @@ function NotebookCell({ cell, highlightNorms, defaultLang }) {
     if (cell.type === 'code') {
         return (
             <div className={shell}>
-                <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-slate-800 text-slate-300 border-b border-slate-700 flex justify-between gap-2">
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-slate-800 text-slate-300 border-b border-slate-700 flex justify-between gap-2">
                     <span>Code {defaultLang ? `· ${defaultLang}` : ''}</span>
                     <span>Cell {cell.index + 1}</span>
                 </div>
@@ -88,7 +88,7 @@ function NotebookCell({ cell, highlightNorms, defaultLang }) {
                     </pre>
                     {cell.outputsSummary ? (
                         <div>
-                            <div className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-900 border-t border-slate-800">
+                            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-900 border-t border-slate-800">
                                 Output
                             </div>
                             <pre className="p-4 overflow-x-auto text-[12px] leading-relaxed font-mono whitespace-pre-wrap text-slate-200 max-h-[320px] overflow-y-auto">
@@ -103,7 +103,7 @@ function NotebookCell({ cell, highlightNorms, defaultLang }) {
 
     return (
         <div className={shell}>
-            <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-b border-amber-100 dark:border-amber-900/50">
+            <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-b border-amber-100 dark:border-amber-900/50">
                 Raw
             </div>
             <pre className="p-4 text-sm font-mono whitespace-pre-wrap bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 max-h-[400px] overflow-y-auto">

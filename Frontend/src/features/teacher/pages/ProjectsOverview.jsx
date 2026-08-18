@@ -426,7 +426,7 @@ const ProjectsOverview = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin" />
+                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin" />
             </div>
         );
     }
@@ -449,13 +449,13 @@ const ProjectsOverview = () => {
     const hasAnyProjects = filteredData.length > 0;
 
     return (
-        <div className="font-sans text-[13px] space-y-3">
+        <div className="space-y-3 text-[13px] antialiased [font-family:var(--sv-font-sans)]">
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                    <div className="bg-[#1D68E3] p-2 rounded-lg">
+                    <div className="bg-[#2f4aad] p-2 rounded-lg">
                         <BookOpen className="h-4 w-4 text-white" />
                     </div>
-                    <h1 className="text-base font-black text-slate-800 dark:text-slate-100 tracking-tight">Student Projects</h1>
+                    <h1 className="text-[1.15rem] font-bold tracking-tight text-[#2f4aad] sm:text-[1.25rem]">Student Projects</h1>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -485,11 +485,11 @@ const ProjectsOverview = () => {
                 className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F172A] p-4 shadow-sm"
             >
                 <div className="flex items-start gap-2 mb-3">
-                    <div className="rounded-lg bg-[#1D68E3]/10 p-2 text-[#1D68E3] dark:text-blue-400 shrink-0">
+                    <div className="rounded-lg bg-[#2f4aad]/10 p-2 text-[#2f4aad] dark:text-blue-400 shrink-0">
                         <Users className="h-4 w-4" />
                     </div>
                     <div>
-                        <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 tracking-tight">
+                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
                             Create groups
                         </h2>
                         <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
@@ -500,7 +500,7 @@ const ProjectsOverview = () => {
 
                 <div className="grid gap-3 md:grid-cols-2">
                     <div className="md:col-span-2">
-                        <label htmlFor="create-groups-class" className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                        <label htmlFor="create-groups-class" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                             Class
                         </label>
                         <select
@@ -539,7 +539,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={handleExportCsv}
                             disabled={!createForm.classCode || exportingFile || importingFile || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
                         >
                             {exportingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                             Export CSV
@@ -548,7 +548,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={handleExportXlsx}
                             disabled={!createForm.classCode || exportingFile || importingFile || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
                         >
                             {exportingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                             Export Excel
@@ -557,7 +557,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={() => importInputRef.current?.click()}
                             disabled={!createForm.classCode || importingFile || exportingFile || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
                         >
                             {importingFile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
                             Preview import
@@ -566,7 +566,7 @@ const ProjectsOverview = () => {
                             type="button"
                             onClick={openTeamEditor}
                             disabled={!createForm.classCode || teamEditorLoading || creating || applyingImport}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#1D68E3] dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#2f4aad] dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50"
                         >
                             {teamEditorLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                             Edit teams
@@ -575,7 +575,7 @@ const ProjectsOverview = () => {
 
                     {importPreview && (
                         <div className="md:col-span-2 rounded-lg border border-blue-200 dark:border-blue-900/40 bg-blue-50/80 dark:bg-blue-950/25 p-3 text-[12px]">
-                            <p className="font-black text-slate-800 dark:text-slate-100 mb-1">
+                            <p className="font-bold text-slate-800 dark:text-slate-100 mb-1">
                                 Preview ready - {importPreview.proposedGroups?.length ?? 0} team(s),{' '}
                                 {(importPreview.proposedGroups || []).reduce((n, g) => n + (g.members?.length || 0), 0)} roster row(s). Nothing is saved until you apply.
                             </p>
@@ -607,7 +607,7 @@ const ProjectsOverview = () => {
                                     type="button"
                                     onClick={handleApplyImport}
                                     disabled={applyingImport || !(importPreview.proposedGroups?.length > 0)}
-                                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#1D68E3] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white hover:bg-blue-700 disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
                                     {applyingImport ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                                     Apply import
@@ -616,7 +616,7 @@ const ProjectsOverview = () => {
                                     type="button"
                                     onClick={() => setImportPreview(null)}
                                     disabled={applyingImport}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 disabled:opacity-50"
                                 >
                                     Discard preview
                                 </button>
@@ -626,7 +626,7 @@ const ProjectsOverview = () => {
 
                     {importSummary && !importPreview && (
                         <div className="md:col-span-2 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-[12px]">
-                            <p className="font-black text-slate-800 dark:text-slate-100 mb-2">
+                            <p className="font-bold text-slate-800 dark:text-slate-100 mb-2">
                                 Import complete: {importSummary.createdGroups?.length ?? 0} group(s) created.
                                 {(importSummary.templateGroupsRemoved ?? importSummary.orphanGroupsRemoved ?? 0) > 0 &&
                                     ` Replaced ${importSummary.templateGroupsRemoved ?? importSummary.orphanGroupsRemoved} previous class team row(s).`}
@@ -653,7 +653,7 @@ const ProjectsOverview = () => {
                     )}
 
                     <div className="md:col-span-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-slate-900/30 px-3 py-2">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                             Auto-generate (system)
                         </p>
                         <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -664,7 +664,7 @@ const ProjectsOverview = () => {
 
                     {generateSummary && !importPreview && (
                         <div className="md:col-span-2 rounded-lg border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/90 dark:bg-emerald-950/25 p-3 text-[12px]">
-                            <p className="font-black text-emerald-900 dark:text-emerald-100">
+                            <p className="font-bold text-emerald-900 dark:text-emerald-100">
                                 {generateSummary.type === 'individual'
                                     ? generateSummary.createdCount > 0
                                         ? `Created ${generateSummary.createdCount} individual assignment(s) for unassigned student(s).`
@@ -681,7 +681,7 @@ const ProjectsOverview = () => {
                     )}
 
                     <div>
-                        <label htmlFor="create-groups-type" className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                        <label htmlFor="create-groups-type" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                             Type
                         </label>
                         <select
@@ -697,7 +697,7 @@ const ProjectsOverview = () => {
 
                     {createForm.type === 'group' && (
                         <div>
-                            <label htmlFor="create-groups-size" className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                            <label htmlFor="create-groups-size" className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                                 Group size
                             </label>
                             <input
@@ -738,7 +738,7 @@ const ProjectsOverview = () => {
                     <div className="w-12 h-12 bg-slate-50 dark:bg-[#0B1120] rounded-full flex items-center justify-center mx-auto mb-3">
                         <Layout className="h-6 w-6 text-slate-300 dark:text-slate-700" />
                     </div>
-                    <h2 className="text-base font-black text-slate-800 dark:text-slate-100 mb-1">No group projects found</h2>
+                    <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">No group projects found</h2>
                     <p className="text-[12px] text-slate-500 mb-4 max-w-md mx-auto">Try adjusting your search or create a new student group assignment.</p>
                     <button
                         type="button"
@@ -754,9 +754,9 @@ const ProjectsOverview = () => {
                         <section key={cls.code} className="space-y-2">
                             <div className="flex items-center justify-between group">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-1 h-5 bg-[#1D68E3] rounded-full" />
-                                    <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 tracking-tight">{cls.code}: {cls.title}</h2>
-                                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-[#1D68E3] dark:text-blue-400 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                    <div className="w-1 h-5 bg-[#2f4aad] rounded-full" />
+                                    <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">{cls.code}: {cls.title}</h2>
+                                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-[#2f4aad] dark:text-blue-400 rounded-full text-[9px] font-bold uppercase tracking-wider">
                                         {cls.semester || 'Semester 1'}
                                     </span>
                                 </div>
@@ -767,26 +767,26 @@ const ProjectsOverview = () => {
                                         <div key={group._id} className="bg-white dark:bg-[#0F172A] rounded-xl border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden flex flex-col group hover:border-blue-500/30 transition-all">
                                             <div className="p-3 pb-2">
                                                 <div className="flex justify-between items-start mb-2">
-                                                    <h4 className="text-[10px] font-black text-[#1D68E3] dark:text-blue-400 uppercase tracking-wider">Group {group.assignmentNumber}</h4>
-                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider ${group.status.toLowerCase() === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-slate-50 dark:bg-[#0B1120] text-slate-400 dark:text-slate-600'}`}>
+                                                    <h4 className="text-[10px] font-bold text-[#2f4aad] dark:text-blue-400 uppercase tracking-wider">Group {group.assignmentNumber}</h4>
+                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider ${group.status.toLowerCase() === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-slate-50 dark:bg-[#0B1120] text-slate-400 dark:text-slate-600'}`}>
                                                         {group.status.toUpperCase()}
                                                     </span>
                                                 </div>
-                                                <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 mb-3 leading-tight line-clamp-2 min-h-[36px]">
+                                                <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-3 leading-tight line-clamp-2 min-h-[36px]">
                                                     {group.title}
                                                 </h3>
 
                                                 <div className="space-y-2 pt-2 border-t border-slate-50 dark:border-white/5">
                                                     {group.members.slice(0, 3).map((member, i) => (
                                                         <div key={i} className="flex items-center gap-2">
-                                                            <div className="w-6 h-6 rounded-md bg-slate-50 dark:bg-[#0B1120] flex items-center justify-center text-[9px] font-black text-slate-700 dark:text-slate-100 uppercase overflow-hidden border border-slate-100 dark:border-white/5">
+                                                            <div className="w-6 h-6 rounded-md bg-slate-50 dark:bg-[#0B1120] flex items-center justify-center text-[9px] font-bold text-slate-700 dark:text-slate-100 uppercase overflow-hidden border border-slate-100 dark:border-white/5">
                                                                 {member.photo && member.photo !== 'default-student.jpg' ? (
                                                                     <img src={assetUrl(member.photo.startsWith('http') ? member.photo : `/uploads/${member.photo}`)} className="w-full h-full object-cover" alt="" />
                                                                 ) : member.name[0]}
                                                             </div>
                                                             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
                                                                 {member.isLeader ? (
-                                                                    <span className="mr-1.5 text-[10px] font-black uppercase tracking-wide text-[#1D68E3] dark:text-blue-400">
+                                                                    <span className="mr-1.5 text-[10px] font-bold uppercase tracking-wide text-[#2f4aad] dark:text-blue-400">
                                                                         Leader
                                                                     </span>
                                                                 ) : null}
@@ -795,15 +795,15 @@ const ProjectsOverview = () => {
                                                         </div>
                                                     ))}
                                                     {group.members.length > 3 && (
-                                                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 pl-8 uppercase tracking-wider">+{group.members.length - 3} more</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-600 pl-8 uppercase tracking-wider">+{group.members.length - 3} more</p>
                                                     )}
                                                 </div>
                                             </div>
 
                                             <div className="mt-auto px-3 py-2 bg-slate-50/50 dark:bg-[#0B1120] border-t border-slate-50 dark:border-white/5 flex items-center justify-between gap-2">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-wider">SIMILARITY</span>
-                                                    <span className={`text-sm font-black ${group.similarityLevel === 'High' ? 'text-rose-600' : 'text-emerald-500'}`}>
+                                                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider">SIMILARITY</span>
+                                                    <span className={`text-sm font-bold ${group.similarityLevel === 'High' ? 'text-rose-600' : 'text-emerald-500'}`}>
                                                         {group.similarity}%
                                                     </span>
                                                 </div>
@@ -819,7 +819,7 @@ const ProjectsOverview = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => navigate(`/teacher/groups/${group._id}`)}
-                                                        className="p-2 bg-white dark:bg-[#0F172A] rounded-lg border border-slate-100 dark:border-white/5 text-[#1D68E3] dark:text-blue-400 hover:bg-[#1D68E3] hover:text-white transition-all"
+                                                        className="p-2 bg-white dark:bg-[#0F172A] rounded-lg border border-slate-100 dark:border-white/5 text-[#2f4aad] dark:text-blue-400 hover:bg-[#2f4aad] hover:text-white transition-all"
                                                     >
                                                         <ArrowRight className="h-4 w-4" />
                                                     </button>
@@ -838,7 +838,7 @@ const ProjectsOverview = () => {
                     <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0F172A]">
                         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-4 dark:border-white/10">
                             <div>
-                                <h2 className="text-base font-black text-slate-900 dark:text-white">
+                                <h2 className="text-base font-bold text-slate-900 dark:text-white">
                                     Edit class teams - {createForm.classCode}
                                 </h2>
                                 <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -858,7 +858,7 @@ const ProjectsOverview = () => {
                         <div className="flex-1 space-y-4 overflow-y-auto p-4">
                             {teamEditorLoading ? (
                                 <div className="flex min-h-56 items-center justify-center gap-2 text-sm font-bold text-slate-500">
-                                    <Loader2 className="h-5 w-5 animate-spin text-[#1D68E3]" />
+                                    <Loader2 className="h-5 w-5 animate-spin text-[#2f4aad]" />
                                     Loading class teams…
                                 </div>
                             ) : (
@@ -879,7 +879,7 @@ const ProjectsOverview = () => {
                                                         value={group.name}
                                                         onChange={(event) => renameEditorTeam(group.id, event.target.value)}
                                                         maxLength={80}
-                                                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-900 dark:border-white/10 dark:bg-[#0F172A] dark:text-white"
+                                                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 dark:border-white/10 dark:bg-[#0F172A] dark:text-white"
                                                         aria-label="Team name"
                                                     />
                                                     <button
@@ -905,14 +905,14 @@ const ProjectsOverview = () => {
                                                             >
                                                                 <div className="flex items-center justify-between gap-2">
                                                                     <div className="min-w-0">
-                                                                        <p className="truncate text-xs font-black text-slate-800 dark:text-slate-100">
+                                                                        <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
                                                                             {member.name}
                                                                         </p>
                                                                         <p className="truncate text-[10px] font-mono text-slate-400">
                                                                             {member.studentId || member.email}
                                                                         </p>
                                                                     </div>
-                                                                    <label className="flex shrink-0 items-center gap-1 text-[10px] font-black uppercase tracking-wide text-[#1D68E3]">
+                                                                    <label className="flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#2f4aad]">
                                                                         <input
                                                                             type="radio"
                                                                             name={`leader-${group.id}`}
@@ -951,7 +951,7 @@ const ProjectsOverview = () => {
                                         <button
                                             type="button"
                                             onClick={addEditorTeam}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#1D68E3]/40 px-3 py-2 text-xs font-black text-[#1D68E3] hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#2f4aad]/40 px-3 py-2 text-xs font-bold text-[#2f4aad] hover:bg-blue-50 dark:hover:bg-blue-950/20"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add team
@@ -960,7 +960,7 @@ const ProjectsOverview = () => {
                                             type="button"
                                             onClick={removeAllEditorTeams}
                                             disabled={!teamEditorGroups.length || teamEditorSaving}
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-black text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                                         >
                                             <Trash2 className="h-4 w-4" />
                                             Delete all groups
@@ -968,7 +968,7 @@ const ProjectsOverview = () => {
                                     </div>
 
                                     <section className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
-                                        <h3 className="text-xs font-black text-amber-900 dark:text-amber-100">
+                                        <h3 className="text-xs font-bold text-amber-900 dark:text-amber-100">
                                             Unassigned students ({editorUnassignedStudents.length})
                                         </h3>
                                         <p className="mt-1 text-[11px] text-amber-800/80 dark:text-amber-200/70">
@@ -981,7 +981,7 @@ const ProjectsOverview = () => {
                                                         key={student.userId}
                                                         className="rounded-lg border border-amber-200 bg-white p-2 dark:border-amber-800/30 dark:bg-[#0F172A]"
                                                     >
-                                                        <p className="truncate text-xs font-black text-slate-800 dark:text-slate-100">
+                                                        <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
                                                             {student.name}
                                                         </p>
                                                         <p className="truncate text-[10px] font-mono text-slate-400">
@@ -1030,7 +1030,7 @@ const ProjectsOverview = () => {
                                 type="button"
                                 onClick={saveTeamEditor}
                                 disabled={teamEditorLoading || teamEditorSaving}
-                                className="inline-flex items-center gap-2 rounded-lg bg-[#1D68E3] px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50"
+                                className="inline-flex items-center gap-2 rounded-lg bg-[#2f4aad] px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                             >
                                 {teamEditorSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 Save teams

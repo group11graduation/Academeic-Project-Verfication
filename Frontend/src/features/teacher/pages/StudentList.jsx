@@ -91,7 +91,7 @@ const StudentList = () => {
     if (loading) {
         return (
             <div className="h-[400px] flex items-center justify-center bg-white dark:bg-[#0B1120]">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+                <Loader2 className="h-10 w-10 text-[#2f4aad] animate-spin" />
             </div>
         );
     }
@@ -99,7 +99,7 @@ const StudentList = () => {
     return (
         <div className="p-4 sm:p-6 md:p-8 lg:p-10 max-w-[1600px] mx-auto min-h-screen transition-colors bg-white dark:bg-[#0B1120] safe-area-px">
             <div className="mb-8 md:mb-12">
-                <nav className="flex items-center gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6">
+                <nav className="flex items-center gap-2 text-[10px] md:text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-6">
                     <Link to="/teacher/classes" className="hover:text-blue-400 transition-colors">
                         My Classes
                     </Link>
@@ -109,17 +109,17 @@ const StudentList = () => {
 
                 <Link
                     to="/teacher/classes"
-                    className="flex items-center gap-2 text-slate-400 dark:text-slate-500 hover:text-[#1D68E3] dark:hover:text-blue-400 transition-colors mb-8 group w-fit"
+                    className="flex items-center gap-2 text-slate-400 dark:text-slate-500 hover:text-[#2f4aad] dark:hover:text-blue-400 transition-colors mb-8 group w-fit"
                 >
                     <div className="bg-white dark:bg-[#0F172A] p-2 rounded-xl border border-slate-100 dark:border-white/5 shadow-xl group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
                         <ArrowLeft className="h-4 w-4" />
                     </div>
-                    <span className="text-[12px] font-black uppercase tracking-widest">Back to My Classes</span>
+                    <span className="text-[12px] font-bold uppercase tracking-widest">Back to My Classes</span>
                 </Link>
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                     <div>
-                        <h1 className="text-3xl md:text-5xl font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">
+                        <h1 className="text-3xl md:text-5xl font-bold text-slate-800 dark:text-slate-100 mb-2 tracking-tight">
                             Students
                         </h1>
                         <p className="text-slate-500 dark:text-slate-500 text-sm md:text-base font-medium">
@@ -128,7 +128,7 @@ const StudentList = () => {
                     </div>
                     <Link
                         to={`/teacher/classes/${id}`}
-                        className="text-xs font-black uppercase tracking-widest text-[#1D68E3] hover:underline"
+                        className="text-xs font-bold uppercase tracking-widest text-[#2f4aad] hover:underline"
                     >
                         Class overview
                     </Link>
@@ -154,9 +154,9 @@ const StudentList = () => {
                 </div>
 
                 <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-[#0B1120] rounded-2xl border border-slate-100 dark:border-transparent relative">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort:</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sort:</span>
                     <select
-                        className="bg-transparent border-none text-[13px] font-black text-slate-800 dark:text-slate-100 focus:ring-0 cursor-pointer p-0 pr-8 appearance-none"
+                        className="bg-transparent border-none text-[13px] font-bold text-slate-800 dark:text-slate-100 focus:ring-0 cursor-pointer p-0 pr-8 appearance-none"
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value)}
                     >
@@ -210,7 +210,7 @@ const StudentList = () => {
                                                             {photoUrl ? (
                                                                 <img src={photoUrl} alt="" className="h-full w-full object-cover" />
                                                             ) : (
-                                                                <span className="text-xs font-black text-slate-500">
+                                                                <span className="text-xs font-bold text-slate-500">
                                                                     {(student.name || '?')
                                                                         .split(' ')
                                                                         .map((n) => n[0])
@@ -224,7 +224,7 @@ const StudentList = () => {
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="app-table-td text-center font-mono text-sm font-bold text-[#1D68E3]">
+                                                <td className="app-table-td text-center font-mono text-sm font-bold text-[#2f4aad]">
                                                     {displayId}
                                                 </td>
                                                 <td className="app-table-td hidden md:table-cell">
@@ -234,7 +234,7 @@ const StudentList = () => {
                                                     </span>
                                                 </td>
                                                 <td className="app-table-td text-center hidden sm:table-cell">
-                                                    <span className="bg-blue-500/10 text-[#1D68E3] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                                                    <span className="bg-blue-500/10 text-[#2f4aad] text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                                                         {student.group || 'UNASSIGNED'}
                                                     </span>
                                                 </td>

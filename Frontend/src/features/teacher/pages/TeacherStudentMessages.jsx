@@ -49,12 +49,12 @@ const TeacherStudentMessages = () => {
   };
 
   return (
-    <div className={Z_PAGE}>
+    <div className={`${Z_PAGE} antialiased [font-family:var(--sv-font-sans)]`}>
       <div className={Z_INNER}>
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Student messages</h1>
-            <p className="text-sm text-slate-500">
+            <h1 className="text-[1.15rem] font-bold tracking-tight text-[#2f4aad] sm:text-[1.25rem]">Student messages</h1>
+            <p className="mt-0.5 text-[12px] font-normal text-[#647092]">
               Deadline extension requests and questions from your students.
             </p>
           </div>
@@ -73,7 +73,7 @@ const TeacherStudentMessages = () => {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#1e56e3]" />
+            <Loader2 className="h-8 w-8 animate-spin text-[#2f4aad]" />
           </div>
         ) : messages.length === 0 ? (
           <div className={`${Z_CARD} p-8 text-center`}>
@@ -100,7 +100,7 @@ const TeacherStudentMessages = () => {
                         {m.deadlineType ? ` (${m.deadlineType.replace('_', ' ')})` : ''}
                       </p>
                       {m.recipientLabel ? (
-                        <p className="mt-1 text-[11px] font-semibold text-[#1e56e3]">Sent to: {m.recipientLabel}</p>
+                        <p className="mt-1 text-[11px] font-semibold text-[#2f4aad]">Sent to: {m.recipientLabel}</p>
                       ) : null}
                       {m.recipientLabel ? (
                         <p className="mt-1 text-[11px] font-semibold text-indigo-700">{m.recipientLabel}</p>
@@ -130,7 +130,7 @@ const TeacherStudentMessages = () => {
                         value={replyById[m._id] || ''}
                         onChange={(e) => setReplyById((prev) => ({ ...prev, [m._id]: e.target.value }))}
                         rows={3}
-                        placeholder="e.g. I extended the project deadline by 3 days. Check Assignments → Edit."
+                        placeholder="e.g. I extended the project deadline by 3 days. Check Assignments â†’ Edit."
                         className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                       />
                       <div className="flex flex-wrap gap-2">
@@ -138,7 +138,7 @@ const TeacherStudentMessages = () => {
                           type="button"
                           disabled={busyId === m._id || !String(replyById[m._id] || '').trim()}
                           onClick={() => sendReply(m._id, false)}
-                          className="inline-flex items-center gap-2 rounded-xl bg-[#1e56e3] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                          className="inline-flex items-center gap-2 rounded-xl bg-[#2f4aad] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                         >
                           {busyId === m._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           Send reply
@@ -160,7 +160,7 @@ const TeacherStudentMessages = () => {
                       to={`/teacher/assignments/${assignmentId}`}
                       className={`${Z_LINK} mt-3 inline-block text-xs font-bold`}
                     >
-                      Open assignment →
+                      Open assignment â†’
                     </Link>
                   ) : null}
                 </li>

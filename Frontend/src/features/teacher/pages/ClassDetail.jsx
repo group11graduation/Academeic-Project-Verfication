@@ -99,7 +99,7 @@ const ClassDetail = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#1D68E3] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 font-medium">Loading class...</p>
             </div>
         );
@@ -108,8 +108,8 @@ const ClassDetail = () => {
     if (!classData) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center p-4">
-                <h2 className="text-base font-black text-slate-800 dark:text-slate-100 mb-3">Class Not Found</h2>
-                <Link to="/teacher/classes" className="text-[#1D68E3] dark:text-blue-400 hover:underline font-bold text-[12px]">
+                <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-3">Class Not Found</h2>
+                <Link to="/teacher/classes" className="text-[#2f4aad] dark:text-blue-400 hover:underline font-bold text-[12px]">
                     Return to My Classes
                 </Link>
             </div>
@@ -122,20 +122,20 @@ const ClassDetail = () => {
                 <header className="mb-4 border-b border-[var(--sv-border)] dark:border-slate-800 pb-3">
                     <Link
                         to="/teacher/classes"
-                        className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-[#1D68E3] dark:hover:text-blue-400 transition-colors mb-3 group w-fit"
+                        className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500 hover:text-[#2f4aad] dark:hover:text-blue-400 transition-colors mb-3 group w-fit"
                     >
                         <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] p-1.5 rounded-lg border border-[var(--sv-border)] dark:border-white/5 group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
                             <ArrowLeft className="h-3.5 w-3.5" />
                         </div>
-                        <span className="text-[11px] font-black uppercase tracking-widest">Back to My Classes</span>
+                        <span className="text-[11px] font-bold uppercase tracking-widest">Back to My Classes</span>
                     </Link>
 
                     <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#1D68E3] dark:text-blue-400 mb-1">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#2f4aad] dark:text-blue-400 mb-1">
                                 {classData.code}
                             </p>
-                            <h1 className="text-base md:text-lg font-black text-slate-800 dark:text-slate-100 mb-1 tracking-tight">
+                            <h1 className="text-base md:text-lg font-bold text-slate-800 dark:text-slate-100 mb-1 tracking-tight">
                                 {classData.title}
                             </h1>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium max-w-2xl">
@@ -145,14 +145,14 @@ const ClassDetail = () => {
                         <div className="flex flex-wrap gap-2">
                             <Link
                                 to={`/teacher/classes/${classData.code}/students`}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1D68E3] text-white text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#2f4aad] text-white text-[11px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors"
                             >
                                 <UserCheck className="h-3.5 w-3.5" />
                                 Full roster page
                             </Link>
                             <Link
                                 to={`/teacher/classes/${classData.code}/groups`}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--sv-border)] dark:border-white/10 text-slate-700 dark:text-slate-200 text-[11px] font-black uppercase tracking-widest hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/5 transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--sv-border)] dark:border-white/10 text-slate-700 dark:text-slate-200 text-[11px] font-bold uppercase tracking-widest hover:bg-[var(--sv-card-muted)] dark:hover:bg-white/5 transition-colors"
                             >
                                 <Settings className="h-3.5 w-3.5" />
                                 Groups
@@ -165,9 +165,9 @@ const ClassDetail = () => {
                 <section className="mb-4 rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card-muted)] dark:bg-[#0F172A] p-4">
                     <div className="flex items-center gap-2 mb-3">
                         <div className="p-2 rounded-lg bg-[var(--sv-card)] dark:bg-[#0B1120] border border-[var(--sv-border)] dark:border-white/5 shadow-sm">
-                            <BookOpen className="h-4 w-4 text-[#1D68E3] dark:text-blue-400" />
+                            <BookOpen className="h-4 w-4 text-[#2f4aad] dark:text-blue-400" />
                         </div>
-                        <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Class information</h2>
+                        <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100">Class information</h2>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                         <InfoItem icon={<Layers className="h-4 w-4" />} label="Category" value={classData.category || '-'} />
@@ -244,7 +244,7 @@ const ClassDetail = () => {
                 </div>
 
                 <section id="review-alerts" className="rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] p-4 mb-4">
-                    <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Review alerts</h2>
+                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Review alerts</h2>
                     {reviewAlerts.length > 0 ? (
                         <div className="space-y-2">
                             {reviewAlerts.map((alert) => (
@@ -265,7 +265,7 @@ const ClassDetail = () => {
                                             {ALERT_STATUS_LABELS[alert.status] || alert.status}
                                         </p>
                                     </div>
-                                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#1D68E3]">
+                                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#2f4aad]">
                                         Review
                                         <ExternalLink className="h-3.5 w-3.5" />
                                     </span>
@@ -288,7 +288,7 @@ const ClassDetail = () => {
                 <section className="rounded-xl border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] shadow-sm overflow-hidden mb-4">
                     <div className="p-4 border-b border-[var(--sv-border)] dark:border-white/5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
-                            <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Students in this class</h2>
+                            <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100">Students in this class</h2>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                 {students.length} student{students.length !== 1 ? 's' : ''} on the roster
                             </p>
@@ -352,7 +352,7 @@ const ClassDetail = () => {
                                                                     className="h-full w-full object-cover"
                                                                 />
                                                             ) : (
-                                                                <span className="text-xs font-black text-slate-500">
+                                                                <span className="text-xs font-bold text-slate-500">
                                                                     {(student.name || '?')
                                                                         .split(' ')
                                                                         .map((n) => n[0])
@@ -374,7 +374,7 @@ const ClassDetail = () => {
                                                     </span>
                                                 </td>
                                                 <td className="app-table-td text-center">
-                                                    <span className="bg-blue-500/10 text-[#1D68E3] dark:text-blue-400 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                                                    <span className="bg-blue-500/10 text-[#2f4aad] dark:text-blue-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                                                         {student.group || 'UNASSIGNED'}
                                                     </span>
                                                 </td>
@@ -390,7 +390,7 @@ const ClassDetail = () => {
                                                                 style={{ width: `${Math.min(100, Number(student.attendance) || 0)}%` }}
                                                             />
                                                         </div>
-                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 w-10 text-right">
+                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 w-10 text-right">
                                                             {student.attendance ?? 0}%
                                                         </span>
                                                     </div>
@@ -414,31 +414,31 @@ const ClassDetail = () => {
 
                 {/* Priority shortcuts */}
                 <section className="mb-4">
-                    <h2 className="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Shortcuts</h2>
+                    <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-800 dark:text-slate-100 mb-2">Shortcuts</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <Link
                             to={`/teacher/classes/${classData.code}/students`}
-                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-sm"
+                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#2f4aad]/40 transition-all group shadow-sm"
                         >
-                            <UserCheck className="h-5 w-5 text-[#1D68E3] mb-2" />
-                            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 mb-1">Student directory</h3>
+                            <UserCheck className="h-5 w-5 text-[#2f4aad] mb-2" />
+                            <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Student directory</h3>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
                                 Open the dedicated roster page for sorting and extended layout.
                             </p>
-                            <span className="text-[#1D68E3] dark:text-blue-400 text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1.5">
+                            <span className="text-[#2f4aad] dark:text-blue-400 text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5">
                                 Go <ArrowRight className="h-3.5 w-3.5" />
                             </span>
                         </Link>
                         <Link
                             to={`/teacher/classes/${classData.code}/groups`}
-                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#1D68E3]/40 transition-all group shadow-sm"
+                            className="rounded-xl p-4 border border-[var(--sv-border)] dark:border-white/10 bg-[var(--sv-card)] dark:bg-[#0F172A] hover:border-[#2f4aad]/40 transition-all group shadow-sm"
                         >
                             <Settings className="h-5 w-5 text-slate-400 dark:text-slate-500 mb-2" />
-                            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 mb-1">Team setup</h3>
+                            <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-100 mb-1">Team setup</h3>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
                                 Configure groups and project assignment flows for this class.
                             </p>
-                            <span className="text-[#1D68E3] dark:text-blue-400 text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1.5">
+                            <span className="text-[#2f4aad] dark:text-blue-400 text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1.5">
                                 Configure <ArrowRight className="h-3.5 w-3.5" />
                             </span>
                         </Link>
@@ -454,7 +454,7 @@ function InfoItem({ icon, label, value }) {
         <div className="flex gap-2 rounded-lg bg-[var(--sv-card)] dark:bg-[#0B1120] border border-[var(--sv-border)] dark:border-white/5 p-3">
             <div className="text-slate-400 dark:text-slate-500 mt-0.5">{icon}</div>
             <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">{label}</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">{label}</p>
                 <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 break-words">{value}</p>
             </div>
         </div>
@@ -466,14 +466,14 @@ const MetricCard = ({ icon, label, value, subValue, trend, trendBg, trendText, i
         <div className="flex justify-between items-start mb-2">
             <div className={`${iconBg} p-2 rounded-lg transition-transform group-hover:scale-105`}>{icon}</div>
             <div className={`${trendBg} px-2 py-0.5 rounded-full`}>
-                <span className={`${trendText} text-[10px] font-black uppercase`}>{trend}</span>
+                <span className={`${trendText} text-[10px] font-bold uppercase`}>{trend}</span>
             </div>
         </div>
-        <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest mb-0.5">{label}</p>
+        <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-0.5">{label}</p>
         <div className="flex items-baseline gap-1">
-            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none">{value}</h3>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 leading-none">{value}</h3>
             {subValue != null && (
-                <span className="text-slate-400 dark:text-slate-500 text-sm font-black">{subValue}</span>
+                <span className="text-slate-400 dark:text-slate-500 text-sm font-bold">{subValue}</span>
             )}
         </div>
     </div>

@@ -217,7 +217,7 @@ const AdminLayoutInner = () => {
 
             <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-1">
                 <div
-                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-xl lg:border lg:shadow-sm"
+                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-[1.75rem] lg:border lg:shadow-sm"
                     style={{ borderColor: `${BORDER}88` }}
                 >
                     <aside

@@ -33,7 +33,7 @@ const formatSubmissionStatus = (status) =>
 const SubmissionInfoRow = ({ label, value, valueClassName = '' }) => (
     <div className="grid grid-cols-[minmax(0,6.75rem)_minmax(0,1fr)] gap-x-3 gap-y-1 items-start text-sm min-w-0">
         <span className="text-[var(--sv-muted)] dark:text-[var(--sv-muted)] font-bold pt-0.5 leading-snug">{label}</span>
-        <span className={`font-black text-right break-words min-w-0 leading-snug ${valueClassName}`}>{value}</span>
+        <span className={`font-bold text-right break-words min-w-0 leading-snug ${valueClassName}`}>{value}</span>
     </div>
 );
 
@@ -109,7 +109,7 @@ const GroupDetailPage = () => {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[var(--sv-card)] dark:bg-[#0B1120]">
-                <Loader2 className="h-10 w-10 text-[#1D68E3] animate-spin" />
+                <Loader2 className="h-10 w-10 text-[#2f4aad] animate-spin" />
             </div>
         );
     }
@@ -128,7 +128,7 @@ const GroupDetailPage = () => {
                             <div className="p-2 bg-rose-500/10 rounded-lg">
                                 <FileText className="h-5 w-5 text-rose-500" />
                             </div>
-                            <span className="font-black text-[var(--sv-text)] dark:text-slate-300 text-sm">
+                            <span className="font-bold text-[var(--sv-text)] dark:text-slate-300 text-sm">
                                 {proposalText
                                     ? doc.proposalTitle || group.title
                                     : projectFileName || `Project_Group${group.assignmentNumber}`}
@@ -140,7 +140,7 @@ const GroupDetailPage = () => {
                                 download 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 bg-[#1D68E3] text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20"
+                                className="flex items-center gap-2 bg-[#2f4aad] text-white px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20"
                             >
                                 <Download className="h-4 w-4" /> Download
                             </a>
@@ -151,7 +151,7 @@ const GroupDetailPage = () => {
                         {proposalText ? (
                             <div className="w-full max-w-4xl bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl border border-[var(--sv-border)] dark:border-white/10 shadow-lg overflow-hidden">
                                 <div className="px-6 py-4 border-b border-[var(--sv-border)] dark:border-white/5 bg-[var(--sv-card-muted)] dark:bg-white/5">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-[#1D68E3]">Proposal documentation</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#2f4aad]">Proposal documentation</p>
                                     <p className="text-sm font-bold text-[var(--sv-muted)] dark:text-slate-300 mt-1">
                                         Status: {String(group.proposalStatus || group.status || 'draft').replace(/_/g, ' ')}
                                     </p>
@@ -173,10 +173,10 @@ const GroupDetailPage = () => {
                         ) : docUrl ? (
                                 <div className="flex flex-col items-center justify-center text-center space-y-8 py-20">
                                     <div className="w-28 h-28 bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-3xl flex items-center justify-center shadow-xl border border-[var(--sv-border)] dark:border-white/5">
-                                        <FileText className="h-14 w-14 text-[#1D68E3]" />
+                                        <FileText className="h-14 w-14 text-[#2f4aad]" />
                                     </div>
                                     <div className="space-y-2">
-                                        <h3 className="text-2xl font-black text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
+                                        <h3 className="text-2xl font-bold text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
                                         {projectFileName}
                                         </h3>
                                         <p className="text-[var(--sv-muted)] font-bold text-sm">
@@ -188,7 +188,7 @@ const GroupDetailPage = () => {
                                         download 
                                         target="_blank" 
                                         rel="noopener noreferrer"
-                                    className="bg-[#1D68E3] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-blue-500/20 flex items-center gap-3"
+                                    className="bg-[#2f4aad] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-bold text-sm uppercase tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-blue-500/20 flex items-center gap-3"
                                     >
                                     <Download className="h-5 w-5" /> Download project ZIP
                                     </a>
@@ -202,7 +202,7 @@ const GroupDetailPage = () => {
                                     <FileText className="h-14 w-14 text-slate-300 dark:text-[var(--sv-text)]" />
                                 </div>
                                 <div className="space-y-2">
-                                    <h3 className="text-2xl font-black text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
+                                    <h3 className="text-2xl font-bold text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
                                         No Document Submitted
                                     </h3>
                                     <p className="text-[var(--sv-muted)] font-bold text-sm max-w-md">
@@ -214,12 +214,12 @@ const GroupDetailPage = () => {
                                 {fullReviewUrl && (
                                     <Link
                                         to={fullReviewUrl}
-                                        className="text-[#1D68E3] font-black text-sm uppercase tracking-widest hover:underline"
+                                        className="text-[#2f4aad] font-bold text-sm uppercase tracking-widest hover:underline"
                                     >
                                         Open full proposal review
                                     </Link>
                                 )}
-                                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl px-6 py-3 text-amber-600 text-xs font-black uppercase tracking-widest">
+                                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl px-6 py-3 text-amber-600 text-xs font-bold uppercase tracking-widest">
                                     Awaiting Submission
                                 </div>
                             </div>
@@ -231,17 +231,17 @@ const GroupDetailPage = () => {
             {/* Content Right: Sidebar */}
             <div className="lg:col-span-4 space-y-8 min-w-0">
                 <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-[var(--sv-border)] dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-6 min-w-0 overflow-hidden">
-                    <h3 className="text-xl font-black text-[var(--sv-text)] dark:text-slate-100 tracking-tight">Review Checklist</h3>
+                    <h3 className="text-xl font-bold text-[var(--sv-text)] dark:text-slate-100 tracking-tight">Review Checklist</h3>
                     <div className="space-y-4">
                         {checklist.map((item, i) => (
                             <div key={i} className="flex gap-4 group">
                                 <div className={`mt-1 h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                                    item.checked ? 'bg-[#1D68E3] border-[#1D68E3]' : 'border-slate-300 dark:border-slate-700'
+                                    item.checked ? 'bg-[#2f4aad] border-[#2f4aad]' : 'border-slate-300 dark:border-slate-700'
                                 }`}>
                                     {item.checked && <Check className="h-3 w-3 text-white stroke-[4]" />}
                                 </div>
                                 <div>
-                                    <p className={`text-sm font-black transition-colors ${item.checked ? 'text-[var(--sv-text)] dark:text-slate-200' : 'text-[var(--sv-muted)] dark:text-[var(--sv-muted)]'}`}>{item.label}</p>
+                                    <p className={`text-sm font-bold transition-colors ${item.checked ? 'text-[var(--sv-text)] dark:text-slate-200' : 'text-[var(--sv-muted)] dark:text-[var(--sv-muted)]'}`}>{item.label}</p>
                                     <p className="text-[11px] font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)] uppercase tracking-widest">{item.desc}</p>
                                 </div>
                             </div>
@@ -250,7 +250,7 @@ const GroupDetailPage = () => {
                 </div>
 
                 <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-[var(--sv-border)] dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-6">
-                    <h3 className="text-xl font-black text-[var(--sv-text)] dark:text-slate-100 tracking-tight">Reviewer Feedback</h3>
+                    <h3 className="text-xl font-bold text-[var(--sv-text)] dark:text-slate-100 tracking-tight">Reviewer Feedback</h3>
                     <textarea 
                         readOnly
                         value={group.reviewerFeedback || ''}
@@ -260,7 +260,7 @@ const GroupDetailPage = () => {
                     {fullReviewUrl && (
                         <Link
                             to={fullReviewUrl}
-                            className="w-full flex items-center justify-center gap-3 bg-[#1E293B] text-slate-300 hover:bg-slate-700 px-8 py-4 rounded-2xl font-black text-[14px] transition-all"
+                            className="w-full flex items-center justify-center gap-3 bg-[#1E293B] text-slate-300 hover:bg-slate-700 px-8 py-4 rounded-2xl font-bold text-[14px] transition-all"
                         >
                             Open full review &amp; feedback
                         </Link>
@@ -268,9 +268,9 @@ const GroupDetailPage = () => {
                 </div>
 
                 <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-[var(--sv-border)] dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-6 min-w-0 overflow-hidden">
-                    <div className="flex items-center gap-3 text-[#1D68E3]">
+                    <div className="flex items-center gap-3 text-[#2f4aad]">
                         <BarChart3 className="h-5 w-5 shrink-0" />
-                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[var(--sv-text)] dark:text-[#1D68E3]">Submission Info</h3>
+                        <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--sv-text)] dark:text-[#2f4aad]">Submission Info</h3>
                     </div>
                     <div className="space-y-4 min-w-0">
                         <SubmissionInfoRow
@@ -331,7 +331,7 @@ const GroupDetailPage = () => {
             <div className="space-y-8">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                        <h2 className="text-3xl font-black text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
+                        <h2 className="text-3xl font-bold text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
                             Similarity Report - {group.title}
                         </h2>
                         <p className="text-[var(--sv-muted)] font-bold mt-1">
@@ -339,7 +339,7 @@ const GroupDetailPage = () => {
                         </p>
                     </div>
                     <span
-                        className={`inline-flex px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-widest border ${
+                        className={`inline-flex px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest border ${
                             sim.verdict === 'reject_same_semester'
                                 ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
                                 : sim.verdict === 'warn_previous_semester'
@@ -353,21 +353,21 @@ const GroupDetailPage = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-3xl border border-[var(--sv-border)] dark:border-white/5 p-6 text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--sv-muted)]">Same semester</p>
-                        <p className="text-3xl font-black text-[var(--sv-text)] dark:text-slate-100 mt-2">{sim.sameSemesterPercent ?? 0}%</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)]">Same semester</p>
+                        <p className="text-3xl font-bold text-[var(--sv-text)] dark:text-slate-100 mt-2">{sim.sameSemesterPercent ?? 0}%</p>
                     </div>
                     <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-3xl border border-[var(--sv-border)] dark:border-white/5 p-6 text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--sv-muted)]">Legacy / past term</p>
-                        <p className="text-3xl font-black text-amber-600 mt-2">{sim.previousSemesterPercent ?? 0}%</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)]">Legacy / past term</p>
+                        <p className="text-3xl font-bold text-amber-600 mt-2">{sim.previousSemesterPercent ?? 0}%</p>
                     </div>
                     <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-3xl border border-[var(--sv-border)] dark:border-white/5 p-6 text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--sv-muted)]">Overall signal</p>
-                        <p className="text-3xl font-black text-[#1D68E3] mt-2">{group.similarity ?? 0}%</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--sv-muted)]">Overall signal</p>
+                        <p className="text-3xl font-bold text-[#2f4aad] mt-2">{group.similarity ?? 0}%</p>
                     </div>
                 </div>
 
                 <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-[var(--sv-border)] dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-3">
-                    <h3 className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100">What the AI found</h3>
+                    <h3 className="text-lg font-bold text-[var(--sv-text)] dark:text-slate-100">What the AI found</h3>
                     <p className="text-sm text-[var(--sv-muted)] dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                         {sim.humanExplanation || 'No similarity explanation available for this proposal.'}
                     </p>
@@ -382,10 +382,10 @@ const GroupDetailPage = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         {legacy?.title && (
                             <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-amber-200 dark:border-amber-900/30 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-4">
-                                <h3 className="text-lg font-black text-amber-700 dark:text-amber-400">
+                                <h3 className="text-lg font-bold text-amber-700 dark:text-amber-400">
                                     Matched legacy project ({sim.previousSemesterPercent ?? 0}%)
                                 </h3>
-                                <p className="text-xl font-black text-[var(--sv-text)] dark:text-slate-100">{legacy.title}</p>
+                                <p className="text-xl font-bold text-[var(--sv-text)] dark:text-slate-100">{legacy.title}</p>
                                 {legacy.ownerLabel && (
                                     <p className="text-xs font-bold text-[var(--sv-muted)] uppercase tracking-widest">{legacy.ownerLabel}</p>
                                 )}
@@ -405,10 +405,10 @@ const GroupDetailPage = () => {
                         )}
                         {peer?.title && (
                             <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-rose-200 dark:border-rose-900/30 shadow-2xl p-4 sm:p-6 lg:p-8 space-y-4">
-                                <h3 className="text-lg font-black text-rose-600">
+                                <h3 className="text-lg font-bold text-rose-600">
                                     Matched same-semester project ({sim.sameSemesterPercent ?? 0}%)
                                 </h3>
-                                <p className="text-xl font-black text-[var(--sv-text)] dark:text-slate-100">{peer.title}</p>
+                                <p className="text-xl font-bold text-[var(--sv-text)] dark:text-slate-100">{peer.title}</p>
                                 {peer.studentName && (
                                     <p className="text-xs font-bold text-[var(--sv-muted)]">Submitted by {peer.studentName}</p>
                                 )}
@@ -424,7 +424,7 @@ const GroupDetailPage = () => {
 
                 {(sim.recommendationText || (sim.suggestedFeatures?.length ?? 0) > 0) && (
                     <div className="bg-blue-50 dark:bg-blue-950/20 rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-blue-200 dark:border-blue-900/30 p-8 space-y-4">
-                        <h3 className="text-lg font-black text-[#1D68E3]">Suggested differentiation</h3>
+                        <h3 className="text-lg font-bold text-[#2f4aad]">Suggested differentiation</h3>
                         {sim.recommendationText && (
                             <p className="text-sm text-[var(--sv-text)] dark:text-slate-300 leading-relaxed">{sim.recommendationText}</p>
                         )}
@@ -445,7 +445,7 @@ const GroupDetailPage = () => {
 
                 {proposalText && (
                     <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-[var(--sv-border)] dark:border-white/5 shadow-2xl p-4 sm:p-6 lg:p-8">
-                        <h3 className="text-lg font-black text-[var(--sv-text)] dark:text-slate-100 mb-4">
+                        <h3 className="text-lg font-bold text-[var(--sv-text)] dark:text-slate-100 mb-4">
                             This group&apos;s proposal (compared above)
                         </h3>
                         <ExtractedSubmissionView
@@ -467,8 +467,8 @@ const GroupDetailPage = () => {
 
     const SourceCodeView = () => (
         <div className="bg-[var(--sv-card)] dark:bg-[#0F172A] rounded-2xl sm:rounded-3xl lg:rounded-[2rem] border border-[var(--sv-border)] dark:border-white/5 shadow-2xl p-6 sm:p-8 lg:p-12 text-center space-y-6">
-            <Code className="h-12 w-12 text-[#1D68E3] mx-auto" />
-            <h3 className="text-xl font-black text-[var(--sv-text)] dark:text-slate-100">Source code &amp; live preview</h3>
+            <Code className="h-12 w-12 text-[#2f4aad] mx-auto" />
+            <h3 className="text-xl font-bold text-[var(--sv-text)] dark:text-slate-100">Source code &amp; live preview</h3>
             <p className="text-[var(--sv-muted)] font-bold max-w-lg mx-auto">
                 {group.project?.downloadPath
                     ? `Project ZIP: ${group.project.originalFilename || 'uploaded'}. Open the full review page to run Docker preview and inspect extracted code.`
@@ -477,7 +477,7 @@ const GroupDetailPage = () => {
             {fullReviewUrl ? (
                 <Link
                     to={fullReviewUrl}
-                    className="inline-flex items-center gap-2 bg-[#1D68E3] text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] transition-all"
+                    className="inline-flex items-center gap-2 bg-[#2f4aad] text-white px-8 py-4 rounded-2xl font-bold text-sm uppercase tracking-widest hover:scale-[1.02] transition-all"
                 >
                     Open full project review
                 </Link>
@@ -486,7 +486,7 @@ const GroupDetailPage = () => {
                 <a
                     href={docUrl}
                     download
-                    className="inline-flex items-center gap-2 text-[#1D68E3] font-bold text-sm"
+                    className="inline-flex items-center gap-2 text-[#2f4aad] font-bold text-sm"
                 >
                     <Download className="h-4 w-4" /> Download project ZIP
                 </a>
@@ -509,7 +509,7 @@ const GroupDetailPage = () => {
             <div className="max-w-[1600px] mx-auto px-3 py-6 sm:px-4 md:px-6 lg:px-10 safe-area-px">
                 <button 
                     onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 text-[var(--sv-muted)] hover:text-[#1D68E3] font-bold text-sm mb-6 transition-colors group"
+                    className="flex items-center gap-2 text-[var(--sv-muted)] hover:text-[#2f4aad] font-bold text-sm mb-6 transition-colors group"
                 >
                     <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
                     Back to Overview
@@ -518,11 +518,11 @@ const GroupDetailPage = () => {
                 <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
                     <div className="space-y-4">
                         <div className="flex flex-wrap items-center gap-3">
-                            <h1 className="text-3xl md:text-4xl font-black text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
+                            <h1 className="text-3xl md:text-4xl font-bold text-[var(--sv-text)] dark:text-slate-100 tracking-tight">
                                 {group.type === 'individual' ? 'Project' : `Group ${group.assignmentNumber}`}: {group.title}
                             </h1>
                             <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-full border border-emerald-500/20">
-                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                <span className="text-[10px] font-bold uppercase tracking-widest">
                                     {group.type === 'individual' ? 'Individual' : 'Group'} • {group.similarityLevel} Similarity: {group.similarity}%
                                 </span>
                             </div>
@@ -537,15 +537,15 @@ const GroupDetailPage = () => {
                                     <div key={i} className="w-10 h-10 rounded-xl border-4 border-white dark:border-[#0B1120] bg-[var(--sv-card-muted)] dark:bg-[#0F172A] flex items-center justify-center overflow-hidden shadow-sm">
                                          {member.photo && member.photo !== 'default-student.jpg' ? (
                                             <img src={member.photo.startsWith('http') ? member.photo : `${apiOrigin}/uploads/${member.photo}`} className="w-full h-full object-cover" alt="" />
-                                        ) : <span className="text-xs font-black text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{member?.name?.[0] || '?'}</span>}
+                                        ) : <span className="text-xs font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{member?.name?.[0] || '?'}</span>}
                                     </div>
                                 ))}
                             </div>
                             <div>
-                                <h4 className="text-[10px] font-black text-[var(--sv-muted)] dark:text-[var(--sv-muted)] uppercase tracking-widest mb-0.5">Team Members</h4>
+                                <h4 className="text-[10px] font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)] uppercase tracking-widest mb-0.5">Team Members</h4>
                                  <p className="text-sm font-bold text-[var(--sv-muted)] dark:text-[var(--sv-muted)]">{group.members?.map(m => m.name?.split(' ')?.[0] || 'Unknown').join(', ')}</p>
                             </div>
-                            <button className="flex items-center gap-2 text-[#1D68E3] hover:text-blue-400 font-bold text-[13px] ml-4">
+                            <button className="flex items-center gap-2 text-[#2f4aad] hover:text-blue-400 font-bold text-[13px] ml-4">
                                 <History className="h-4 w-4" />
                                 View Revision History
                             </button>
@@ -557,7 +557,7 @@ const GroupDetailPage = () => {
                             type="button"
                             onClick={handleDeleteGroup}
                             disabled={deleting}
-                            className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-300 px-5 py-4 rounded-2xl font-black text-[13px] hover:bg-rose-100 disabled:opacity-60"
+                            className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-300 px-5 py-4 rounded-2xl font-bold text-[13px] hover:bg-rose-100 disabled:opacity-60"
                         >
                             {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                             Delete group
@@ -569,7 +569,7 @@ const GroupDetailPage = () => {
                                 download 
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[var(--sv-card)] dark:bg-[#0F172A] border border-[var(--sv-border)] dark:border-white/5 text-[var(--sv-text)] dark:text-slate-300 px-6 py-4 rounded-2xl font-black text-[14px] hover:bg-[var(--sv-card-muted)] dark:hover:bg-slate-800 transition-all shadow-xl"
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[var(--sv-card)] dark:bg-[#0F172A] border border-[var(--sv-border)] dark:border-white/5 text-[var(--sv-text)] dark:text-slate-300 px-6 py-4 rounded-2xl font-bold text-[14px] hover:bg-[var(--sv-card-muted)] dark:hover:bg-slate-800 transition-all shadow-xl"
                             >
                                 <Download className="h-5 w-5" />
                                 Download Files
@@ -577,19 +577,19 @@ const GroupDetailPage = () => {
                             ) : (
                             <Link
                                 to={fullReviewUrl}
-                                className="flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[var(--sv-card)] dark:bg-[#0F172A] border border-[var(--sv-border)] dark:border-white/5 text-[var(--sv-text)] dark:text-slate-300 px-6 py-4 rounded-2xl font-black text-[14px] hover:bg-[var(--sv-card-muted)] dark:hover:bg-slate-800 transition-all shadow-xl"
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[var(--sv-card)] dark:bg-[#0F172A] border border-[var(--sv-border)] dark:border-white/5 text-[var(--sv-text)] dark:text-slate-300 px-6 py-4 rounded-2xl font-bold text-[14px] hover:bg-[var(--sv-card-muted)] dark:hover:bg-slate-800 transition-all shadow-xl"
                             >
                                 <FileText className="h-5 w-5" />
                                 Open proposal
                             </Link>
                             )
                         ) : (
-                            <button disabled className="opacity-50 flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[var(--sv-card)] dark:bg-[#0F172A] border border-[var(--sv-border)] dark:border-white/5 text-[var(--sv-text)] dark:text-slate-300 px-6 py-4 rounded-2xl font-black text-[14px] shadow-xl cursor-not-allowed">
+                            <button disabled className="opacity-50 flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[var(--sv-card)] dark:bg-[#0F172A] border border-[var(--sv-border)] dark:border-white/5 text-[var(--sv-text)] dark:text-slate-300 px-6 py-4 rounded-2xl font-bold text-[14px] shadow-xl cursor-not-allowed">
                                 <Download className="h-5 w-5" />
                                 No Files Yet
                             </button>
                         )}
-                        <button className="flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[#1D68E3] text-white px-8 py-4 rounded-2xl font-black text-[14px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-blue-500/20">
+                        <button className="flex-1 lg:flex-none flex items-center justify-center gap-3 bg-[#2f4aad] text-white px-8 py-4 rounded-2xl font-bold text-[14px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-blue-500/20">
                             <CheckCircle2 className="h-5 w-5" />
                             Approve Project
                         </button>
@@ -609,11 +609,11 @@ const GroupDetailPage = () => {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 pb-4 text-[15px] font-black transition-all relative ${
-                                activeTab === tab.id ? 'text-[#1D68E3]' : 'text-[var(--sv-muted)] hover:text-[var(--sv-muted)]'
+                            className={`flex items-center gap-2 pb-4 text-[15px] font-bold transition-all relative ${
+                                activeTab === tab.id ? 'text-[#2f4aad]' : 'text-[var(--sv-muted)] hover:text-[var(--sv-muted)]'
                             }`}
                         >
-                            {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-1 bg-[#1D68E3] rounded-full" />}
+                            {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-1 bg-[#2f4aad] rounded-full" />}
                             <tab.icon className="h-4 w-4" />
                             {tab.label}
                         </button>

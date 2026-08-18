@@ -70,7 +70,7 @@ const NormalAssignmentStudents = () => {
     if (loading) {
         return (
             <div className={`${Z_PAGE} flex min-h-[50vh] items-center justify-center`}>
-                <Loader2 className="h-10 w-10 animate-spin text-[#1e56e3]" />
+                <Loader2 className="h-10 w-10 animate-spin text-[#2f4aad]" />
             </div>
         );
     }
@@ -136,7 +136,7 @@ const NormalAssignmentStudents = () => {
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search by name, email, ID, class…"
-                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none ring-[#1e56e3]/0 transition focus:border-[#1e56e3]/40 focus:ring-2 focus:ring-[#1e56e3]/20"
+                        className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-800 shadow-sm outline-none ring-[#2f4aad]/0 transition focus:border-[#2f4aad]/40 focus:ring-2 focus:ring-[#2f4aad]/20"
                     />
                 </div>
             </div>
@@ -144,7 +144,7 @@ const NormalAssignmentStudents = () => {
             <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className={`${Z_CARD} p-4`}>
                     <div className="flex items-center gap-2 text-slate-500">
-                        <Users className="h-4 w-4 text-[#1e56e3]" />
+                        <Users className="h-4 w-4 text-[#2f4aad]" />
                         <span className="text-[11px] font-bold uppercase tracking-wide">Students</span>
                     </div>
                     <p className="mt-2 text-2xl font-bold text-slate-900">{students.length}</p>
@@ -176,11 +176,11 @@ const NormalAssignmentStudents = () => {
 
             {students.length === 0 ? (
                 <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>
-                    No students found for this assignment’s classes.
+                    No students found for this assignment's classes.
                 </div>
             ) : filteredStudents.length === 0 ? (
                 <div className={`${Z_CARD} ${Z_EMPTY_PAD} text-sm font-semibold text-slate-500`}>
-                    No students match “{query.trim()}”.
+                    No students match "{query.trim()}".
                 </div>
             ) : (
                 <div className={`${Z_CARD} overflow-hidden`}>
@@ -202,7 +202,7 @@ const NormalAssignmentStudents = () => {
                                     }
                                     className="flex w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-slate-50 md:px-5"
                                 >
-                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#1e56e3] to-[#3b74ff] text-sm font-bold text-white shadow-sm">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2f4aad] to-[#3b74ff] text-sm font-bold text-white shadow-sm">
                                         {(s.name || s.email || '?').charAt(0).toUpperCase()}
                                     </div>
                                     <div className="min-w-0 flex-1">

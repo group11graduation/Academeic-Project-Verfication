@@ -339,7 +339,7 @@ const TeacherCollaborationPanel = ({
 
             {incoming.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50/80 dark:bg-amber-950/20 dark:border-amber-900/40 p-3 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                         Requests for you ({incoming.length})
                     </p>
                     {incoming.map((row) => {
@@ -450,7 +450,7 @@ const TeacherCollaborationPanel = ({
 
             {outgoing.length > 0 && (
                 <div className={`${Z_FORM_SECTION} space-y-2`}>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Waiting for response</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Waiting for response</p>
                     {outgoing.map((row) => (
                         <div
                             key={row._id}
@@ -489,7 +489,7 @@ const TeacherCollaborationPanel = ({
 
             {accepted.length > 0 && (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/40 p-3 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
                         <UserCheck className="h-3.5 w-3.5" /> Accepted partners ({accepted.length})
                     </p>
                     {accepted.map((row) => (
@@ -530,7 +530,7 @@ const TeacherCollaborationPanel = ({
                     className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-indigo-100/50 dark:hover:bg-indigo-950/40 transition-colors"
                 >
                     <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
                             Invite a co-teacher
                         </p>
                         {!inviteFormOpen && (

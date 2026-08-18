@@ -43,7 +43,7 @@ const TeacherMyProfile = () => {
     if (loading) {
         return (
             <div className="flex min-h-[40vh] items-center justify-center">
-                <Loader2 className="h-7 w-7 animate-spin text-[#1D68E3]" />
+                <Loader2 className="h-7 w-7 animate-spin text-[#2f4aad]" />
             </div>
         );
     }
@@ -55,7 +55,7 @@ const TeacherMyProfile = () => {
                 <button
                     type="button"
                     onClick={() => navigate('/teacher')}
-                    className="mt-4 text-sm font-bold text-[#1D68E3] hover:underline"
+                    className="mt-4 text-sm font-bold text-[#2f4aad] hover:underline"
                 >
                     Back to dashboard
                 </button>
@@ -67,7 +67,7 @@ const TeacherMyProfile = () => {
     const initial = (profile.name || 'T').trim().slice(0, 1).toUpperCase();
 
     return (
-        <div className="mx-auto max-w-3xl space-y-4">
+        <div className="mx-auto max-w-3xl space-y-4 antialiased [font-family:var(--sv-font-sans)]">
             <button
                 type="button"
                 onClick={() => navigate(-1)}
@@ -80,7 +80,7 @@ const TeacherMyProfile = () => {
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#0F172A]">
                 <div className="border-b border-slate-100 bg-gradient-to-r from-[#eef3ff] via-white to-[#eef3ff] px-5 py-6 dark:border-white/10 dark:from-[#111827] dark:via-[#0F172A] dark:to-[#111827]">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#1D68E3] text-xl font-black text-white shadow-md">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#2f4aad] text-xl font-bold text-white shadow-md">
                             {photoUrl ? (
                                 <img src={photoUrl} alt="" className="h-full w-full object-cover" />
                             ) : (
@@ -88,7 +88,7 @@ const TeacherMyProfile = () => {
                             )}
                         </div>
                         <div className="min-w-0">
-                            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100">{profile.name || 'Teacher'}</h1>
+                            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{profile.name || 'Teacher'}</h1>
                             <p className="mt-0.5 text-sm font-semibold text-slate-500">
                                 {[profile.department, profile.faculty].filter(Boolean).join(' · ') || 'Faculty account'}
                             </p>
@@ -112,7 +112,7 @@ const TeacherMyProfile = () => {
                             key={row.label}
                             className="rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.03]"
                         >
-                            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 <row.icon className="h-3.5 w-3.5" />
                                 {row.label}
                             </div>
@@ -125,12 +125,12 @@ const TeacherMyProfile = () => {
 
                 {Array.isArray(profile.skills) && profile.skills.length > 0 ? (
                     <div className="border-t border-slate-100 px-5 py-4 dark:border-white/10">
-                        <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Skills</p>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Skills</p>
                         <div className="flex flex-wrap gap-1.5">
                             {profile.skills.map((skill) => (
                                 <span
                                     key={skill}
-                                    className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-[#1D68E3] dark:bg-blue-950/40 dark:text-blue-300"
+                                    className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-[#2f4aad] dark:bg-blue-950/40 dark:text-blue-300"
                                 >
                                     {skill}
                                 </span>
@@ -140,7 +140,7 @@ const TeacherMyProfile = () => {
                 ) : null}
 
                 <div className="border-t border-slate-100 px-5 py-4 dark:border-white/10">
-                    <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Assigned classes</p>
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned classes</p>
                     {(profile.classes || []).length === 0 ? (
                         <p className="text-sm font-medium text-slate-500">No classes assigned yet.</p>
                     ) : (
@@ -159,7 +159,7 @@ const TeacherMyProfile = () => {
                                     <button
                                         type="button"
                                         onClick={() => navigate(`/teacher/classes/${encodeURIComponent(cls.code)}`)}
-                                        className="text-xs font-black text-[#1D68E3] hover:underline"
+                                        className="text-xs font-bold text-[#2f4aad] hover:underline"
                                     >
                                         Open
                                     </button>
