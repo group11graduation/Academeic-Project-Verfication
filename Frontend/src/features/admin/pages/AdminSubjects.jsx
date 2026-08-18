@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { appConfirm, appError, appWarning } from '../../../lib/appDialog';
 import {
-    Search, Plus, BookOpen, User, GraduationCap, Link as LinkIcon, Edit2, Trash2, X, Loader2
+    Search,
+    Plus,
+    BookOpen,
+    Monitor,
+    Users,
+    Edit2,
+    Trash2,
+    X,
+    Loader2,
+    MoreVertical,
+    ArrowRight,
 } from 'lucide-react';
 import adminSubjectService from '../../../services/adminSubjectService';
 import adminTeacherService from '../../../services/adminTeacherService';
@@ -12,6 +22,22 @@ import {
     getSubjectDepartments,
     getSubjectFaculties,
 } from '../../../shared/utils/subjectTaxonomy';
+
+const CARD_THEMES = [
+    { iconBg: 'bg-emerald-50', iconText: 'text-emerald-600', badge: 'bg-emerald-50 text-emerald-700' },
+    { iconBg: 'bg-violet-50', iconText: 'text-violet-600', badge: 'bg-violet-50 text-violet-700' },
+    { iconBg: 'bg-[#eef2fb]', iconText: 'text-[#2f4aad]', badge: 'bg-[#eef2fb] text-[#2f4aad]' },
+    { iconBg: 'bg-orange-50', iconText: 'text-orange-600', badge: 'bg-orange-50 text-orange-700' },
+    { iconBg: 'bg-sky-50', iconText: 'text-sky-600', badge: 'bg-sky-50 text-sky-700' },
+    { iconBg: 'bg-rose-50', iconText: 'text-rose-600', badge: 'bg-rose-50 text-rose-700' },
+];
+
+function themeForSubject(sub, index) {
+    const seed = String(sub?.code || sub?.name || index)
+        .split('')
+        .reduce((n, ch) => n + ch.charCodeAt(0), 0);
+    return CARD_THEMES[seed % CARD_THEMES.length];
+}
 
 const emptyForm = () => ({
     _id: null,
@@ -29,8 +55,9 @@ const AdminSubjects = () => {
     const [teachers, setTeachers] = useState([]);
     const [academicStructure, setAcademicStructure] = useState({ faculties: [] });
     const [loading, setLoading] = useState(true);
+    const [menuOpenId, setMenuOpenId] = useState('');
+    const menuRef = useRef(null);
 
-    // Modal state
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -40,15 +67,26 @@ const AdminSubjects = () => {
         fetchData();
     }, []);
 
+    useEffect(() => {
+        if (!menuOpenId) return undefined;
+        const onDocClick = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setMenuOpenId('');
+            }
+        };
+        document.addEventListener('mousedown', onDocClick);
+        return () => document.removeEventListener('mousedown', onDocClick);
+    }, [menuOpenId]);
+
     const fetchData = async () => {
         try {
             setLoading(true);
             const [subRes, techRes, structureRes] = await Promise.all([
                 adminSubjectService.getSubjects(),
                 adminTeacherService.getTeachers(),
-                adminAcademicService.getAcademicStructure()
+                adminAcademicService.getAcademicStructure(),
             ]);
-            
+
             if (subRes.success) setSubjects(subRes.data);
             if (techRes.success) setTeachers(techRes.data);
             if (structureRes.success) setAcademicStructure(structureRes.data || { faculties: [] });
@@ -64,6 +102,7 @@ const AdminSubjects = () => {
         setFormData(emptyForm());
         setIsEditing(false);
         setShowModal(true);
+        setMenuOpenId('');
     };
 
     const openEditModal = (subject) => {
@@ -78,6 +117,7 @@ const AdminSubjects = () => {
         });
         setIsEditing(true);
         setShowModal(true);
+        setMenuOpenId('');
     };
 
     const toggleFaculty = (name) => {
@@ -112,14 +152,18 @@ const AdminSubjects = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!(await appConfirm({
-            message: 'Are you sure you want to delete this subject?',
-            danger: true,
-            confirmLabel: 'Delete',
-        }))) return;
+        setMenuOpenId('');
+        if (
+            !(await appConfirm({
+                message: 'Are you sure you want to delete this subject?',
+                danger: true,
+                confirmLabel: 'Delete',
+            }))
+        )
+            return;
         try {
             await adminSubjectService.deleteSubject(id);
-            setSubjects(subjects.filter(s => s._id !== id));
+            setSubjects(subjects.filter((s) => s._id !== id));
         } catch (err) {
             console.error(err);
             await appError('Failed to delete subject');
@@ -173,125 +217,144 @@ const AdminSubjects = () => {
         }
     };
 
-    const filteredSubjects = subjects.filter((sub) =>
-        matchesSearchQuery(
-            searchQuery,
-            sub.name,
-            sub.code,
-            sub.teacher?.name,
-            ...getSubjectFaculties(sub),
-            ...getSubjectDepartments(sub)
-        )
+    const filteredSubjects = useMemo(
+        () =>
+            subjects.filter((sub) =>
+                matchesSearchQuery(
+                    searchQuery,
+                    sub.name,
+                    sub.code,
+                    sub.teacher?.name,
+                    ...getSubjectFaculties(sub),
+                    ...getSubjectDepartments(sub)
+                )
+            ),
+        [subjects, searchQuery]
     );
+
     const facultyOptions = (academicStructure.faculties || []).map((f) => f.name);
     const departmentOptions = (academicStructure.faculties || [])
         .filter((f) => formData.faculties.includes(f.name))
         .flatMap((f) => f.departments || [])
         .filter((d, i, arr) => arr.indexOf(d) === i);
     const filteredTeachersForSubject = teachers || [];
-    const groupedSubjects = filteredSubjects.reduce((acc, sub) => {
-        const faculties = getSubjectFaculties(sub);
-        const departments = getSubjectDepartments(sub);
-        const facultyList = faculties.length ? faculties : ['Unassigned Faculty'];
-        const departmentList = departments.length ? departments : ['Unassigned Department'];
-        for (const faculty of facultyList) {
-            if (!acc[faculty]) acc[faculty] = {};
-            for (const department of departmentList) {
-                if (!acc[faculty][department]) acc[faculty][department] = [];
-                acc[faculty][department].push(sub);
+
+    const groupedSubjects = useMemo(() => {
+        return filteredSubjects.reduce((acc, sub) => {
+            const faculties = getSubjectFaculties(sub);
+            const departments = getSubjectDepartments(sub);
+            const facultyList = faculties.length ? faculties : ['Unassigned Faculty'];
+            const departmentList = departments.length ? departments : ['Unassigned Department'];
+            for (const faculty of facultyList) {
+                if (!acc[faculty]) acc[faculty] = {};
+                for (const department of departmentList) {
+                    if (!acc[faculty][department]) acc[faculty][department] = [];
+                    acc[faculty][department].push(sub);
+                }
             }
-        }
-        return acc;
-    }, {});
+            return acc;
+        }, {});
+    }, [filteredSubjects]);
 
     return (
         <div className="admin-page font-sans transition-colors">
-            {/* Top Bar Area */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 gap-3">
-                <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
-                    <input
-                        type="text"
-                        placeholder="Search subjects..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 pl-9 pr-3 text-[12px] focus:ring-2 focus:ring-blue-500/10 font-medium text-slate-700 dark:text-slate-200 outline-none"
-                    />
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h1 className="text-lg font-extrabold leading-[1.2] tracking-tight text-[#0F172A] dark:text-white">
+                        Subjects
+                    </h1>
+                    <p className="mt-0.5 text-[12px] font-normal text-slate-500">
+                        Courses grouped by faculty and department
+                    </p>
                 </div>
-
-                <div className="flex items-center gap-2 justify-between sm:justify-end">
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative w-full sm:w-[240px]">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search subjects..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full rounded-full border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] font-normal text-slate-700 outline-none focus:ring-2 focus:ring-[#2f4aad]/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        />
+                    </div>
                     <button
                         type="button"
                         onClick={openCreateModal}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2f4aad] text-white rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors shadow-sm"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#2f4aad] px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-[#263c96]"
                     >
                         <Plus className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">New Course</span>
+                        New Subject
                     </button>
-                    <div className="text-right">
-                        <h1 className="text-base font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-none">Subjects / Courses</h1>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Grouped by Faculty</p>
-                    </div>
                 </div>
             </div>
+
             {showModal && (
                 <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex items-center justify-between">
                         <div>
-                            <h2 className="text-sm font-black text-slate-800">
+                            <h2 className="text-sm font-semibold text-slate-800">
                                 {isEditing ? 'Edit Course / Subject' : 'New Course Registration'}
                             </h2>
-                            <p className="text-slate-500 text-[11px] font-medium mt-0.5">Register course subject and map classes/teachers.</p>
+                            <p className="mt-0.5 text-[11px] font-normal text-slate-500">
+                                Register course subject and map classes/teachers.
+                            </p>
                         </div>
                         <button
                             type="button"
                             onClick={() => setShowModal(false)}
-                            className="w-7 h-7 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800"
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-800"
                         >
                             <X className="h-3.5 w-3.5" />
                         </button>
                     </div>
 
                     <form id="subjectForm" onSubmit={handleSubmit} className="space-y-3">
-                        <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row">
                             <div className="flex-1">
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Course / Subject Name <span className="text-rose-500">*</span></label>
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                                    Course / Subject Name <span className="text-rose-500">*</span>
+                                </label>
                                 <input
                                     type="text"
                                     required
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="e.g. Advanced Calculus"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-900 placeholder:text-slate-400 focus:border-blue-500 outline-none"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#2f4aad]"
                                 />
                             </div>
                             <div className="w-full sm:w-[140px]">
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Code <span className="text-rose-500">*</span></label>
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                                    Code <span className="text-rose-500">*</span>
+                                </label>
                                 <input
                                     type="text"
                                     required
                                     value={formData.code}
                                     onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                                     placeholder="MATH301"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-900 placeholder:text-slate-400 focus:border-blue-500 outline-none uppercase font-mono"
+                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[12px] uppercase text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#2f4aad]"
                                 />
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
                                     Faculties
-                                    <span className="ml-1 font-medium normal-case tracking-normal text-slate-400">(select one or more)</span>
+                                    <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+                                        (select one or more)
+                                    </span>
                                 </label>
-                                <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1">
+                                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
                                     {facultyOptions.length === 0 ? (
-                                        <p className="text-[11px] text-slate-400 px-1 py-1">No faculties in academic structure yet.</p>
+                                        <p className="px-1 py-1 text-[11px] text-slate-400">No faculties in academic structure yet.</p>
                                     ) : (
                                         facultyOptions.map((f) => (
                                             <label
                                                 key={f}
-                                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-white cursor-pointer"
+                                                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-normal text-slate-700 hover:bg-white"
                                             >
                                                 <input
                                                     type="checkbox"
@@ -304,27 +367,24 @@ const AdminSubjects = () => {
                                         ))
                                     )}
                                 </div>
-                                {formData.faculties.length > 0 && (
-                                    <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                                        {formData.faculties.length} facult{formData.faculties.length === 1 ? 'y' : 'ies'} selected
-                                    </p>
-                                )}
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                                <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
                                     Departments
-                                    <span className="ml-1 font-medium normal-case tracking-normal text-slate-400">(select one or more)</span>
+                                    <span className="ml-1 font-normal normal-case tracking-normal text-slate-400">
+                                        (select one or more)
+                                    </span>
                                 </label>
-                                <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1">
+                                <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
                                     {formData.faculties.length === 0 ? (
-                                        <p className="text-[11px] text-slate-400 px-1 py-1">Select faculty first.</p>
+                                        <p className="px-1 py-1 text-[11px] text-slate-400">Select faculty first.</p>
                                     ) : departmentOptions.length === 0 ? (
-                                        <p className="text-[11px] text-slate-400 px-1 py-1">No departments under selected faculties.</p>
+                                        <p className="px-1 py-1 text-[11px] text-slate-400">No departments under selected faculties.</p>
                                     ) : (
                                         departmentOptions.map((d) => (
                                             <label
                                                 key={d}
-                                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-white cursor-pointer"
+                                                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-normal text-slate-700 hover:bg-white"
                                             >
                                                 <input
                                                     type="checkbox"
@@ -337,20 +397,17 @@ const AdminSubjects = () => {
                                         ))
                                     )}
                                 </div>
-                                {formData.departments.length > 0 && (
-                                    <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                                        {formData.departments.length} department{formData.departments.length === 1 ? '' : 's'} selected
-                                    </p>
-                                )}
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Teacher (Optional)</label>
+                            <label className="mb-1 block text-[10px] font-medium uppercase tracking-[0.5px] text-slate-500">
+                                Teacher (Optional)
+                            </label>
                             <select
                                 value={formData.teacherId}
                                 onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] text-slate-900 focus:border-blue-500 outline-none"
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-[#2f4aad]"
                             >
                                 <option value="">Select Teacher...</option>
                                 {filteredTeachersForSubject.map((t) => (
@@ -365,16 +422,16 @@ const AdminSubjects = () => {
                             <button
                                 type="button"
                                 onClick={() => setShowModal(false)}
-                                className="px-4 py-1.5 rounded-lg font-bold text-[12px] text-slate-600 hover:bg-slate-100"
+                                className="rounded-lg px-4 py-1.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-100"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="px-5 py-1.5 rounded-lg font-bold text-[12px] bg-[#2f4aad] text-white hover:bg-blue-700 flex items-center gap-1.5 min-w-[120px] justify-center"
+                                className="inline-flex min-w-[120px] items-center justify-center gap-1.5 rounded-lg bg-[#2f4aad] px-5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#263c96]"
                             >
-                                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEditing ? 'Save' : 'Create')}
+                                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEditing ? 'Save' : 'Create'}
                             </button>
                         </div>
                     </form>
@@ -382,95 +439,169 @@ const AdminSubjects = () => {
             )}
 
             {loading ? (
-                <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 text-[#2f4aad] animate-spin" />
+                <div className="flex h-40 items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-[#2f4aad]" />
                 </div>
             ) : subjects.length === 0 ? (
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-8 text-center border border-slate-200 dark:border-slate-700">
-                    <div className="bg-blue-50 dark:bg-blue-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="rounded-[1.25rem] border border-slate-200 bg-white p-10 text-center dark:border-white/10 dark:bg-slate-900">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#eef2fb]">
                         <BookOpen className="h-6 w-6 text-[#2f4aad]" />
                     </div>
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-1">No subjects found</h3>
-                    <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-4">Create subjects and map them to teachers and classes.</p>
-                    <button type="button" onClick={openCreateModal} className="px-4 py-1.5 bg-[#2f4aad] text-white rounded-lg font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-blue-700">
+                    <h3 className="mb-1 text-sm font-semibold text-slate-800 dark:text-white">No subjects found</h3>
+                    <p className="mb-4 text-[12px] font-normal text-slate-500">
+                        Create subjects and map them to teachers and classes.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={openCreateModal}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#2f4aad] px-4 py-2 text-[12px] font-semibold text-white hover:bg-[#263c96]"
+                    >
                         <Plus className="h-3.5 w-3.5" /> Create First Subject
                     </button>
                 </div>
+            ) : filteredSubjects.length === 0 ? (
+                <div className="rounded-[1.25rem] border border-slate-100 bg-white px-6 py-12 text-center text-[13px] font-normal text-slate-400">
+                    No subjects match your search.
+                </div>
             ) : (
-                <div className="space-y-5">
-                    {Object.entries(groupedSubjects).map(([faculty, departments]) => (
-                        <section key={faculty}>
-                            <div className="mb-2 flex items-center justify-between">
-                                <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-200">{faculty}</h3>
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                                    {Object.values(departments).reduce((sum, list) => sum + list.length, 0)} subjects
-                                </span>
-                            </div>
-                            {Object.entries(departments).map(([department, rows]) => (
-                                <div key={`${faculty}-${department}`} className="mb-4">
-                                    <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">{department}</h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-                                        {rows.map((sub) => (
-                                    <div key={`${faculty}-${sub._id}`} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-all">
-                            <div className="p-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start gap-2">
-                                <div className="min-w-0">
-                                    <h3 className="text-[13px] font-black text-slate-800 dark:text-white mb-1 truncate">{sub.name}</h3>
-                                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">
-                                        {sub.code}
+                <div className="space-y-8">
+                    {Object.entries(groupedSubjects).map(([faculty, departments]) =>
+                        Object.entries(departments).map(([department, rows]) => (
+                            <section key={`${faculty}-${department}`}>
+                                <div className="mb-4 flex items-center justify-between gap-3">
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eef2fb] text-[#2f4aad]">
+                                            <Monitor className="h-5 w-5" strokeWidth={2} />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h2 className="truncate text-[16px] font-semibold leading-[1.2] text-[#0F172A] dark:text-white">
+                                                {faculty}
+                                            </h2>
+                                            <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.5px] text-slate-400">
+                                                {department}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="shrink-0 rounded-full bg-[#eef2fb] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.5px] text-[#2f4aad]">
+                                        {rows.length} subject{rows.length === 1 ? '' : 's'}
                                     </span>
-                                    {(getSubjectFaculties(sub).length > 1 || getSubjectDepartments(sub).length > 1) && (
-                                        <p className="mt-1.5 text-[10px] text-slate-400 font-medium leading-snug">
-                                            {getSubjectFaculties(sub).join(' · ')}
-                                            {getSubjectDepartments(sub).length
-                                                ? ` → ${getSubjectDepartments(sub).join(', ')}`
-                                                : ''}
-                                        </p>
-                                    )}
                                 </div>
-                                <div className="flex gap-1 shrink-0">
-                                    <button type="button" onClick={() => openEditModal(sub)} className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-[#2f4aad]">
-                                        <Edit2 className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button type="button" onClick={() => handleDelete(sub._id)} className="w-7 h-7 rounded-full bg-rose-50 border border-rose-100 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600">
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            </div>
 
-                            <div className="p-3 bg-slate-50 dark:bg-slate-900/50">
-                                <h4 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-                                    <LinkIcon className="h-3 w-3" /> Class Allocations ({(sub.allocations || []).length})
-                                </h4>
-                                <div className="space-y-1.5">
-                                    {(sub.allocations || []).length === 0 ? (
-                                        <p className="text-[11px] text-slate-400 italic">No classes allocated</p>
-                                    ) : (
-                                        (sub.allocations || []).map((alloc, idx) => (
-                                            <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
-                                                <div className="flex items-center gap-1 bg-[#2f4aad]/10 text-[#2f4aad] px-2 py-0.5 rounded flex-shrink-0">
-                                                    <GraduationCap className="h-3 w-3" />
-                                                    <span className="text-[9px] font-black tracking-wider">{alloc.classId}</span>
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                    {rows.map((sub, index) => {
+                                        const theme = themeForSubject(sub, index);
+                                        const allocCount = (sub.allocations || []).length;
+                                        const menuKey = `${faculty}-${department}-${sub._id}`;
+                                        return (
+                                            <div
+                                                key={menuKey}
+                                                className="group flex flex-col rounded-[1.25rem] bg-white p-5 shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-20px_rgba(47,74,173,0.28)] dark:bg-slate-900 dark:ring-white/10"
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex min-w-0 items-start gap-3">
+                                                        <div
+                                                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${theme.iconBg} ${theme.iconText}`}
+                                                        >
+                                                            <BookOpen className="h-5 w-5" strokeWidth={2} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <h3 className="truncate text-[14px] font-semibold leading-[1.2] text-[#0F172A] dark:text-slate-100">
+                                                                {sub.name}
+                                                            </h3>
+                                                            <span
+                                                                className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.5px] ${theme.badge}`}
+                                                            >
+                                                                {sub.code}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="relative shrink-0" ref={menuOpenId === menuKey ? menuRef : null}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setMenuOpenId((prev) => (prev === menuKey ? '' : menuKey))
+                                                            }
+                                                            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10"
+                                                            aria-label="Subject actions"
+                                                        >
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </button>
+                                                        {menuOpenId === menuKey ? (
+                                                            <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-slate-900">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openEditModal(sub)}
+                                                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/10"
+                                                                >
+                                                                    <Edit2 className="h-3.5 w-3.5" /> Edit
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDelete(sub._id)}
+                                                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                                                                </button>
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate min-w-0">
-                                                    <User className="h-3 w-3 text-slate-400 shrink-0" />
-                                                    <span className="truncate">{alloc.teacher?.name || 'Unknown Teacher'}</span>
+
+                                                <div className="mt-6 flex-1">
+                                                    <div className="mb-1 flex items-center gap-1.5">
+                                                        <Users className={`h-3.5 w-3.5 ${theme.iconText}`} />
+                                                        <p className="text-[10px] font-medium uppercase tracking-[0.5px] text-slate-400">
+                                                            Class allocations
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-[22px] font-extrabold leading-[1.2] text-[#0F172A] dark:text-slate-100">
+                                                        {allocCount}
+                                                    </p>
+                                                    <p className="mt-1 text-[12px] font-normal text-slate-400">
+                                                        {allocCount === 0
+                                                            ? 'No classes allocated'
+                                                            : allocCount === 1
+                                                              ? '1 class allocated'
+                                                              : `${allocCount} classes allocated`}
+                                                    </p>
+                                                    {allocCount > 0 ? (
+                                                        <ul className="mt-3 space-y-1">
+                                                            {(sub.allocations || []).slice(0, 2).map((alloc, idx) => (
+                                                                <li
+                                                                    key={idx}
+                                                                    className="truncate text-[11px] font-normal text-slate-500"
+                                                                >
+                                                                    {alloc.classId || alloc.classCode || 'Class'}
+                                                                    {alloc.teacher?.name ? ` · ${alloc.teacher.name}` : ''}
+                                                                </li>
+                                                            ))}
+                                                            {allocCount > 2 ? (
+                                                                <li className="text-[11px] font-normal text-slate-400">
+                                                                    +{allocCount - 2} more
+                                                                </li>
+                                                            ) : null}
+                                                        </ul>
+                                                    ) : null}
                                                 </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEditModal(sub)}
+                                                    className="mt-5 flex w-full items-center justify-between border-t border-slate-100 pt-3 text-[13px] font-semibold text-[#2f4aad] transition hover:text-[#263c96] dark:border-white/10"
+                                                >
+                                                    View Details
+                                                    <ArrowRight className="h-4 w-4" />
+                                                </button>
                                             </div>
-                                        ))
-                                    )}
+                                        );
+                                    })}
                                 </div>
-                            </div>
-                                    </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </section>
-                    ))}
+                            </section>
+                        ))
+                    )}
                 </div>
             )}
-
-            
         </div>
     );
 };
