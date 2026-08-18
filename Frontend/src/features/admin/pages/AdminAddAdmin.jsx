@@ -85,7 +85,7 @@ const AdminAddAdmin = () => {
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <div className="mb-3 flex items-center justify-between">
                             <div className="flex items-center gap-2 text-slate-500">
-                                <Shield className="h-4 w-4 text-[#263c96]" />
+                                <Shield className="h-4 w-4 text-[#2f4aad]" />
                                 <span className="text-[12px] font-bold uppercase tracking-wider">Admin Passcode</span>
                             </div>
                         </div>
@@ -96,7 +96,7 @@ const AdminAddAdmin = () => {
                             <button
                                 type="button"
                                 onClick={handleCopyPasscode}
-                                className="text-slate-500 hover:text-[#263c96] transition-colors"
+                                className="text-slate-500 hover:text-[#2f4aad] transition-colors"
                                 title="Copy passcode"
                             >
                                 {copiedPasscode ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
@@ -104,7 +104,7 @@ const AdminAddAdmin = () => {
                             <button
                                 type="button"
                                 onClick={() => setShowPasscode((prev) => !prev)}
-                                className="text-slate-500 hover:text-[#263c96] transition-colors"
+                                className="text-slate-500 hover:text-[#2f4aad] transition-colors"
                                 title={showPasscode ? 'Hide passcode' : 'Show passcode'}
                             >
                                 {showPasscode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -116,7 +116,7 @@ const AdminAddAdmin = () => {
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#263c96] px-6 py-3 text-[14px] font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#2f4aad] px-6 py-3 text-[14px] font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Create

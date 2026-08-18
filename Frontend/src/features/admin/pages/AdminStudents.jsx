@@ -177,7 +177,7 @@ const AdminStudents = () => {
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="h-14 w-14 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center shrink-0">
                     {uploading ? (
-                        <Loader2 className="h-5 w-5 text-[#263c96] animate-spin" />
+                        <Loader2 className="h-5 w-5 text-[#2f4aad] animate-spin" />
                     ) : form.photo ? (
                         <img src={form.photo} alt="Student" className="h-full w-full object-cover" />
                     ) : (
@@ -442,7 +442,7 @@ const AdminStudents = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#263c96] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading students...</p>
             </div>
         );
@@ -468,7 +468,7 @@ const AdminStudents = () => {
                         </button>
                         <Link
                             to="/admin/students/new"
-                            className="inline-flex items-center gap-1.5 bg-[#263c96] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 bg-[#2f4aad] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] whitespace-nowrap"
                         >
                             <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Add Student
                         </Link>
@@ -582,7 +582,7 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="md:col-span-2 flex justify-end">
-                            <button disabled={adding} className="inline-flex items-center gap-1.5 rounded-lg bg-[#263c96] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                            <button disabled={adding} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
                                 {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                                 {adding ? 'Saving...' : 'Save Student'}
                             </button>
@@ -638,7 +638,7 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="md:col-span-2 flex justify-end">
-                            <button disabled={editing} className="inline-flex items-center gap-1.5 rounded-lg bg-[#263c96] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                            <button disabled={editing} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
                                 {editing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                                 {editing ? 'Updating...' : 'Update Student'}
                             </button>
@@ -732,7 +732,7 @@ const AdminStudents = () => {
                             </div>
                         )}
                         <div className="flex justify-end">
-                            <button onClick={submitImport} disabled={importing || !csvText.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#263c96] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
+                            <button onClick={submitImport} disabled={importing || !csvText.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-4 py-2 text-[12px] font-black text-white disabled:opacity-60">
                                 {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                 {importing ? 'Importing...' : 'Run Import'}
                             </button>
@@ -780,7 +780,7 @@ const AdminStudents = () => {
                                         </div>
                                     </td>
                                     <td className="px-3 py-2">
-                                        <Link to={`/admin/students/${student.studentId || ''}`} state={{ from: location.pathname }} className="text-[12px] font-bold text-slate-800 hover:text-[#263c96]">
+                                        <Link to={`/admin/students/${student.studentId || ''}`} state={{ from: location.pathname }} className="text-[12px] font-bold text-slate-800 hover:text-[#2f4aad]">
                                             {student.name || 'Unknown Student'}
                                         </Link>
                                     </td>
@@ -789,7 +789,7 @@ const AdminStudents = () => {
                                         {student.classId || student.classCode ? (
                                             <Link
                                                 to={`/admin/classes/${encodeURIComponent(student.classId || student.classCode)}`}
-                                                className="text-[12px] font-bold text-[#263c96] hover:underline"
+                                                className="text-[12px] font-bold text-[#2f4aad] hover:underline"
                                             >
                                                 {student.classId || student.classCode}
                                             </Link>
@@ -808,7 +808,7 @@ const AdminStudents = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleCopyPasscode(student.studentId, student.passcode)}
-                                                        className="text-slate-500 transition-colors hover:text-[#263c96] dark:text-slate-400 dark:hover:text-blue-300"
+                                                        className="text-slate-500 transition-colors hover:text-[#2f4aad] dark:text-slate-400 dark:hover:text-blue-300"
                                                         title="Copy passcode"
                                                     >
                                                         {copiedStudentId === student.studentId ? (
@@ -820,7 +820,7 @@ const AdminStudents = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => togglePasscode(student.studentId)}
-                                                        className="text-slate-500 transition-colors hover:text-[#263c96] dark:text-slate-400 dark:hover:text-blue-300"
+                                                        className="text-slate-500 transition-colors hover:text-[#2f4aad] dark:text-slate-400 dark:hover:text-blue-300"
                                                         title={revealedPasscodes[student.studentId] ? 'Hide passcode' : 'Show passcode'}
                                                     >
                                                         {revealedPasscodes[student.studentId] ? (
@@ -831,7 +831,7 @@ const AdminStudents = () => {
                                                     </button>
                                                 </div>
                                             ) : (
-                                                <button onClick={() => handleGeneratePasscode(student.studentId)} className="flex items-center gap-1.5 text-[#263c96] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-[10px] text-[12px] font-bold">
+                                                <button onClick={() => handleGeneratePasscode(student.studentId)} className="flex items-center gap-1.5 text-[#2f4aad] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-[10px] text-[12px] font-bold">
                                                     <Plus className="h-3.5 w-3.5 stroke-[3px]" /> Generate
                                                 </button>
                                             )}

@@ -539,7 +539,7 @@ const AdminClassDetail = () => {
     if (loading) {
         return (
             <div className="admin-page min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#263c96] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading class details...</p>
             </div>
         );
@@ -561,7 +561,7 @@ const AdminClassDetail = () => {
             <div className="flex items-center justify-between mb-3 gap-2">
                 <button
                     onClick={() => navigate('/admin/classes')}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 hover:text-[#263c96] transition-all group"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 font-bold text-[12px] hover:bg-slate-50 dark:hover:bg-slate-750 hover:text-[#2f4aad] transition-all group"
                 >
                     <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
                     Back to Classes
@@ -599,17 +599,17 @@ const AdminClassDetail = () => {
             <div className="flex items-center gap-6 border-b border-slate-200 dark:border-slate-700 mb-4 transition-colors">
                 <button
                     onClick={() => { setActiveTab('students'); setSearchQuery(''); }}
-                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'students' ? 'text-[#263c96]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'students' ? 'text-[#2f4aad]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
                 >
                     Students
-                    {activeTab === 'students' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#263c96] rounded-full" />}
+                    {activeTab === 'students' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#2f4aad] rounded-full" />}
                 </button>
                 <button
                     onClick={() => { setActiveTab('teachers'); setSearchQuery(''); }}
-                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'teachers' ? 'text-[#263c96]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                    className={`pb-2 text-[12px] font-bold transition-all relative ${activeTab === 'teachers' ? 'text-[#2f4aad]' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
                 >
                     Teachers
-                    {activeTab === 'teachers' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#263c96] rounded-full" />}
+                    {activeTab === 'teachers' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#2f4aad] rounded-full" />}
                 </button>
             </div>
 
@@ -732,7 +732,7 @@ const AdminClassDetail = () => {
                 <button
                     onClick={handleSaveClassInfo}
                     disabled={savingClassInfo}
-                    className="px-3 py-1.5 bg-[#263c96] text-white rounded-lg text-[12px] font-bold hover:bg-blue-600 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-[#2f4aad] text-white rounded-lg text-[12px] font-bold hover:bg-blue-600 disabled:opacity-50"
                 >
                     {savingClassInfo ? 'Saving...' : 'Save Class Updates'}
                 </button>
@@ -799,7 +799,7 @@ const AdminClassDetail = () => {
                                         assigningTeacher ||
                                         !(classInfo?.subjects || []).length
                                     }
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#263c96] text-white rounded-lg font-bold text-[11px] hover:bg-blue-600 transition-all disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2f4aad] text-white rounded-lg font-bold text-[11px] hover:bg-blue-600 transition-all disabled:opacity-50"
                                 >
                                     {assigningTeacher
                                         ? 'Saving...'
@@ -864,7 +864,7 @@ const AdminClassDetail = () => {
                                             type="button"
                                             onClick={handleAddSelectedStudents}
                                             disabled={pickedStudentProfileIds.size === 0 || assigningStudent}
-                                            className="flex items-center gap-1.5 rounded-lg bg-[#263c96] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-600 disabled:opacity-50"
+                                            className="flex items-center gap-1.5 rounded-lg bg-[#2f4aad] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-600 disabled:opacity-50"
                                         >
                                             {assigningStudent ? (
                                                 <>
@@ -916,7 +916,7 @@ const AdminClassDetail = () => {
                                                             <input
                                                                 type="checkbox"
                                                                 disabled={!canAdd}
-                                                                className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[#263c96] focus:ring-[#263c96] disabled:cursor-not-allowed"
+                                                                className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[#2f4aad] focus:ring-[#2f4aad] disabled:cursor-not-allowed"
                                                                 checked={pickedStudentProfileIds.has(k)}
                                                                 onChange={() => togglePickStudent(k)}
                                                             />
@@ -932,7 +932,7 @@ const AdminClassDetail = () => {
                                                                 {assignedDisplay ? (
                                                                     <Link
                                                                         to={`/admin/classes/${encodeURIComponent(assignedDisplay)}`}
-                                                                        className="inline-block max-w-full truncate font-mono text-[11px] font-bold text-[#263c96] hover:underline"
+                                                                        className="inline-block max-w-full truncate font-mono text-[11px] font-bold text-[#2f4aad] hover:underline"
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     >
                                                                         {assignedDisplay}
@@ -986,7 +986,7 @@ const AdminClassDetail = () => {
                                                 <Link
                                                     to={`/admin/${activeTab}/${activeTab === 'students' ? item.studentId : item.teacherId}`}
                                                     state={{ from: location.pathname }}
-                                                    className="text-[12px] font-bold text-[#0F172A] dark:text-white hover:text-[#263c96] transition-colors line-clamp-1"
+                                                    className="text-[12px] font-bold text-[#0F172A] dark:text-white hover:text-[#2f4aad] transition-colors line-clamp-1"
                                                 >
                                                     {item.name || 'Unknown User'}
                                                 </Link>
@@ -1006,7 +1006,7 @@ const AdminClassDetail = () => {
                                                     item.subjects.map((sub) => (
                                                         <span
                                                             key={sub._id}
-                                                            className="inline-flex rounded-md bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-[#263c96]"
+                                                            className="inline-flex rounded-md bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2f4aad]"
                                                         >
                                                             {sub.name}
                                                             {sub.code ? ` (${sub.code})` : ''}

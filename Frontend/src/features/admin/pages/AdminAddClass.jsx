@@ -123,7 +123,7 @@ const AdminAddClass = () => {
                 <button
                     onClick={handleRegisterClass}
                     disabled={saving}
-                    className="flex items-center gap-2 bg-[#263c96] text-white px-6 py-3 rounded-[12px] font-bold text-[14px] hover:bg-blue-700 disabled:opacity-60"
+                    className="flex items-center gap-2 bg-[#2f4aad] text-white px-6 py-3 rounded-[12px] font-bold text-[14px] hover:bg-blue-700 disabled:opacity-60"
                 >
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                     Register New Class

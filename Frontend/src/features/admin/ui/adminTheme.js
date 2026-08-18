@@ -1,17 +1,18 @@
-/** Admin console — indigo from user color swatch */
+/** Admin console — brighter indigo matching reference dashboard */
 export const ADMIN = {
-    primary: '#263c96',
-    primaryHover: '#1e317a',
-    primaryDeep: '#182863',
-    primaryDark: '#121e4c',
-    soft: '#eef1f9',
-    softBorder: '#d4dae9',
-    contentBg: '#f3f5fa',
-    frameBg: '#eef1f7',
-    mutedText: '#5a6380',
+    primary: '#2f4aad',
+    primaryHover: '#263c96',
+    primaryDeep: '#1e317a',
+    primaryDark: '#182863',
+    soft: '#eef2fb',
+    softBorder: '#d5dcf0',
+    contentBg: '#f8f9fd',
+    frameBg: '#f0f2f8',
+    mutedText: '#647092',
 };
 
-export const ADMIN_GRADIENT = 'linear-gradient(135deg, #263c96 0%, #3d56b5 100%)';
-export const ADMIN_SIDEBAR_GRADIENT = 'linear-gradient(180deg, #263c96 0%, #1e317a 55%, #121e4c 100%)';
+export const ADMIN_GRADIENT = 'linear-gradient(135deg, #2f4aad 0%, #4a66c4 100%)';
+/** Soft vertical wash — stays bright, not near-black */
+export const ADMIN_SIDEBAR_GRADIENT = 'linear-gradient(180deg, #3554b8 0%, #2f4aad 55%, #263c96 100%)';
 export const ADMIN_MOBILE_GRADIENT = ADMIN_SIDEBAR_GRADIENT;
-export const ADMIN_AVATAR_GRADIENT = 'linear-gradient(145deg, #4d66c4 0%, #263c96 100%)';
+export const ADMIN_AVATAR_GRADIENT = 'linear-gradient(145deg, #6b84d4 0%, #2f4aad 100%)';

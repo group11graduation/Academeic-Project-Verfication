@@ -134,7 +134,7 @@ const AdminAddTeacher = () => {
 
                 {/* 1. PERSONAL DETAILS */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#263c96] dark:text-blue-400 uppercase tracking-widest mb-6">Personal Details</h3>
+                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] dark:text-blue-400 uppercase tracking-widest mb-6">Personal Details</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                         <div>
@@ -209,7 +209,7 @@ const AdminAddTeacher = () => {
                             <div className="flex items-center gap-4">
                                 <div className="w-14 h-14 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
                                     {uploadingImage ? (
-                                        <Loader2 className="h-5 w-5 text-[#263c96] animate-spin" />
+                                        <Loader2 className="h-5 w-5 text-[#2f4aad] animate-spin" />
                                     ) : formData.photo && formData.photo !== 'https://via.placeholder.com/150' ? (
                                         <img src={formData.photo} alt="Avatar" className="w-full h-full object-cover" />
                                     ) : (
@@ -249,14 +249,14 @@ const AdminAddTeacher = () => {
 
                 {/* 2. SUBJECT EXPERTISE */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#263c96] dark:text-blue-400 uppercase tracking-widest mb-6">Subject Expertise</h3>
+                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] dark:text-blue-400 uppercase tracking-widest mb-6">Subject Expertise</h3>
 
                     <div>
                         <label className="block text-[14px] font-bold text-[#0F172A] dark:text-slate-200 mb-2">Skills & Expertise (Select multiple)</label>
                         <div className="relative">
                             <div className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[12px] p-2 flex flex-wrap gap-2 items-center min-h-[52px]">
                                 {skills.map(skill => (
-                                    <span key={skill} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-[#263c96] dark:text-blue-400 rounded-[8px] text-[13px] font-bold">
+                                    <span key={skill} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-[#2f4aad] dark:text-blue-400 rounded-[8px] text-[13px] font-bold">
                                         {skill}
                                         <button onClick={() => removeSkill(skill)} className="hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none">
                                             <X className="h-3.5 w-3.5" />
@@ -291,7 +291,7 @@ const AdminAddTeacher = () => {
 
                 {/* 3. CONTACT INFORMATION */}
                 <section className="mb-10">
-                    <h3 className="text-[13px] font-extrabold text-[#263c96] dark:text-blue-400 uppercase tracking-widest mb-6">Contact Information</h3>
+                    <h3 className="text-[13px] font-extrabold text-[#2f4aad] dark:text-blue-400 uppercase tracking-widest mb-6">Contact Information</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
@@ -337,7 +337,7 @@ const AdminAddTeacher = () => {
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="flex items-center gap-2 bg-[#263c96] text-white px-6 py-3.5 rounded-[12px] font-bold text-[15px] shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 bg-[#2f4aad] text-white px-6 py-3.5 rounded-[12px] font-bold text-[15px] shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <Loader2 className="h-5 w-5 animate-spin" />

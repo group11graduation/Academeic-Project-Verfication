@@ -74,7 +74,7 @@ const AdminTeachers = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#263c96] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#2f4aad] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading faculty directory...</p>
             </div>
         );
@@ -89,7 +89,7 @@ const AdminTeachers = () => {
                         <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Directory</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Link to="/admin/teachers/new" className="inline-flex items-center gap-1.5 bg-[#263c96] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors whitespace-nowrap">
+                        <Link to="/admin/teachers/new" className="inline-flex items-center gap-1.5 bg-[#2f4aad] text-white px-3 py-1.5 rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors whitespace-nowrap">
                             <Plus className="h-3.5 w-3.5" />
                             Add Teacher
                         </Link>
@@ -171,7 +171,7 @@ const AdminTeachers = () => {
 
                         <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
-                                <ShieldCheck className="h-3.5 w-3.5 text-[#263c96] dark:text-blue-400" />
+                                <ShieldCheck className="h-3.5 w-3.5 text-[#2f4aad] dark:text-blue-400" />
                                 <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Passcode</span>
                             </div>
                             {teacher.passcode ? (
