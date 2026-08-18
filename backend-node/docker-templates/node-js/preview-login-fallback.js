@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V23:
+ * Marker V24:
+ * - Stop login↔logout / login↔admin redirect loops (max 1 admin landing; abort on bounce).
+ * - Patch JWT role to admin for ALL apps (not only Sky) so ProtectedRoute keeps the session.
+ * V23:
  * - After preview login, ALWAYS land on admin home (not /shop / home / profile).
  * - Force top-level login JSON `.role` to admin (Harmony userInfo kept role:"user").
  * - Rescue when SPA already navigated to customer routes.
@@ -31,10 +34,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V23__) {
-    console.log('[DEBUG-SHIM] already installed V23 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V24__) {
+    console.log('[DEBUG-SHIM] already installed V24 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V24__ = true;
   window.__SV_LOGIN_FALLBACK_V23__ = true;
   window.__SV_LOGIN_FALLBACK_V22__ = true;
   window.__SV_LOGIN_FALLBACK_V21__ = true;
@@ -53,7 +57,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v23', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v24', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -1240,25 +1244,63 @@
     return defaultAdminHomePath();
   }
 
+  function isAdminNavAborted() {
+    try {
+      return sessionStorage.getItem('__sv_admin_nav_aborted') === '1';
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function abortAdminNav(reason) {
+    try {
+      sessionStorage.setItem('__sv_admin_nav_aborted', '1');
+      sessionStorage.setItem('__sv_post_login_nav__', 'done');
+      console.warn('[DEBUG-SHIM] admin auto-nav aborted —', reason || 'loop');
+    } catch (_e) {}
+  }
+
+  /** If we forced /admin and the SPA bounced us back to login, stop forever this session. */
+  function noteLoginBounceFromAdmin() {
+    try {
+      var path = String((window.location && window.location.pathname) || '');
+      if (!/login|signin|sign-in/i.test(path)) return;
+      var target = sessionStorage.getItem('__sv_admin_nav_target__') || '';
+      var at = Number(sessionStorage.getItem('__sv_admin_nav_at__') || '0');
+      if (!target || !at) return;
+      if (Date.now() - at > 12000) return;
+      abortAdminNav('bounced from ' + target + ' → login');
+    } catch (_e) {}
+  }
+
   function tryRescueStuckLogin() {
     try {
+      noteLoginBounceFromAdmin();
+      if (isAdminNavAborted()) return;
+      if (sessionStorage.getItem('__sv_post_login_nav__') === 'done') return;
       var path = String((window.location && window.location.pathname) || '');
       var token = localStorage.getItem('token') || localStorage.getItem('accessToken') || localStorage.getItem('loan_token');
       if (!token) return;
+      // Only rescue while still on the login screen — never fight customer browsing.
+      if (!/login|signin|sign-in/i.test(path)) return;
       ensureHintsBeforeLogin();
       fixStoredPreviewUserRole();
       var user = readStoredPreviewUser();
       if (!user) return;
-      if (/login|signin|sign-in/i.test(path) || isCustomerLandingPath(path)) {
-        sessionStorage.removeItem('__sv_post_login_nav__');
-        goAdminHome(user, 'rescue-stuck');
-      }
+      goAdminHome(user, 'rescue-stuck-login');
     } catch (_e) {}
   }
 
   function goAdminHome(user, reason) {
     try {
+      if (isAdminNavAborted()) return false;
       if (sessionStorage.getItem('__sv_post_login_nav__') === 'done') return false;
+      var count = Number(sessionStorage.getItem('__sv_admin_nav_count__') || '0');
+      // One hard navigation only — retries caused login↔logout loops.
+      if (count >= 1) {
+        abortAdminNav('max admin landing attempts');
+        return false;
+      }
       var target = pickPostLoginPath(user) || defaultAdminHomePath();
       if (!target) return false;
       var cur = String((window.location && window.location.pathname) || '');
@@ -1266,6 +1308,9 @@
         sessionStorage.setItem('__sv_post_login_nav__', 'done');
         return false;
       }
+      sessionStorage.setItem('__sv_admin_nav_count__', String(count + 1));
+      sessionStorage.setItem('__sv_admin_nav_target__', target);
+      sessionStorage.setItem('__sv_admin_nav_at__', String(Date.now()));
       sessionStorage.setItem('__sv_post_login_nav__', 'done');
       console.log('[DEBUG-SHIM] admin landing →', target, reason || '');
       window.location.assign(target);
@@ -1277,23 +1322,29 @@
 
   function redirectAfterPreviewLogin(user) {
     try {
-      // Immediate attempt (login page) + delayed rescue if SPA sent us to /shop first.
-      goAdminHome(user, 'post-login-immediate');
+      // Fresh login: allow exactly one admin landing for this session.
+      try {
+        sessionStorage.removeItem('__sv_admin_nav_aborted');
+        sessionStorage.removeItem('__sv_admin_nav_count__');
+        sessionStorage.removeItem('__sv_post_login_nav__');
+        sessionStorage.removeItem('__sv_loop_break__');
+      } catch (_c) {}
+      goAdminHome(user, 'post-login');
+      // Single delayed check: if SPA won the race and left us on /shop, try once more
+      // only when the first attempt never ran (count still 0).
       setTimeout(function () {
         try {
-          fixStoredPreviewUserRole();
+          if (isAdminNavAborted()) return;
           var path = String((window.location && window.location.pathname) || '');
-          if (/login|signin|sign-in/i.test(path) || isCustomerLandingPath(path)) {
+          noteLoginBounceFromAdmin();
+          if (/login|signin|sign-in/i.test(path)) return;
+          var count = Number(sessionStorage.getItem('__sv_admin_nav_count__') || '0');
+          if (count === 0 && /^\/(shop|store|home|products)(\/|$)/i.test(path)) {
             sessionStorage.removeItem('__sv_post_login_nav__');
-            goAdminHome(user, 'post-login-delayed');
+            goAdminHome(user, 'post-login-shop-race');
           }
         } catch (_e) {}
-      }, 600);
-      setTimeout(function () {
-        try {
-          ensureAdminLandingFromCustomerPath('post-login-late');
-        } catch (_e2) {}
-      }, 1800);
+      }, 800);
     } catch (_e3) {}
   }
 
@@ -1316,8 +1367,11 @@
 
   function ensureAdminLandingFromCustomerPath(reason) {
     try {
+      if (isAdminNavAborted()) return;
+      if (sessionStorage.getItem('__sv_post_login_nav__') === 'done') return;
       var path = String((window.location && window.location.pathname) || '');
-      if (!isCustomerLandingPath(path)) return;
+      // Only auto-promote from shop-like paths right after login — not bare "/" forever.
+      if (!/^\/(shop|store|home|products)(\/|$)/i.test(path)) return;
       var token =
         localStorage.getItem('token') ||
         localStorage.getItem('accessToken') ||
@@ -1326,64 +1380,68 @@
       fixStoredPreviewUserRole();
       var user = readStoredPreviewUser();
       if (!user) return;
-      sessionStorage.removeItem('__sv_post_login_nav__');
       goAdminHome(user, reason || 'customer-path-rescue');
     } catch (_e) {}
   }
 
-  /** Break A↔B Navigate storms (LoanFlow dashboard↔admin/loans). One hard navigation only. */
+  /** Break A↔B Navigate storms including login↔admin / login↔shop. */
   function installRedirectLoopGuard() {
     var recent = [];
     setInterval(function () {
       try {
         var p = String((window.location && window.location.pathname) || '');
-        if (!p || /login|signin/i.test(p)) {
-          recent = [];
-          return;
-        }
+        if (!p) return;
+        noteLoginBounceFromAdmin();
         if (recent.length && recent[recent.length - 1] === p) return;
         recent.push(p);
-        if (recent.length > 16) recent = recent.slice(-16);
-        if (recent.length < 6) return;
-        var uniq = uniqStrings(recent);
+        if (recent.length > 20) recent = recent.slice(-20);
+        if (recent.length < 4) return;
+        var uniq = uniqStrings(recent.slice(-10));
         if (uniq.length !== 2) return;
         var flips = 0;
         for (var i = 1; i < recent.length; i++) {
           if (recent[i] !== recent[i - 1]) flips += 1;
         }
-        if (flips < 5) return;
+        if (flips < 4) return;
         if (sessionStorage.getItem('__sv_loop_break__')) return;
         sessionStorage.setItem('__sv_loop_break__', '1');
+        abortAdminNav('path loop ' + uniq[0] + ' ↔ ' + uniq[1]);
         ensureHintsBeforeLogin();
         var fixed = mainAdminRoleForApp();
-        console.warn('[DEBUG-SHIM] redirect loop detected', uniq[0], '↔', uniq[1], '→ role', fixed);
+        console.warn('[DEBUG-SHIM] redirect loop detected', uniq[0], '↔', uniq[1], '→ stop + role', fixed);
         var keys = authStorageKeys();
         for (var k = 0; k < keys.length; k++) {
           try {
             var raw = localStorage.getItem(keys[k]);
             if (!raw) continue;
+            if (typeof raw === 'string' && raw.split('.').length === 3 && raw.length > 40) {
+              localStorage.setItem(keys[k], patchJwtRoleClaim(raw, fixed));
+              continue;
+            }
             var parsed = JSON.parse(raw);
             if (parsed && parsed.user && typeof parsed.user === 'object') {
               parsed.user.role = fixed;
+              parsed.user.isAdmin = true;
               parsed.user = ensureUserDisplayFields(parsed.user);
+              parsed.role = fixed;
               localStorage.setItem(keys[k], JSON.stringify(parsed));
             } else if (parsed && typeof parsed === 'object') {
               parsed.role = fixed;
+              parsed.isAdmin = true;
               parsed = ensureUserDisplayFields(parsed);
               localStorage.setItem(keys[k], JSON.stringify(parsed));
             }
           } catch (_e) {}
         }
-        var safe = isLoanStyleApp()
-          ? '/admin/loans'
-          : hasRoute('/admin/loans')
-            ? '/admin/loans'
-            : hasRoute('/admin/dashboard')
-              ? '/admin/dashboard'
-              : uniq.indexOf('/admin/loans') >= 0
-                ? '/admin/loans'
-                : uniq[0];
-        // Full document navigation — resets React; avoid history+popstate (max update depth).
+        // Prefer a stable non-login destination — never bounce back into the loop pair.
+        var safe = '/shop';
+        if (isLoanStyleApp()) safe = '/admin/loans';
+        else if (hasRoute('/admin/loans')) safe = '/admin/loans';
+        else if (hasRoute('/admin/dashboard')) safe = '/admin/dashboard';
+        else if (hasRoute('/admin') && uniq.indexOf('/admin') < 0) safe = '/admin';
+        else if (uniq.indexOf('/shop') >= 0) safe = '/shop';
+        else if (uniq[0] && !/login|signin/i.test(uniq[0])) safe = uniq[0];
+        else if (uniq[1] && !/login|signin/i.test(uniq[1])) safe = uniq[1];
         window.location.replace(safe);
       } catch (_e2) {}
     }, 300);
@@ -1391,8 +1449,8 @@
 
   scanAppBundles(function () {
     fixStoredPreviewUserRole();
+    noteLoginBounceFromAdmin();
     tryRescueStuckLogin();
-    ensureAdminLandingFromCustomerPath('bundle-scan');
   });
   installRedirectLoopGuard();
   // Brand/title can be known before the JS scan finishes.
@@ -1401,32 +1459,30 @@
       document.addEventListener('DOMContentLoaded', function () {
         setTimeout(function () {
           fixStoredPreviewUserRole();
+          noteLoginBounceFromAdmin();
           tryRescueStuckLogin();
-          ensureAdminLandingFromCustomerPath('dom-ready');
         }, 50);
       });
     } else {
       setTimeout(function () {
         fixStoredPreviewUserRole();
+        noteLoginBounceFromAdmin();
         tryRescueStuckLogin();
-        ensureAdminLandingFromCustomerPath('dom-ready');
       }, 50);
     }
   } catch (_eEarly) {}
   // Sky Property paints "SKY PROPERTY" after React mount — re-check role for sidebar links.
-  // Also rescue Harmony /shop landings that ignored admin role.
+  // Do NOT keep forcing /admin from timers (that caused login/logout loops).
   try {
     setTimeout(function () {
       fixStoredPreviewUserRole();
-      ensureAdminLandingFromCustomerPath('t400');
+      noteLoginBounceFromAdmin();
     }, 400);
     setTimeout(function () {
       fixStoredPreviewUserRole();
-      ensureAdminLandingFromCustomerPath('t1200');
     }, 1200);
     setTimeout(function () {
       fixStoredPreviewUserRole();
-      ensureAdminLandingFromCustomerPath('t3000');
     }, 3000);
   } catch (_eLate) {}
 
@@ -1463,10 +1519,13 @@
       };
     }
     if (user) user = normalizePreviewUserRole(user);
+    var adminRole = (user && user.role) || mainAdminRoleForApp();
     if (isSkyPropertyApp()) {
       if (user) user = forceSkyRoleInObject(user);
-      if (token) token = patchJwtRoleClaim(token, 'SUPER_ADMIN');
+      adminRole = 'SUPER_ADMIN';
     }
+    // Always rewrite JWT payload role — SPA admin guards often read token claims, not userInfo.
+    if (token) token = patchJwtRoleClaim(token, adminRole);
     if (!token && !user) return obj;
     var out = {};
     try {
