@@ -233,7 +233,7 @@ const AdminLayoutInner = () => {
                             title="View my profile"
                         >
                             <ProjectVerifyLogo
-                                size="md"
+                                size="sm"
                                 showText={false}
                                 plainMark
                                 onDark

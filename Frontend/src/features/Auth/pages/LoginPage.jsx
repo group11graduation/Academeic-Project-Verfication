@@ -113,13 +113,13 @@ const LoginPage = () => {
           <button
             type="button"
             onClick={() => logout()}
-            className="w-full rounded-xl border border-white/15 bg-white/5 py-3 text-[14px] font-semibold text-white transition hover:bg-white/10"
+            className="w-full rounded-xl border border-[#dbe3f5] bg-white/70 py-3 text-[14px] font-semibold text-slate-700 transition hover:bg-white"
           >
             Sign out and use another account
           </button>
           <Link
             to="/"
-            className="flex w-full items-center justify-center py-2 text-[13px] font-normal text-white/55 transition hover:text-white"
+            className="flex w-full items-center justify-center py-2 text-[13px] font-normal text-slate-500 transition hover:text-slate-800"
           >
             Back to overview
           </Link>
@@ -135,7 +135,7 @@ const LoginPage = () => {
       footer={
         <p className={authFooterTextClass}>
           Don&apos;t have an account?{' '}
-          <span className="font-semibold text-[#8ea4f0]">Ask your institution administrator</span>
+          <span className="font-semibold text-[#2a3fa4]">Ask your institution administrator</span>
         </p>
       }
     >
@@ -160,13 +160,13 @@ const LoginPage = () => {
             />
           </div>
           {errors.identifier ? (
-            <p className="mt-1.5 text-[12px] font-normal text-rose-300">{errors.identifier.message}</p>
+            <p className="mt-1.5 text-[12px] font-normal text-rose-600">{errors.identifier.message}</p>
           ) : null}
         </div>
 
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <label htmlFor="login-password" className="text-[12px] font-medium text-white/60">
+            <label htmlFor="login-password" className="text-[12px] font-medium text-slate-500">
               Password
             </label>
             <Link to="/forgot-password" className={authMutedLinkClass}>
@@ -188,23 +188,23 @@ const LoginPage = () => {
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/40 transition-colors hover:text-white/80"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {errors.password ? (
-            <p className="mt-1.5 text-[12px] font-normal text-rose-300">{errors.password.message}</p>
+            <p className="mt-1.5 text-[12px] font-normal text-rose-600">{errors.password.message}</p>
           ) : null}
         </div>
 
-        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] font-normal text-white/55">
+        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] font-normal text-slate-500">
           <input
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 rounded border-white/25 bg-white/10 text-[#1D68E3] focus:ring-[#1D68E3]/40 focus:ring-offset-0"
+            className="h-4 w-4 rounded border-[#dbe3f5] bg-white text-[#2a3fa4] focus:ring-[#1D68E3]/40 focus:ring-offset-0"
           />
           Remember me
         </label>
