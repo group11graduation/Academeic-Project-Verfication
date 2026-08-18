@@ -223,7 +223,7 @@ const AdminSubjects = () => {
                     <button
                         type="button"
                         onClick={openCreateModal}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1e2b72] text-white rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors shadow-sm"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#263c96] text-white rounded-lg font-bold text-[12px] hover:bg-blue-700 transition-colors shadow-sm"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">New Course</span>
@@ -372,7 +372,7 @@ const AdminSubjects = () => {
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="px-5 py-1.5 rounded-lg font-bold text-[12px] bg-[#1e2b72] text-white hover:bg-blue-700 flex items-center gap-1.5 min-w-[120px] justify-center"
+                                className="px-5 py-1.5 rounded-lg font-bold text-[12px] bg-[#263c96] text-white hover:bg-blue-700 flex items-center gap-1.5 min-w-[120px] justify-center"
                             >
                                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEditing ? 'Save' : 'Create')}
                             </button>
@@ -383,16 +383,16 @@ const AdminSubjects = () => {
 
             {loading ? (
                 <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 text-[#1e2b72] animate-spin" />
+                    <Loader2 className="h-8 w-8 text-[#263c96] animate-spin" />
                 </div>
             ) : subjects.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-8 text-center border border-slate-200 dark:border-slate-700">
                     <div className="bg-blue-50 dark:bg-blue-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <BookOpen className="h-6 w-6 text-[#1e2b72]" />
+                        <BookOpen className="h-6 w-6 text-[#263c96]" />
                     </div>
                     <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-1">No subjects found</h3>
                     <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-4">Create subjects and map them to teachers and classes.</p>
-                    <button type="button" onClick={openCreateModal} className="px-4 py-1.5 bg-[#1e2b72] text-white rounded-lg font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-blue-700">
+                    <button type="button" onClick={openCreateModal} className="px-4 py-1.5 bg-[#263c96] text-white rounded-lg font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-blue-700">
                         <Plus className="h-3.5 w-3.5" /> Create First Subject
                     </button>
                 </div>
@@ -428,7 +428,7 @@ const AdminSubjects = () => {
                                     )}
                                 </div>
                                 <div className="flex gap-1 shrink-0">
-                                    <button type="button" onClick={() => openEditModal(sub)} className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-[#1e2b72]">
+                                    <button type="button" onClick={() => openEditModal(sub)} className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-[#263c96]">
                                         <Edit2 className="h-3.5 w-3.5" />
                                     </button>
                                     <button type="button" onClick={() => handleDelete(sub._id)} className="w-7 h-7 rounded-full bg-rose-50 border border-rose-100 hover:bg-rose-100 flex items-center justify-center text-rose-400 hover:text-rose-600">
@@ -447,7 +447,7 @@ const AdminSubjects = () => {
                                     ) : (
                                         (sub.allocations || []).map((alloc, idx) => (
                                             <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
-                                                <div className="flex items-center gap-1 bg-[#1e2b72]/10 text-[#1e2b72] px-2 py-0.5 rounded flex-shrink-0">
+                                                <div className="flex items-center gap-1 bg-[#263c96]/10 text-[#263c96] px-2 py-0.5 rounded flex-shrink-0">
                                                     <GraduationCap className="h-3 w-3" />
                                                     <span className="text-[9px] font-black tracking-wider">{alloc.classId}</span>
                                                 </div>

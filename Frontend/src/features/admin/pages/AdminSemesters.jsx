@@ -265,7 +265,7 @@ const AdminSemesters = () => {
     if (loading) {
         return (
             <div className="admin-page min-h-[40vh] flex items-center justify-center">
-                <Loader2 className="h-7 w-7 animate-spin text-[#1e2b72]" />
+                <Loader2 className="h-7 w-7 animate-spin text-[#263c96]" />
             </div>
         );
     }
@@ -274,14 +274,14 @@ const AdminSemesters = () => {
         <div className="admin-page space-y-4 font-sans text-[13px]">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#1e2b72] dark:bg-blue-500/15 dark:text-blue-300">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#263c96] dark:bg-blue-500/15 dark:text-blue-300">
                         <CalendarRange className="h-4 w-4" />
                     </div>
                     <div>
                         <h1 className="text-base font-extrabold leading-none text-slate-900 dark:text-slate-100">Semesters</h1>
                         <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                             Manage academic years and terms.{' '}
-                            <Link to="/admin/academic-structure" className="font-bold text-[#1e2b72] hover:underline">
+                            <Link to="/admin/academic-structure" className="font-bold text-[#263c96] hover:underline">
                                 Faculties &amp; departments
                             </Link>
                             {' '}are managed separately.
@@ -331,7 +331,7 @@ const AdminSemesters = () => {
                     <button
                         type="button"
                         onClick={openCreateSemesterForm}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e2b72] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#263c96] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         Add Semester
@@ -406,7 +406,7 @@ const AdminSemesters = () => {
                         <button
                             type="submit"
                             disabled={yearSubmitting}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e2b72] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#263c96] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                         >
                             {yearSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editingYearId ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                             {yearSubmitting ? 'Saving...' : editingYearId ? 'Update Year' : 'Create Year'}
@@ -542,7 +542,7 @@ const AdminSemesters = () => {
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e2b72] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#263c96] px-4 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                         >
                             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editingSemesterId ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                             {submitting ? 'Saving...' : editingSemesterId ? 'Update Semester' : 'Create Semester'}

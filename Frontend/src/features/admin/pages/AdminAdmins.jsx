@@ -133,7 +133,7 @@ const AdminAdmins = () => {
     if (loading) {
         return (
             <div className="min-h-[40vh] flex flex-col items-center justify-center">
-                <Loader2 className="h-7 w-7 text-[#1e2b72] animate-spin mb-2" />
+                <Loader2 className="h-7 w-7 text-[#263c96] animate-spin mb-2" />
                 <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium">Loading administrators...</p>
             </div>
         );
@@ -155,7 +155,7 @@ const AdminAdmins = () => {
                 <div className="flex items-center gap-3">
                     <Link
                         to="/admin/admins/new"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e2b72] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#263c96] px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New Admin
@@ -198,7 +198,7 @@ const AdminAdmins = () => {
                                     <td className="px-3 py-2">
                                         <div className="flex items-center gap-2.5">
                                             <div className="bg-blue-50 p-1.5 rounded-md">
-                                                <Shield className="h-3.5 w-3.5 text-[#1e2b72]" />
+                                                <Shield className="h-3.5 w-3.5 text-[#263c96]" />
                                             </div>
                                             <span className="text-[12px] font-bold text-slate-800 dark:text-slate-100">{admin.systemId}</span>
                                         </div>
@@ -224,7 +224,7 @@ const AdminAdmins = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleCopyPasscode(admin._id, admin.passcode)}
-                                                    className="text-slate-500 transition-colors hover:text-[#1e2b72] dark:text-slate-400 dark:hover:text-blue-300"
+                                                    className="text-slate-500 transition-colors hover:text-[#263c96] dark:text-slate-400 dark:hover:text-blue-300"
                                                     title="Copy passcode"
                                                 >
                                                     {copiedAdminId === admin._id ? (
@@ -236,7 +236,7 @@ const AdminAdmins = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => togglePasscode(admin._id)}
-                                                    className="text-slate-500 transition-colors hover:text-[#1e2b72] dark:text-slate-400 dark:hover:text-blue-300"
+                                                    className="text-slate-500 transition-colors hover:text-[#263c96] dark:text-slate-400 dark:hover:text-blue-300"
                                                     title={revealedPasscodes[admin._id] ? 'Hide passcode' : 'Show passcode'}
                                                 >
                                                     {revealedPasscodes[admin._id] ? (
