@@ -26,14 +26,13 @@ import NotificationBell from '../../../shared/components/NotificationBell';
 import {
     ADMIN,
     ADMIN_AVATAR_GRADIENT,
-    ADMIN_SIDEBAR_GRADIENT,
+    ADMIN_MOBILE_GRADIENT,
 } from '../ui/adminTheme';
 
 const ADMIN_BLUE = ADMIN.primary;
 const SIDEBAR_W = 220;
 const FRAME_BG = ADMIN.frameBg;
 const CONTENT_BG = ADMIN.contentBg;
-const BORDER = ADMIN.primaryDeep;
 
 const AdminLayout = () => (
     <ShellSearchProvider>
@@ -137,37 +136,15 @@ const AdminLayoutInner = () => {
     const firstName = (user?.name || 'Admin').trim().split(/\s+/)[0];
     const initial = (user?.name || 'A').trim().slice(0, 1).toUpperCase();
 
-    const cutoutActive = (isActive) =>
-        isActive ? (
-            <>
-                <span
-                    aria-hidden
-                    className="pointer-events-none absolute -right-px -top-3 h-3 w-3 bg-transparent"
-                    style={{
-                        borderBottomRightRadius: '0.75rem',
-                        boxShadow: `4px 4px 0 0 ${CONTENT_BG}`,
-                    }}
-                />
-                <span
-                    aria-hidden
-                    className="pointer-events-none absolute -bottom-3 -right-px h-3 w-3 bg-transparent"
-                    style={{
-                        borderTopRightRadius: '0.75rem',
-                        boxShadow: `4px -4px 0 0 ${CONTENT_BG}`,
-                    }}
-                />
-                <span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 -right-3 w-3"
-                    style={{ backgroundColor: CONTENT_BG }}
-                />
-            </>
-        ) : null;
-
-    const parentActiveClass =
-        'relative z-[1] flex w-full items-center gap-2.5 rounded-l-2xl bg-[#f5f3fb] py-2.5 pl-3.5 pr-3 text-[12px] font-bold text-[#3a18a8]';
-    const parentIdleClass =
-        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-2 text-[12px] font-semibold text-white/90 transition-colors hover:bg-white/10 hover:text-white';
+    const linkBase =
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2.5 rounded-xl px-2.5 py-2 text-[12px] font-semibold transition-all duration-200';
+    const linkIdle = `${linkBase} text-slate-600 hover:bg-[#f3efff] hover:text-[#512BD4]`;
+    const linkActive = `${linkBase} bg-[#512BD4] font-bold text-white shadow-[0_8px_18px_-10px_rgba(81,43,212,0.65)]`;
+    const parentIdle = `${linkBase} text-slate-700 hover:bg-[#f3efff] hover:text-[#512BD4]`;
+    const childIdle =
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 transition-all duration-200 hover:bg-[#f3efff] hover:text-[#512BD4]';
+    const childActive =
+        'relative z-[1] mx-2 flex w-[calc(100%-1rem)] items-center gap-2 rounded-lg bg-[#ede9fe] px-2.5 py-1.5 text-[11px] font-bold text-[#512BD4] ring-1 ring-[#ddd6fe]';
 
     return (
         <div
@@ -205,21 +182,20 @@ const AdminLayoutInner = () => {
                 navSections={navSections}
                 onLogout={requestLogout}
                 panelTitle="Admin menu"
-                panelGradient={ADMIN_SIDEBAR_GRADIENT}
+                panelGradient={ADMIN_MOBILE_GRADIENT}
             />
 
-            {/* Zoomed frame: thin blue border, sidebar flush to frame edges */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col p-0 lg:p-1">
                 <div
-                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-xl lg:border lg:border-[#3a18a8]/55 lg:shadow-sm"
-                    style={{ borderColor: BORDER }}
+                    className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white lg:rounded-xl lg:border lg:border-[#e4e0f0] lg:shadow-sm"
                 >
+                    {/* Near-white sidebar */}
                     <aside
-                        className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden lg:flex"
+                        className="relative z-20 hidden h-full max-h-full shrink-0 flex-col overflow-hidden border-r border-[#ece8f5] lg:flex"
                         style={{
                             width: SIDEBAR_W,
                             minWidth: SIDEBAR_W,
-                            background: ADMIN_SIDEBAR_GRADIENT,
+                            background: ADMIN.sidebarBg,
                         }}
                     >
                         <div className="flex shrink-0 flex-col items-center px-3 pb-3 pt-5 text-center">
@@ -228,22 +204,22 @@ const AdminLayoutInner = () => {
                                     className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-extrabold text-white"
                                     style={{
                                         background: ADMIN_AVATAR_GRADIENT,
-                                        boxShadow: '0 0 0 3px rgba(255,255,255,0.22), 0 0 18px rgba(81,43,212,0.45)',
+                                        boxShadow: '0 0 0 3px rgba(81,43,212,0.12), 0 8px 20px -8px rgba(81,43,212,0.45)',
                                     }}
                                 >
                                     {initial}
                                 </div>
                             </div>
-                            <p className="max-w-full truncate text-[13px] font-extrabold tracking-tight text-white">
+                            <p className="max-w-full truncate text-[13px] font-extrabold tracking-tight text-slate-800">
                                 {user?.name || 'Admin'}
                             </p>
-                            <p className="mt-0.5 max-w-full truncate text-[10px] font-medium text-white/55">
+                            <p className="mt-0.5 max-w-full truncate text-[10px] font-medium text-slate-400">
                                 {user?.email || 'admin@projectverify'}
                             </p>
                         </div>
 
                         <nav
-                            className="relative flex min-h-0 flex-1 flex-col justify-start gap-0.5 overflow-y-auto overflow-x-hidden pb-2 pl-2.5 pr-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                            className="relative flex min-h-0 flex-1 flex-col justify-start gap-0.5 overflow-y-auto overflow-x-hidden px-0.5 pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                             aria-label="Admin navigation"
                         >
                             {navSections.map((section) => {
@@ -259,18 +235,15 @@ const AdminLayoutInner = () => {
                                             key={section.key}
                                             to={item.path}
                                             end={Boolean(item.end)}
-                                            className={({ isActive }) => (isActive ? parentActiveClass : parentIdleClass)}
+                                            className={({ isActive }) => (isActive ? linkActive : linkIdle)}
                                         >
                                             {({ isActive }) => (
                                                 <>
-                                                    {cutoutActive(isActive)}
                                                     <SectionIcon
-                                                        className={`relative z-[1] h-4 w-4 shrink-0 ${
-                                                            isActive ? 'text-[#512BD4]' : 'text-white/75'
-                                                        }`}
+                                                        className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`}
                                                         strokeWidth={2.15}
                                                     />
-                                                    <span className="relative z-[1] truncate">{section.name}</span>
+                                                    <span className="truncate">{section.name}</span>
                                                 </>
                                             )}
                                         </NavLink>
@@ -286,20 +259,23 @@ const AdminLayoutInner = () => {
                                                 e.stopPropagation();
                                                 toggleGroup(section.key);
                                             }}
-                                            className={parentIdleClass}
+                                            className={`${parentIdle} ${isOpen ? 'bg-[#f3efff] text-[#512BD4]' : ''}`}
                                             aria-expanded={isOpen}
                                         >
-                                            <SectionIcon className="h-4 w-4 shrink-0 text-white/75" strokeWidth={2.15} />
+                                            <SectionIcon
+                                                className={`h-4 w-4 shrink-0 ${isOpen ? 'text-[#512BD4]' : 'text-slate-400'}`}
+                                                strokeWidth={2.15}
+                                            />
                                             <span className="min-w-0 flex-1 truncate text-left">{section.name}</span>
                                             <ChevronDown
-                                                className={`h-3.5 w-3.5 shrink-0 text-white/50 transition-transform duration-200 ${
-                                                    isOpen ? 'rotate-180' : ''
+                                                className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${
+                                                    isOpen ? 'rotate-180 text-[#512BD4]' : ''
                                                 }`}
                                             />
                                         </button>
 
                                         {isOpen ? (
-                                            <div className="mt-0.5 space-y-0.5 pb-1 pl-1.5">
+                                            <div className="mt-0.5 space-y-0.5 pb-1">
                                                 {links.map((item) => {
                                                     const Icon = item.icon || SectionIcon;
                                                     return (
@@ -307,25 +283,17 @@ const AdminLayoutInner = () => {
                                                             key={item.path}
                                                             to={item.path}
                                                             end={Boolean(item.end)}
-                                                            className={({ isActive }) =>
-                                                                [
-                                                                    'relative z-[1] flex items-center gap-2 py-2 pl-3 pr-2.5 text-[11px] font-semibold transition-colors',
-                                                                    isActive
-                                                                        ? 'rounded-l-2xl bg-[#f5f3fb] text-[#3a18a8]'
-                                                                        : 'mx-1 rounded-lg text-white/75 hover:bg-white/10 hover:text-white',
-                                                                ].join(' ')
-                                                            }
+                                                            className={({ isActive }) => (isActive ? childActive : childIdle)}
                                                         >
                                                             {({ isActive }) => (
                                                                 <>
-                                                                    {cutoutActive(isActive)}
                                                                     <Icon
-                                                                        className={`relative z-[1] h-3.5 w-3.5 shrink-0 ${
-                                                                            isActive ? 'text-[#512BD4]' : 'opacity-80'
+                                                                        className={`h-3.5 w-3.5 shrink-0 ${
+                                                                            isActive ? 'text-[#512BD4]' : 'text-slate-400'
                                                                         }`}
                                                                         strokeWidth={2}
                                                                     />
-                                                                    <span className="relative z-[1] truncate">{item.name}</span>
+                                                                    <span className="truncate">{item.name}</span>
                                                                 </>
                                                             )}
                                                         </NavLink>
@@ -338,11 +306,11 @@ const AdminLayoutInner = () => {
                             })}
                         </nav>
 
-                        <div className="mt-auto shrink-0 border-t border-white/10 px-3 py-3">
+                        <div className="mt-auto shrink-0 border-t border-[#ece8f5] px-3 py-3">
                             <button
                                 type="button"
                                 onClick={requestLogout}
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-2.5 py-2 text-[12px] font-bold text-white ring-1 ring-white/15 transition hover:bg-white/18"
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#f3efff] px-2.5 py-2 text-[12px] font-bold text-[#512BD4] ring-1 ring-[#ddd6fe] transition hover:bg-[#512BD4] hover:text-white"
                             >
                                 <Power className="h-3.5 w-3.5" strokeWidth={2.2} />
                                 Logout
