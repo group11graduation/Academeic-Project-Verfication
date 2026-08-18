@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V26:
+ * Marker V27:
+ * - PayFlow / LoanFlow: ALWAYS use role "admin" (never SUPER_ADMIN) + /admin/loans.
+ * - Wrong-role bounce (/admin/loans → login): correct to admin and retry once, don't spam-abort.
+ * V26:
  * - Use ZIP-discovered main role (__SV_MAIN_ADMIN_ROLE__) + admin home path from gateway.
  * - Seed/login always match project roles: admin, manager, super_admin, sub_admin, …
  * V25:
@@ -40,10 +43,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V26__) {
-    console.log('[DEBUG-SHIM] already installed V26 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V27__) {
+    console.log('[DEBUG-SHIM] already installed V27 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V27__ = true;
   window.__SV_LOGIN_FALLBACK_V26__ = true;
   window.__SV_LOGIN_FALLBACK_V25__ = true;
   window.__SV_LOGIN_FALLBACK_V24__ = true;
@@ -65,7 +69,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v26', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v27', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -700,11 +704,35 @@
   }
 
   function isLoanStyleApp() {
-    var html = pageHintHtml();
-    if (/loan_token|loan_user|LoanFlow/i.test(html)) return true;
     try {
-      if (localStorage.getItem('loan_token') || localStorage.getItem('loan_user')) return true;
+      if (window.__SV_LOAN_STYLE__) return true;
+    } catch (_eF) {}
+    var html = pageHintHtml();
+    // PayFlow Payroll / LoanFlow / any loans admin console.
+    if (/payflow|PayFlow|LoanFlow|loan_token|loan_user|Payroll/i.test(html)) {
+      try {
+        window.__SV_LOAN_STYLE__ = true;
+      } catch (_e) {}
+      return true;
+    }
+    try {
+      if (/payflow|LoanFlow|Payroll/i.test(String(document.title || ''))) {
+        window.__SV_LOAN_STYLE__ = true;
+        return true;
+      }
+    } catch (_e0) {}
+    try {
+      if (localStorage.getItem('loan_token') || localStorage.getItem('loan_user') || localStorage.getItem('payflow_user')) {
+        window.__SV_LOAN_STYLE__ = true;
+        return true;
+      }
     } catch (_e) {}
+    try {
+      if (/\/admin\/loans/i.test(String(location.pathname || ''))) {
+        window.__SV_LOAN_STYLE__ = true;
+        return true;
+      }
+    } catch (_eP) {}
     var roles = allHintRoles();
     var hasBorrower = roles.some(function (r) {
       return /^borrower$/i.test(r);
@@ -715,12 +743,20 @@
     var hasAdmin = roles.some(function (r) {
       return /^admin$/i.test(r);
     });
-    if (hasBorrower && hasOfficer && hasAdmin) return true;
-    if (hasRoute('/admin/loans') && hasBorrower) return true;
+    if (hasBorrower && hasOfficer && hasAdmin) {
+      window.__SV_LOAN_STYLE__ = true;
+      return true;
+    }
+    if (hasRoute('/admin/loans')) {
+      window.__SV_LOAN_STYLE__ = true;
+      return true;
+    }
     return false;
   }
 
   function isSkyPropertyApp() {
+    // Never treat PayFlow/LoanFlow as Sky — SUPER_ADMIN breaks their admin guards.
+    if (isLoanStyleApp()) return false;
     try {
       if (window.__SV_SKY_PROPERTY__) return true;
     } catch (_eF) {}
@@ -749,11 +785,11 @@
       window.__SV_SKY_PROPERTY__ = true;
       return true;
     }
-    if (/manDash/.test(html)) {
+    if (/manDash/.test(html) && !/payflow|LoanFlow|\/admin\/loans/i.test(html)) {
       window.__SV_SKY_PROPERTY__ = true;
       return true;
     }
-    if (appHints.routes.indexOf('/manDash') >= 0) {
+    if (appHints.routes.indexOf('/manDash') >= 0 && !hasRoute('/admin/loans')) {
       window.__SV_SKY_PROPERTY__ = true;
       return true;
     }
@@ -764,7 +800,9 @@
     var hasManagerUpper = roles.some(function (r) {
       return r === 'MANAGER' || r === 'SUB_MANAGER';
     });
-    if (hasSuperUpper && hasManagerUpper) {
+    // Require Sky brand signal OR manDash — do not infer Sky from SUPER_ADMIN+MANAGER alone
+    // (false-positives poisoned PayFlow into SUPER_ADMIN → login bounce).
+    if (hasSuperUpper && hasManagerUpper && /sky|manDash|property/i.test(html)) {
       window.__SV_SKY_PROPERTY__ = true;
       return true;
     }
@@ -932,14 +970,18 @@
    * Prefer ZIP-discovered role injected by the gateway (exact project casing).
    */
   function mainAdminRoleForApp() {
+    // PayFlow / LoanFlow guards check role === 'admin' (not SUPER_ADMIN).
+    if (isLoanStyleApp()) return 'admin';
     try {
       var fromZip = String(window.__SV_MAIN_ADMIN_ROLE__ || '').trim();
       if (fromZip && !/^(user|customer|client|member|buyer|borrower)$/i.test(fromZip)) {
+        // Never let a stray SUPER_ADMIN hit from ZIP override loan-style apps
+        // (isLoanStyleApp already returned above). For other apps, trust ZIP.
+        if (/^super_?admin$/i.test(fromZip) && hasRoute('/admin/loans')) return 'admin';
         return fromZip;
       }
     } catch (_e) {}
     ensureHintsBeforeLogin();
-    if (isLoanStyleApp()) return 'admin';
     if (isSkyPropertyApp()) return 'SUPER_ADMIN';
     if (isStaffSetApp()) return 'super_admin';
     if (appHints.allowLists.length) {
@@ -1107,6 +1149,8 @@
   function fixStoredPreviewUserRole() {
     var sky = isSkyPropertyApp();
     var targetRole = sky ? 'SUPER_ADMIN' : mainAdminRoleForApp();
+    // Absolute override: loan apps never keep SUPER_ADMIN in storage.
+    if (isLoanStyleApp()) targetRole = 'admin';
     var changed = false;
     var becameSkyAdmin = false;
     var stores = storageStores();
@@ -1357,6 +1401,76 @@
       var at = Number(sessionStorage.getItem('__sv_admin_nav_at__') || '0');
       if (!target || !at) return;
       if (Date.now() - at > 12000) return;
+      // Already handled this bounce once.
+      if (sessionStorage.getItem('__sv_admin_bounce_handled__') === '1') return;
+      sessionStorage.setItem('__sv_admin_bounce_handled__', '1');
+
+      // PayFlow/LoanFlow: SUPER_ADMIN (or wrong ZIP role) often causes ProtectedRoute → /login.
+      // Correct storage to admin and retry /admin/loans once.
+      var wrongSuper = false;
+      try {
+        var roleNow = String(localStorage.getItem('role') || '');
+        var rawInfo = localStorage.getItem('userInfo') || localStorage.getItem('payflow_user') || localStorage.getItem('loan_user') || '';
+        if (/SUPER_ADMIN|super_admin/i.test(roleNow) || /SUPER_ADMIN|super_admin/i.test(rawInfo)) {
+          wrongSuper = true;
+        }
+      } catch (_r) {}
+
+      if (
+        wrongSuper ||
+        isLoanStyleApp() ||
+        /\/admin\/loans/i.test(target) ||
+        /payflow/i.test(String(document.title || ''))
+      ) {
+        console.warn('[DEBUG-SHIM] login bounce from', target, '— forcing role=admin and retry once');
+        try {
+          sessionStorage.removeItem('__sv_admin_nav_aborted');
+          sessionStorage.removeItem('__sv_post_login_nav__');
+          sessionStorage.setItem('__sv_admin_nav_count__', '0');
+        } catch (_c) {}
+        writeBareRoleKeys('admin');
+        fixStoredPreviewUserRole();
+        // Patch known PayFlow keys to admin (not SUPER_ADMIN).
+        try {
+          ['user', 'userInfo', 'loan_user', 'payflow_user', 'authUser'].forEach(function (k) {
+            var raw = localStorage.getItem(k);
+            if (!raw) return;
+            try {
+              var parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === 'object') {
+                if (parsed.user && typeof parsed.user === 'object') {
+                  parsed.user.role = 'admin';
+                  parsed.user.isAdmin = true;
+                }
+                parsed.role = 'admin';
+                parsed.isAdmin = true;
+                localStorage.setItem(k, JSON.stringify(parsed));
+              }
+            } catch (_e) {}
+          });
+          var tok =
+            localStorage.getItem('token') ||
+            localStorage.getItem('accessToken') ||
+            localStorage.getItem('loan_token');
+          if (tok) {
+            var patched = patchJwtRoleClaim(tok, 'admin');
+            localStorage.setItem('token', patched);
+            localStorage.setItem('accessToken', patched);
+            localStorage.setItem('loan_token', patched);
+          }
+        } catch (_p) {}
+        if (sessionStorage.getItem('__sv_admin_role_retry__') !== '1') {
+          sessionStorage.setItem('__sv_admin_role_retry__', '1');
+          var retryPath = /\/admin\/loans/i.test(target) ? '/admin/loans' : defaultAdminHomePath();
+          setTimeout(function () {
+            try {
+              window.location.assign(retryPath);
+            } catch (_e2) {}
+          }, 200);
+          return;
+        }
+      }
+
       abortAdminNav('bounced from ' + target + ' → login');
     } catch (_e) {}
   }
@@ -1417,6 +1531,8 @@
         sessionStorage.removeItem('__sv_post_login_nav__');
         sessionStorage.removeItem('__sv_loop_break__');
         sessionStorage.removeItem('__sv_profile_promoted__');
+        sessionStorage.removeItem('__sv_admin_bounce_handled__');
+        sessionStorage.removeItem('__sv_admin_role_retry__');
       } catch (_c) {}
       writeBareRoleKeys((user && user.role) || mainAdminRoleForApp());
       goAdminHome(user, 'post-login');
@@ -1677,7 +1793,14 @@
     }
     if (user) user = normalizePreviewUserRole(user);
     var adminRole = (user && user.role) || mainAdminRoleForApp();
-    if (isSkyPropertyApp()) {
+    if (isLoanStyleApp()) {
+      adminRole = 'admin';
+      if (user) {
+        user.role = 'admin';
+        user.Role = 'admin';
+        user.isAdmin = true;
+      }
+    } else if (isSkyPropertyApp()) {
       if (user) user = forceSkyRoleInObject(user);
       adminRole = 'SUPER_ADMIN';
     }

@@ -313,7 +313,8 @@ async function main() {
         setVals.push(name);
       }
       if (columns.includes('role')) {
-        setParts.push(`role = COALESCE(role, 'admin')`);
+        setParts.push(`role = ?`);
+        setVals.push(String(process.env.PREVIEW_FORCE_ADMIN_ROLE || process.env.PREVIEW_MAIN_ROLE || 'admin'));
       }
       if (columns.includes('role_id') && roleId != null) {
         setParts.push('role_id = ?');

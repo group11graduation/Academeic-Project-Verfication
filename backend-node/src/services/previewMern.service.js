@@ -660,7 +660,7 @@ async function patchMongoInBackendSources(backendRoot, mongoUri, depth = 0) {
     for (const pattern of LOCAL_MONGO_PATTERNS) {
       content = content.replace(pattern, mongoUri);
     }
-    // process.env.SOME_EMPTY_KEY with no fallback → prefer MONGO_URI chain
+    // process.env.SOME_EMPTY_KEY with no fallback â prefer MONGO_URI chain
     content = content.replace(
       /mongoose\.connect\(\s*process\.env\.([A-Z0-9_]+)\s*\)/g,
       `mongoose.connect(process.env.$1 || process.env.MONGO_URI || process.env.MONGODB_URI || process.env.MONGO_URL || process.env.DATABASE_URL)`
@@ -678,7 +678,7 @@ async function patchMongoInBackendSources(backendRoot, mongoUri, depth = 0) {
   return files;
 }
 
-/** Force hardcoded Express listen ports (8000/5000/…) to honor preview API_PORT/PORT. */
+/** Force hardcoded Express listen ports (8000/5000/â¦) to honor preview API_PORT/PORT. */
 async function patchHardcodedListenPorts(backendRoot, depth = 0) {
   if (depth > 8) return 0;
   let files = 0;
@@ -708,7 +708,7 @@ async function patchHardcodedListenPorts(backendRoot, depth = 0) {
       /\b(const|let|var)\s+(PORT|port|APP_PORT|SERVER_PORT)\s*=\s*(\d{4,5})\b/g,
       `$1 $2 = Number(process.env.API_PORT || process.env.PORT) || $3`
     );
-    // app.listen(8000 …) / server.listen(5000, …
+    // app.listen(8000 â¦) / server.listen(5000, â¦
     content = content.replace(
       /\.listen\(\s*(\d{4,5})\s*(,|\))/g,
       `.listen(Number(process.env.API_PORT || process.env.PORT) || $1$2`
@@ -812,7 +812,7 @@ async function walkRelaxCors(dir, depth = 0) {
     let content = await fs.readFile(full, 'utf8').catch(() => null);
     if (content == null) continue;
     const before = content;
-    // Hardcoded Vite/CRA localhost origins → reflect any origin in preview.
+    // Hardcoded Vite/CRA localhost origins â reflect any origin in preview.
     content = content.replace(
       /origin\s*:\s*['"]http:\/\/(?:localhost|127\.0\.0\.1):\d+['"]/g,
       'origin: true'
@@ -1257,10 +1257,10 @@ function installPreviewLoginAliases(app) {
       return next();
     }
 
-    // Empty body → do not proxy (wrong routes often reply 400 "email required").
+    // Empty body â do not proxy (wrong routes often reply 400 "email required").
     // Fall through so the real handler / client retry can run.
     if (!hasCreds) {
-      console.log('[preview] login alias ' + incoming + ' → empty body, fallthrough');
+      console.log('[preview] login alias ' + incoming + ' â empty body, fallthrough');
       return next();
     }
 
@@ -1294,13 +1294,13 @@ function installPreviewLoginAliases(app) {
       const result = await proxyOnce(port, path, payload, headers);
       if (result.status === 404 || result.status === 0) continue;
       if (!AUTH_HIT.has(result.status)) continue;
-      console.log('[preview] login alias ' + incoming + ' → ' + path + ' (' + result.status + ')');
+      console.log('[preview] login alias ' + incoming + ' â ' + path + ' (' + result.status + ')');
       res.status(result.status);
       if (result.headers['content-type']) res.setHeader('Content-Type', result.headers['content-type']);
       return res.send(normalizeLoginJsonBuffer(result.body, result.status));
     }
     // No alternate worked - fall through to the project's own handler on this path.
-    console.log('[preview] login alias ' + incoming + ' → fallthrough to app handler');
+    console.log('[preview] login alias ' + incoming + ' â fallthrough to app handler');
     return next();
   });
   for (const alias of CANDIDATES) {
@@ -1408,7 +1408,7 @@ async function findExpressEntryFiles(backendRoot) {
 
 /**
  * Mount POST aliases for common wrong login paths onto the real Express route
- * (e.g. /auth/login → /api/auth/login) so student UIs stop getting "Route not found".
+ * (e.g. /auth/login â /api/auth/login) so student UIs stop getting "Route not found".
  * @deprecated Prefer removePreviewLoginPathAliases - aliases shadowed real routes.
  */
 export async function installPreviewLoginPathAliases(extractDir, backendSubdir, realLoginPath) {
@@ -1665,7 +1665,7 @@ export async function discoverLoginApiPaths(extractDir, backendSubdir = '') {
 /**
  * Scan student ZIP (frontend + backend) for the highest-privilege role string and
  * the admin home path. Preview seed + login shim must use THESE exact values so
- * manager / super_admin / Admin / sub_admin projects work � not a hardcoded "admin".
+ * manager / super_admin / Admin / sub_admin projects work  not a hardcoded "admin".
  */
 const PRIVILEGED_ROLE_RANK = [
   'SUPER_ADMIN',
@@ -1823,9 +1823,23 @@ export async function discoverPrivilegedRoleFromProject(
   }
 
   const roles = [...hits].sort((a, b) => rankPrivilegedRole(a) - rankPrivilegedRole(b));
-  const role = roles[0] || 'admin';
+  let role = roles[0] || 'admin';
+
+  // Loan/PayFlow apps use role "admin" + /admin/loans — never pick SUPER_ADMIN from a stray hit.
+  const loanLike =
+    [...homes].some((h) => /\/admin\/loans/i.test(h)) ||
+    roles.some((r) => /^borrower$/i.test(r)) ||
+    roles.some((r) => /^officer$/i.test(r));
+  if (loanLike) {
+    const adminExact =
+      roles.find((r) => r === 'admin') ||
+      roles.find((r) => /^admin$/i.test(r)) ||
+      'admin';
+    role = adminExact;
+  }
 
   const homePreference = [
+    '/admin/loans',
     '/admin/dashboard',
     '/admin/products',
     '/admin/users',
@@ -1846,8 +1860,7 @@ export async function discoverPrivilegedRoleFromProject(
     homePath = [...homes].sort((a, b) => a.length - b.length)[0];
   }
   if (!homePath) {
-    // Shop apps almost always mount admin at /admin even when scan missed literals.
-    homePath = '/admin';
+    homePath = loanLike ? '/admin/loans' : '/admin';
   }
 
   return {
