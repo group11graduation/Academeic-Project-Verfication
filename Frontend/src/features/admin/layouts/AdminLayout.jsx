@@ -371,10 +371,14 @@ const AdminLayoutInner = () => {
                     >
                         <header className="hidden shrink-0 items-center justify-between gap-3 px-5 pb-2 pt-4 lg:flex">
                             <div className="min-w-0">
-                                <h1 className="truncate text-[1.35rem] font-extrabold leading-[1.2] tracking-tight text-[#2f4aad]">
-                                    Welcome {firstName} !
-                                </h1>
-                                <p className="mt-0.5 text-[12px] font-normal text-[#647092]">Over View</p>
+                                {location.pathname === '/admin' || location.pathname === '/admin/' ? (
+                                    <>
+                                        <h1 className="truncate text-[1.35rem] font-extrabold leading-[1.2] tracking-tight text-[#2f4aad]">
+                                            Welcome {firstName} !
+                                        </h1>
+                                        <p className="mt-0.5 text-[12px] font-normal text-[#647092]">Over View</p>
+                                    </>
+                                ) : null}
                             </div>
 
                             <div className="flex shrink-0 items-center gap-2">

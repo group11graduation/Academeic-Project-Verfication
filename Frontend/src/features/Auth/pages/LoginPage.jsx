@@ -9,7 +9,6 @@ import { BRAND_GRADIENT, PROJECT_NAME } from '../../../shared/ui/brandTheme';
 import AuthShell, {
   authErrorBoxClass,
   authFieldClass,
-  authFooterTextClass,
   authIconClass,
   authLabelClass,
   authMutedLinkClass,
@@ -132,12 +131,6 @@ const LoginPage = () => {
     <AuthShell
       title="Sign in"
       subtitle={`Access your ${PROJECT_NAME} academic workspace`}
-      footer={
-        <p className={authFooterTextClass}>
-          Don&apos;t have an account?{' '}
-          <span className="font-semibold text-[#2a3fa4]">Ask your institution administrator</span>
-        </p>
-      }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" autoComplete="on">
         {rootMsg ? <div className={authErrorBoxClass}>{rootMsg}</div> : null}
