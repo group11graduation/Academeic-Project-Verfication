@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V36:
+ * Marker V37:
+ * - Trust gateway __SV_MAIN_ADMIN_ROLE__ (FoundLink needs super_admin; V36 downgraded to admin).
+ * - history.replaceState(/login): hydrate + popstate unstick — no remount loop (max attempts).
+ * - Block /login redirects on admin routes whenever a token exists (not only 45s grace).
+ * V36:
  * - White page root fix: NEVER rewrite history to /login during grace — always stay path.
  * - forceAdminRemount uses ?__sv_r= cache-bust replace (same-path reload is a no-op).
  * - Soft-succeed ANY API 401 during post-login grace (after one retry) so ProtectedRoute
@@ -81,10 +85,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V36__) {
-    console.log('[DEBUG-SHIM] already installed V36 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V37__) {
+    console.log('[DEBUG-SHIM] already installed V37 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V37__ = true;
   window.__SV_LOGIN_FALLBACK_V36__ = true;
   window.__SV_LOGIN_FALLBACK_V35__ = true;
   window.__SV_LOGIN_FALLBACK_V34__ = true;
@@ -116,7 +121,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v36', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v37', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -1174,21 +1179,48 @@
   }
 
   /**
+   * Role discovered from the student ZIP by the gateway — authoritative for preview login.
+   */
+  function gatewayMainAdminRole() {
+    try {
+      var fromZip = String(window.__SV_MAIN_ADMIN_ROLE__ || '').trim();
+      if (fromZip && !/^(user|customer|client|member|buyer|borrower)$/i.test(fromZip)) {
+        if (isLoanStyleApp() && /^super_?admin$/i.test(fromZip)) return 'admin';
+        return fromZip;
+      }
+    } catch (_e) {}
+    return null;
+  }
+
+  function applyGatewayAuthRole() {
+    try {
+      var gw = gatewayMainAdminRole();
+      if (!gw) return;
+      writeBareRoleKeys(gw);
+      var tok = getStoredAccessToken ? getStoredAccessToken() : localStorage.getItem('token');
+      if (tok && typeof patchJwtRoleClaim === 'function') {
+        var patched = patchJwtRoleClaim(tok, gw);
+        if (patched && patched !== tok) {
+          ['token', 'accessToken', 'access_token', 'jwt', 'loan_token'].forEach(function (k) {
+            try {
+              if (localStorage.getItem(k)) localStorage.setItem(k, patched);
+            } catch (_k) {}
+          });
+        }
+      }
+      if (typeof fixStoredPreviewUserRole === 'function') fixStoredPreviewUserRole();
+    } catch (_agr) {}
+  }
+
+  /**
    * The single "main admin" role this SPA expects for teacher preview login.
    * Prefer ZIP-discovered role injected by the gateway (exact project casing).
    */
   function mainAdminRoleForApp() {
     // PayFlow / LoanFlow guards check role === 'admin' (not SUPER_ADMIN).
     if (isLoanStyleApp()) return 'admin';
-    try {
-      var fromZip = String(window.__SV_MAIN_ADMIN_ROLE__ || '').trim();
-      if (fromZip && !/^(user|customer|client|member|buyer|borrower)$/i.test(fromZip)) {
-        // Never let a stray SUPER_ADMIN hit from ZIP override loan-style apps
-        // (isLoanStyleApp already returned above). For other apps, trust ZIP.
-        if (/^super_?admin$/i.test(fromZip) && hasRoute('/admin/loans')) return 'admin';
-        return fromZip;
-      }
-    } catch (_e) {}
+    var gw = gatewayMainAdminRole();
+    if (gw) return gw;
     ensureHintsBeforeLogin();
     if (isSkyPropertyApp()) return 'SUPER_ADMIN';
     if (isStaffSetApp()) return 'super_admin';
@@ -1356,7 +1388,8 @@
 
   function fixStoredPreviewUserRole() {
     var sky = isSkyPropertyApp();
-    var targetRole = sky ? 'SUPER_ADMIN' : mainAdminRoleForApp();
+    var gw = gatewayMainAdminRole();
+    var targetRole = gw || (sky ? 'SUPER_ADMIN' : mainAdminRoleForApp());
     // Absolute override: loan apps never keep SUPER_ADMIN in storage.
     if (isLoanStyleApp()) targetRole = 'admin';
     var changed = false;
@@ -1625,7 +1658,7 @@
       } catch (_r) {}
 
       if (
-        wrongSuper ||
+        (wrongSuper && isLoanStyleApp()) ||
         isLoanStyleApp() ||
         /\/admin\/loans/i.test(target) ||
         /payflow/i.test(String(document.title || ''))
@@ -2293,7 +2326,16 @@
   }
 
   function pickStayAdminPath() {
-    var stay = String(location.pathname || '') + String(location.search || '');
+    var stay = String(location.pathname || '');
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.delete('__sv_r');
+      var qs = u.searchParams.toString();
+      if (qs) stay += '?' + qs;
+    } catch (_e) {
+      stay = String(location.pathname || '') + String(location.search || '').replace(/[?&]__sv_r=[^&]*/g, '');
+      stay = stay.replace(/\?$/, '');
+    }
     if (!stay || isLoginRedirectTarget(stay)) {
       stay = typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin/dashboard';
     }
@@ -2303,6 +2345,7 @@
 
   function hydratePreviewAuthAfterBounce() {
     try {
+      applyGatewayAuthRole();
       if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
       if (typeof fixStoredPreviewUserRole === 'function') fixStoredPreviewUserRole();
       if (typeof writeBareRoleKeys === 'function') {
@@ -2321,8 +2364,9 @@
     var dest = stay || pickStayAdminPath();
     try {
       var n = parseInt(sessionStorage.getItem('__sv_hard_doc_nav__') || '0', 10);
-      if (!force && n >= 3) {
-        console.warn('[DEBUG-SHIM] force remount skipped (max attempts)');
+      if (!force && n >= 5) {
+        console.warn('[DEBUG-SHIM] force remount skipped (max attempts) — unstick only');
+        unstickNavigateNull(dest);
         return;
       }
       sessionStorage.setItem('__sv_hard_doc_nav__', String(n + 1));
@@ -2345,6 +2389,21 @@
         window.location.reload();
       } catch (_r) {}
     }
+  }
+
+  function unstickNavigateNull(stay) {
+    var dest = stay || pickStayAdminPath();
+    try {
+      applyGatewayAuthRole();
+      hydratePreviewAuthAfterBounce();
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new Event('userChanged'));
+      window.dispatchEvent(new Event('sv-preview-login'));
+      if (window.__svNativeHistoryReplace) {
+        window.__svNativeHistoryReplace({}, '', dest);
+        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+      }
+    } catch (_u) {}
   }
 
   /** @deprecated use forceAdminRemount */
@@ -2479,18 +2538,19 @@
     }
   }
 
-  /** Suppress SPA force-logout navigations during post-login grace (storage clear alone is not enough). */
+  /** Suppress SPA force-logout navigations when we have a token on an admin route. */
   function shouldSuppressLoginRedirect(target) {
-    if (!withinPostLoginGrace()) return false;
     if (!getStoredAccessToken()) return false;
     if (isCurrentlyOnLoginPage()) return false;
     if (!isLoginRedirectTarget(target)) return false;
-    return true;
+    if (withinPostLoginGrace()) return true;
+    if (/admin|dashboard|manDash/i.test(String(location.pathname || ''))) return true;
+    return false;
   }
 
   /**
-   * Handle forced logout navigations during grace.
-   * Always rewrite to the admin stay path and force a full remount with cache-bust.
+   * Handle forced logout navigations during grace / admin routes.
+   * history.* : rewrite to stay + unstick (no reload loop). location.* : full remount.
    */
   function handleLoginRedirectAttempt(target, via) {
     var path = String(target || '');
@@ -2499,14 +2559,29 @@
       path = u.pathname + (u.search || '');
     } catch (_e) {}
     var stay = pickStayAdminPath();
+    var viaHist = via === 'history.pushState' || via === 'history.replaceState';
     console.log(
       '[DEBUG-SHIM] blocked login redirect to',
       path,
-      'during post-login grace — remount',
+      '→ stay',
       stay,
-      via ? '(' + via + ')' : ''
+      viaHist ? '(history unstick)' : '(document remount)',
+      via ? via : ''
     );
-    forceAdminRemount(stay);
+    applyGatewayAuthRole();
+    hydratePreviewAuthAfterBounce();
+    if (viaHist) {
+      unstickNavigateNull(stay);
+      setTimeout(function () {
+        try {
+          var root = document.getElementById('root') || document.getElementById('app');
+          var html = root ? String(root.innerHTML || '').replace(/\s+/g, '') : '';
+          if (html.length <= 20) forceAdminRemount(stay, true);
+        } catch (_b) {}
+      }, 250);
+    } else {
+      forceAdminRemount(stay);
+    }
     return stay;
   }
 
@@ -3433,12 +3508,14 @@
     } catch (_e) {}
   }
   try {
+    applyGatewayAuthRole();
     seedAuthStorageIfNeeded();
     dumpAuthDebug('after-seed-check');
   } catch (_s) {}
   try {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () {
+        applyGatewayAuthRole();
         seedAuthStorageIfNeeded();
         dumpAuthDebug('dom-ready');
       });
