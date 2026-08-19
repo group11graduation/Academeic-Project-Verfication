@@ -7,7 +7,12 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V31:
+ * Marker V32:
+ * - Suppress window.location / history redirects to /login during post-login grace
+ *   (student apiClients often navigate on 401 even when storage clear is blocked).
+ * - On ANY 401 during grace with a stored token: retry the request once with
+ *   Authorization re-attached before letting the 401 through (not only /me probes).
+ * V31:
  * - Post-login bounce → /login: attach Authorization Bearer on all API calls; soft-succeed
  *   session probes (/me|/profile|/current) that 401; block auth storage clears for 30s after
  *   login (axios interceptors); patch axios request/response; dispatch storage+auth events
@@ -59,10 +64,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V31__) {
-    console.log('[DEBUG-SHIM] already installed V31 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V32__) {
+    console.log('[DEBUG-SHIM] already installed V32 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V32__ = true;
   window.__SV_LOGIN_FALLBACK_V31__ = true;
   window.__SV_LOGIN_FALLBACK_V30__ = true;
   window.__SV_LOGIN_FALLBACK_V29__ = true;
@@ -89,7 +95,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v31', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v32', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -178,7 +184,7 @@
         reason: reason || 'manual',
         href: String(location.href || ''),
         pathname: String((location && location.pathname) || ''),
-        shim: 'v31',
+        shim: 'v32',
       };
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
@@ -2246,7 +2252,7 @@
     }
   } catch (_wsPatch) {}
 
-  // ——— V31: stop login→dashboard→login bounce ————————————————
+  // ——— V31/V32: stop login→dashboard→login bounce ————————————————
   function markPreviewLoginSuccess() {
     try {
       sessionStorage.setItem('__sv_login_at__', String(Date.now()));
@@ -2322,7 +2328,7 @@
       var abs = new URL(u, window.location.href);
       var p = abs.pathname || '';
       if (/^\/api(\/|$)/i.test(p)) return true;
-      if (/^\/(auth|users|user|admin|loans|products|books|orders|dashboard)\b/i.test(p)) return true;
+      if (/^\/(auth|users|user|admin|loans|products|books|orders|dashboard|members)\b/i.test(p)) return true;
       var apiBase = detectApiBase();
       if (apiBase && String(abs.origin) === String(new URL(apiBase, window.location.href).origin)) {
         return !/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)(\?|$)/i.test(p);
@@ -2330,6 +2336,126 @@
     } catch (_e) {}
     return false;
   }
+
+  function isLoginRedirectTarget(target) {
+    try {
+      var u = new URL(String(target || ''), window.location.href);
+      var p = String(u.pathname || '');
+      return /\/(login|signin|sign-in|sign_in|log-in|auth\/login)\/?$/i.test(p) || /^\/(login|signin)\b/i.test(p);
+    } catch (_e) {
+      return /(?:^|\/)(login|signin|sign-in)(?:\/|\?|$)/i.test(String(target || ''));
+    }
+  }
+
+  function isCurrentlyOnLoginPage() {
+    try {
+      return isLoginRedirectTarget(String(location.pathname || '') || '/');
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /** Suppress SPA force-logout navigations during post-login grace (storage clear alone is not enough). */
+  function shouldSuppressLoginRedirect(target) {
+    if (!withinPostLoginGrace()) return false;
+    if (!getStoredAccessToken()) return false;
+    if (isCurrentlyOnLoginPage()) return false;
+    if (!isLoginRedirectTarget(target)) return false;
+    return true;
+  }
+
+  function suppressLoginRedirect(target, via) {
+    var path = String(target || '');
+    try {
+      var u = new URL(path, window.location.href);
+      path = u.pathname + (u.search || '');
+    } catch (_e) {}
+    console.log('[DEBUG-SHIM] suppressed redirect to', path, 'during post-login grace', via ? '(' + via + ')' : '');
+    return true;
+  }
+
+  function installLoginRedirectGuards() {
+    if (window.__SV_LOGIN_REDIRECT_GUARD__) return;
+    window.__SV_LOGIN_REDIRECT_GUARD__ = true;
+    try {
+      var loc = window.location;
+      var descAssign = Object.getOwnPropertyDescriptor(Location.prototype, 'assign');
+      var descReplace = Object.getOwnPropertyDescriptor(Location.prototype, 'replace');
+      var nativeAssign = (descAssign && descAssign.value) || loc.assign.bind(loc);
+      var nativeReplace = (descReplace && descReplace.value) || loc.replace.bind(loc);
+
+      loc.assign = function (url) {
+        if (shouldSuppressLoginRedirect(url)) {
+          suppressLoginRedirect(url, 'location.assign');
+          return;
+        }
+        return nativeAssign.call(loc, url);
+      };
+      loc.replace = function (url) {
+        if (shouldSuppressLoginRedirect(url)) {
+          suppressLoginRedirect(url, 'location.replace');
+          return;
+        }
+        return nativeReplace.call(loc, url);
+      };
+
+      try {
+        var hrefDesc =
+          Object.getOwnPropertyDescriptor(Location.prototype, 'href') ||
+          Object.getOwnPropertyDescriptor(loc, 'href');
+        if (hrefDesc && hrefDesc.set) {
+          Object.defineProperty(loc, 'href', {
+            configurable: true,
+            enumerable: true,
+            get: hrefDesc.get ? hrefDesc.get.bind(loc) : function () {
+              return String(loc);
+            },
+            set: function (v) {
+              if (shouldSuppressLoginRedirect(v)) {
+                suppressLoginRedirect(v, 'location.href');
+                return;
+              }
+              return hrefDesc.set.call(loc, v);
+            },
+          });
+        }
+      } catch (_href) {
+        console.warn('[DEBUG-SHIM] location.href guard unavailable', _href && _href.message);
+      }
+    } catch (_loc) {
+      console.warn('[DEBUG-SHIM] location redirect guard failed', _loc && _loc.message);
+    }
+
+    try {
+      var __svPush = history.pushState;
+      var __svReplace = history.replaceState;
+      history.pushState = function (state, title, url) {
+        if (url != null && shouldSuppressLoginRedirect(url)) {
+          suppressLoginRedirect(url, 'history.pushState');
+          return;
+        }
+        var r = __svPush.apply(this, arguments);
+        try {
+          ensureCoreAuthAliases();
+          setTimeout(function () {
+            dumpAuthDebug('pushState ' + String(location.pathname || ''));
+          }, 50);
+        } catch (_ps) {}
+        return r;
+      };
+      history.replaceState = function (state, title, url) {
+        if (url != null && shouldSuppressLoginRedirect(url)) {
+          suppressLoginRedirect(url, 'history.replaceState');
+          return;
+        }
+        return __svReplace.apply(this, arguments);
+      };
+      window.__SV_HISTORY_GUARD__ = true;
+    } catch (_hist) {
+      console.warn('[DEBUG-SHIM] history redirect guard failed', _hist && _hist.message);
+    }
+  }
+  installLoginRedirectGuards();
 
   function syntheticSessionBody() {
     var user = getStoredUserObject() || {
@@ -2365,6 +2491,22 @@
     });
   }
 
+  function forceAuthHeaders(headersLike) {
+    var token = getStoredAccessToken();
+    if (!token) return headersLike;
+    var bearer = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
+    try {
+      if (headersLike && typeof Headers !== 'undefined' && headersLike instanceof Headers) {
+        headersLike.set('Authorization', bearer);
+        return headersLike;
+      }
+    } catch (_h) {}
+    var out = headersLike && typeof headersLike === 'object' ? Object.assign({}, headersLike) : {};
+    out.Authorization = bearer;
+    out.authorization = bearer;
+    return out;
+  }
+
   function ensureAuthOnHeaders(headersLike, url) {
     if (!isApiRequestUrl(url) && !isSessionProbeUrl(url)) return headersLike;
     var token = getStoredAccessToken();
@@ -2393,18 +2535,54 @@
     return next;
   }
 
-  function softSessionIfUnauthorized(res, url) {
+  /**
+   * V32: session probes soft-succeed; during grace ANY 401 with a stored token is
+   * retried once with Authorization forced before the 401 is returned to the SPA.
+   */
+  function softSessionIfUnauthorized(res, url, fetchCtx) {
     if (!res || (res.status !== 401 && res.status !== 403)) return Promise.resolve(res);
     if (!getStoredAccessToken()) return Promise.resolve(res);
-    if (!isSessionProbeUrl(url) && !withinPostLoginGrace()) return Promise.resolve(res);
-    // Session probes always soft-succeed when we have a token; other APIs only during grace.
-    if (!isSessionProbeUrl(url) && withinPostLoginGrace() && isApiRequestUrl(url)) {
-      // Don't fake business data — only protect session probes from clearing auth.
-      return Promise.resolve(res);
+
+    if (isSessionProbeUrl(url)) {
+      console.warn('[DEBUG-SHIM] soft-succeed session probe after', res.status, String(url || ''));
+      return Promise.resolve(syntheticSessionResponse());
     }
-    if (!isSessionProbeUrl(url)) return Promise.resolve(res);
-    console.warn('[DEBUG-SHIM] soft-succeed session probe after', res.status, String(url || ''));
-    return Promise.resolve(syntheticSessionResponse());
+
+    if (
+      withinPostLoginGrace() &&
+      isApiRequestUrl(url) &&
+      fetchCtx &&
+      !fetchCtx.retried &&
+      typeof origFetch === 'function'
+    ) {
+      fetchCtx.retried = true;
+      console.warn(
+        '[DEBUG-SHIM] retrying once with Authorization after',
+        res.status,
+        String(url || '')
+      );
+      var retryInit = fetchCtx.init ? Object.assign({}, fetchCtx.init) : {};
+      retryInit.headers = forceAuthHeaders(retryInit.headers || {});
+      var retryInput = fetchCtx.input;
+      try {
+        if (typeof retryInput !== 'string' && typeof Request !== 'undefined' && retryInput instanceof Request) {
+          var hdrs = forceAuthHeaders(new Headers(retryInput.headers || {}));
+          retryInput = new Request(retryInput, { headers: hdrs });
+        } else if (typeof retryInput === 'string') {
+          retryInit = Object.assign({}, retryInit, { headers: forceAuthHeaders(retryInit.headers || {}) });
+        }
+      } catch (_ri) {}
+      return origFetch
+        .call(window, retryInput, retryInit)
+        .then(function (res2) {
+          return softSessionIfUnauthorized(res2, url, fetchCtx);
+        })
+        .catch(function () {
+          return res;
+        });
+    }
+
+    return Promise.resolve(res);
   }
 
   // Block axios/SPA from wiping token/user right after login (401 interceptor race).
@@ -2454,16 +2632,12 @@
       ax.__svAuthPatched = true;
       ax.interceptors.request.use(function (config) {
         try {
-          var url = String((config && (config.url || config.baseURL)) || '');
           var token = getStoredAccessToken();
           if (token) {
             config.headers = config.headers || {};
             if (!config.headers.Authorization && !config.headers.authorization) {
               config.headers.Authorization = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
             }
-          }
-          if (url && !/^https?:\/\//i.test(url) && detectApiBase() && isApiRequestUrl(url)) {
-            // leave relative — gateway same-origin
           }
         } catch (_c) {}
         return config;
@@ -2477,7 +2651,10 @@
             var status = err && err.response && err.response.status;
             var cfg = err && err.config;
             var url = cfg && (cfg.url || '');
-            if ((status === 401 || status === 403) && isSessionProbeUrl(url) && getStoredAccessToken()) {
+            if (!(status === 401 || status === 403) || !getStoredAccessToken()) {
+              return Promise.reject(err);
+            }
+            if (isSessionProbeUrl(url)) {
               console.warn('[DEBUG-SHIM] axios session soft-succeed', url);
               return Promise.resolve({
                 data: syntheticSessionBody(),
@@ -2487,6 +2664,14 @@
                 config: cfg,
                 request: err.request,
               });
+            }
+            if (withinPostLoginGrace() && cfg && !cfg.__svAuthRetried && typeof ax.request === 'function') {
+              cfg.__svAuthRetried = true;
+              cfg.headers = cfg.headers || {};
+              var tok = getStoredAccessToken();
+              cfg.headers.Authorization = /^Bearer\s+/i.test(tok) ? tok : 'Bearer ' + tok;
+              console.warn('[DEBUG-SHIM] axios retrying once with Authorization after', status, url);
+              return ax.request(cfg);
             }
           } catch (_e) {}
           return Promise.reject(err);
@@ -2530,8 +2715,9 @@
       // Always timeout loopback leftovers so the UI cannot stick on "Please wait…".
       var needsTimeout = isLoopbackOrigin(url) || (method === 'POST' && isLoginUrl(url));
       if (method !== 'POST' || !isLoginUrl(url)) {
+        var fetchCtx = { input: input, init: init, retried: false };
         function afterApi(res) {
-          return softSessionIfUnauthorized(res, url).then(function (r2) {
+          return softSessionIfUnauthorized(res, url, fetchCtx).then(function (r2) {
             return rewriteJsonApiResponse(r2, url);
           });
         }
@@ -3071,16 +3257,19 @@
       ensureCoreAuthAliases();
       dumpAuthDebug('popstate ' + String(location.pathname || ''));
     });
-    var __svPush = history.pushState;
-    history.pushState = function () {
-      var r = __svPush.apply(this, arguments);
-      try {
-        ensureCoreAuthAliases();
-        setTimeout(function () {
-          dumpAuthDebug('pushState ' + String(location.pathname || ''));
-        }, 50);
-      } catch (_ps) {}
-      return r;
-    };
+    // history.pushState / replaceState already guarded in installLoginRedirectGuards (V32).
+    if (!window.__SV_HISTORY_GUARD__) {
+      var __svPush = history.pushState;
+      history.pushState = function () {
+        var r = __svPush.apply(this, arguments);
+        try {
+          ensureCoreAuthAliases();
+          setTimeout(function () {
+            dumpAuthDebug('pushState ' + String(location.pathname || ''));
+          }, 50);
+        } catch (_ps) {}
+        return r;
+      };
+    }
   } catch (_h) {}
 })();
