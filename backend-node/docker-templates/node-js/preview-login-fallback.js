@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V37:
+ * Marker V38:
+ * - isLoanStyleApp falsely matched loan_user/loan_token in page HTML — those strings
+ *   appear in THIS shim script, so SYADA/FoundLink got role=admin instead of super_admin.
+ * - Gateway __SV_MAIN_ADMIN_ROLE__ now wins over loan-style heuristics.
+ * V37:
  * - Trust gateway __SV_MAIN_ADMIN_ROLE__ (FoundLink needs super_admin; V36 downgraded to admin).
  * - history.replaceState(/login): hydrate + popstate unstick — no remount loop (max attempts).
  * - Block /login redirects on admin routes whenever a token exists (not only 45s grace).
@@ -85,10 +89,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V37__) {
-    console.log('[DEBUG-SHIM] already installed V37 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V38__) {
+    console.log('[DEBUG-SHIM] already installed V38 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V38__ = true;
   window.__SV_LOGIN_FALLBACK_V37__ = true;
   window.__SV_LOGIN_FALLBACK_V36__ = true;
   window.__SV_LOGIN_FALLBACK_V35__ = true;
@@ -121,7 +126,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v37', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v38', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -916,26 +921,27 @@
     );
   }
 
+  /**
+   * PayFlow / LoanFlow detection — must NOT match our own injected shim (page HTML
+   * contains the literal strings loan_user / loan_token from this file).
+   */
   function isLoanStyleApp() {
     try {
       if (window.__SV_LOAN_STYLE__) return true;
     } catch (_eF) {}
-    var html = pageHintHtml();
-    // PayFlow Payroll / LoanFlow / any loans admin console.
-    if (/payflow|PayFlow|LoanFlow|loan_token|loan_user|Payroll/i.test(html)) {
-      try {
-        window.__SV_LOAN_STYLE__ = true;
-      } catch (_e) {}
-      return true;
-    }
     try {
       if (/payflow|LoanFlow|Payroll/i.test(String(document.title || ''))) {
         window.__SV_LOAN_STYLE__ = true;
         return true;
       }
     } catch (_e0) {}
+    // payflow_user / loan_token are app-native keys; loan_user is also mirrored by this shim.
     try {
-      if (localStorage.getItem('loan_token') || localStorage.getItem('loan_user') || localStorage.getItem('payflow_user')) {
+      if (localStorage.getItem('payflow_user')) {
+        window.__SV_LOAN_STYLE__ = true;
+        return true;
+      }
+      if (localStorage.getItem('loan_token') && !localStorage.getItem('accessToken') && !localStorage.getItem('token')) {
         window.__SV_LOAN_STYLE__ = true;
         return true;
       }
@@ -946,6 +952,7 @@
         return true;
       }
     } catch (_eP) {}
+    ensureHintsBeforeLogin();
     var roles = allHintRoles();
     var hasBorrower = roles.some(function (r) {
       return /^borrower$/i.test(r);
@@ -960,7 +967,7 @@
       window.__SV_LOAN_STYLE__ = true;
       return true;
     }
-    if (hasRoute('/admin/loans')) {
+    if (hasRoute('/admin/loans') && (hasBorrower || hasOfficer)) {
       window.__SV_LOAN_STYLE__ = true;
       return true;
     }
@@ -1217,10 +1224,9 @@
    * Prefer ZIP-discovered role injected by the gateway (exact project casing).
    */
   function mainAdminRoleForApp() {
-    // PayFlow / LoanFlow guards check role === 'admin' (not SUPER_ADMIN).
-    if (isLoanStyleApp()) return 'admin';
     var gw = gatewayMainAdminRole();
     if (gw) return gw;
+    if (isLoanStyleApp()) return 'admin';
     ensureHintsBeforeLogin();
     if (isSkyPropertyApp()) return 'SUPER_ADMIN';
     if (isStaffSetApp()) return 'super_admin';
@@ -2105,8 +2111,6 @@
         var userKeys = [
           'user',
           'userInfo',
-          'loan_user',
-          'payflow_user',
           'authUser',
           'currentUser',
           'loggedInUser',
@@ -2118,6 +2122,9 @@
           'skyUser',
           'sky_user',
         ];
+        if (isLoanStyleApp()) {
+          userKeys.push('loan_user', 'payflow_user');
+        }
         for (var ui = 0; ui < userKeys.length; ui++) {
           try {
             // userInfo / auth often store the full login envelope; others store the user doc.
@@ -2132,7 +2139,7 @@
         try {
           localStorage.setItem('auth', outJson);
         } catch (_a) {}
-        if (token) localStorage.setItem('loan_token', token);
+        if (token && isLoanStyleApp()) localStorage.setItem('loan_token', token);
         if (user.email) localStorage.setItem('email', String(user.email));
         if (user.username) localStorage.setItem('username', String(user.username));
         if (user.name) localStorage.setItem('name', String(user.name));
@@ -3398,7 +3405,9 @@
         if (!localStorage.getItem('accessToken')) localStorage.setItem('accessToken', token);
         if (!localStorage.getItem('access_token')) localStorage.setItem('access_token', token);
         if (!localStorage.getItem('jwt')) localStorage.setItem('jwt', token);
-        if (!localStorage.getItem('loan_token')) localStorage.setItem('loan_token', token);
+        if (isLoanStyleApp() && !localStorage.getItem('loan_token')) {
+          localStorage.setItem('loan_token', token);
+        }
       }
 
       var userRaw =
@@ -3436,7 +3445,9 @@
         if (!localStorage.getItem('currentUser')) localStorage.setItem('currentUser', userJson);
         if (!localStorage.getItem('authUser')) localStorage.setItem('authUser', userJson);
         if (!localStorage.getItem('loggedInUser')) localStorage.setItem('loggedInUser', userJson);
-        if (!localStorage.getItem('loan_user')) localStorage.setItem('loan_user', userJson);
+        if (isLoanStyleApp() && !localStorage.getItem('loan_user')) {
+          localStorage.setItem('loan_user', userJson);
+        }
         if (userObj.email && !localStorage.getItem('email')) {
           localStorage.setItem('email', String(userObj.email));
         }
