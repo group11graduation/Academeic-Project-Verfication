@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V29:
+ * Marker V30:
+ * - Socket.IO: rewrite WebSocket URLs to same-origin gateway (polling was on UI port,
+ *   WS on API port → Engine.IO sid mismatch / 400). Pair with gateway upgrade proxy.
+ * V29:
  * - FoundLink dump: accessToken/userInfo present but token+user MISSING → SPA reads
  *   localStorage.user (undefined) and JSON.parse crashes. Always mirror token↔accessToken
  *   and user↔userInfo.user (ensureCoreAuthAliases).
@@ -51,10 +54,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V29__) {
-    console.log('[DEBUG-SHIM] already installed V29 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V30__) {
+    console.log('[DEBUG-SHIM] already installed V30 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V30__ = true;
   window.__SV_LOGIN_FALLBACK_V29__ = true;
   window.__SV_LOGIN_FALLBACK_V28__ = true;
   window.__SV_LOGIN_FALLBACK_V27__ = true;
@@ -79,7 +83,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v29', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v30', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -168,7 +172,7 @@
         reason: reason || 'manual',
         href: String(location.href || ''),
         pathname: String((location && location.pathname) || ''),
-        shim: 'v29',
+        shim: 'v30',
       };
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
@@ -2195,6 +2199,41 @@
     }
     return next;
   }
+
+  // Socket.IO opens WebSocket with the baked API host:port while XHR polling is
+  // rewritten to the UI gateway → sid mismatch / 400. Keep WS on the same origin.
+  try {
+    var OrigWebSocket = window.WebSocket;
+    if (typeof OrigWebSocket === 'function') {
+      window.WebSocket = function (url, protocols) {
+        var next = String(url || '');
+        try {
+          var rewrittenHttp = rewriteToApiBase(
+            next.replace(/^ws:/i, 'http:').replace(/^wss:/i, 'https:')
+          );
+          if (/^https:/i.test(rewrittenHttp)) {
+            next = rewrittenHttp.replace(/^https:/i, 'wss:');
+          } else if (/^http:/i.test(rewrittenHttp)) {
+            next = rewrittenHttp.replace(/^http:/i, 'ws:');
+          } else {
+            next = rewrittenHttp;
+          }
+          if (next !== String(url || '')) {
+            console.log('[DEBUG-SHIM] WebSocket rewrite', String(url || ''), '→', next);
+          }
+        } catch (_ws) {}
+        if (protocols === undefined) return new OrigWebSocket(next);
+        return new OrigWebSocket(next, protocols);
+      };
+      try {
+        window.WebSocket.prototype = OrigWebSocket.prototype;
+        window.WebSocket.CONNECTING = OrigWebSocket.CONNECTING;
+        window.WebSocket.OPEN = OrigWebSocket.OPEN;
+        window.WebSocket.CLOSING = OrigWebSocket.CLOSING;
+        window.WebSocket.CLOSED = OrigWebSocket.CLOSED;
+      } catch (_proto) {}
+    }
+  } catch (_wsPatch) {}
 
   var origFetch = window.fetch;
   if (typeof origFetch === 'function') {

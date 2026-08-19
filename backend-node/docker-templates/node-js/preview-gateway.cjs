@@ -201,6 +201,12 @@ function isApiProxyPath(pathname) {
   return false;
 }
 
+/** Socket.IO / raw WS must not get the /api prefix fallback — that breaks Engine.IO sessions. */
+function isWebSocketProxyPath(pathname) {
+  const p = String(pathname || '').split('?')[0] || '/';
+  return /^\/(socket\.io|ws|websocket)(\/|$)/i.test(p);
+}
+
 /** Ensure list keys exist as arrays so React UIs never see data.loans === undefined. */
 function normalizeApiListBody(body, reqPath) {
   if (body == null) return body;
@@ -333,7 +339,12 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
         ? originalPath.slice(originalPath.indexOf('?'))
         : '';
       const pathsToTry = [originalPath];
-      if (!/^\/api(\/|$)/i.test(pathOnly) && !/^\/auth(\/|$)/i.test(pathOnly)) {
+      // Never rewrite /socket.io → /api/socket.io (Engine.IO sid breaks).
+      if (
+        !isWebSocketProxyPath(pathOnly) &&
+        !/^\/api(\/|$)/i.test(pathOnly) &&
+        !/^\/auth(\/|$)/i.test(pathOnly)
+      ) {
         pathsToTry.push(`/api${pathOnly}${qs}`);
       }
 
@@ -532,6 +543,90 @@ const server = http.createServer((req, res) => {
   }
 
   return proxyTryThenStatic(req, res, { preferSpaOnNonHtml: true });
+});
+
+// Socket.IO upgrades WebSocket after polling — without this, clients open ws://API_PORT
+// while XHR polling hits the UI gateway → Engine.IO sid mismatch → 400 Bad Request.
+server.on('upgrade', (req, socket, head) => {
+  let pathname = '/';
+  try {
+    pathname = new URL(req.url || '/', 'http://local').pathname || '/';
+  } catch (_e) {
+    pathname = '/';
+  }
+  if (!isWebSocketProxyPath(pathname) && !isApiProxyPath(pathname)) {
+    try {
+      socket.destroy();
+    } catch (_d) {}
+    return;
+  }
+
+  const headers = { ...req.headers, host: `${API_HOST}:${API_PORT}` };
+  delete headers['accept-encoding'];
+
+  const upstreamReq = http.request({
+    hostname: API_HOST,
+    port: API_PORT,
+    path: req.url || '/',
+    method: req.method || 'GET',
+    headers,
+  });
+
+  upstreamReq.on('upgrade', (upRes, upSocket, upHead) => {
+    try {
+      let out = 'HTTP/1.1 101 Switching Protocols\r\n';
+      const h = upRes.headers || {};
+      for (const key of Object.keys(h)) {
+        const val = h[key];
+        if (Array.isArray(val)) {
+          for (const v of val) out += `${key}: ${v}\r\n`;
+        } else if (val != null) {
+          out += `${key}: ${val}\r\n`;
+        }
+      }
+      out += '\r\n';
+      socket.write(out);
+      if (upHead && upHead.length) socket.write(upHead);
+      if (head && head.length) upSocket.write(head);
+      upSocket.pipe(socket);
+      socket.pipe(upSocket);
+      upSocket.on('error', () => {
+        try {
+          socket.destroy();
+        } catch (_e) {}
+      });
+      socket.on('error', () => {
+        try {
+          upSocket.destroy();
+        } catch (_e2) {}
+      });
+    } catch (_pipe) {
+      try {
+        socket.destroy();
+      } catch (_e3) {}
+      try {
+        upSocket.destroy();
+      } catch (_e4) {}
+    }
+  });
+
+  upstreamReq.on('error', () => {
+    try {
+      socket.destroy();
+    } catch (_e) {}
+  });
+
+  upstreamReq.on('response', (upRes) => {
+    // Upstream refused upgrade — close client socket.
+    try {
+      upRes.resume();
+    } catch (_r) {}
+    try {
+      socket.destroy();
+    } catch (_d) {}
+  });
+
+  upstreamReq.end();
 });
 
 server.on('error', (err) => {
