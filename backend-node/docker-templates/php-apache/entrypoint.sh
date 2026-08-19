@@ -159,10 +159,46 @@ patch_php_tree() {
   done
 }
 
+# Fix config.php broken by an older ScholarVerify injector that prepended <?php before files
+# that already had <?php (parse error: unexpected token "<" on line ~18).
+repair_sv_php_injection() {
+  php -r '
+    function sv_repair_preview_php_injection($path) {
+      $c = @file_get_contents($path);
+      if ($c === false || strpos($c, "ScholarVerify preview sandbox") === false) return false;
+      $fixed = preg_replace(
+        "/(\/\/ ScholarVerify preview sandbox[\s\S]*?\n\})\s*\n\s*<\?php\s*\n/i",
+        "$1\n",
+        $c,
+        1
+      );
+      if ($fixed === null || $fixed === $c) return false;
+      file_put_contents($path, $fixed);
+      return true;
+    }
+    $n = 0;
+    $roots = ["/var/www/html"];
+    foreach ($roots as $root) {
+      if (!is_dir($root)) continue;
+      $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+      );
+      foreach ($it as $f) {
+        if (!$f->isFile() || strtolower($f->getExtension()) !== "php") continue;
+        $name = $f->getFilename();
+        if (!preg_match("/config|database|db|connection/i", $f->getPathname() . $name)) continue;
+        if (sv_repair_preview_php_injection($f->getPathname())) $n++;
+      }
+    }
+    if ($n > 0) echo "[preview] repaired {$n} PHP config file(s) — removed duplicate <?php\n";
+  ' 2>/dev/null || true
+}
+
 patch_php_config() {
   if [ -z "$PREVIEW_BASE_URL" ] && [ -z "$DB_HOST" ]; then
     return 0
   fi
+  repair_sv_php_injection
   echo "[preview] patching PHP config (BASE_URL=${PREVIEW_BASE_URL:-n/a}, DB_HOST=${DB_HOST:-n/a}, DB_NAME=${DB_NAME:-bbms})"
   patch_php_tree "$DOCROOT" 0
   if [ -f "$DOCROOT/setup_db.php" ] && [ -n "$DB_NAME" ]; then

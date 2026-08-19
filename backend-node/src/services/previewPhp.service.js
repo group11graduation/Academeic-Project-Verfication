@@ -415,17 +415,46 @@ if (getenv('PREVIEW_SANDBOX') === '1' || getenv('DB_HOST')) {
 `;
 }
 
+/** Body only — no <?php opener (injected inside an existing PHP block). */
+function buildPreviewEnvOverrideBlockBody() {
+  return buildPreviewEnvOverrideBlock().replace(/^\uFEFF?<\?php\s*\r?\n/i, '');
+}
+
+const PHP_OPEN_TAG_RE = /^\uFEFF?[\s\r\n]*<\?php\b/i;
+
+/**
+ * Old injector prepended a full "<?php …" block before config files that already
+ * started with <?php → "unexpected token <" parse error on line ~18.
+ */
+export function repairBrokenPreviewPhpInjection(content) {
+  if (!content.includes(PREVIEW_MARKER)) return content;
+  let next = content;
+  next = next.replace(
+    /(<\?php\s*\r?\n\s*\/\/ ScholarVerify preview sandbox[\s\S]*?\r?\n\})\s*\r?\n\s*<\?php\b\s*\r?\n/i,
+    '$1\n',
+  );
+  next = next.replace(
+    /(\/\/ ScholarVerify preview sandbox[\s\S]*?\r?\n\})\s*\r?\n\s*<\?php\b\s*\r?\n/i,
+    '$1\n',
+  );
+  return next;
+}
+
 function injectPreviewEnvOverrides(content) {
-  if (content.includes(PREVIEW_MARKER)) return { content, changed: false };
+  if (content.includes(PREVIEW_MARKER)) {
+    const repaired = repairBrokenPreviewPhpInjection(content);
+    return { content: repaired, changed: repaired !== content };
+  }
   if (!DB_FILE_CONTENT_RE.test(content)) return { content, changed: false };
 
-  const block = buildPreviewEnvOverrideBlock();
-  if (content.startsWith('<?php')) {
-    const afterTag = content.indexOf('<?php') + 5;
-    const injected = `${content.slice(0, afterTag)}\n${block.slice(5)}${content.slice(afterTag)}`;
+  const body = buildPreviewEnvOverrideBlockBody();
+  const openMatch = content.match(PHP_OPEN_TAG_RE);
+  if (openMatch) {
+    const insertAt = openMatch.index + openMatch[0].length;
+    const injected = `${content.slice(0, insertAt)}\n${body}${content.slice(insertAt)}`;
     return { content: injected, changed: true };
   }
-  return { content: block + content, changed: true };
+  return { content: buildPreviewEnvOverrideBlock() + content, changed: true };
 }
 
 /**
@@ -610,7 +639,12 @@ export async function resolvePreviewDatabaseName(root) {
 
 async function patchPhpFile(filePath, options, { bootstrap = false, injectOverrides = true } = {}) {
   let content = await fs.readFile(filePath, 'utf8');
-  let changed = false;
+  const repaired = repairBrokenPreviewPhpInjection(content);
+  if (repaired !== content) {
+    content = repaired;
+    await fs.writeFile(filePath, content, 'utf8');
+  }
+  let changed = repaired !== content;
 
   const definePatch = patchPhpDefines(content, options);
   content = definePatch.content;
