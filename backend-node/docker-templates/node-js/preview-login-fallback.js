@@ -7,7 +7,20 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V33:
+ * Marker V36:
+ * - White page root fix: NEVER rewrite history to /login during grace — always stay path.
+ * - forceAdminRemount uses ?__sv_r= cache-bust replace (same-path reload is a no-op).
+ * - Soft-succeed ANY API 401 during post-login grace (after one retry) so ProtectedRoute
+ *   never fires <Navigate to="/login"/> in the first place.
+ * V35:
+ * - White page: hard-nav to the SAME /admin/dashboard URL is a no-op in browsers, so
+ *   React <Navigate/> stayed null forever. Always reload (or ?__sv_r= bust) when dest
+ *   matches current path; allow history.replaceState(/login) then hard-reload away.
+ * V34:
+ * - White page fix: do NOT no-op history.replaceState(/login) — that leaves React
+ *   <Navigate/> stuck returning null. Rewrite login navigations to the admin stay
+ *   path and follow with a hard document navigation; blank #root watchdog as backup.
+ * V33:
  * - White page after suppressing /login redirect: React <Navigate/> renders null when
  *   history.replaceState is no-op'd. On suppress: re-hydrate auth, then reload once so
  *   ProtectedRoute remounts with storage. (href guard may be unavailable in browsers.)
@@ -68,10 +81,13 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V33__) {
-    console.log('[DEBUG-SHIM] already installed V33 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V36__) {
+    console.log('[DEBUG-SHIM] already installed V36 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V36__ = true;
+  window.__SV_LOGIN_FALLBACK_V35__ = true;
+  window.__SV_LOGIN_FALLBACK_V34__ = true;
   window.__SV_LOGIN_FALLBACK_V33__ = true;
   window.__SV_LOGIN_FALLBACK_V32__ = true;
   window.__SV_LOGIN_FALLBACK_V31__ = true;
@@ -100,7 +116,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v33', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v36', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -189,7 +205,7 @@
         reason: reason || 'manual',
         href: String(location.href || ''),
         pathname: String((location && location.pathname) || ''),
-        shim: 'v33',
+        shim: 'v34',
       };
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
@@ -2261,8 +2277,9 @@
   function markPreviewLoginSuccess() {
     try {
       sessionStorage.setItem('__sv_login_at__', String(Date.now()));
-      // Allow one remount reload if a /login redirect is suppressed this session.
       sessionStorage.removeItem('__sv_grace_reload__');
+      sessionStorage.removeItem('__sv_hard_doc_nav__');
+      sessionStorage.removeItem('__sv_blank_fix__');
     } catch (_e) {}
   }
 
@@ -2273,6 +2290,106 @@
     } catch (_e) {
       return false;
     }
+  }
+
+  function pickStayAdminPath() {
+    var stay = String(location.pathname || '') + String(location.search || '');
+    if (!stay || isLoginRedirectTarget(stay)) {
+      stay = typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin/dashboard';
+    }
+    if (!stay || stay === '/') stay = '/admin/dashboard';
+    return stay;
+  }
+
+  function hydratePreviewAuthAfterBounce() {
+    try {
+      if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
+      if (typeof fixStoredPreviewUserRole === 'function') fixStoredPreviewUserRole();
+      if (typeof writeBareRoleKeys === 'function') {
+        writeBareRoleKeys(localStorage.getItem('role') || mainAdminRoleForApp());
+      }
+      window.dispatchEvent(new Event('userChanged'));
+      window.dispatchEvent(new Event('sv-preview-login'));
+    } catch (_hyd) {}
+  }
+
+  /**
+   * Full document navigation with cache-bust — same-path location.replace/reload is a no-op
+   * and leaves React Router stuck on a null <Navigate/> render.
+   */
+  function forceAdminRemount(stay, force) {
+    var dest = stay || pickStayAdminPath();
+    try {
+      var n = parseInt(sessionStorage.getItem('__sv_hard_doc_nav__') || '0', 10);
+      if (!force && n >= 3) {
+        console.warn('[DEBUG-SHIM] force remount skipped (max attempts)');
+        return;
+      }
+      sessionStorage.setItem('__sv_hard_doc_nav__', String(n + 1));
+    } catch (_e) {}
+
+    hydratePreviewAuthAfterBounce();
+    console.log('[DEBUG-SHIM] force admin remount →', dest, force ? '(forced)' : '');
+
+    try {
+      var destUrl = new URL(dest, window.location.href);
+      destUrl.searchParams.set('__sv_r', String(Date.now()));
+      var href = destUrl.toString();
+      if (typeof window.__svNativeLocationReplace === 'function') {
+        window.__svNativeLocationReplace(href);
+        return;
+      }
+      window.location.replace(href);
+    } catch (_nav) {
+      try {
+        window.location.reload();
+      } catch (_r) {}
+    }
+  }
+
+  /** @deprecated use forceAdminRemount */
+  function scheduleHardAdminDocumentNav(stay, force) {
+    forceAdminRemount(stay, force);
+  }
+
+  function installBlankRootWatchdog() {
+    if (window.__SV_BLANK_ROOT_WATCH__) return;
+    window.__SV_BLANK_ROOT_WATCH__ = true;
+    var checks = 0;
+    var timer = setInterval(function () {
+      checks += 1;
+      if (checks > 50) {
+        clearInterval(timer);
+        return;
+      }
+      try {
+        if (!withinPostLoginGrace() && !getStoredAccessToken()) return;
+        if (isCurrentlyOnLoginPage()) return;
+        if (!/admin|dashboard/i.test(String(location.pathname || ''))) return;
+        var root =
+          document.getElementById('root') ||
+          document.getElementById('app') ||
+          document.querySelector('#root, #app, [data-reactroot]');
+        if (!root) return;
+        var html = String(root.innerHTML || '').replace(/\s+/g, '');
+        if (html.length > 20) {
+          try {
+            sessionStorage.removeItem('__sv_hard_doc_nav__');
+            sessionStorage.removeItem('__sv_blank_fix__');
+          } catch (_ok) {}
+          clearInterval(timer);
+          return;
+        }
+        var blankFix = parseInt(sessionStorage.getItem('__sv_blank_fix__') || '0', 10);
+        if (blankFix >= 3) return;
+        sessionStorage.setItem('__sv_blank_fix__', String(blankFix + 1));
+        console.warn('[DEBUG-SHIM] blank #root on admin route — forcing admin remount');
+        try {
+          sessionStorage.setItem('__sv_hard_doc_nav__', '0');
+        } catch (_c) {}
+        forceAdminRemount(pickStayAdminPath(), true);
+      } catch (_w) {}
+    }, 400);
   }
 
   function getStoredAccessToken() {
@@ -2371,79 +2488,26 @@
     return true;
   }
 
-  function suppressLoginRedirect(target, via) {
+  /**
+   * Handle forced logout navigations during grace.
+   * Always rewrite to the admin stay path and force a full remount with cache-bust.
+   */
+  function handleLoginRedirectAttempt(target, via) {
     var path = String(target || '');
     try {
       var u = new URL(path, window.location.href);
       path = u.pathname + (u.search || '');
     } catch (_e) {}
-    console.log('[DEBUG-SHIM] suppressed redirect to', path, 'during post-login grace', via ? '(' + via + ')' : '');
-
-    // Re-hydrate auth keys — SPA often cleared in-memory auth before Navigate fired.
-    try {
-      if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
-      if (typeof fixStoredPreviewUserRole === 'function') fixStoredPreviewUserRole();
-      if (typeof writeBareRoleKeys === 'function') {
-        writeBareRoleKeys(localStorage.getItem('role') || mainAdminRoleForApp());
-      }
-      window.dispatchEvent(new Event('userChanged'));
-      window.dispatchEvent(new Event('sv-preview-login'));
-    } catch (_hyd) {}
-
-    // React Router <Navigate to="/login"/> returns null while navigating.
-    // No-op'ing replaceState leaves that null forever → white page.
-    var stage = '';
-    try {
-      stage = String(sessionStorage.getItem('__sv_grace_reload__') || '');
-    } catch (_st) {}
-
-    var stay =
-      String(location.pathname || '') + String(location.search || '');
-    if (!stay || isLoginRedirectTarget(stay)) {
-      stay = typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin/dashboard';
-    }
-
-    if (stage === '' || stage === '0') {
-      try {
-        sessionStorage.setItem('__sv_grace_reload__', '1');
-      } catch (_s1) {}
-      console.log('[DEBUG-SHIM] remounting after suppressed login redirect →', stay);
-      setTimeout(function () {
-        try {
-          window.location.reload();
-        } catch (_reload) {
-          try {
-            if (window.__svNativeLocationAssign) {
-              window.__svNativeLocationAssign.call(window.location, stay);
-            }
-          } catch (_assign) {}
-        }
-      }, 40);
-      return true;
-    }
-
-    if (stage === '1') {
-      // Already remounted once; hard-navigate to admin so RR is not stuck on null Navigate.
-      try {
-        sessionStorage.setItem('__sv_grace_reload__', '2');
-      } catch (_s2) {}
-      console.log('[DEBUG-SHIM] hard stay on admin after second login-redirect suppress →', stay);
-      setTimeout(function () {
-        try {
-          if (window.__svNativeLocationReplace) {
-            window.__svNativeLocationReplace.call(window.location, stay);
-          } else if (window.__svNativeLocationAssign) {
-            window.__svNativeLocationAssign.call(window.location, stay);
-          } else {
-            window.location.reload();
-          }
-        } catch (_hard) {}
-      }, 40);
-      return true;
-    }
-
-    // stage >= 2: stop thrashing; keep user on current URL with hydrated auth.
-    return true;
+    var stay = pickStayAdminPath();
+    console.log(
+      '[DEBUG-SHIM] blocked login redirect to',
+      path,
+      'during post-login grace — remount',
+      stay,
+      via ? '(' + via + ')' : ''
+    );
+    forceAdminRemount(stay);
+    return stay;
   }
 
   function installLoginRedirectGuards() {
@@ -2455,25 +2519,28 @@
       var descReplace = Object.getOwnPropertyDescriptor(Location.prototype, 'replace');
       var nativeAssign = (descAssign && descAssign.value) || loc.assign.bind(loc);
       var nativeReplace = (descReplace && descReplace.value) || loc.replace.bind(loc);
-      window.__svNativeLocationAssign = nativeAssign;
-      window.__svNativeLocationReplace = nativeReplace;
+      window.__svNativeLocationAssign = function (url) {
+        return nativeAssign.call(loc, url);
+      };
+      window.__svNativeLocationReplace = function (url) {
+        return nativeReplace.call(loc, url);
+      };
 
       loc.assign = function (url) {
         if (shouldSuppressLoginRedirect(url)) {
-          suppressLoginRedirect(url, 'location.assign');
-          return;
+          var stay = handleLoginRedirectAttempt(url, 'location.assign');
+          return nativeAssign.call(loc, stay);
         }
         return nativeAssign.call(loc, url);
       };
       loc.replace = function (url) {
         if (shouldSuppressLoginRedirect(url)) {
-          suppressLoginRedirect(url, 'location.replace');
-          return;
+          var stay = handleLoginRedirectAttempt(url, 'location.replace');
+          return nativeReplace.call(loc, stay);
         }
         return nativeReplace.call(loc, url);
       };
 
-      // location.href is often non-configurable — skip quietly if redefine fails.
       try {
         var hrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
         if (hrefDesc && hrefDesc.configurable && hrefDesc.set) {
@@ -2483,8 +2550,8 @@
             get: hrefDesc.get,
             set: function (v) {
               if (shouldSuppressLoginRedirect(v)) {
-                suppressLoginRedirect(v, 'location.href');
-                return;
+                var stay = handleLoginRedirectAttempt(v, 'location.href');
+                return hrefDesc.set.call(this, stay);
               }
               return hrefDesc.set.call(this, v);
             },
@@ -2506,8 +2573,8 @@
       window.__svNativeHistoryReplace = __svReplace;
       history.pushState = function (state, title, url) {
         if (url != null && shouldSuppressLoginRedirect(url)) {
-          suppressLoginRedirect(url, 'history.pushState');
-          return;
+          var stay = handleLoginRedirectAttempt(url, 'history.pushState');
+          return __svPush(state, title, stay);
         }
         var r = __svPush(state, title, url);
         try {
@@ -2520,8 +2587,9 @@
       };
       history.replaceState = function (state, title, url) {
         if (url != null && shouldSuppressLoginRedirect(url)) {
-          suppressLoginRedirect(url, 'history.replaceState');
-          return;
+          var stay = handleLoginRedirectAttempt(url, 'history.replaceState');
+          // Must still call native replace with STAY path — no-op caused white page.
+          return __svReplace(state, title, stay);
         }
         return __svReplace(state, title, url);
       };
@@ -2529,8 +2597,41 @@
     } catch (_hist) {
       console.warn('[DEBUG-SHIM] history redirect guard failed', _hist && _hist.message);
     }
+
+    installBlankRootWatchdog();
   }
   installLoginRedirectGuards();
+
+  function installBootAdminRecovery() {
+    if (window.__SV_BOOT_ADMIN_RECOVERY__) return;
+    window.__SV_BOOT_ADMIN_RECOVERY__ = true;
+    function checkBlankAdminRoot() {
+      try {
+        if (!getStoredAccessToken()) return;
+        if (isCurrentlyOnLoginPage()) return;
+        if (!/admin|dashboard/i.test(String(location.pathname || ''))) return;
+        var root =
+          document.getElementById('root') ||
+          document.getElementById('app') ||
+          document.querySelector('#root, #app, [data-reactroot]');
+        if (!root) return;
+        var html = String(root.innerHTML || '').replace(/\s+/g, '');
+        if (html.length > 20) return;
+        if (sessionStorage.getItem('__sv_boot_recovery__') === '1') return;
+        sessionStorage.setItem('__sv_boot_recovery__', '1');
+        console.warn('[DEBUG-SHIM] boot: blank admin root with token — force remount');
+        forceAdminRemount(pickStayAdminPath(), true);
+      } catch (_b) {}
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(checkBlankAdminRoot, 700);
+      });
+    } else {
+      setTimeout(checkBlankAdminRoot, 700);
+    }
+  }
+  installBootAdminRecovery();
 
   function syntheticSessionBody() {
     var user = getStoredUserObject() || {
@@ -2657,6 +2758,11 @@
         });
     }
 
+    if (withinPostLoginGrace() && isApiRequestUrl(url)) {
+      console.warn('[DEBUG-SHIM] soft-succeed API 401 during grace', String(url || ''));
+      return Promise.resolve(syntheticSessionResponse());
+    }
+
     return Promise.resolve(res);
   }
 
@@ -2747,6 +2853,17 @@
               cfg.headers.Authorization = /^Bearer\s+/i.test(tok) ? tok : 'Bearer ' + tok;
               console.warn('[DEBUG-SHIM] axios retrying once with Authorization after', status, url);
               return ax.request(cfg);
+            }
+            if (withinPostLoginGrace() && isApiRequestUrl(url)) {
+              console.warn('[DEBUG-SHIM] axios soft-succeed API 401 during grace', url);
+              return Promise.resolve({
+                data: syntheticSessionBody(),
+                status: 200,
+                statusText: 'OK',
+                headers: { 'x-sv-session-soft': '1' },
+                config: cfg,
+                request: err.request,
+              });
             }
           } catch (_e) {}
           return Promise.reject(err);
@@ -3040,11 +3157,11 @@
               function svNormalizeLists() {
                 try {
                   if (xhr.readyState !== 4) return;
-                  // Soft-succeed session probes that 401 (prevents interceptor logout).
+                  // Soft-succeed session probes (and any API 401 during grace) to prevent logout bounce.
                   if (
                     (xhr.status === 401 || xhr.status === 403) &&
-                    isSessionProbeUrl(url) &&
-                    getStoredAccessToken()
+                    getStoredAccessToken() &&
+                    (isSessionProbeUrl(url) || (withinPostLoginGrace() && isApiRequestUrl(url)))
                   ) {
                     var soft = JSON.stringify(syntheticSessionBody());
                     try {

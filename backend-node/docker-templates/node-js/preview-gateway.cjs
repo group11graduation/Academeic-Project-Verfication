@@ -64,12 +64,16 @@ function adminHomeFromEnv() {
 }
 
 let cachedFallbackJs = null;
+let cachedFallbackMtime = null;
 function loadFallbackJs() {
-  if (cachedFallbackJs != null) return cachedFallbackJs;
   try {
+    const st = fs.statSync('/preview-login-fallback.js');
+    const mtime = Number(st.mtimeMs) || 0;
+    if (cachedFallbackJs != null && cachedFallbackMtime === mtime) return cachedFallbackJs;
     cachedFallbackJs = fs.readFileSync('/preview-login-fallback.js', 'utf8');
+    cachedFallbackMtime = mtime;
   } catch (_e) {
-    cachedFallbackJs = '';
+    cachedFallbackJs = cachedFallbackJs || '';
   }
   return cachedFallbackJs;
 }
