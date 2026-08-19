@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V27:
+ * Marker V28:
+ * - Safe JSON.parse: student dashboards often do useState(JSON.parse(localStorage.user))
+ *   which throws SyntaxError: "undefined" is not valid JSON when the key is missing.
+ * - Write auth user JSON under every common key (currentUser, authUser, auth, …).
+ * V27:
  * - PayFlow / LoanFlow: ALWAYS use role "admin" (never SUPER_ADMIN) + /admin/loans.
  * - Wrong-role bounce (/admin/loans → login): correct to admin and retry once, don't spam-abort.
  * V26:
@@ -43,10 +47,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V27__) {
-    console.log('[DEBUG-SHIM] already installed V27 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V28__) {
+    console.log('[DEBUG-SHIM] already installed V28 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V28__ = true;
   window.__SV_LOGIN_FALLBACK_V27__ = true;
   window.__SV_LOGIN_FALLBACK_V26__ = true;
   window.__SV_LOGIN_FALLBACK_V25__ = true;
@@ -69,13 +74,35 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v27', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v28', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
     mainRole: window.__SV_MAIN_ADMIN_ROLE__ || null,
     adminHome: window.__SV_ADMIN_HOME_PATH__ || null,
   });
+
+  // V28: many student apps crash on dashboard with:
+  //   useState(JSON.parse(localStorage.getItem('user')))  // getItem → null → still ok
+  //   useState(JSON.parse(localStorage.user))             // missing → undefined → SyntaxError
+  //   JSON.parse(undefined) → SyntaxError: "undefined" is not valid JSON
+  try {
+    var __svNativeJsonParse = JSON.parse.bind(JSON);
+    JSON.parse = function (text, reviver) {
+      if (text === undefined || text === null) return null;
+      if (typeof text === 'string') {
+        var t = text.trim();
+        if (!t || t === 'undefined' || t === 'null') return null;
+      }
+      try {
+        return __svNativeJsonParse(text, reviver);
+      } catch (err) {
+        var msg = String((err && err.message) || err || '');
+        if (/undefined|null|Unexpected end|is not valid JSON/i.test(msg)) return null;
+        throw err;
+      }
+    };
+  } catch (_jp) {}
 
   var PATHS = [
     '/api' + '/auth/login',
@@ -1853,16 +1880,48 @@
       if (token) {
         localStorage.setItem('token', token);
         localStorage.setItem('accessToken', token);
+        localStorage.setItem('access_token', token);
+        localStorage.setItem('jwt', token);
         sessionStorage.setItem('token', token);
+        sessionStorage.setItem('accessToken', token);
       }
       if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
-        // Shop / Harmony-style apps: localStorage.userInfo = entire login payload.
-        localStorage.setItem('userInfo', JSON.stringify(out));
-        // LoanFlow-style apps: loan_token / loan_user.
-        localStorage.setItem('loan_user', JSON.stringify(user));
+        var userJson = JSON.stringify(user);
+        var outJson = JSON.stringify(out);
+        var userKeys = [
+          'user',
+          'userInfo',
+          'loan_user',
+          'payflow_user',
+          'authUser',
+          'currentUser',
+          'loggedInUser',
+          'logged_in_user',
+          'admin',
+          'profile',
+          'userData',
+          'auth_user',
+          'skyUser',
+          'sky_user',
+        ];
+        for (var ui = 0; ui < userKeys.length; ui++) {
+          try {
+            // userInfo / auth often store the full login envelope; others store the user doc.
+            var key = userKeys[ui];
+            if (key === 'userInfo' || key === 'auth') {
+              localStorage.setItem(key, outJson);
+            } else {
+              localStorage.setItem(key, userJson);
+            }
+          } catch (_sk) {}
+        }
+        try {
+          localStorage.setItem('auth', outJson);
+        } catch (_a) {}
         if (token) localStorage.setItem('loan_token', token);
         if (user.email) localStorage.setItem('email', String(user.email));
+        if (user.username) localStorage.setItem('username', String(user.username));
+        if (user.name) localStorage.setItem('name', String(user.name));
       }
       writeBareRoleKeys((user && user.role) || adminRole || 'admin');
       try {
@@ -2335,4 +2394,63 @@
       return xhr;
     };
   }
+
+  // If a token exists but user JSON keys are missing, seed a minimal admin user so
+  // dashboards that JSON.parse(localStorage.user) on first paint don't crash.
+  function seedAuthStorageIfNeeded() {
+    try {
+      var token =
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('loan_token') ||
+        localStorage.getItem('jwt');
+      if (!token) return;
+      var hasUser =
+        localStorage.getItem('user') ||
+        localStorage.getItem('userInfo') ||
+        localStorage.getItem('currentUser') ||
+        localStorage.getItem('authUser');
+      if (hasUser) return;
+      var role = mainAdminRoleForApp();
+      if (isLoanStyleApp()) role = 'admin';
+      if (isSkyPropertyApp()) role = 'SUPER_ADMIN';
+      var email =
+        localStorage.getItem('email') ||
+        (window.__SV_PREVIEW_ADMIN_EMAIL__ || 'admin@preview.demo');
+      var user = normalizePreviewUserRole({
+        _id: 'preview-admin',
+        id: 'preview-admin',
+        email: email,
+        username: String(email).split('@')[0] || 'admin',
+        name: 'Preview Admin',
+        fullName: 'Preview Admin',
+        role: role,
+        isAdmin: true,
+        is_admin: true,
+      });
+      var envelope = {
+        success: true,
+        token: token,
+        accessToken: token,
+        role: role,
+        user: user,
+        data: { token: token, user: user, success: true },
+      };
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userInfo', JSON.stringify(envelope));
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      localStorage.setItem('authUser', JSON.stringify(user));
+      localStorage.setItem('auth', JSON.stringify(envelope));
+      writeBareRoleKeys(role);
+      console.log('[DEBUG-SHIM] seeded missing auth user JSON for dashboard');
+    } catch (_e) {}
+  }
+  try {
+    seedAuthStorageIfNeeded();
+  } catch (_s) {}
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', seedAuthStorageIfNeeded);
+    }
+  } catch (_d) {}
 })();
