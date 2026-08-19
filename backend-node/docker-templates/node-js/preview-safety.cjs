@@ -298,6 +298,57 @@ function installPreviewRuntimeGuards() {
       };
       jwt.__svPatchedSign = true;
     }
+    // Student middleware often verifies with a short/wrong JWT_SECRET from the ZIP .env
+    // while login (or universal login) signed with the preview long secret → 401 on /me
+    // → axios interceptor clears storage → bounce back to login after a "successful" login.
+    if (jwt && typeof jwt.verify === 'function' && !jwt.__svPatchedVerify) {
+      const origVerify = jwt.verify.bind(jwt);
+      jwt.verify = function safeVerify(token, secret, options, callback) {
+        const args = [token, secret, options, callback];
+        const hasCb = typeof options === 'function' || typeof callback === 'function';
+        const cb = typeof options === 'function' ? options : callback;
+        const opts = typeof options === 'function' ? undefined : options;
+        const trySecrets = [];
+        const pushSecret = (s) => {
+          const v = s != null ? String(s) : '';
+          if (v && !trySecrets.includes(v)) trySecrets.push(v);
+        };
+        pushSecret(secret);
+        pushSecret(process.env.JWT_SECRET);
+        pushSecret(longJwtSecret());
+        pushSecret(process.env.PREVIEW_JWT_SECRET);
+
+        if (hasCb && typeof cb === 'function') {
+          let i = 0;
+          const next = () => {
+            if (i >= trySecrets.length) {
+              return origVerify(token, secret, opts, cb);
+            }
+            const s = trySecrets[i++];
+            try {
+              return origVerify(token, s, opts, (err, decoded) => {
+                if (!err) return cb(null, decoded);
+                return next();
+              });
+            } catch (_e) {
+              return next();
+            }
+          };
+          return next();
+        }
+
+        let lastErr = null;
+        for (const s of trySecrets) {
+          try {
+            return origVerify(token, s, opts);
+          } catch (err) {
+            lastErr = err;
+          }
+        }
+        throw lastErr || new Error('jwt verify failed');
+      };
+      jwt.__svPatchedVerify = true;
+    }
   } catch (_e) {
     /* optional */
   }

@@ -7,7 +7,12 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V30:
+ * Marker V31:
+ * - Post-login bounce → /login: attach Authorization Bearer on all API calls; soft-succeed
+ *   session probes (/me|/profile|/current) that 401; block auth storage clears for 30s after
+ *   login (axios interceptors); patch axios request/response; dispatch storage+auth events
+ *   so AuthContext re-reads after normalizeLoginBody.
+ * V30:
  * - Socket.IO: rewrite WebSocket URLs to same-origin gateway (polling was on UI port,
  *   WS on API port → Engine.IO sid mismatch / 400). Pair with gateway upgrade proxy.
  * V29:
@@ -54,10 +59,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V30__) {
-    console.log('[DEBUG-SHIM] already installed V30 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V31__) {
+    console.log('[DEBUG-SHIM] already installed V31 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V31__ = true;
   window.__SV_LOGIN_FALLBACK_V30__ = true;
   window.__SV_LOGIN_FALLBACK_V29__ = true;
   window.__SV_LOGIN_FALLBACK_V28__ = true;
@@ -83,7 +89,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v30', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v31', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -172,7 +178,7 @@
         reason: reason || 'manual',
         href: String(location.href || ''),
         pathname: String((location && location.pathname) || ''),
-        shim: 'v30',
+        shim: 'v31',
       };
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
@@ -2076,6 +2082,9 @@
         localStorage.user = JSON.stringify(user);
       } catch (_propU) {}
       try {
+        markPreviewLoginSuccess();
+      } catch (_mark) {}
+      try {
         sessionStorage.removeItem('__sv_profile_promoted__');
       } catch (_clr) {}
       console.log('[DEBUG-SHIM] normalizeLoginBody wrote localStorage', {
@@ -2094,6 +2103,8 @@
       try {
         window.dispatchEvent(new Event('userChanged'));
         window.dispatchEvent(new Event('sv-preview-login'));
+        window.dispatchEvent(new StorageEvent('storage', { key: 'user', newValue: localStorage.getItem('user') }));
+        window.dispatchEvent(new StorageEvent('storage', { key: 'token', newValue: localStorage.getItem('token') }));
       } catch (_e4) {}
       redirectAfterPreviewLogin(user || out);
       // Dashboard often mounts a moment later — dump again to compare keys.
@@ -2235,6 +2246,260 @@
     }
   } catch (_wsPatch) {}
 
+  // ——— V31: stop login→dashboard→login bounce ————————————————
+  function markPreviewLoginSuccess() {
+    try {
+      sessionStorage.setItem('__sv_login_at__', String(Date.now()));
+    } catch (_e) {}
+  }
+
+  function withinPostLoginGrace() {
+    try {
+      var at = Number(sessionStorage.getItem('__sv_login_at__') || '0');
+      return at > 0 && Date.now() - at < 45000;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function getStoredAccessToken() {
+    try {
+      return (
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('access_token') ||
+        localStorage.getItem('jwt') ||
+        localStorage.getItem('loan_token') ||
+        sessionStorage.getItem('token') ||
+        sessionStorage.getItem('accessToken') ||
+        ''
+      );
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function getStoredUserObject() {
+    var keys = [
+      'user',
+      'currentUser',
+      'authUser',
+      'loggedInUser',
+      'loan_user',
+      'payflow_user',
+      'userData',
+      'profile',
+      'userInfo',
+      'auth',
+    ];
+    for (var i = 0; i < keys.length; i++) {
+      try {
+        var raw = localStorage.getItem(keys[i]);
+        if (!raw) continue;
+        var parsed = __svNativeJsonParse ? __svNativeJsonParse(raw) : JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') continue;
+        if (parsed.user && typeof parsed.user === 'object') return parsed.user;
+        if (parsed.email || parsed.role || parsed.name || parsed._id || parsed.id) return parsed;
+      } catch (_p) {}
+    }
+    return null;
+  }
+
+  function isSessionProbeUrl(url) {
+    var u = String(url || '');
+    if (/login|signin|register|signup/i.test(u)) return false;
+    return /\/(api\/)?(auth\/)?(me|profile|current-?user|users\/me|user\/me|verify|validate|session|whoami)(\/|$|\?)/i.test(
+      u
+    );
+  }
+
+  function isApiRequestUrl(url) {
+    var u = String(url || '');
+    if (!u) return false;
+    if (isLoginUrl(u)) return false;
+    if (/socket\.io/i.test(u)) return false;
+    try {
+      var abs = new URL(u, window.location.href);
+      var p = abs.pathname || '';
+      if (/^\/api(\/|$)/i.test(p)) return true;
+      if (/^\/(auth|users|user|admin|loans|products|books|orders|dashboard)\b/i.test(p)) return true;
+      var apiBase = detectApiBase();
+      if (apiBase && String(abs.origin) === String(new URL(apiBase, window.location.href).origin)) {
+        return !/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)(\?|$)/i.test(p);
+      }
+    } catch (_e) {}
+    return false;
+  }
+
+  function syntheticSessionBody() {
+    var user = getStoredUserObject() || {
+      _id: 'preview-admin',
+      id: 'preview-admin',
+      email: localStorage.getItem('email') || 'admin@preview.demo',
+      role: localStorage.getItem('role') || mainAdminRoleForApp(),
+      name: localStorage.getItem('name') || 'Preview Admin',
+      isAdmin: true,
+    };
+    try {
+      user = normalizePreviewUserRole(user);
+    } catch (_n) {}
+    var token = getStoredAccessToken();
+    return {
+      success: true,
+      user: user,
+      data: { user: user, token: token, success: true },
+      token: token,
+      accessToken: token,
+      role: user.role,
+      email: user.email,
+      name: user.name || user.fullName,
+      message: 'OK',
+    };
+  }
+
+  function syntheticSessionResponse() {
+    return new Response(JSON.stringify(syntheticSessionBody()), {
+      status: 200,
+      statusText: 'OK',
+      headers: { 'Content-Type': 'application/json', 'X-SV-Session-Soft': '1' },
+    });
+  }
+
+  function ensureAuthOnHeaders(headersLike, url) {
+    if (!isApiRequestUrl(url) && !isSessionProbeUrl(url)) return headersLike;
+    var token = getStoredAccessToken();
+    if (!token) return headersLike;
+    var bearer = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
+    try {
+      if (headersLike && typeof Headers !== 'undefined' && headersLike instanceof Headers) {
+        if (!headersLike.get('Authorization') && !headersLike.get('authorization')) {
+          headersLike.set('Authorization', bearer);
+        }
+        return headersLike;
+      }
+    } catch (_h) {}
+    var out = headersLike && typeof headersLike === 'object' ? Object.assign({}, headersLike) : {};
+    var has =
+      out.Authorization ||
+      out.authorization ||
+      (out.get && (out.get('Authorization') || out.get('authorization')));
+    if (!has) out.Authorization = bearer;
+    return out;
+  }
+
+  function ensureAuthFetchInit(init, url) {
+    var next = init ? Object.assign({}, init) : {};
+    next.headers = ensureAuthOnHeaders(next.headers || {}, url);
+    return next;
+  }
+
+  function softSessionIfUnauthorized(res, url) {
+    if (!res || (res.status !== 401 && res.status !== 403)) return Promise.resolve(res);
+    if (!getStoredAccessToken()) return Promise.resolve(res);
+    if (!isSessionProbeUrl(url) && !withinPostLoginGrace()) return Promise.resolve(res);
+    // Session probes always soft-succeed when we have a token; other APIs only during grace.
+    if (!isSessionProbeUrl(url) && withinPostLoginGrace() && isApiRequestUrl(url)) {
+      // Don't fake business data — only protect session probes from clearing auth.
+      return Promise.resolve(res);
+    }
+    if (!isSessionProbeUrl(url)) return Promise.resolve(res);
+    console.warn('[DEBUG-SHIM] soft-succeed session probe after', res.status, String(url || ''));
+    return Promise.resolve(syntheticSessionResponse());
+  }
+
+  // Block axios/SPA from wiping token/user right after login (401 interceptor race).
+  try {
+    var __svNativeRemoveItem = Storage.prototype.removeItem;
+    var __svNativeClear = Storage.prototype.clear;
+    var AUTH_CLEAR_KEYS = {
+      token: 1,
+      accessToken: 1,
+      access_token: 1,
+      jwt: 1,
+      loan_token: 1,
+      user: 1,
+      userInfo: 1,
+      currentUser: 1,
+      authUser: 1,
+      auth: 1,
+      loggedInUser: 1,
+      loan_user: 1,
+      payflow_user: 1,
+      role: 1,
+      userRole: 1,
+      isAdmin: 1,
+      email: 1,
+    };
+    Storage.prototype.removeItem = function (key) {
+      var k = String(key || '');
+      if (this === localStorage && AUTH_CLEAR_KEYS[k] && withinPostLoginGrace() && getStoredAccessToken()) {
+        console.warn('[DEBUG-SHIM] blocked auth removeItem during post-login grace:', k);
+        return;
+      }
+      return __svNativeRemoveItem.apply(this, arguments);
+    };
+    Storage.prototype.clear = function () {
+      if (this === localStorage && withinPostLoginGrace() && getStoredAccessToken()) {
+        console.warn('[DEBUG-SHIM] blocked localStorage.clear during post-login grace');
+        return;
+      }
+      return __svNativeClear.apply(this, arguments);
+    };
+  } catch (_guard) {}
+
+  function patchAxiosAuth() {
+    try {
+      var ax = window.axios;
+      if (!ax || !ax.interceptors || ax.__svAuthPatched) return;
+      ax.__svAuthPatched = true;
+      ax.interceptors.request.use(function (config) {
+        try {
+          var url = String((config && (config.url || config.baseURL)) || '');
+          var token = getStoredAccessToken();
+          if (token) {
+            config.headers = config.headers || {};
+            if (!config.headers.Authorization && !config.headers.authorization) {
+              config.headers.Authorization = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
+            }
+          }
+          if (url && !/^https?:\/\//i.test(url) && detectApiBase() && isApiRequestUrl(url)) {
+            // leave relative — gateway same-origin
+          }
+        } catch (_c) {}
+        return config;
+      });
+      ax.interceptors.response.use(
+        function (r) {
+          return r;
+        },
+        function (err) {
+          try {
+            var status = err && err.response && err.response.status;
+            var cfg = err && err.config;
+            var url = cfg && (cfg.url || '');
+            if ((status === 401 || status === 403) && isSessionProbeUrl(url) && getStoredAccessToken()) {
+              console.warn('[DEBUG-SHIM] axios session soft-succeed', url);
+              return Promise.resolve({
+                data: syntheticSessionBody(),
+                status: 200,
+                statusText: 'OK',
+                headers: { 'x-sv-session-soft': '1' },
+                config: cfg,
+                request: err.request,
+              });
+            }
+          } catch (_e) {}
+          return Promise.reject(err);
+        }
+      );
+      console.log('[DEBUG-SHIM] axios auth interceptors installed');
+    } catch (_ax) {}
+  }
+  patchAxiosAuth();
+  try {
+    setInterval(patchAxiosAuth, 1500);
+  } catch (_i) {}
+
   var origFetch = window.fetch;
   if (typeof origFetch === 'function') {
     window.fetch = function (input, init) {
@@ -2252,11 +2517,23 @@
         }
         url = rewritten;
       }
+      try {
+        init = ensureAuthFetchInit(init, url);
+        if (typeof input !== 'string' && typeof Request !== 'undefined' && input instanceof Request) {
+          try {
+            var hdrs = new Headers(input.headers || {});
+            hdrs = ensureAuthOnHeaders(hdrs, url);
+            input = new Request(input, { headers: hdrs });
+          } catch (_rq) {}
+        }
+      } catch (_authH) {}
       // Always timeout loopback leftovers so the UI cannot stick on "Please wait…".
       var needsTimeout = isLoopbackOrigin(url) || (method === 'POST' && isLoginUrl(url));
       if (method !== 'POST' || !isLoginUrl(url)) {
         function afterApi(res) {
-          return rewriteJsonApiResponse(res, url);
+          return softSessionIfUnauthorized(res, url).then(function (r2) {
+            return rewriteJsonApiResponse(r2, url);
+          });
         }
         if (!needsTimeout) {
           return origFetch.call(this, input, init).then(afterApi);
@@ -2479,6 +2756,21 @@
       xhr.send = function (b) {
         body = b;
         if (method !== 'POST' || !isLoginUrl(url)) {
+          // Attach Bearer if the SPA forgot (common when AuthContext is stale).
+          try {
+            var hasAuth = false;
+            for (var hk in headers) {
+              if (/^authorization$/i.test(hk) && headers[hk]) hasAuth = true;
+            }
+            if (!hasAuth && getStoredAccessToken() && (isApiRequestUrl(url) || isSessionProbeUrl(url))) {
+              var tok = getStoredAccessToken();
+              var bearer = /^Bearer\s+/i.test(tok) ? tok : 'Bearer ' + tok;
+              try {
+                _setHeader.call(xhr, 'Authorization', bearer);
+                headers.Authorization = bearer;
+              } catch (_ah) {}
+            }
+          } catch (_authX) {}
           // Capture-phase listener runs before axios onreadystatechange, so we can
           // rewrite responseText before data.loans.length is evaluated.
           try {
@@ -2487,6 +2779,42 @@
               function svNormalizeLists() {
                 try {
                   if (xhr.readyState !== 4) return;
+                  // Soft-succeed session probes that 401 (prevents interceptor logout).
+                  if (
+                    (xhr.status === 401 || xhr.status === 403) &&
+                    isSessionProbeUrl(url) &&
+                    getStoredAccessToken()
+                  ) {
+                    var soft = JSON.stringify(syntheticSessionBody());
+                    try {
+                      Object.defineProperty(xhr, 'status', {
+                        configurable: true,
+                        get: function () {
+                          return 200;
+                        },
+                      });
+                      Object.defineProperty(xhr, 'statusText', {
+                        configurable: true,
+                        get: function () {
+                          return 'OK';
+                        },
+                      });
+                      Object.defineProperty(xhr, 'responseText', {
+                        configurable: true,
+                        get: function () {
+                          return soft;
+                        },
+                      });
+                      Object.defineProperty(xhr, 'response', {
+                        configurable: true,
+                        get: function () {
+                          return JSON.parse(soft);
+                        },
+                      });
+                      console.warn('[DEBUG-SHIM] xhr session soft-succeed', url);
+                    } catch (_soft) {}
+                    return;
+                  }
                   if (!(xhr.status >= 200 && xhr.status < 300)) return;
                   var text = '';
                   try {
