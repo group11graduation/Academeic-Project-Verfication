@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V28:
+ * Marker V29:
+ * - FoundLink dump: accessToken/userInfo present but token+user MISSING → SPA reads
+ *   localStorage.user (undefined) and JSON.parse crashes. Always mirror token↔accessToken
+ *   and user↔userInfo.user (ensureCoreAuthAliases).
+ * V28:
  * - Safe JSON.parse: student dashboards often do useState(JSON.parse(localStorage.user))
  *   which throws SyntaxError: "undefined" is not valid JSON when the key is missing.
  * - Write auth user JSON under every common key (currentUser, authUser, auth, …).
@@ -47,10 +51,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V28__) {
-    console.log('[DEBUG-SHIM] already installed V28 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V29__) {
+    console.log('[DEBUG-SHIM] already installed V29 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V29__ = true;
   window.__SV_LOGIN_FALLBACK_V28__ = true;
   window.__SV_LOGIN_FALLBACK_V27__ = true;
   window.__SV_LOGIN_FALLBACK_V26__ = true;
@@ -74,7 +79,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v28', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v29', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -163,7 +168,7 @@
         reason: reason || 'manual',
         href: String(location.href || ''),
         pathname: String((location && location.pathname) || ''),
-        shim: 'v28',
+        shim: 'v29',
       };
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
@@ -212,6 +217,36 @@
   try {
     dumpAuthDebug('shim-boot');
   } catch (_boot) {}
+
+  // FoundLink (and similar) write accessToken/userInfo but never user/token.
+  // Mirror on every setItem so dashboard JSON.parse(localStorage.user) never sees undefined.
+  try {
+    var __svNativeSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      var r = __svNativeSetItem.apply(this, arguments);
+      try {
+        var k = String(key || '');
+        if (
+          this === localStorage &&
+          (k === 'accessToken' ||
+            k === 'access_token' ||
+            k === 'userInfo' ||
+            k === 'currentUser' ||
+            k === 'authUser' ||
+            k === 'auth' ||
+            k === 'jwt' ||
+            k === 'loan_token')
+        ) {
+          setTimeout(function () {
+            try {
+              if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
+            } catch (_m) {}
+          }, 0);
+        }
+      } catch (_si) {}
+      return r;
+    };
+  } catch (_setPatch) {}
 
   var PATHS = [
     '/api' + '/auth/login',
@@ -2034,6 +2069,9 @@
       }
       writeBareRoleKeys((user && user.role) || adminRole || 'admin');
       try {
+        localStorage.user = JSON.stringify(user);
+      } catch (_propU) {}
+      try {
         sessionStorage.removeItem('__sv_profile_promoted__');
       } catch (_clr) {}
       console.log('[DEBUG-SHIM] normalizeLoginBody wrote localStorage', {
@@ -2043,6 +2081,9 @@
         name: user && user.name,
         success: true,
       });
+      try {
+        if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
+      } catch (_alias) {}
       try {
         dumpAuthDebug('after-login-normalize');
       } catch (_dump) {}
@@ -2054,9 +2095,15 @@
       // Dashboard often mounts a moment later — dump again to compare keys.
       try {
         setTimeout(function () {
+          try {
+            if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
+          } catch (_a1) {}
           dumpAuthDebug('post-login-+400ms');
         }, 400);
         setTimeout(function () {
+          try {
+            if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
+          } catch (_a2) {}
           dumpAuthDebug('post-login-+1500ms href=' + String(location.pathname || ''));
         }, 1500);
       } catch (_t) {}
@@ -2516,22 +2563,91 @@
     };
   }
 
-  // If a token exists but user JSON keys are missing, seed a minimal admin user so
-  // dashboards that JSON.parse(localStorage.user) on first paint don't crash.
+  // FoundLink dump proved: accessToken + userInfo present, but token=null and user=null.
+  // SPA does JSON.parse(localStorage.user) → undefined → crash. Always mirror core keys.
+  function ensureCoreAuthAliases() {
+    try {
+      var token =
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('access_token') ||
+        localStorage.getItem('loan_token') ||
+        localStorage.getItem('jwt');
+      if (token) {
+        if (!localStorage.getItem('token')) localStorage.setItem('token', token);
+        if (!localStorage.getItem('accessToken')) localStorage.setItem('accessToken', token);
+        if (!localStorage.getItem('access_token')) localStorage.setItem('access_token', token);
+        if (!localStorage.getItem('jwt')) localStorage.setItem('jwt', token);
+        if (!localStorage.getItem('loan_token')) localStorage.setItem('loan_token', token);
+      }
+
+      var userRaw =
+        localStorage.getItem('user') ||
+        localStorage.getItem('currentUser') ||
+        localStorage.getItem('authUser') ||
+        localStorage.getItem('loggedInUser') ||
+        localStorage.getItem('loan_user') ||
+        localStorage.getItem('payflow_user') ||
+        localStorage.getItem('userData') ||
+        localStorage.getItem('profile');
+      var userObj = null;
+      if (userRaw) {
+        try {
+          userObj = __svNativeJsonParse ? __svNativeJsonParse(userRaw) : JSON.parse(userRaw);
+          if (userObj && userObj.user && typeof userObj.user === 'object') userObj = userObj.user;
+        } catch (_pu) {
+          userObj = null;
+        }
+      }
+      if (!userObj) {
+        var infoRaw = localStorage.getItem('userInfo') || localStorage.getItem('auth');
+        if (infoRaw) {
+          try {
+            var info = __svNativeJsonParse ? __svNativeJsonParse(infoRaw) : JSON.parse(infoRaw);
+            if (info && info.user && typeof info.user === 'object') userObj = info.user;
+            else if (info && (info.email || info.role || info.name)) userObj = info;
+          } catch (_pi) {}
+        }
+      }
+      if (userObj && typeof userObj === 'object') {
+        userObj = normalizePreviewUserRole(userObj);
+        var userJson = JSON.stringify(userObj);
+        localStorage.setItem('user', userJson);
+        if (!localStorage.getItem('currentUser')) localStorage.setItem('currentUser', userJson);
+        if (!localStorage.getItem('authUser')) localStorage.setItem('authUser', userJson);
+        if (!localStorage.getItem('loggedInUser')) localStorage.setItem('loggedInUser', userJson);
+        if (!localStorage.getItem('loan_user')) localStorage.setItem('loan_user', userJson);
+        if (userObj.email && !localStorage.getItem('email')) {
+          localStorage.setItem('email', String(userObj.email));
+        }
+        if (userObj.role) writeBareRoleKeys(userObj.role);
+        try {
+          localStorage.user = userJson;
+        } catch (_prop) {}
+      }
+      var ok = { token: !!localStorage.getItem('token'), user: !!localStorage.getItem('user') };
+      console.log('[DEBUG-SHIM] ensureCoreAuthAliases', ok);
+      return ok;
+    } catch (e) {
+      console.warn('[DEBUG-SHIM] ensureCoreAuthAliases failed', e);
+      return { token: false, user: false };
+    }
+  }
+
   function seedAuthStorageIfNeeded() {
     try {
+      var synced = ensureCoreAuthAliases();
+      if (synced.token && synced.user) return;
       var token =
         localStorage.getItem('token') ||
         localStorage.getItem('accessToken') ||
         localStorage.getItem('loan_token') ||
         localStorage.getItem('jwt');
       if (!token) return;
-      var hasUser =
-        localStorage.getItem('user') ||
-        localStorage.getItem('userInfo') ||
-        localStorage.getItem('currentUser') ||
-        localStorage.getItem('authUser');
-      if (hasUser) return;
+      if (localStorage.getItem('user')) {
+        ensureCoreAuthAliases();
+        return;
+      }
       var role = mainAdminRoleForApp();
       if (isLoanStyleApp()) role = 'admin';
       if (isSkyPropertyApp()) role = 'SUPER_ADMIN';
@@ -2558,12 +2674,17 @@
         data: { token: token, user: user, success: true },
       };
       localStorage.setItem('user', JSON.stringify(user));
+      try {
+        localStorage.user = JSON.stringify(user);
+      } catch (_p) {}
       localStorage.setItem('userInfo', JSON.stringify(envelope));
       localStorage.setItem('currentUser', JSON.stringify(user));
       localStorage.setItem('authUser', JSON.stringify(user));
       localStorage.setItem('auth', JSON.stringify(envelope));
+      localStorage.setItem('token', token);
       writeBareRoleKeys(role);
       console.log('[DEBUG-SHIM] seeded missing auth user JSON for dashboard');
+      ensureCoreAuthAliases();
     } catch (_e) {}
   }
   try {
@@ -2580,12 +2701,14 @@
   } catch (_d) {}
   try {
     window.addEventListener('popstate', function () {
+      ensureCoreAuthAliases();
       dumpAuthDebug('popstate ' + String(location.pathname || ''));
     });
     var __svPush = history.pushState;
     history.pushState = function () {
       var r = __svPush.apply(this, arguments);
       try {
+        ensureCoreAuthAliases();
         setTimeout(function () {
           dumpAuthDebug('pushState ' + String(location.pathname || ''));
         }, 50);
