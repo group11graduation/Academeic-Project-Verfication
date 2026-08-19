@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V32:
+ * Marker V33:
+ * - White page after suppressing /login redirect: React <Navigate/> renders null when
+ *   history.replaceState is no-op'd. On suppress: re-hydrate auth, then reload once so
+ *   ProtectedRoute remounts with storage. (href guard may be unavailable in browsers.)
+ * V32:
  * - Suppress window.location / history redirects to /login during post-login grace
  *   (student apiClients often navigate on 401 even when storage clear is blocked).
  * - On ANY 401 during grace with a stored token: retry the request once with
@@ -64,10 +68,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V32__) {
-    console.log('[DEBUG-SHIM] already installed V32 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V33__) {
+    console.log('[DEBUG-SHIM] already installed V33 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V33__ = true;
   window.__SV_LOGIN_FALLBACK_V32__ = true;
   window.__SV_LOGIN_FALLBACK_V31__ = true;
   window.__SV_LOGIN_FALLBACK_V30__ = true;
@@ -95,7 +100,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v32', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v33', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -184,7 +189,7 @@
         reason: reason || 'manual',
         href: String(location.href || ''),
         pathname: String((location && location.pathname) || ''),
-        shim: 'v32',
+        shim: 'v33',
       };
       for (var i = 0; i < keys.length; i++) {
         var k = keys[i];
@@ -2256,6 +2261,8 @@
   function markPreviewLoginSuccess() {
     try {
       sessionStorage.setItem('__sv_login_at__', String(Date.now()));
+      // Allow one remount reload if a /login redirect is suppressed this session.
+      sessionStorage.removeItem('__sv_grace_reload__');
     } catch (_e) {}
   }
 
@@ -2371,6 +2378,71 @@
       path = u.pathname + (u.search || '');
     } catch (_e) {}
     console.log('[DEBUG-SHIM] suppressed redirect to', path, 'during post-login grace', via ? '(' + via + ')' : '');
+
+    // Re-hydrate auth keys — SPA often cleared in-memory auth before Navigate fired.
+    try {
+      if (typeof ensureCoreAuthAliases === 'function') ensureCoreAuthAliases();
+      if (typeof fixStoredPreviewUserRole === 'function') fixStoredPreviewUserRole();
+      if (typeof writeBareRoleKeys === 'function') {
+        writeBareRoleKeys(localStorage.getItem('role') || mainAdminRoleForApp());
+      }
+      window.dispatchEvent(new Event('userChanged'));
+      window.dispatchEvent(new Event('sv-preview-login'));
+    } catch (_hyd) {}
+
+    // React Router <Navigate to="/login"/> returns null while navigating.
+    // No-op'ing replaceState leaves that null forever → white page.
+    var stage = '';
+    try {
+      stage = String(sessionStorage.getItem('__sv_grace_reload__') || '');
+    } catch (_st) {}
+
+    var stay =
+      String(location.pathname || '') + String(location.search || '');
+    if (!stay || isLoginRedirectTarget(stay)) {
+      stay = typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin/dashboard';
+    }
+
+    if (stage === '' || stage === '0') {
+      try {
+        sessionStorage.setItem('__sv_grace_reload__', '1');
+      } catch (_s1) {}
+      console.log('[DEBUG-SHIM] remounting after suppressed login redirect →', stay);
+      setTimeout(function () {
+        try {
+          window.location.reload();
+        } catch (_reload) {
+          try {
+            if (window.__svNativeLocationAssign) {
+              window.__svNativeLocationAssign.call(window.location, stay);
+            }
+          } catch (_assign) {}
+        }
+      }, 40);
+      return true;
+    }
+
+    if (stage === '1') {
+      // Already remounted once; hard-navigate to admin so RR is not stuck on null Navigate.
+      try {
+        sessionStorage.setItem('__sv_grace_reload__', '2');
+      } catch (_s2) {}
+      console.log('[DEBUG-SHIM] hard stay on admin after second login-redirect suppress →', stay);
+      setTimeout(function () {
+        try {
+          if (window.__svNativeLocationReplace) {
+            window.__svNativeLocationReplace.call(window.location, stay);
+          } else if (window.__svNativeLocationAssign) {
+            window.__svNativeLocationAssign.call(window.location, stay);
+          } else {
+            window.location.reload();
+          }
+        } catch (_hard) {}
+      }, 40);
+      return true;
+    }
+
+    // stage >= 2: stop thrashing; keep user on current URL with hydrated auth.
     return true;
   }
 
@@ -2383,6 +2455,8 @@
       var descReplace = Object.getOwnPropertyDescriptor(Location.prototype, 'replace');
       var nativeAssign = (descAssign && descAssign.value) || loc.assign.bind(loc);
       var nativeReplace = (descReplace && descReplace.value) || loc.replace.bind(loc);
+      window.__svNativeLocationAssign = nativeAssign;
+      window.__svNativeLocationReplace = nativeReplace;
 
       loc.assign = function (url) {
         if (shouldSuppressLoginRedirect(url)) {
@@ -2399,42 +2473,43 @@
         return nativeReplace.call(loc, url);
       };
 
+      // location.href is often non-configurable — skip quietly if redefine fails.
       try {
-        var hrefDesc =
-          Object.getOwnPropertyDescriptor(Location.prototype, 'href') ||
-          Object.getOwnPropertyDescriptor(loc, 'href');
-        if (hrefDesc && hrefDesc.set) {
-          Object.defineProperty(loc, 'href', {
+        var hrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+        if (hrefDesc && hrefDesc.configurable && hrefDesc.set) {
+          Object.defineProperty(Location.prototype, 'href', {
             configurable: true,
             enumerable: true,
-            get: hrefDesc.get ? hrefDesc.get.bind(loc) : function () {
-              return String(loc);
-            },
+            get: hrefDesc.get,
             set: function (v) {
               if (shouldSuppressLoginRedirect(v)) {
                 suppressLoginRedirect(v, 'location.href');
                 return;
               }
-              return hrefDesc.set.call(loc, v);
+              return hrefDesc.set.call(this, v);
             },
           });
+        } else {
+          console.log('[DEBUG-SHIM] location.href guard skipped (non-configurable)');
         }
       } catch (_href) {
-        console.warn('[DEBUG-SHIM] location.href guard unavailable', _href && _href.message);
+        console.log('[DEBUG-SHIM] location.href guard skipped', _href && _href.message);
       }
     } catch (_loc) {
       console.warn('[DEBUG-SHIM] location redirect guard failed', _loc && _loc.message);
     }
 
     try {
-      var __svPush = history.pushState;
-      var __svReplace = history.replaceState;
+      var __svPush = history.pushState.bind(history);
+      var __svReplace = history.replaceState.bind(history);
+      window.__svNativeHistoryPush = __svPush;
+      window.__svNativeHistoryReplace = __svReplace;
       history.pushState = function (state, title, url) {
         if (url != null && shouldSuppressLoginRedirect(url)) {
           suppressLoginRedirect(url, 'history.pushState');
           return;
         }
-        var r = __svPush.apply(this, arguments);
+        var r = __svPush(state, title, url);
         try {
           ensureCoreAuthAliases();
           setTimeout(function () {
@@ -2448,7 +2523,7 @@
           suppressLoginRedirect(url, 'history.replaceState');
           return;
         }
-        return __svReplace.apply(this, arguments);
+        return __svReplace(state, title, url);
       };
       window.__SV_HISTORY_GUARD__ = true;
     } catch (_hist) {
