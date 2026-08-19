@@ -1,4 +1,4 @@
-/* scholarverify-preview-cors-v5 — ScholarVerify preview safety (CORS + universal login) */
+/* scholarverify-preview-cors-v6 — ScholarVerify preview safety (CORS + universal login + force sandbox Mongo) */
 'use strict';
 const path = require('path');
 const { createRequire } = require('module');
@@ -135,40 +135,123 @@ function longJwtSecret() {
   return fallback;
 }
 
+/** Preview sandbox Mongo URI (sidecar), never Atlas. */
+function previewMongoUri() {
+  return (
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URI ||
+    process.env.MONGO_URL ||
+    process.env.DB_URI ||
+    process.env.DATABASE_URI ||
+    process.env.CONNECTION_URL ||
+    process.env.CONNECTION_STRING ||
+    process.env.DATABASE_URL ||
+    ''
+  );
+}
+
+/**
+ * True for Atlas / any non-sandbox host. Student ZIPs often hardcode
+ * mongodb+srv://….mongodb.net — that DNS fails inside preview Docker.
+ */
+function isExternalMongoUri(uri) {
+  const s = String(uri || '').trim();
+  if (!s) return false;
+  if (/mongodb\+srv:/i.test(s)) return true;
+  if (/\.mongodb\.net\b/i.test(s)) return true;
+  try {
+    const m = s.match(/mongodb(?:\+srv)?:\/\/(?:[^/@]+@)?([^/?]+)/i);
+    if (!m) return false;
+    const hostPort = String(m[1] || '').toLowerCase();
+    const host = hostPort.split(':')[0];
+    if (!host) return false;
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === 'mongo' ||
+      host === 'mongodb' ||
+      host === 'host.docker.internal'
+    ) {
+      return false;
+    }
+    if (/^preview-mongo/i.test(host)) return false;
+    // Docker Compose service names for our sidecar
+    if (/mongo/i.test(host) && !/\./.test(host)) return false;
+    return true;
+  } catch (_e) {
+    return /mongodb\+srv:|\.mongodb\.net\b/i.test(s);
+  }
+}
+
+function resolveSandboxMongoUri(requested) {
+  const preview = String(previewMongoUri() || '').trim();
+  const raw = requested != null ? String(requested).trim() : '';
+  const sandbox =
+    String(process.env.PREVIEW_SANDBOX || '') === '1' ||
+    String(process.env.PREVIEW_FORCE_MONGO || '') === '1';
+
+  // Preview sandbox: never dial Atlas / external Mongo — student ZIPs hardcode it often.
+  if (sandbox && preview) {
+    if (raw && raw !== preview) {
+      try {
+        console.warn(
+          '[preview] forcing Mongo URI to sandbox (blocked Atlas/external)',
+          String(raw).replace(/\/\/([^@/]+)@/, '//***@').slice(0, 96)
+        );
+      } catch (_w) {}
+    }
+    return preview;
+  }
+  return raw || preview || '';
+}
+
 function installPreviewRuntimeGuards() {
   if (global.__scholarVerifyRuntimeGuards) return;
   global.__scholarVerifyRuntimeGuards = true;
   longJwtSecret();
 
-  // Prefer preview Mongo URI when student code calls mongoose.connect(undefined / empty env).
+  // Always force sandbox Mongo in preview — student code often hardcodes Atlas SRV.
   try {
     const mongoose = requireFromCwd('mongoose');
     if (mongoose && typeof mongoose.connect === 'function' && !mongoose.__svPatchedConnect) {
       const origConnect = mongoose.connect.bind(mongoose);
       mongoose.connect = function safeConnect(uri, options, callback) {
-        const fixed =
-          (uri && String(uri).trim()) ||
-          process.env.MONGO_URI ||
-          process.env.MONGODB_URI ||
-          process.env.MONGO_URL ||
-          process.env.DB_URI ||
-          process.env.DATABASE_URI ||
-          process.env.CONNECTION_URL ||
-          process.env.CONNECTION_STRING ||
-          process.env.DATABASE_URL ||
-          '';
+        const fixed = resolveSandboxMongoUri(uri);
         if (!fixed) {
           console.error(
             '[preview] mongoose.connect() got empty URI — set MONGO_URI / MONGODB_URI in preview env'
           );
-        } else if (!uri || String(uri).trim() === '') {
-          console.warn('[preview] mongoose.connect() URI was empty — using preview MONGO_URI');
+        } else if (!uri || String(uri).trim() === '' || isExternalMongoUri(uri)) {
+          console.warn('[preview] mongoose.connect() → sandbox MONGO_URI');
         }
         return origConnect(fixed, options, callback);
       };
       mongoose.__svPatchedConnect = true;
     }
+    if (mongoose && typeof mongoose.createConnection === 'function' && !mongoose.__svPatchedCreateConnection) {
+      const origCreate = mongoose.createConnection.bind(mongoose);
+      mongoose.createConnection = function safeCreateConnection(uri, options) {
+        const fixed = resolveSandboxMongoUri(uri);
+        return origCreate(fixed, options);
+      };
+      mongoose.__svPatchedCreateConnection = true;
+    }
   } catch (_e) {
+    /* optional */
+  }
+
+  try {
+    const mongodb = requireFromCwd('mongodb');
+    const MongoClient = mongodb && mongodb.MongoClient;
+    if (MongoClient && typeof MongoClient.connect === 'function' && !MongoClient.__svPatchedConnect) {
+      const orig = MongoClient.connect.bind(MongoClient);
+      MongoClient.connect = function safeMongoClientConnect(uri, options, callback) {
+        const fixed = resolveSandboxMongoUri(uri);
+        return orig(fixed, options, callback);
+      };
+      MongoClient.__svPatchedConnect = true;
+    }
+  } catch (_e2) {
     /* optional */
   }
 

@@ -238,6 +238,7 @@ async function previewNodeTemplateContentHash(templateDirName) {
     path.join(sharedNodeDir, 'preview-verify-login.js'),
     path.join(sharedNodeDir, 'preview-login-fallback.js'),
     path.join(sharedNodeDir, 'preview-safety.cjs'),
+    path.join(sharedNodeDir, 'preview-mongo-preload.cjs'),
     path.join(sharedNodeDir, 'preview-ensure-inject.cjs'),
     path.join(sharedNodeDir, 'preview-gateway.cjs'),
     path.join(sharedNodeDir, 'preview-patch-frontend-safe-map.cjs'),
@@ -346,6 +347,7 @@ async function stagePreviewBaseBuildDir(templateDirName) {
 
     for (const scriptName of [
       'preview-safety.cjs',
+      'preview-mongo-preload.cjs',
       'preview-ensure-inject.cjs',
       'preview-gateway.cjs',
       'preview-patch-frontend-safe-map.cjs',
@@ -1825,6 +1827,8 @@ async function runPreviewContainer({
       ['preview-verify-login.js', '/preview-verify-login.js'],
       ['preview-login-fallback.js', '/preview-login-fallback.js'],
       ['preview-safety.cjs', '/preview-safety.cjs'],
+      ['preview-mongo-preload.cjs', '/preview-mongo-preload.cjs'],
+      ['preview-ensure-inject.cjs', '/preview-ensure-inject.cjs'],
       ['preview-gateway.cjs', '/preview-gateway.cjs'],
       ['preview-gateway.cjs', '/usr/local/share/sv-preview-gateway.cjs'],
       ['preview-patch-frontend-safe-map.cjs', '/preview-patch-frontend-safe-map.cjs'],

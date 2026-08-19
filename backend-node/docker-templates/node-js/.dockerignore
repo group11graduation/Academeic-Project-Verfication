@@ -6,6 +6,7 @@
 !preview-verify-login.js
 !preview-login-fallback.js
 !preview-safety.cjs
+!preview-mongo-preload.cjs
 !preview-ensure-inject.cjs
 !preview-gateway.cjs
 !preview-patch-frontend-safe-map.cjs

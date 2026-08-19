@@ -492,7 +492,44 @@ write_mern_backend_env() {
   cat .env.preview-runtime > .env
   if [ -f .env.project ]; then
     # Drop student localhost CORS/frontend URLs so they cannot override preview origins.
-    grep -v -E '^(MONGO_URI|MONGODB_URI|MONGO_URL|DB_URI|DATABASE_URI|CONNECTION_URL|CONNECTION_STRING|DATABASE_URL|DB_HOST|DB_PORT|DB_NAME|DB_DATABASE|DB_USER|DB_USERNAME|DB_PASS|DB_PASSWORD|MYSQL_HOST|MYSQL_PORT|MYSQL_DATABASE|MYSQL_USER|MYSQL_PASSWORD|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|PREVIEW_DB_ENGINE|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
+    # Also drop any Mongo/DB keys that might reintroduce Atlas after dotenv override:true.
+    grep -v -E '^(MONGO_URI|MONGODB_URI|MONGO_URL|MONGO|MONGODB|DB_URI|DATABASE_URI|CONNECTION_URL|CONNECTION_STRING|DATABASE_URL|DB_CONNECTION|DB_HOST|DB_PORT|DB_NAME|DB_DATABASE|DB_USER|DB_USERNAME|DB_PASS|DB_PASSWORD|MYSQL_HOST|MYSQL_PORT|MYSQL_DATABASE|MYSQL_USER|MYSQL_PASSWORD|PORT|HOST|JWT_SECRET|NODE_ENV|PREVIEW_SANDBOX|PREVIEW_DB_ENGINE|CORS_ORIGIN|FRONTEND_URL|CLIENT_URL|CLIENT_ORIGIN|ALLOWED_ORIGIN|ALLOWED_ORIGINS|APP_URL|WEB_URL|PREVIEW_ADMIN_|ADMIN_EMAIL|ADMIN_PASSWORD|SEED_ADMIN_|DEMO_ADMIN_|DEFAULT_ADMIN_)=' .env.project >> .env 2>/dev/null || true
+  fi
+  # Nuke any leftover Atlas / external Mongo lines (student .env.local, etc.).
+  if [ "$db_engine" != "mysql" ] && [ -n "$mongo" ]; then
+    for envf in .env .env.local .env.development .env.production .env.development.local .env.production.local; do
+      if [ -f "$envf" ]; then
+        grep -v -iE 'mongodb\+srv:|\.mongodb\.net' "$envf" > "${envf}.svscrub" 2>/dev/null || cp -f "$envf" "${envf}.svscrub"
+        mv -f "${envf}.svscrub" "$envf"
+      fi
+    done
+    for nested in backend server api Backend Server src; do
+      for envf in "./$nested/.env" "./$nested/.env.local" "./$nested/.env.development"; do
+        if [ -f "$envf" ]; then
+          grep -v -iE 'mongodb\+srv:|\.mongodb\.net' "$envf" > "${envf}.svscrub" 2>/dev/null || cp -f "$envf" "${envf}.svscrub"
+          mv -f "${envf}.svscrub" "$envf"
+          {
+            echo "MONGO_URI=$mongo"
+            echo "MONGODB_URI=$mongo"
+            echo "MONGO_URL=$mongo"
+            echo "DATABASE_URL=$mongo"
+          } >> "$envf"
+        fi
+      done
+    done
+    # Last lines win for dotenv override:true — always re-assert sandbox Mongo.
+    {
+      echo "MONGO_URI=$mongo"
+      echo "MONGODB_URI=$mongo"
+      echo "MONGO_URL=$mongo"
+      echo "DB_URI=$mongo"
+      echo "DATABASE_URI=$mongo"
+      echo "CONNECTION_URL=$mongo"
+      echo "CONNECTION_STRING=$mongo"
+      echo "DATABASE_URL=$mongo"
+      echo "PREVIEW_SANDBOX=1"
+      echo "PREVIEW_FORCE_MONGO=1"
+    } >> .env
   fi
   # Root npm start → node backend/server.js often loads dotenv from backend/.env
   for nested in backend server api Backend Server; do
@@ -507,6 +544,7 @@ write_mern_backend_env() {
   export HOST=0.0.0.0
   export JWT_SECRET="$jwt"
   export PREVIEW_SANDBOX=1
+  export PREVIEW_FORCE_MONGO=1
   export PREVIEW_DB_ENGINE="$db_engine"
   if [ "$db_engine" = "mysql" ]; then
     export DB_HOST="$db_host"
@@ -689,10 +727,16 @@ start_mern_backend() {
       return 1
     fi
     # Pass Mongo aliases explicitly — some apps read MONGO_URL / CONNECTION_URL only.
+    # NODE_OPTIONS preload patches mongoose BEFORE student index.js can dial Atlas.
     (
       export PORT="$API_PORT"
       export API_PORT="$API_PORT"
       export HOST=0.0.0.0
+      export PREVIEW_SANDBOX=1
+      export PREVIEW_FORCE_MONGO=1
+      if [ -f /preview-mongo-preload.cjs ]; then
+        export NODE_OPTIONS="--require /preview-mongo-preload.cjs${NODE_OPTIONS:+ $NODE_OPTIONS}"
+      fi
       if [ "${PREVIEW_DB_ENGINE:-}" != "mysql" ] && [ -n "${MONGO_URI:-}" ]; then
         export MONGO_URI="$MONGO_URI"
         export MONGODB_URI="$MONGO_URI"

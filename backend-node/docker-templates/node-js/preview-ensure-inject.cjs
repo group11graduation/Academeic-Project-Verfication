@@ -4,7 +4,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const MARKER = 'scholarverify-preview-cors-v4';
+const MARKER = 'scholarverify-preview-cors-v6';
+const GUARD_MARKER = 'scholarverify-mongo-guard-v6';
 const CORS_FILE = 'scholarverify-preview-cors.cjs';
 const root = process.argv[2] || process.cwd();
 const corsAbs = path.join(root, CORS_FILE);
@@ -22,8 +23,33 @@ const candidates = [
   'src/index.js',
   'src/app.js',
   'backend/server.js',
+  'backend/index.js',
   'backend/src/server.js',
+  'Backend/server.js',
+  'Backend/index.js',
+  'Backend/src/server.js',
 ];
+
+function injectGuardsAtTop(content, requirePath) {
+  if (content.includes(GUARD_MARKER)) {
+    return { content, changed: false };
+  }
+  const isEsm =
+    /\bimport\s+.+from\s+['"]/.test(content) ||
+    /\bexport\s+(default|const|function|class|\{)/.test(content);
+
+  let line;
+  if (isEsm) {
+    let next = content;
+    if (!/createRequire\s+as\s+__svCreateRequire/.test(next)) {
+      next = `import { createRequire as __svCreateRequire } from 'node:module';\n${next}`;
+    }
+    line = `try { __svCreateRequire(import.meta.url)(${JSON.stringify(requirePath)}).installPreviewRuntimeGuards(); } catch (_sv) { /* ${GUARD_MARKER} */ }\n`;
+    return { content: line + next, changed: true };
+  }
+  line = `try { require(${JSON.stringify(requirePath)}).installPreviewRuntimeGuards(); } catch (_sv) { /* ${GUARD_MARKER} */ }\n`;
+  return { content: line + content, changed: true };
+}
 
 function inject(content, requirePath) {
   let next = content;
@@ -82,14 +108,35 @@ for (const rel of candidates) {
   } catch {
     continue;
   }
-  if (!/\bapp\b/.test(content) || !/\bexpress\b/.test(content)) continue;
   let reqPath = path.relative(path.dirname(abs), corsAbs).replace(/\\/g, '/');
   if (!reqPath.startsWith('.')) reqPath = `./${reqPath}`;
-  const result = inject(content, reqPath);
-  if (result.changed) {
-    fs.writeFileSync(abs, result.content, 'utf8');
+
+  // Always try to install mongo guards at file top (even without express).
+  const guard = injectGuardsAtTop(content, reqPath);
+  content = guard.content;
+  if (guard.changed) {
     changedFiles += 1;
-    console.log('[preview-inject] injected into', rel);
+    console.log('[preview-inject] mongo guards →', rel);
+  }
+
+  if (!/\bapp\b/.test(content) || !/\bexpress\b/.test(content)) {
+    if (guard.changed) {
+      try {
+        fs.writeFileSync(abs, content, 'utf8');
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    continue;
+  }
+
+  const result = inject(content, reqPath);
+  if (result.changed || guard.changed) {
+    fs.writeFileSync(abs, result.changed ? result.content : content, 'utf8');
+    if (result.changed) {
+      changedFiles += 1;
+      console.log('[preview-inject] injected into', rel);
+    }
   }
 }
 
