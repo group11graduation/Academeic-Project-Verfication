@@ -88,21 +88,130 @@
   //   JSON.parse(undefined) → SyntaxError: "undefined" is not valid JSON
   try {
     var __svNativeJsonParse = JSON.parse.bind(JSON);
+    var __svJsonParseWarnCount = 0;
     JSON.parse = function (text, reviver) {
-      if (text === undefined || text === null) return null;
-      if (typeof text === 'string') {
-        var t = text.trim();
-        if (!t || t === 'undefined' || t === 'null') return null;
+      var bad =
+        text === undefined ||
+        text === null ||
+        (typeof text === 'string' && (!text.trim() || text.trim() === 'undefined' || text.trim() === 'null'));
+      if (bad) {
+        if (__svJsonParseWarnCount < 12) {
+          __svJsonParseWarnCount += 1;
+          try {
+            console.warn('[DEBUG-SHIM] JSON.parse blocked bad input #' + __svJsonParseWarnCount, {
+              typeofText: typeof text,
+              textPreview: text === undefined ? '(undefined)' : text === null ? '(null)' : String(text).slice(0, 80),
+              href: String(location.href || ''),
+              stack: String(new Error('sv-json-parse-trace').stack || '')
+                .split('\n')
+                .slice(0, 8)
+                .join('\n'),
+            });
+          } catch (_w) {}
+        }
+        return null;
       }
       try {
         return __svNativeJsonParse(text, reviver);
       } catch (err) {
         var msg = String((err && err.message) || err || '');
-        if (/undefined|null|Unexpected end|is not valid JSON/i.test(msg)) return null;
+        if (/undefined|null|Unexpected end|is not valid JSON/i.test(msg)) {
+          if (__svJsonParseWarnCount < 12) {
+            __svJsonParseWarnCount += 1;
+            try {
+              console.warn('[DEBUG-SHIM] JSON.parse soft-fail #' + __svJsonParseWarnCount, {
+                message: msg,
+                typeofText: typeof text,
+                textPreview: String(text).slice(0, 120),
+                href: String(location.href || ''),
+              });
+            } catch (_w2) {}
+          }
+          return null;
+        }
         throw err;
       }
     };
   } catch (_jp) {}
+
+  function dumpAuthDebug(reason) {
+    try {
+      var keys = [
+        'token',
+        'accessToken',
+        'access_token',
+        'jwt',
+        'loan_token',
+        'user',
+        'userInfo',
+        'loan_user',
+        'payflow_user',
+        'authUser',
+        'currentUser',
+        'loggedInUser',
+        'auth',
+        'profile',
+        'userData',
+        'role',
+        'userRole',
+        'isAdmin',
+        'email',
+        'username',
+        'name',
+      ];
+      var snap = {
+        reason: reason || 'manual',
+        href: String(location.href || ''),
+        pathname: String((location && location.pathname) || ''),
+        shim: 'v28',
+      };
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        var v = null;
+        try {
+          v = localStorage.getItem(k);
+        } catch (_g) {
+          v = '(getItem threw)';
+        }
+        if (v == null) {
+          snap[k] = null;
+        } else if (k === 'token' || k === 'accessToken' || k === 'access_token' || k === 'jwt' || k === 'loan_token') {
+          snap[k] = { present: true, length: String(v).length, prefix: String(v).slice(0, 18) + '…' };
+        } else if (String(v).charAt(0) === '{' || String(v).charAt(0) === '[') {
+          try {
+            var p = __svNativeJsonParse ? __svNativeJsonParse(v) : JSON.parse(v);
+            snap[k] = {
+              present: true,
+              type: typeof p,
+              role: p && (p.role || p.Role || (p.user && p.user.role)),
+              email: p && (p.email || (p.user && p.user.email)),
+              keys: p && typeof p === 'object' ? Object.keys(p).slice(0, 12) : [],
+              preview: String(v).slice(0, 100),
+            };
+          } catch (pe) {
+            snap[k] = { present: true, parseError: String(pe && pe.message), preview: String(v).slice(0, 100) };
+          }
+        } else {
+          snap[k] = { present: true, value: String(v).slice(0, 80) };
+        }
+      }
+      // Also show raw property access style (localStorage.user) which is often undefined.
+      try {
+        snap.prop_user = typeof localStorage.user;
+        snap.prop_userInfo = typeof localStorage.userInfo;
+        snap.prop_currentUser = typeof localStorage.currentUser;
+      } catch (_p) {}
+      console.log('[DEBUG-SHIM] AUTH DUMP — ' + (reason || 'check'), snap);
+      return snap;
+    } catch (e) {
+      console.warn('[DEBUG-SHIM] AUTH DUMP failed', e);
+      return null;
+    }
+  }
+  window.__SV_DUMP_AUTH__ = dumpAuthDebug;
+  try {
+    dumpAuthDebug('shim-boot');
+  } catch (_boot) {}
 
   var PATHS = [
     '/api' + '/auth/login',
@@ -1935,10 +2044,22 @@
         success: true,
       });
       try {
+        dumpAuthDebug('after-login-normalize');
+      } catch (_dump) {}
+      try {
         window.dispatchEvent(new Event('userChanged'));
         window.dispatchEvent(new Event('sv-preview-login'));
       } catch (_e4) {}
       redirectAfterPreviewLogin(user || out);
+      // Dashboard often mounts a moment later — dump again to compare keys.
+      try {
+        setTimeout(function () {
+          dumpAuthDebug('post-login-+400ms');
+        }, 400);
+        setTimeout(function () {
+          dumpAuthDebug('post-login-+1500ms href=' + String(location.pathname || ''));
+        }, 1500);
+      } catch (_t) {}
     } catch (_e3) {}
     return out;
   }
@@ -2447,10 +2568,29 @@
   }
   try {
     seedAuthStorageIfNeeded();
+    dumpAuthDebug('after-seed-check');
   } catch (_s) {}
   try {
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', seedAuthStorageIfNeeded);
+      document.addEventListener('DOMContentLoaded', function () {
+        seedAuthStorageIfNeeded();
+        dumpAuthDebug('dom-ready');
+      });
     }
   } catch (_d) {}
+  try {
+    window.addEventListener('popstate', function () {
+      dumpAuthDebug('popstate ' + String(location.pathname || ''));
+    });
+    var __svPush = history.pushState;
+    history.pushState = function () {
+      var r = __svPush.apply(this, arguments);
+      try {
+        setTimeout(function () {
+          dumpAuthDebug('pushState ' + String(location.pathname || ''));
+        }, 50);
+      } catch (_ps) {}
+      return r;
+    };
+  } catch (_h) {}
 })();
