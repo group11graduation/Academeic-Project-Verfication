@@ -2011,9 +2011,14 @@ async function runPreviewContainer({
     args.push('-e', `PREVIEW_PUBLIC_API_URL=${publicApiUrl}`);
     args.push('-e', `PREVIEW_PUBLIC_UI_URL=${publicUiUrl}`);
     args.push('-e', `CORS_ORIGIN=${publicUiUrl}`);
+    // FoundLink (and similar) socket.io CORS reads CLIENT_URL, not CORS_ORIGIN.
+    args.push('-e', `CLIENT_URL=${publicUiUrl}`);
     args.push('-e', `VITE_API_URL=${publicApiUrl}`);
     args.push('-e', `REACT_APP_API_URL=${publicApiUrl}`);
     args.push('-e', `VITE_API_BASE_URL=${publicApiUrl}`);
+    // Prefer same-origin UI for sockets (gateway proxies /socket.io).
+    args.push('-e', `VITE_SOCKET_URL=${publicUiUrl}`);
+    args.push('-e', `REACT_APP_SOCKET_URL=${publicUiUrl}`);
     if (mernPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${mernPair.backendSubdir}`);
     if (mernPair?.frontendSubdir) args.push('-e', `FRONTEND_SUBDIR=${mernPair.frontendSubdir}`);
     if (flutterPair?.backendSubdir) args.push('-e', `BACKEND_SUBDIR=${flutterPair.backendSubdir}`);

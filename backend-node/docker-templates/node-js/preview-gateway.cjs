@@ -421,6 +421,37 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             return;
           }
 
+          // Engine.IO open packet (text/plain): disable websocket upgrades in preview.
+          // WS through Docker port-map + our HTTP gateway is flaky; polling is enough
+          // for FoundLink notifications and stops "WS closed before established".
+          const isEngineIo =
+            isWebSocketProxyPath(pathOnly) || /\/socket\.io(\/|$)/i.test(pathOnly);
+          const looksPlain = upType.includes('text/plain') || !upType;
+          if (isEngineIo && looksPlain && status >= 200 && status < 300) {
+            const chunks = [];
+            up.on('data', (c) => chunks.push(c));
+            up.on('end', () => {
+              let text = Buffer.concat(chunks).toString('utf8');
+              try {
+                // 0{"sid":"...","upgrades":["websocket"],...}
+                if (/^0\{/.test(text) && /"upgrades"\s*:/.test(text)) {
+                  text = text.replace(/"upgrades"\s*:\s*\[[^\]]*\]/, '"upgrades":[]');
+                }
+              } catch (_eStrip) {
+                /* keep */
+              }
+              const buf = Buffer.from(text, 'utf8');
+              outHeaders['content-length'] = String(buf.length);
+              delete outHeaders['transfer-encoding'];
+              res.writeHead(status, outHeaders);
+              res.end(buf);
+            });
+            up.on('error', () => {
+              if (!res.headersSent) jsonError(res, 502, 'Upstream response error');
+            });
+            return;
+          }
+
           res.writeHead(status, outHeaders);
           up.pipe(res);
         });
