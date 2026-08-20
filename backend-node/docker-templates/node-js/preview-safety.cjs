@@ -661,7 +661,12 @@ function isDemoAdminPair(email, password) {
   const p = String(password || '');
   if (!e || !p) return false;
   // Extremely common student ZIP demo credentials (DropSafe and many others).
-  if (/^(admin|administrator|previewadmin)$/i.test(e) && /^(admin123|Admin@123|Admin123|password|123456)$/i.test(p)) {
+  // Accept admin, admin@…, administrator@preview.local, etc.
+  const local = e.includes('@') ? e.split('@')[0] : e;
+  if (
+    /^(admin|administrator|previewadmin)$/i.test(local) &&
+    /^(admin123|Admin@123|Admin123|password|123456|Preview123!)$/i.test(p)
+  ) {
     return true;
   }
   return false;
@@ -853,7 +858,10 @@ function isPreviewAdminAttempt(email, password) {
   if (e === pe) return true;
   if (pe.includes('@') && e === pe.split('@')[0]) return true;
   if (seedUser && e === seedUser) return true;
-  if (e === 'admin@preview.demo' || e === 'previewadmin' || e === 'admin') return true;
+  if (e === 'admin@preview.demo' || e === 'admin@preview.local' || e === 'previewadmin' || e === 'admin') {
+    return true;
+  }
+  if (/^admin@preview\./i.test(e)) return true;
   return false;
 }
 
@@ -1003,16 +1011,19 @@ function isSandboxLoginFailureRecoverable(email, password) {
     .trim();
   const p = String(password || '');
   if (!e || !p) return false;
-  if (/^(admin|previewadmin|administrator)$/i.test(e)) return true;
-  if (/@preview\.demo$/i.test(e)) return true;
+  const local = e.includes('@') ? e.split('@')[0] : e;
+  if (/^(admin|previewadmin|administrator)$/i.test(local)) return true;
+  if (/@preview\.(demo|local|test|dev)$/i.test(e)) return true;
   const pe = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '')
     .toLowerCase()
     .trim();
   const seedUser = String(process.env.PREVIEW_SEED_USERNAME || process.env.ADMIN_USERNAME || '')
     .toLowerCase()
     .trim();
-  if (seedUser && e === seedUser) return true;
-  if (pe && (e === pe || (pe.includes('@') && e === pe.split('@')[0]))) return true;
+  if (seedUser && (e === seedUser || local === seedUser)) return true;
+  if (pe && (e === pe || (pe.includes('@') && e === pe.split('@')[0]) || local === pe.split('@')[0])) {
+    return true;
+  }
   return false;
 }
 

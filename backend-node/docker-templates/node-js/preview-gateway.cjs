@@ -15,7 +15,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
-const { spawnSync } = require('child_process');
+const Module = require('module');
 
 const STATIC_ROOT = path.resolve(process.argv[2] || process.cwd());
 const LISTEN_PORT = Number(process.env.UI_PORT || process.env.PORT || 3000);
@@ -71,46 +71,67 @@ function isLoginApiRequest(method, pathname) {
 }
 
 /**
- * When Express rejects admin/admin123 (400), mint a JWT via preview-force-login.js
- * using the same Mongo + JWT_SECRET as the API — does not depend on Express inject order.
+ * When Express rejects admin/admin123 (400), mint a JWT in-process via preview-safety.
+ * Do NOT spawn a second node (spawnSync often ETIMEDOUT under preview load).
  */
-function tryGatewayForceLogin(requestBodyBuf) {
-  try {
-    const script = fs.existsSync('/preview-force-login.js')
-      ? '/preview-force-login.js'
-      : path.join(__dirname, 'preview-force-login.js');
-    if (!fs.existsSync(script)) {
-      console.log('[preview-gateway] force-login script missing');
-      return null;
-    }
-    const r = spawnSync(process.execPath, [script], {
-      input: requestBodyBuf && requestBodyBuf.length ? requestBodyBuf : Buffer.from('{}'),
-      encoding: 'utf8',
-      timeout: 20000,
-      env: process.env,
-      maxBuffer: 2 * 1024 * 1024,
-    });
-    if (r.error) {
-      console.log('[preview-gateway] force-login spawn error:', r.error.message || r.error);
-      return null;
-    }
-    const out = String(r.stdout || '').trim();
-    if (!out) {
-      console.log(
-        '[preview-gateway] force-login empty stdout status=',
-        r.status,
-        'stderr=',
-        String(r.stderr || '').slice(0, 400)
-      );
-      return null;
-    }
-    let parsed;
+function ensureBackendModulePath() {
+  const dirs = [
+    process.env.PREVIEW_BACKEND_CWD,
+    process.env.BACKEND_CWD,
+    '/app/backend',
+    '/app/server',
+    '/app/Backend',
+    '/app',
+  ].filter(Boolean);
+  for (const dir of dirs) {
     try {
-      parsed = JSON.parse(out);
+      const nm = path.join(dir, 'node_modules');
+      if (!fs.existsSync(nm) && !fs.existsSync(path.join(dir, 'package.json'))) continue;
+      const nodePath = [nm, process.env.NODE_PATH].filter(Boolean).join(path.delimiter);
+      process.env.NODE_PATH = nodePath;
+      Module._initPaths();
+      return dir;
     } catch (_e) {
-      console.log('[preview-gateway] force-login bad JSON:', out.slice(0, 200));
+      /* next */
+    }
+  }
+  return null;
+}
+
+let _previewSafety = null;
+function loadPreviewSafety() {
+  if (_previewSafety) return _previewSafety;
+  ensureBackendModulePath();
+  try {
+    _previewSafety = require('/preview-safety.cjs');
+  } catch (_e) {
+    try {
+      _previewSafety = require('./preview-safety.cjs');
+    } catch (_e2) {
+      _previewSafety = null;
+    }
+  }
+  return _previewSafety;
+}
+
+async function tryGatewayForceLogin(requestBodyBuf) {
+  try {
+    let body = {};
+    try {
+      body = JSON.parse(
+        Buffer.isBuffer(requestBodyBuf)
+          ? requestBodyBuf.toString('utf8')
+          : String(requestBodyBuf || '{}')
+      );
+    } catch (_e) {
+      body = {};
+    }
+    const safety = loadPreviewSafety();
+    if (!safety || typeof safety.forcePreviewLogin !== 'function') {
+      console.log('[preview-gateway] force-login: forcePreviewLogin unavailable');
       return null;
     }
+    const parsed = await safety.forcePreviewLogin(body);
     if (parsed && parsed.ok && parsed.body) return parsed;
     console.log(
       '[preview-gateway] force-login declined:',
@@ -550,24 +571,42 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             const errChunks = [];
             up.on('data', (c) => errChunks.push(c));
             up.on('end', () => {
-              const forced = tryGatewayForceLogin(body);
-              if (forced) {
-                console.log(
-                  '[preview-gateway] login force OK after upstream',
-                  status,
-                  'on',
-                  tryPath
-                );
-                return sendForcedLogin(res, req, forced);
-              }
-              const errBuf = Buffer.concat(errChunks);
-              const outHeaders = { ...up.headers };
-              outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
-              outHeaders['access-control-allow-credentials'] = 'true';
-              outHeaders['content-length'] = String(errBuf.length);
-              delete outHeaders['transfer-encoding'];
-              res.writeHead(status, outHeaders);
-              res.end(errBuf);
+              Promise.resolve(tryGatewayForceLogin(body))
+                .then((forced) => {
+                  if (res.headersSent) return;
+                  if (forced) {
+                    console.log(
+                      '[preview-gateway] login force OK after upstream',
+                      status,
+                      'on',
+                      tryPath
+                    );
+                    return sendForcedLogin(res, req, forced);
+                  }
+                  const errBuf = Buffer.concat(errChunks);
+                  const outHeaders = { ...up.headers };
+                  outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+                  outHeaders['access-control-allow-credentials'] = 'true';
+                  outHeaders['content-length'] = String(errBuf.length);
+                  delete outHeaders['transfer-encoding'];
+                  res.writeHead(status, outHeaders);
+                  res.end(errBuf);
+                })
+                .catch((err) => {
+                  if (res.headersSent) return;
+                  console.log(
+                    '[preview-gateway] force-login async error:',
+                    err && err.message ? err.message : err
+                  );
+                  const errBuf = Buffer.concat(errChunks);
+                  const outHeaders = { ...up.headers };
+                  outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+                  outHeaders['access-control-allow-credentials'] = 'true';
+                  outHeaders['content-length'] = String(errBuf.length);
+                  delete outHeaders['transfer-encoding'];
+                  res.writeHead(status, outHeaders);
+                  res.end(errBuf);
+                });
             });
             up.on('error', () => {
               if (!res.headersSent) jsonError(res, 502, 'Upstream response error');
@@ -768,6 +807,11 @@ const server = http.createServer((req, res) => {
 
   if (isStaticAssetRequest(pathname)) return serveStatic(req, res);
 
+  // Never proxy SPA shell HTML to Express (was spamming /index.html → /api/index.html).
+  if (/\.html?$/i.test(pathname) || pathname === '/' || pathname === '/index.html') {
+    return serveStatic(req, res);
+  }
+
   // SPA first for document navigations (/ , /login, /dashboard, …).
   // Fixes Express apps that answer GET / with "API is running..." (HTTP 200 text).
   if (isBrowserNavigationRequest(req, pathname)) {
@@ -887,7 +931,11 @@ server.on('error', (err) => {
 });
 
 server.listen(LISTEN_PORT, '0.0.0.0', () => {
+  const safetyOk = fs.existsSync('/preview-safety.cjs');
   console.log(
     `[preview] gateway listening on 0.0.0.0:${LISTEN_PORT} static=${STATIC_ROOT} api=http://${API_HOST}:${API_PORT}`
+  );
+  console.log(
+    `[preview-gateway] force-login=in-process safety=${safetyOk ? 'YES' : 'MISSING'} backendCwd=${process.env.PREVIEW_BACKEND_CWD || '(unset)'}`
   );
 });
