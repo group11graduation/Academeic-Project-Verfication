@@ -606,12 +606,39 @@ export async function discoverPhpAdminCredentials(root) {
  * Pick the database name the student app expects (setup script wins over config file).
  */
 export async function resolvePreviewDatabaseName(root) {
+  const all = await discoverAllPreviewDatabaseNames(root);
+  if (all.length) return all[0];
+  return process.env.PREVIEW_MYSQL_DATABASE || 'bbms';
+}
+
+/**
+ * Every plausible MySQL database name referenced by the PHP project.
+ * Used so we CREATE DATABASE for hostel AND any aliases — prevents
+ * "Unknown database 'hostel'" when the sidecar was initialized as bbms.
+ */
+export async function discoverAllPreviewDatabaseNames(root) {
+  const found = [];
+  const seen = new Set();
+  const push = (name) => {
+    const n = String(name || '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_]/g, '');
+    if (!n || n.length > 64) return;
+    if (/^(test|mysql|information_schema|performance_schema|sys)$/i.test(n)) return;
+    const key = n.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    found.push(n);
+  };
+
   const scripts = await discoverPhpBootstrapScripts(root);
   for (const scriptPath of scripts) {
     try {
+      // eslint-disable-next-line no-await-in-loop
       const content = await fs.readFile(scriptPath, 'utf8');
       const fromSetup = inferSetupDatabaseName(content);
-      if (fromSetup) return fromSetup;
+      if (fromSetup) push(fromSetup);
+      for (const n of extractDatabaseNameCandidates(content)) push(n);
     } catch {
       /* ignore */
     }
@@ -620,21 +647,53 @@ export async function resolvePreviewDatabaseName(root) {
   const dbFiles = await discoverPhpDatabaseFiles(root);
   for (const filePath of dbFiles) {
     try {
+      // eslint-disable-next-line no-await-in-loop
       const content = await fs.readFile(filePath, 'utf8');
       const fromConfig = inferVariableDatabaseName(content);
-      if (fromConfig) return fromConfig;
+      if (fromConfig) push(fromConfig);
       const fromMysqli = inferMysqliDatabaseName(content);
-      if (fromMysqli) return fromMysqli;
+      if (fromMysqli) push(fromMysqli);
       const defineMatch = content.match(/define\s*\(\s*['"]DB_NAME['"]\s*,\s*['"]([^'"]+)['"]\s*\)/i);
-      if (defineMatch) return defineMatch[1];
+      if (defineMatch) push(defineMatch[1]);
       const dsnMatch = content.match(/mysql:host=[^;'"]+;dbname=([^;'"]+)/i);
-      if (dsnMatch) return dsnMatch[1];
+      if (dsnMatch) push(dsnMatch[1]);
+      for (const n of extractDatabaseNameCandidates(content)) push(n);
     } catch {
       /* ignore */
     }
   }
 
-  return process.env.PREVIEW_MYSQL_DATABASE || 'bbms';
+  // Folder name often matches DB (…/hostel/includes/config.php → hostel)
+  try {
+    const base = path.basename(path.resolve(root));
+    if (base && !/^(html|www|public|src|app|backend|api)$/i.test(base)) push(base);
+  } catch {
+    /* ignore */
+  }
+
+  return found;
+}
+
+/** Extra patterns for literal DB names in student PHP (mysqli 4th arg, PDO, etc.). */
+function extractDatabaseNameCandidates(content) {
+  const out = [];
+  const text = String(content || '');
+  const patterns = [
+    /new\s+mysqli\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*['"](\w+)['"]/gi,
+    /mysqli_connect\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*['"](\w+)['"]/gi,
+    /(?:dbname|database|db_name)\s*=\s*['"](\w+)['"]/gi,
+    /['"]database['"]\s*=>\s*['"](\w+)['"]/gi,
+    /CREATE\s+DATABASE(?:\s+IF\s+NOT\s+EXISTS)?\s+[`'"]?(\w+)/gi,
+    /USE\s+[`'"]?(\w+)[`'"]?\s*;/gi,
+  ];
+  for (const re of patterns) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text))) {
+      out.push(m[1]);
+    }
+  }
+  return out;
 }
 
 async function patchPhpFile(filePath, options, { bootstrap = false, injectOverrides = true } = {}) {

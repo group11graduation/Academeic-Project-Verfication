@@ -248,17 +248,72 @@ fix_setup_use_in_script() {
 }
 
 ensure_preview_database() {
-  [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || return 0
+  [ -n "$DB_HOST" ] || return 0
   php -r "
     try {
       \$host = getenv('DB_HOST');
-      \$db = preg_replace('/[^a-zA-Z0-9_]/', '', getenv('DB_NAME') ?: '');
-      if (!\$db) exit(0);
+      if (!\$host) exit(0);
       \$user = getenv('DB_USER') ?: 'root';
       \$pass = getenv('DB_PASS') ?: '';
-      \$pdo = new PDO('mysql:host=' . \$host, \$user, \$pass, [PDO::ATTR_TIMEOUT => 2]);
-      \$pdo->exec('CREATE DATABASE IF NOT EXISTS ' . \$db);
-      echo '[preview] ensured database ' . \$db . PHP_EOL;
+      \$names = [];
+      \$push = function (\$n) use (&\$names) {
+        \$safe = preg_replace('/[^a-zA-Z0-9_]/', '', (string)\$n);
+        if (\$safe === '' || strlen(\$safe) > 64) return;
+        if (preg_match('/^(mysql|information_schema|performance_schema|sys)\$/i', \$safe)) return;
+        \$names[\$safe] = true;
+      };
+      \$push(getenv('DB_NAME') ?: '');
+      \$push(getenv('DB_DATABASE') ?: '');
+      \$push(getenv('MYSQL_DATABASE') ?: '');
+      foreach (preg_split('/[,\s]+/', getenv('PREVIEW_CREATE_DATABASES') ?: '') ?: [] as \$n) {
+        if (\$n !== '') \$push(\$n);
+      }
+      // Scan student PHP configs for literal DB names (hostel, bbms, …).
+      \$roots = ['/var/www/html'];
+      \$patterns = [
+        '/new\s+mysqli\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*[\'\"](\w+)[\'\"]/i',
+        '/mysqli_connect\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*[\'\"](\w+)[\'\"]/i',
+        '/\\\$(?:dbname|database|db_name)\s*=\s*[\'\"](\w+)[\'\"]/i',
+        '/define\s*\(\s*[\'\"]DB_NAME[\'\"]\s*,\s*[\'\"](\w+)[\'\"]\s*\)/i',
+        '/dbname=(\w+)/i',
+        '/CREATE\s+DATABASE(?:\s+IF\s+NOT\s+EXISTS)?\s+(\w+)/i',
+      ];
+      foreach (\$roots as \$root) {
+        if (!is_dir(\$root)) continue;
+        \$push(basename(\$root));
+        foreach (glob(\$root . '/*', GLOB_ONLYDIR) ?: [] as \$dir) {
+          \$push(basename(\$dir));
+        }
+        try {
+          \$it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(\$root, FilesystemIterator::SKIP_DOTS)
+          );
+          \$nFiles = 0;
+          foreach (\$it as \$f) {
+            if (\$nFiles > 100) break;
+            if (!\$f->isFile() || strtolower(\$f->getExtension()) !== 'php') continue;
+            \$path = \$f->getPathname();
+            if (!preg_match('/config|database|db|connection|setup|install|connect/i', \$path)) continue;
+            if (preg_match('#/(vendor|node_modules|\.git)/#', \$path)) continue;
+            \$nFiles++;
+            \$c = @file_get_contents(\$path);
+            if (\$c === false) continue;
+            foreach (\$patterns as \$re) {
+              if (preg_match_all(\$re, \$c, \$mm)) {
+                foreach (\$mm[1] as \$hit) \$push(\$hit);
+              }
+            }
+          }
+        } catch (Throwable \$e) { /* ignore */ }
+      }
+      if (!\$names) {
+        \$push('bbms');
+      }
+      \$pdo = new PDO('mysql:host=' . \$host, \$user, \$pass, [PDO::ATTR_TIMEOUT => 5]);
+      foreach (array_keys(\$names) as \$db) {
+        \$pdo->exec('CREATE DATABASE IF NOT EXISTS ' . \$db . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+        echo '[preview] ensured database ' . \$db . PHP_EOL;
+      }
     } catch (Throwable \$e) {
       fwrite(STDERR, '[preview] ensure database failed: ' . \$e->getMessage() . PHP_EOL);
       exit(1);

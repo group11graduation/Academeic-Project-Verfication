@@ -25,6 +25,7 @@ import {
   discoverPhpLoginPath,
   previewMysqlHostName,
   resolvePreviewDatabaseName,
+  discoverAllPreviewDatabaseNames,
   discoverPhpSqlDumpFiles,
   splitPhpSqlStatements,
 } from './previewPhp.service.js';
@@ -2552,9 +2553,25 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
   });
 
   let sidecarPromise = null;
+  let phpResolvedDbNames = [];
   if (isPhpFamilyPreviewStack(stack) && process.env.PREVIEW_SIDECAR_MYSQL !== 'false') {
+    const phpRootEarly = path.join(buildContext, appSubdir === '.' ? '' : appSubdir);
+    if (stack === 'laravel-react-mysql') {
+      phpResolvedDbNames = ['laravel'];
+    } else {
+      phpResolvedDbNames = await discoverAllPreviewDatabaseNames(phpRootEarly).catch(() => []);
+      if (!phpResolvedDbNames.length) {
+        const one = await resolvePreviewDatabaseName(phpRootEarly).catch(
+          () => PREVIEW_MYSQL_DATABASE
+        );
+        phpResolvedDbNames = [one || PREVIEW_MYSQL_DATABASE || 'bbms'];
+      }
+    }
+    const primaryDb =
+      String(phpResolvedDbNames[0] || (stack === 'laravel-react-mysql' ? 'laravel' : PREVIEW_MYSQL_DATABASE))
+        .replace(/[^a-zA-Z0-9_]/g, '') || (stack === 'laravel-react-mysql' ? 'laravel' : 'bbms');
     sidecarPromise = startPreviewMysqlSidecar(projectId, {
-      database: stack === 'laravel-react-mysql' ? 'laravel' : undefined,
+      database: primaryDb,
     });
   }
 
@@ -2641,9 +2658,21 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
             ).replace(/[^a-zA-Z0-9_]/g, '') || 'preview'
           : stack === 'laravel-react-mysql'
             ? String(sidecar.database || 'laravel').replace(/[^a-zA-Z0-9_]/g, '') || 'laravel'
-            : await resolvePreviewDatabaseName(
-                path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
-              );
+            : String(
+                phpResolvedDbNames[0] ||
+                  (await resolvePreviewDatabaseName(
+                    path.join(buildContext, appSubdir === '.' ? '' : appSubdir)
+                  ))
+              ).replace(/[^a-zA-Z0-9_]/g, '') || PREVIEW_MYSQL_DATABASE || 'bbms';
+      const allPhpDbs = [
+        previewDbName,
+        ...(Array.isArray(phpResolvedDbNames) ? phpResolvedDbNames : []),
+      ]
+        .map((n) => String(n || '').replace(/[^a-zA-Z0-9_]/g, ''))
+        .filter(Boolean);
+      const uniquePhpDbs = [...new Set(allPhpDbs.map((n) => n.toLowerCase()))].map(
+        (lower) => allPhpDbs.find((n) => n.toLowerCase() === lower) || lower
+      );
       mergedCredentialEnv = {
         ...mergedCredentialEnv,
         PREVIEW_DB_ENGINE: 'mysql',
@@ -2666,8 +2695,12 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
           stack === 'node-js-mysql' ? PREVIEW_MYSQL_PASSWORD : PREVIEW_MYSQL_ROOT_PASSWORD
         }@${sidecar.mysqlName}:3306/${previewDbName}`,
         PREVIEW_SANDBOX: '1',
+        PREVIEW_CREATE_DATABASES: uniquePhpDbs.join(','),
       };
-      await ensurePreviewMysqlDatabase(sidecar.mysqlName, previewDbName);
+      for (const db of uniquePhpDbs) {
+        // eslint-disable-next-line no-await-in-loop
+        await ensurePreviewMysqlDatabase(sidecar.mysqlName, db);
+      }
     } else {
       const mongoUri = buildPreviewMongoUri(projectId, { sidecarHost: sidecar.mongoName });
       mergedCredentialEnv = {
@@ -2693,9 +2726,23 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
     });
     if (patched.dbName) {
       mergedCredentialEnv.DB_NAME = patched.dbName;
+      mergedCredentialEnv.DB_DATABASE = patched.dbName;
+      mergedCredentialEnv.MYSQL_DATABASE = patched.dbName;
       if (mergedCredentialEnv.DB_HOST) {
-        await ensurePreviewMysqlDatabase(mergedCredentialEnv.DB_HOST, patched.dbName);
         const phpRoot = path.join(buildContext, appSubdir === '.' ? '' : appSubdir);
+        const moreNames = await discoverAllPreviewDatabaseNames(phpRoot).catch(() => []);
+        const ensureList = [
+          ...new Set(
+            [patched.dbName, ...moreNames, ...(phpResolvedDbNames || [])]
+              .map((n) => String(n || '').replace(/[^a-zA-Z0-9_]/g, ''))
+              .filter(Boolean)
+          ),
+        ];
+        mergedCredentialEnv.PREVIEW_CREATE_DATABASES = ensureList.join(',');
+        for (const db of ensureList) {
+          // eslint-disable-next-line no-await-in-loop
+          await ensurePreviewMysqlDatabase(mergedCredentialEnv.DB_HOST, db);
+        }
         const sqlImport = await importPhpSqlDumpsToMysql(
           mergedCredentialEnv.DB_HOST,
           patched.dbName,
