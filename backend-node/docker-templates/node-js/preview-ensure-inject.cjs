@@ -4,8 +4,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const MARKER = 'scholarverify-preview-cors-v6';
-const GUARD_MARKER = 'scholarverify-mongo-guard-v6';
+const MARKER = 'scholarverify-preview-cors-v7';
+const GUARD_MARKER = 'scholarverify-mongo-guard-v7';
 const CORS_FILE = 'scholarverify-preview-cors.cjs';
 const root = process.argv[2] || process.cwd();
 const corsAbs = path.join(root, CORS_FILE);
@@ -58,12 +58,15 @@ function inject(content, requirePath) {
     /\bimport\s+.+from\s+['"]/.test(next) ||
     /\bexport\s+(default|const|function|class|\{)/.test(next);
 
-  if (hasInjectCall && next.includes(MARKER)) {
-    if (isEsm && !/createRequire\s+as\s+__svCreateRequire/.test(next)) {
-      next = `import { createRequire as __svCreateRequire } from 'node:module';\n${next}`;
-      return { content: next, changed: true };
+  if (hasInjectCall) {
+    let upgraded = next;
+    if (/scholarverify-preview-cors-v\d+/.test(upgraded) && !upgraded.includes(MARKER)) {
+      upgraded = upgraded.replace(/scholarverify-preview-cors-v\d+/g, MARKER);
     }
-    return { content: next, changed: false };
+    if (isEsm && !/createRequire\s+as\s+__svCreateRequire/.test(upgraded)) {
+      upgraded = `import { createRequire as __svCreateRequire } from 'node:module';\n${upgraded}`;
+    }
+    return { content: upgraded, changed: upgraded !== content };
   }
 
   let line;

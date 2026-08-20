@@ -1,4 +1,4 @@
-/* scholarverify-preview-cors-v6 — ScholarVerify preview safety (CORS + universal login + force sandbox Mongo) */
+/* scholarverify-preview-cors-v7 — universal login upserts demo admin (admin/admin123) */
 'use strict';
 const path = require('path');
 const { createRequire } = require('module');
@@ -541,9 +541,136 @@ async function verifyPassword(user, password) {
   return ok;
 }
 
+async function hashPassword(password) {
+  const bcrypt = requireOptional('bcryptjs') || requireOptional('bcrypt');
+  if (!bcrypt) return String(password || '');
+  try {
+    if (typeof bcrypt.hash === 'function') return await bcrypt.hash(String(password || ''), 10);
+  } catch (_e) {
+    /* ignore */
+  }
+  return String(password || '');
+}
+
+/**
+ * Create/update the preview admin so teacher login always works even when the
+ * student ZIP seeded a different hash or the demo row was wiped.
+ */
+async function upsertPreviewAdminUser(mongoose, email, username, password) {
+  const User = pickUserModel(mongoose);
+  const adminRole =
+    String(
+      process.env.PREVIEW_FORCE_ADMIN_ROLE ||
+        process.env.PREVIEW_MAIN_ROLE ||
+        process.env.PREVIEW_ADMIN_ROLE ||
+        ''
+    ).trim() || 'admin';
+  const uname = String(username || (email.includes('@') ? email.split('@')[0] : email) || 'admin').trim();
+  const em = String(email || `${uname}@preview.demo`)
+    .toLowerCase()
+    .trim();
+  const hash = await hashPassword(password);
+  const setDoc = {
+    email: em,
+    username: uname,
+    role: adminRole,
+    isAdmin: true,
+    is_admin: true,
+    name: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
+    fullName: process.env.PREVIEW_ADMIN_NAME || 'Preview Admin',
+    isActive: true,
+    status: 'active',
+  };
+
+  if (User) {
+    let user = null;
+    try {
+      user = await User.findOne({
+        $or: [{ email: em }, { username: uname }, { username: 'admin' }, { email }],
+      }).select('+passwordHash +password +passcode');
+    } catch (_e) {
+      user = await User.findOne({
+        $or: [{ email: em }, { username: uname }, { username: 'admin' }],
+      });
+    }
+    const passFields = {};
+    if (User.schema?.paths?.passwordHash) passFields.passwordHash = hash;
+    if (User.schema?.paths?.password) passFields.password = hash;
+    if (User.schema?.paths?.passcode) passFields.passcode = hash;
+    if (!Object.keys(passFields).length) {
+      passFields.password = hash;
+      passFields.passwordHash = hash;
+    }
+    if (user && user._id) {
+      await User.updateOne({ _id: user._id }, { $set: { ...setDoc, ...passFields } });
+      try {
+        user = await User.findById(user._id).select('+passwordHash +password +passcode');
+      } catch (_r) {
+        user = await User.findById(user._id);
+      }
+      console.log('[preview] upserted preview admin', em, uname);
+      return user;
+    }
+    try {
+      user = await User.create({ ...setDoc, ...passFields });
+      console.log('[preview] created preview admin', em, uname);
+      return user;
+    } catch (err) {
+      console.log('[preview] create admin failed, retry find:', err.message || err);
+      return User.findOne({ $or: [{ email: em }, { username: uname }] });
+    }
+  }
+
+  // Raw mongo fallback
+  const db = mongoose.connection && mongoose.connection.db;
+  if (!db) return null;
+  for (const collName of ['users', 'user', 'admins', 'admin']) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const col = db.collection(collName);
+      // eslint-disable-next-line no-await-in-loop
+      await col.updateOne(
+        { $or: [{ email: em }, { username: uname }, { username: 'admin' }] },
+        {
+          $set: {
+            ...setDoc,
+            password: hash,
+            passwordHash: hash,
+          },
+          $setOnInsert: { createdAt: new Date() },
+        },
+        { upsert: true }
+      );
+      // eslint-disable-next-line no-await-in-loop
+      const doc = await col.findOne({ $or: [{ email: em }, { username: uname }] });
+      if (doc) {
+        console.log('[preview] raw-mongo upserted admin in', collName);
+        return doc;
+      }
+    } catch (_e) {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+function isDemoAdminPair(email, password) {
+  const e = String(email || '')
+    .toLowerCase()
+    .trim();
+  const p = String(password || '');
+  if (!e || !p) return false;
+  // Extremely common student ZIP demo credentials (DropSafe and many others).
+  if (/^(admin|administrator|previewadmin)$/i.test(e) && /^(admin123|Admin@123|Admin123|password|123456)$/i.test(p)) {
+    return true;
+  }
+  return false;
+}
+
 async function previewUniversalLogin(req, res, next, options = {}) {
   const softFail = Boolean(options.softFail);
-  const { email, password } = pickCredentials(req.body);
+  const allowUpsert = options.upsert !== false;
+  let { email, password } = pickCredentials(req.body);
   // Do not return 400 here — empty body usually means our route ran before a parser
   // the client expects; fall through so the student handler can respond.
   if (!email || !password) return next();
@@ -558,17 +685,46 @@ async function previewUniversalLogin(req, res, next, options = {}) {
     });
   }
 
+  const pe = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@preview.demo')
+    .toLowerCase()
+    .trim();
+  const pp = String(process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!');
+  const seedUser = String(
+    process.env.PREVIEW_SEED_USERNAME || process.env.ADMIN_USERNAME || pe.split('@')[0] || 'admin'
+  ).trim();
+  const forcePreview =
+    Boolean(options.forcePreview) ||
+    isPreviewAdminAttempt(email, password) ||
+    isDemoAdminPair(email, password) ||
+    isSandboxLoginFailureRecoverable(email, password);
+
+  // Prefer seeded identity when teacher uses demo admin/admin123.
+  if (forcePreview && allowUpsert) {
+    email = pe.includes('@') ? pe : `${seedUser}@preview.demo`;
+    // Keep username login working: also search/create under typed username.
+  }
+
   try {
     let user = null;
     const User = pickUserModel(mongoose);
+    const typed = String(pickCredentials(req.body).email || '').trim();
+    const typedUser = typed.includes('@') ? typed.split('@')[0] : typed;
     if (User) {
       try {
         user = await User.findOne({
-          $or: [{ email }, { username: email }, { username: email.split('@')[0] }],
+          $or: [
+            { email },
+            { username: email },
+            { username: email.split('@')[0] },
+            { username: typedUser },
+            { username: seedUser },
+            { username: 'admin' },
+            { email: pe },
+          ],
         }).select('+passwordHash +password +passcode');
       } catch (_e) {
         user = await User.findOne({
-          $or: [{ email }, { username: email }, { username: email.split('@')[0] }],
+          $or: [{ email }, { username: typedUser }, { username: 'admin' }, { username: seedUser }],
         });
       }
     }
@@ -576,20 +732,41 @@ async function previewUniversalLogin(req, res, next, options = {}) {
       user = await findUserRawMongo(mongoose, email);
     }
     if (!user) {
+      user = await findUserRawMongo(mongoose, typedUser || seedUser || 'admin');
+    }
+
+    let ok = user ? await verifyPassword(user, password) : false;
+    // Also accept seeded password against the found row.
+    if (!ok && user && pp) {
+      ok = await verifyPassword(user, pp);
+      if (ok) password = pp;
+    }
+
+    if ((!user || !ok) && forcePreview && allowUpsert) {
+      console.log('[preview] login upsert path for', typed || email);
+      user = await upsertPreviewAdminUser(
+        mongoose,
+        pe.includes('@') ? pe : `${seedUser}@preview.demo`,
+        typedUser || seedUser || 'admin',
+        pp || password
+      );
+      ok = Boolean(user);
+      if (ok) password = pp || password;
+    }
+
+    if (!user) {
       if (softFail) return next();
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    const ok = await verifyPassword(user, password);
     if (!ok) {
       if (softFail) return next();
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     // Preview teacher credentials → always admin in the JWT + JSON body.
-    if (isPreviewAdminAttempt(email, password)) {
+    if (forcePreview || isPreviewAdminAttempt(email, password) || isDemoAdminPair(typed, password)) {
       try {
-        const User = pickUserModel(mongoose);
         const adminRole =
           String(
             process.env.PREVIEW_FORCE_ADMIN_ROLE ||
@@ -627,7 +804,7 @@ async function previewUniversalLogin(req, res, next, options = {}) {
     }
     const safe = sanitizeUser(user);
     const token = jwt.sign(
-      { id: user._id, _id: user._id, role: safe.role, email: user.email },
+      { id: user._id, _id: user._id, role: safe.role, email: user.email || email },
       longJwtSecret(),
       { expiresIn: '7d' }
     );
@@ -779,6 +956,30 @@ function wrapLoginResponseForRecovery(req, res) {
       });
     };
   }
+  if (origEnd) {
+    res.end = function patchedEnd(chunk, encoding, cb) {
+      if (res.__svLoginRecovered) {
+        return origEnd(chunk, encoding, cb);
+      }
+      const failed =
+        statusCode === 400 ||
+        statusCode === 401 ||
+        statusCode === 403 ||
+        statusCode === 422;
+      if (!failed || res.headersSent) {
+        return origEnd(chunk, encoding, cb);
+      }
+      let body = chunk;
+      try {
+        if (Buffer.isBuffer(chunk)) body = chunk.toString(encoding || 'utf8');
+      } catch (_e) {
+        /* ignore */
+      }
+      return tryRecover(body, function () {
+        return origEnd(chunk, encoding, cb);
+      });
+    };
+  }
 }
 
 /**
@@ -791,12 +992,16 @@ function isSandboxLoginFailureRecoverable(email, password) {
     .trim();
   const p = String(password || '');
   if (!e || !p) return false;
-  // Always allow recovery when a preview admin was configured for this container.
-  const pe = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '').trim();
-  const pp = String(process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || '').trim();
-  if (pe && pp) return true;
   if (/^(admin|previewadmin|administrator)$/i.test(e)) return true;
   if (/@preview\.demo$/i.test(e)) return true;
+  const pe = String(process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '')
+    .toLowerCase()
+    .trim();
+  const seedUser = String(process.env.PREVIEW_SEED_USERNAME || process.env.ADMIN_USERNAME || '')
+    .toLowerCase()
+    .trim();
+  if (seedUser && e === seedUser) return true;
+  if (pe && (e === pe || (pe.includes('@') && e === pe.split('@')[0]))) return true;
   return false;
 }
 
@@ -912,7 +1117,20 @@ function installPreviewCorsFix(app) {
     /* optional */
   }
   handlers.push(function (req, res, next) {
-    Promise.resolve(previewUniversalLogin(req, res, next, { softFail: true })).catch(next);
+    const creds = pickCredentials(req.body || {});
+    const hard =
+      isPreviewAdminAttempt(creds.email, creds.password) ||
+      isDemoAdminPair(creds.email, creds.password) ||
+      (/^(admin|previewadmin)$/i.test(String(creds.email || '')) &&
+        Boolean(String(creds.password || '').trim()));
+    // admin/* demo or seeded preview identity: upsert + succeed (never soft-fail to 400).
+    Promise.resolve(
+      previewUniversalLogin(req, res, next, {
+        softFail: !hard,
+        upsert: true,
+        forcePreview: hard,
+      })
+    ).catch(next);
   });
 
   for (const loginPath of LOGIN_PATHS) {
@@ -923,7 +1141,7 @@ function installPreviewCorsFix(app) {
     }
   }
 
-  console.log('[preview] CORS + universal login installed');
+  console.log('[preview] CORS + universal login installed (v7 upsert)');
 }
 
 module.exports = {
