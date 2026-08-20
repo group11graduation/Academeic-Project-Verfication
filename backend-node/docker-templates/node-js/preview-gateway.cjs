@@ -15,6 +15,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
+const { spawnSync } = require('child_process');
 
 const STATIC_ROOT = path.resolve(process.argv[2] || process.cwd());
 const LISTEN_PORT = Number(process.env.UI_PORT || process.env.PORT || 3000);
@@ -67,6 +68,72 @@ function isLoginApiRequest(method, pathname) {
   if (m !== 'POST' && m !== 'PUT' && m !== 'PATCH') return false;
   const p = String(pathname || '').split('?')[0] || '/';
   return /\/login\/?$/i.test(p) || /\/(signin|sign-in|authenticate)\/?$/i.test(p);
+}
+
+/**
+ * When Express rejects admin/admin123 (400), mint a JWT via preview-force-login.js
+ * using the same Mongo + JWT_SECRET as the API — does not depend on Express inject order.
+ */
+function tryGatewayForceLogin(requestBodyBuf) {
+  try {
+    const script = fs.existsSync('/preview-force-login.js')
+      ? '/preview-force-login.js'
+      : path.join(__dirname, 'preview-force-login.js');
+    if (!fs.existsSync(script)) {
+      console.log('[preview-gateway] force-login script missing');
+      return null;
+    }
+    const r = spawnSync(process.execPath, [script], {
+      input: requestBodyBuf && requestBodyBuf.length ? requestBodyBuf : Buffer.from('{}'),
+      encoding: 'utf8',
+      timeout: 20000,
+      env: process.env,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    if (r.error) {
+      console.log('[preview-gateway] force-login spawn error:', r.error.message || r.error);
+      return null;
+    }
+    const out = String(r.stdout || '').trim();
+    if (!out) {
+      console.log(
+        '[preview-gateway] force-login empty stdout status=',
+        r.status,
+        'stderr=',
+        String(r.stderr || '').slice(0, 400)
+      );
+      return null;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(out);
+    } catch (_e) {
+      console.log('[preview-gateway] force-login bad JSON:', out.slice(0, 200));
+      return null;
+    }
+    if (parsed && parsed.ok && parsed.body) return parsed;
+    console.log(
+      '[preview-gateway] force-login declined:',
+      parsed && parsed.body && (parsed.body.error || parsed.body.message)
+    );
+    return null;
+  } catch (err) {
+    console.log('[preview-gateway] force-login exception:', err && err.message ? err.message : err);
+    return null;
+  }
+}
+
+function sendForcedLogin(res, req, forced) {
+  const buf = Buffer.from(JSON.stringify(forced.body), 'utf8');
+  const outHeaders = {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': String(buf.length),
+    'access-control-allow-origin': req.headers.origin || '*',
+    'access-control-allow-credentials': 'true',
+    'cache-control': 'no-store',
+  };
+  res.writeHead(200, outHeaders);
+  res.end(buf);
 }
 
 function buildLoginUpstreamPaths(originalPath) {
@@ -471,6 +538,41 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
           if (status === 404 && canFallback) {
             up.resume();
             return serveStatic(req, res);
+          }
+
+          const isLogin = isLoginApiRequest(method, pathOnly);
+          // Express may reject demo admin/admin123 with 400 before preview-safety recovery.
+          // Mint JWT at the gateway so login works regardless of inject order.
+          if (
+            isLogin &&
+            (status === 400 || status === 401 || status === 403 || status === 422)
+          ) {
+            const errChunks = [];
+            up.on('data', (c) => errChunks.push(c));
+            up.on('end', () => {
+              const forced = tryGatewayForceLogin(body);
+              if (forced) {
+                console.log(
+                  '[preview-gateway] login force OK after upstream',
+                  status,
+                  'on',
+                  tryPath
+                );
+                return sendForcedLogin(res, req, forced);
+              }
+              const errBuf = Buffer.concat(errChunks);
+              const outHeaders = { ...up.headers };
+              outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+              outHeaders['access-control-allow-credentials'] = 'true';
+              outHeaders['content-length'] = String(errBuf.length);
+              delete outHeaders['transfer-encoding'];
+              res.writeHead(status, outHeaders);
+              res.end(errBuf);
+            });
+            up.on('error', () => {
+              if (!res.headersSent) jsonError(res, 502, 'Upstream response error');
+            });
+            return;
           }
 
           const upType = String(up.headers['content-type'] || '').toLowerCase();

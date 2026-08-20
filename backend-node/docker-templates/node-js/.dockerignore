@@ -9,6 +9,7 @@
 !preview-mongo-preload.cjs
 !preview-ensure-inject.cjs
 !preview-gateway.cjs
+!preview-force-login.js
 !preview-patch-frontend-safe-map.cjs
 !preview-ensure-tailwind.cjs
 !preview-fallback

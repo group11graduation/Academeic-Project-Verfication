@@ -706,6 +706,8 @@ start_mern_backend() {
   cd "$ROOT/$backend_rel" || return 1
   echo "[preview] MERN backend in $(pwd)"
   write_mern_backend_env
+  export PREVIEW_BACKEND_CWD="$(pwd)"
+  export BACKEND_CWD="$(pwd)"
 
   # Always install latest preview safety (CORS + universal login) from the image.
   if [ -f /preview-safety.cjs ]; then
