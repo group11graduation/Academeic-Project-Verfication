@@ -52,13 +52,22 @@ function sv_preview_docroots(): array
 $docroots = sv_preview_docroots();
 $docroot = $docroots[0];
 foreach ($docroots as $candidateRoot) {
-    if (
-        is_file($candidateRoot . '/index.php') ||
-        is_file($candidateRoot . '/login.php') ||
-        is_file($candidateRoot . '/auth/login.php')
-    ) {
+    // Prefer nested apps with admin login (TMS: /tms/admin/index.php).
+    if (is_file($candidateRoot . '/admin/index.php') || is_file($candidateRoot . '/admin/login.php')) {
         $docroot = $candidateRoot;
         break;
+    }
+}
+if ($docroot === $docroots[0]) {
+    foreach ($docroots as $candidateRoot) {
+        if (
+            is_file($candidateRoot . '/index.php') ||
+            is_file($candidateRoot . '/login.php') ||
+            is_file($candidateRoot . '/auth/login.php')
+        ) {
+            $docroot = $candidateRoot;
+            break;
+        }
     }
 }
 
@@ -84,59 +93,87 @@ if ($seedPass === $mysqlPass || $seedPass === 'preview-root') {
 function sv_detect_password_mode(string $docroot): string
 {
     $forced = strtolower(trim((string) getenv('PREVIEW_PASSWORD_MODE')));
-    if (in_array($forced, ['bcrypt', 'md5', 'sha1', 'plain', 'auto'], true)) {
-        return $forced === 'auto' ? '' : $forced;
+    if (in_array($forced, ['bcrypt', 'md5', 'sha1', 'plain'], true)) {
+        return $forced;
     }
+    // 'auto' / empty → inspect login PHP below
 
+    // Prefer real login endpoints first. Do NOT merge signup/register (often bcrypt) with
+    // admin login (often md5) — that wrongly seeds bcrypt into TMS admin.Password.
     $candidates = [
+        $docroot . '/admin/index.php',
+        $docroot . '/admin/login.php',
         $docroot . '/auth/login.php',
         $docroot . '/login.php',
         $docroot . '/index.php',
-        $docroot . '/admin/login.php',
-        $docroot . '/admin/index.php',
         $docroot . '/user/login.php',
         $docroot . '/pages/login.php',
         $docroot . '/signin.php',
         $docroot . '/includes/login.php',
+        $docroot . '/includes/signin.php',
     ];
     foreach (['auth', 'admin', 'user', 'pages', 'includes'] as $subdir) {
-        foreach (['login.php', 'signin.php', 'authenticate.php'] as $file) {
+        foreach (['login.php', 'signin.php', 'authenticate.php', 'index.php'] as $file) {
             $extra = $docroot . '/' . $subdir . '/' . $file;
             if (is_file($extra)) {
                 $candidates[] = $extra;
             }
         }
     }
-    // Also scan sibling docroots (nested hostel app).
     foreach (sv_preview_docroots() as $root) {
-        $candidates[] = $root . '/index.php';
+        $candidates[] = $root . '/admin/index.php';
+        $candidates[] = $root . '/admin/login.php';
         $candidates[] = $root . '/login.php';
         $candidates[] = $root . '/auth/login.php';
-        $candidates[] = $root . '/admin/login.php';
+        $candidates[] = $root . '/includes/signin.php';
     }
 
-    $blob = '';
+    $score_file = static function (string $src): ?string {
+        if ($src === '') {
+            return null;
+        }
+        // Same-file auth: md5($_POST['password']) / Password=md5(...) wins over password_verify
+        // elsewhere in the project (e.g. modern signup pages).
+        if (preg_match('/\bmd5\s*\(\s*\$_(POST|REQUEST|GET)\s*\[/i', $src)
+            || preg_match('/Password\s*=\s*md5\s*\(/i', $src)
+            || preg_match('/md5\s*\(\s*\$(password|pass|pwd)/i', $src)
+        ) {
+            return 'md5';
+        }
+        if (preg_match('/\bsha1\s*\(\s*\$_(POST|REQUEST|GET)\s*\[/i', $src)
+            || preg_match('/sha1\s*\(\s*\$(password|pass|pwd)/i', $src)
+        ) {
+            return 'sha1';
+        }
+        if (preg_match('/password_verify\s*\(/i', $src)) {
+            return 'bcrypt';
+        }
+        if (preg_match('/\bmd5\s*\(/i', $src) && preg_match('/Invalid Details|UserName|password/i', $src)) {
+            return 'md5';
+        }
+        if (preg_match('/\bmd5\s*\(/i', $src)) {
+            return 'md5';
+        }
+        if (preg_match('/\bsha1\s*\(/i', $src)) {
+            return 'sha1';
+        }
+        if (preg_match('/\[[\'"]password[\'"]\]\s*===?\s*\$|\$\w+\s*===?\s*\$_POST\[[\'"]password[\'"]\]/i', $src)) {
+            return 'plain';
+        }
+        if (preg_match('/Invalid Details/i', $src) && preg_match('/UserName|Password/i', $src)) {
+            return 'md5';
+        }
+        return null;
+    };
+
     foreach (array_unique($candidates) as $file) {
         if (!is_file($file)) {
             continue;
         }
-        $blob .= "\n" . @file_get_contents($file);
-    }
-    if ($blob === '') {
-        return 'bcrypt';
-    }
-    if (preg_match('/password_verify\s*\(/i', $blob)) {
-        return 'bcrypt';
-    }
-    if (preg_match('/\bmd5\s*\(/i', $blob) && !preg_match('/password_verify\s*\(/i', $blob)) {
-        return 'md5';
-    }
-    if (preg_match('/\bsha1\s*\(/i', $blob) && !preg_match('/password_verify\s*\(/i', $blob)) {
-        return 'sha1';
-    }
-    // Plain compare: $row['password'] === $password / == $_POST['password']
-    if (preg_match('/\[[\'"]password[\'"]\]\s*===?\s*\$|\$\w+\s*===?\s*\$_POST\[[\'"]password[\'"]\]/i', $blob)) {
-        return 'plain';
+        $mode = $score_file((string) @file_get_contents($file));
+        if ($mode !== null) {
+            return $mode;
+        }
     }
     return 'bcrypt';
 }
@@ -248,7 +285,7 @@ function sv_default_for_column(array $colMeta, string $colName, string $seedUser
         return null;
     }
 
-    if (in_array($name, ['username', 'user_name', 'user', 'login', 'admin_username', 'name'], true)) {
+    if (in_array($name, ['username', 'user_name', 'user', 'login', 'admin_username', 'uname', 'name'], true)) {
         return $seedUser;
     }
     if (in_array($name, ['password', 'pass', 'pwd', 'user_password', 'passwd', 'user_pass'], true)) {
@@ -303,16 +340,16 @@ if (!$pdo) {
 
 $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
 $priority = [
+    'admin',
+    'admins',
+    'tbl_admin',
+    'admin_users',
     'userregistration',
     'user_registration',
     'registration',
     'users',
     'user',
-    'admins',
-    'admin',
     'tbl_users',
-    'tbl_admin',
-    'admin_users',
     'login',
     'accounts',
     'staff',
@@ -350,6 +387,7 @@ foreach ($candidates as $table) {
 
     $userCol = sv_pick_column($cols, [
         'username',
+        'UserName',
         'user_name',
         'user',
         'login',
@@ -365,6 +403,7 @@ foreach ($candidates as $table) {
     $passCol = sv_pick_column($cols, [
         'password_hash',
         'password',
+        'Password',
         'pass',
         'pwd',
         'user_password',
@@ -403,6 +442,11 @@ foreach ($candidates as $table) {
     }
     if (preg_match('/reg|student/i', $userCol) && strpos($seedUser, '@') !== false) {
         $identityValue = preg_replace('/@.*/', '', $seedUser) ?: 'previewadmin';
+    }
+    // TMS / CodeCanyon admin tables almost always log in as UserName=admin (not previewadmin).
+    if (preg_match('/^admin/i', (string) $table) && preg_match('/previewadmin|admin@preview/i', $seedUser)) {
+        $identityValue = 'admin';
+        sv_log('admin-table detected — seeding identity as admin (TMS-style)');
     }
 
     // Sample existing hash to refine mode when auto.
@@ -563,9 +607,8 @@ foreach ($candidates as $table) {
             sv_log('inserted user into ' . $table . ' columns=' . implode(',', $colNames));
         }
 
-        // Also refresh password on classic admin row so project default login still works
-        // when teachers use admin/Admin@123 from setup scripts.
-        if (strcasecmp($seedUser, 'admin') !== 0 && getenv('PREVIEW_SEED_ALSO_RESET_ADMIN') === '1') {
+        // Also ensure classic admin row exists + password matches seed (TMS login is UserName=admin).
+        if (strcasecmp((string) $identityValue, 'admin') !== 0 && getenv('PREVIEW_SEED_ALSO_RESET_ADMIN') === '1') {
             foreach (['admin', 'Admin', 'administrator'] as $adminName) {
                 $stmt = $pdo->prepare(
                     'SELECT `' . $userCol . '` FROM `' . $safeTable . '` WHERE `' . $userCol . '` = ? LIMIT 1'
@@ -576,6 +619,31 @@ foreach ($candidates as $table) {
                         'UPDATE `' . $safeTable . '` SET `' . $passCol . '` = ? WHERE `' . $userCol . '` = ?'
                     )->execute([$hash, $adminName]);
                     sv_log('also reset password for ' . $adminName . ' row');
+                } elseif (preg_match('/^admin/i', (string) $table)) {
+                    try {
+                        $adminFields = [$userCol => $adminName, $passCol => $hash];
+                        if ($emailCol) {
+                            $adminFields[$emailCol] = 'admin@preview.local';
+                        }
+                        if ($roleCol) {
+                            $adminFields[$roleCol] = 'admin';
+                        }
+                        if ($statusCol) {
+                            $adminFields[$statusCol] = isset($colMeta[strtolower($statusCol)]['Type']) &&
+                                preg_match('/int|bit/i', $colMeta[strtolower($statusCol)]['Type'])
+                                ? '1'
+                                : 'active';
+                        }
+                        $cols = array_keys($adminFields);
+                        $pdo->prepare(
+                            'INSERT INTO `' . $safeTable . '` (`' . implode('`,`', $cols) . '`) VALUES (' .
+                            implode(',', array_fill(0, count($cols), '?')) . ')'
+                        )->execute(array_values($adminFields));
+                        sv_log('also inserted ' . $adminName . ' into ' . $table);
+                        break;
+                    } catch (Throwable $e) {
+                        sv_log('admin insert skipped: ' . $e->getMessage());
+                    }
                 }
             }
             if ($emailCol) {

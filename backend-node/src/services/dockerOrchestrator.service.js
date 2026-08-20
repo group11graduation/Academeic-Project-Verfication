@@ -2867,7 +2867,8 @@ export async function deployProjectPreview(projectId, projectPath, options = {})
       PREVIEW_ADMIN_PASSWORD: safeSeedPass,
       DEFAULT_ADMIN_USERNAME: seedUser,
       DEFAULT_ADMIN_PASSWORD: safeSeedPass,
-      PREVIEW_PASSWORD_MODE: stack === 'laravel-react-mysql' ? 'auto' : 'bcrypt',
+      // Detect md5/bcrypt/sha1 from login PHP (TMS uses md5; modern apps use password_verify).
+      PREVIEW_PASSWORD_MODE: 'auto',
       // Keep classic admin rows usable with the same password we show teachers.
       PREVIEW_SEED_ALSO_RESET_ADMIN: '1',
     };
