@@ -93,6 +93,7 @@ if ($__svAppRoot && is_dir($__svAppRoot)) {
 /**
  * If admin expects includes/config.php but the ZIP stores DB config elsewhere,
  * write a tiny shim once (TMS and similar CodeCanyon layouts).
+ * Always falls back to /preview-generated-config.php so $dbh exists.
  */
 function __sv_preview_ensure_config_shim($appRoot)
 {
@@ -101,10 +102,18 @@ function __sv_preview_ensure_config_shim($appRoot)
         return;
     }
     $done = true;
+    $generated = '/preview-generated-config.php';
     $shim = rtrim($appRoot, '/') . '/includes/config.php';
-    if (is_file($shim)) {
+
+    $best = null;
+    if (is_file($shim) && filesize($shim) > 20) {
+        // Student file exists — still ensure generated is loadable as backup via include_path.
+        if (is_file($generated)) {
+            @set_include_path(dirname($generated) . PATH_SEPARATOR . get_include_path());
+        }
         return;
     }
+
     $names = [
         'config.php',
         'dbconnection.php',
@@ -115,7 +124,6 @@ function __sv_preview_ensure_config_shim($appRoot)
         'conn.php',
     ];
     $dirs = ['includes', 'include', 'config', 'inc', 'lib', 'admin/includes', ''];
-    $best = null;
     foreach ($dirs as $dir) {
         foreach ($names as $name) {
             $p = rtrim($appRoot, '/') . ($dir !== '' ? '/' . $dir : '') . '/' . $name;
@@ -134,7 +142,6 @@ function __sv_preview_ensure_config_shim($appRoot)
         }
     }
     if (!$best) {
-        // Walk a bit for any DB-looking config under the app root.
         try {
             $it = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($appRoot, FilesystemIterator::SKIP_DOTS)
@@ -164,17 +171,50 @@ function __sv_preview_ensure_config_shim($appRoot)
             /* ignore */
         }
     }
+
+    if (!$best && is_file($generated)) {
+        $best = $generated;
+    }
     if (!$best) {
         return;
     }
+
     $dir = dirname($shim);
     if (!is_dir($dir)) {
         @mkdir($dir, 0755, true);
     }
-    @file_put_contents(
-        $shim,
-        "<?php\n/* ScholarVerify preview config shim */\nrequire_once " . var_export($best, true) . ";\n"
-    );
+    $code =
+        "<?php\n/* ScholarVerify preview config shim */\n" .
+        "if (is_file(" . var_export($best, true) . ")) {\n" .
+        "  require_once " . var_export($best, true) . ";\n" .
+        "} elseif (is_file('/preview-generated-config.php')) {\n" .
+        "  require_once '/preview-generated-config.php';\n" .
+        "}\n";
+    $written = @file_put_contents($shim, $code);
+    if ($written === false && is_file($generated)) {
+        // Mount may be read-only — rewrite the current script's include to the generated config.
+        $script = isset($_SERVER['SCRIPT_FILENAME']) ? (string) $_SERVER['SCRIPT_FILENAME'] : '';
+        if ($script !== '' && is_file($script) && is_writable($script)) {
+            $body = @file_get_contents($script);
+            if (is_string($body) && preg_match('/includes\/config\.php/', $body) && strpos($body, '/preview-generated-config.php') === false) {
+                $body2 = preg_replace(
+                    '/(include_once|require_once|include|require)\s*\(\s*__DIR__\s*\.\s*[\'"]\/\.\.\/includes\/config\.php[\'"]\s*\)\s*;/i',
+                    "require_once '/preview-generated-config.php';",
+                    $body,
+                    1
+                );
+                $body2 = preg_replace(
+                    '/(include_once|require_once|include|require)\s*\(\s*[\'"]includes\/config\.php[\'"]\s*\)\s*;/i',
+                    "require_once '/preview-generated-config.php';",
+                    $body2,
+                    1
+                );
+                if ($body2 && $body2 !== $body) {
+                    @file_put_contents($script, $body2);
+                }
+            }
+        }
+    }
 }
 
 if (!empty($__svAppRoot)) {

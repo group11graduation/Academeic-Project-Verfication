@@ -379,6 +379,10 @@ async function stagePreviewBaseBuildDir(templateDirName) {
     if (fsSync.existsSync(phpSeedSrc)) {
       await fs.copyFile(phpSeedSrc, path.join(stageDir, 'preview-seed-admin.php'));
     }
+    const phpGenCfg = path.join(templateDir, 'preview-generated-config.php');
+    if (fsSync.existsSync(phpGenCfg)) {
+      await fs.copyFile(phpGenCfg, path.join(stageDir, 'preview-generated-config.php'));
+    }
     const laravelSeedSrc = path.join(templateDir, 'preview-seed-laravel.php');
     if (fsSync.existsSync(laravelSeedSrc)) {
       await fs.copyFile(laravelSeedSrc, path.join(stageDir, 'preview-seed-laravel.php'));
@@ -967,6 +971,8 @@ async function ensurePreviewPhpBaseImage({ forceRebuild = false } = {}) {
   const contentHash = await previewTemplateContentHash('php-apache', [
     path.join(phpTemplateDir, 'preview-bootstrap.php'),
     path.join(phpTemplateDir, 'preview-seed-admin.php'),
+    path.join(phpTemplateDir, 'preview-generated-config.php'),
+    path.join(phpTemplateDir, 'entrypoint.sh'),
   ]);
   const hadExistingImage = await dockerImageExists(imageTag);
   if (!forceRebuild && hadExistingImage) {
@@ -1915,6 +1921,7 @@ async function runPreviewContainer({
     const phpOverlayFiles = [
       ['preview-bootstrap.php', '/preview-bootstrap.php'],
       ['preview-seed-admin.php', '/preview-seed-admin.php'],
+      ['preview-generated-config.php', '/preview-generated-config.php'],
       ['preview-seed-laravel.php', '/preview-seed-laravel.php'],
       ['preview-patch-laravel-auth.php', '/preview-patch-laravel-auth.php'],
       ['preview-sv-login.php', '/preview-sv-login.php'],

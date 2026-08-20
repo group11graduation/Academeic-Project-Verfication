@@ -147,16 +147,23 @@ ensure_config_include_shims() {
       } catch (Throwable \$e) { /* ignore */ }
     }
     \$candidates = array_values(array_unique(\$candidates));
+    \$generated = '/preview-generated-config.php';
+    if (!\$candidates && is_file(\$generated)) {
+      \$candidates[] = \$generated;
+    }
     if (!\$candidates) {
       fwrite(STDERR, '[preview] WARN: no DB config.php candidate found under project' . PHP_EOL);
       exit(0);
     }
 
-    // Prefer classic includes/config.php if present; else first candidate.
+    // Prefer classic includes/config.php if present; else generated; else first candidate.
     \$best = \$candidates[0];
     foreach (\$candidates as \$p) {
       if (preg_match('#/includes/config\\.php\$#i', \$p)) { \$best = \$p; break; }
       if (preg_match('#/include/config\\.php\$#i', \$p)) { \$best = \$p; }
+    }
+    if (\$best !== \$generated && is_file(\$generated)) {
+      // Keep generated as ultimate fallback inside shim.
     }
     echo '[preview] DB config source → ' . \$best . PHP_EOL;
 
@@ -171,23 +178,47 @@ ensure_config_include_shims() {
     }
 
     foreach (array_unique(\$shimTargets) as \$shim) {
-      if (is_file(\$shim)) {
-        // Already exists — leave student file alone unless it is an empty stub we wrote.
+      if (is_file(\$shim) && filesize(\$shim) > 40 && strpos((string)@file_get_contents(\$shim), 'ScholarVerify preview config shim') === false) {
+        // Real student config — leave alone.
         continue;
       }
       \$dir = dirname(\$shim);
       if (!is_dir(\$dir)) {
         @mkdir(\$dir, 0755, true);
       }
-      // If shim path resolves to the same file as best, skip.
-      if (realpath(\$dir) && realpath(\$best) && realpath(\$dir) === dirname(realpath(\$best))
-          && basename(\$shim) === basename(\$best)) {
-        continue;
-      }
       \$code = \"<?php\\n/* ScholarVerify preview config shim */\\n\"
-        . \"require_once \" . var_export(\$best, true) . \";\\n\";
+        . \"if (is_file(\" . var_export(\$best, true) . \")) { require_once \" . var_export(\$best, true) . \"; }\\n\"
+        . \"elseif (is_file('/preview-generated-config.php')) { require_once '/preview-generated-config.php'; }\\n\";
       if (@file_put_contents(\$shim, \$code) !== false) {
         echo '[preview] wrote config shim → ' . \$shim . PHP_EOL;
+      }
+    }
+
+    // Rewrite broken admin includes that point at missing ../includes/config.php
+    foreach (array_unique(\$roots) as \$base) {
+      if (!\$base || !is_dir(\$base . '/admin')) continue;
+      foreach (glob(\$base . '/admin/*.php') ?: [] as \$f) {
+        \$body = @file_get_contents(\$f);
+        if (!is_string(\$body) || \$body === '') continue;
+        if (strpos(\$body, '/preview-generated-config.php') !== false) continue;
+        if (!preg_match('/includes\\/config\\.php/', \$body)) continue;
+        \$next = preg_replace(
+          '/(include_once|require_once|include|require)\\s*\\(\\s*__DIR__\\s*\\.\\s*[\'\"]\\/\\.\\.\\/includes\\/config\\.php[\'\"]\\s*\\)\\s*;/i',
+          \"require_once '/preview-generated-config.php';\",
+          \$body,
+          1
+        );
+        \$next = preg_replace(
+          '/(include_once|require_once|include|require)\\s*\\(\\s*[\'\"]includes\\/config\\.php[\'\"]\\s*\\)\\s*;/i',
+          \"require_once '/preview-generated-config.php';\",
+          \$next,
+          1
+        );
+        if (is_string(\$next) && \$next !== \$body) {
+          if (@file_put_contents(\$f, \$next) !== false) {
+            echo '[preview] rewrote config include in ' . basename(\$f) . PHP_EOL;
+          }
+        }
       }
     }
   " || true

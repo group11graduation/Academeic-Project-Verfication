@@ -29,8 +29,9 @@ WORKDIR /var/www/html
 # Student project is bind-mounted at /var/www/html at container start.
 COPY preview-bootstrap.php /preview-bootstrap.php
 COPY preview-seed-admin.php /preview-seed-admin.php
+COPY preview-generated-config.php /preview-generated-config.php
 COPY entrypoint.sh /preview-entrypoint.sh
-RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh
+RUN sed -i 's/\r$//' /preview-entrypoint.sh && chmod +x /preview-entrypoint.sh /preview-bootstrap.php /preview-seed-admin.php /preview-generated-config.php
 
 EXPOSE 80
 ENTRYPOINT ["/preview-entrypoint.sh"]

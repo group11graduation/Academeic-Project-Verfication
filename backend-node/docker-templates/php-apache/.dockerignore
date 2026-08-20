@@ -1,3 +1,5 @@
 *
 !entrypoint.sh
 !preview-bootstrap.php
+!preview-seed-admin.php
+!preview-generated-config.php
