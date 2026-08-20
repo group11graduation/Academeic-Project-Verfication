@@ -46,6 +46,7 @@ import {
   createNotification,
 } from './notification.service.js';
 import { User } from '../models/User.js';
+import { logger } from '../config/logger.js';
 
 const AI_SAME_SEMESTER_MAX_CANDIDATES = Number(process.env.AI_SAME_SEMESTER_MAX_CANDIDATES || 40);
 const AI_LEGACY_MAX_CANDIDATES = Number(process.env.AI_LEGACY_MAX_CANDIDATES || 40);
@@ -53,6 +54,9 @@ const AI_MAX_TEXT_CHARS = Number(process.env.AI_MAX_TEXT_CHARS || 3500);
 const AI_CROSS_SEMESTER_SCOPE = String(process.env.AI_CROSS_SEMESTER_SCOPE || 'subject').toLowerCase();
 /** `subject` = all classes same subject+semester (default). `subject_class` = shared class only. */
 const AI_SAME_SEMESTER_SCOPE = String(process.env.AI_SAME_SEMESTER_SCOPE || 'subject').toLowerCase();
+/** Soften older AI services that still hard-reject around 55–80% on common topics. */
+const AI_SAME_SEMESTER_HARD_REJECT = Number(process.env.AI_SAME_SEMESTER_HARD_REJECT || 0.85);
+const AI_SAME_SEMESTER_SOFT_FLAG = Number(process.env.AI_SAME_SEMESTER_SOFT_FLAG || 0.72);
 
 function buildProposalText(title, description, features) {
   const f = Array.isArray(features) ? features.filter(Boolean).join(', ') : '';
@@ -816,7 +820,14 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       features: proposal.features,
     });
 
-    if (finalize && previousSnapshot.status !== 'draft' && unchangedComparedToPrevious) {
+    // After AI logic updates (or false rejects), students must be able to re-check
+    // without editing text. Skip the "unchanged" short-circuit for AI outcomes.
+    const alwaysReanalyzeAi = [
+      'ai_rejected_same_semester',
+      'ai_flagged_previous_semester',
+    ].includes(previousSnapshot.status);
+
+    if (finalize && previousSnapshot.status !== 'draft' && unchangedComparedToPrevious && !alwaysReanalyzeAi) {
       if (previousSnapshot.status === 'requirements_rejected') {
         const err = new Error(
           'Your updated proposal still does not meet teacher requirements. Change the title, description, or features so they clearly address the assignment (full sentences, required technologies in context), then submit again.'
@@ -1033,7 +1044,8 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       $in: [
         'submitted',
         'ai_flagged_previous_semester',
-        'ai_rejected_same_semester',
+        // Do not use other auto-rejected drafts as plagiarism anchors — one false
+        // reject used to poison every later library/hostel-style proposal.
         'revision_required',
         'pending_teacher_approval',
         'teacher_approved',
@@ -1153,11 +1165,41 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   proposal.aiSummary = aiResult.summary || '';
   proposal.submittedAt = new Date();
 
-  const verdict = aiResult.verdict;
+  const verdictRaw = String(aiResult.verdict || 'ok');
+  const sameScore = Number(aiResult.same_semester_max) || 0;
+  let verdict = verdictRaw;
+  // Safety net: even if Python still returns reject_same_semester at ~60–80%,
+  // only hard-block near-copies. Soft overlaps go to the teacher.
+  if (verdict === 'reject_same_semester' && sameScore < AI_SAME_SEMESTER_HARD_REJECT) {
+    verdict = sameScore >= AI_SAME_SEMESTER_SOFT_FLAG ? 'flag_same_semester' : 'ok';
+    logger.info(
+      `Softened same-semester AI verdict ${verdictRaw}→${verdict} (score=${sameScore.toFixed(3)})`
+    );
+  }
+
+  let recommendation = null;
+  let suggestedFeatures = [];
+
+  const matchedPeer = sameSemesterOthers.find((p) => String(p._id) === matchedSameSemesterId);
+  const peerTitle = matchedPeer?.title ? String(matchedPeer.title).trim() : '';
+  const samePct = Math.round(sameScore * 100);
 
   if (verdict === 'reject_same_semester') {
     proposal.status = 'ai_rejected_same_semester';
     proposal.requiredNewFeaturesCount = 0;
+    recommendation = peerTitle
+      ? `Too similar to another project this semester (“${peerTitle}”, ~${samePct}% overlap). This looks like a near-copy — change the core idea.`
+      : `Too similar to another project this semester (~${samePct}% overlap). This looks like a near-copy — change the core idea.`;
+    proposal.aiRecommendationText = recommendation;
+  } else if (verdict === 'flag_same_semester') {
+    proposal.status = 'pending_teacher_approval';
+    proposal.requiredNewFeaturesCount = 0;
+    proposal.previousFeaturesAtFlag = [];
+    proposal.collaborativeTeacherReviews = { frontend: {}, backend: {} };
+    recommendation = peerTitle
+      ? `Possible same-semester overlap with “${peerTitle}” (~${samePct}%). Your proposal was sent to the teacher for review — you are not blocked.`
+      : `Possible same-semester overlap (~${samePct}%). Your proposal was sent to the teacher for review — you are not blocked.`;
+    proposal.aiRecommendationText = recommendation;
   } else if (verdict === 'warn_previous_semester') {
     proposal.status = 'ai_flagged_previous_semester';
     proposal.requiredNewFeaturesCount = Math.max(2, proposal.requiredNewFeaturesCount || 0);
@@ -1174,9 +1216,6 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     proposal.collaborativeTeacherReviews = { frontend: {}, backend: {} };
   }
 
-  let recommendation = null;
-  let suggestedFeatures = [];
-
   if (verdict === 'warn_previous_semester') {
     const matchedKey = String(aiResult.matched_legacy_id || '').trim();
     const built = buildMissingFeatureRecommendation({
@@ -1190,7 +1229,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     suggestedFeatures = built.suggestedFeatures;
     proposal.aiRecommendationText = built.text;
     proposal.aiSuggestedFeatures = built.suggestedFeatures;
-  } else {
+  } else if (verdict !== 'reject_same_semester' && verdict !== 'flag_same_semester') {
     proposal.aiRecommendationText = '';
     proposal.aiSuggestedFeatures = [];
   }
@@ -1230,7 +1269,11 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     parsed: parsedFromFile,
     message:
       verdict === 'reject_same_semester'
-        ? 'This proposal is too similar to another project in your current semester. Please change the idea, description, and features.'
+        ? recommendation ||
+          'This proposal is too similar to another project in your current semester. Please change the idea, description, and features.'
+        : verdict === 'flag_same_semester'
+          ? recommendation ||
+            'Possible same-semester overlap. Your proposal was sent to the teacher for review.'
         : verdict === 'warn_previous_semester'
           ? 'This idea resembles an approved project from a previous semester. You can optionally add new features to strengthen originality before teacher review.'
           : proposal.status === 'requirements_review'

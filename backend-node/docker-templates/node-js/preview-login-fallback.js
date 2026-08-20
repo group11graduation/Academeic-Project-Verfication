@@ -7,7 +7,13 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V39:
+ * Marker V40:
+ * - Never trust gateway __SV_ADMIN_HOME_PATH__ unless that route exists in the bundle.
+ *   Prefer scanned routes (/dashboard, /admin, …) over a guessed /admin/dashboard.
+ * - Stop putting ?__sv_r= on history/React Router URLs (causes "No routes matched").
+ *   Cache-bust remounts use sessionStorage + location.reload instead.
+ * - Auto-recover when React Router logs "No routes matched location".
+ * V39:
  * - Some apps recover auth on a weak route like `/admin`, which can be a blank shell.
  *   Prefer a concrete admin destination such as `/admin/dashboard` and retry alternate
  *   admin paths if `#root` stays blank after intercepting a login redirect.
@@ -21,13 +27,11 @@
  * - Block /login redirects on admin routes whenever a token exists (not only 45s grace).
  * V36:
  * - White page root fix: NEVER rewrite history to /login during grace — always stay path.
- * - forceAdminRemount uses ?__sv_r= cache-bust replace (same-path reload is a no-op).
  * - Soft-succeed ANY API 401 during post-login grace (after one retry) so ProtectedRoute
  *   never fires <Navigate to="/login"/> in the first place.
  * V35:
  * - White page: hard-nav to the SAME /admin/dashboard URL is a no-op in browsers, so
- *   React <Navigate/> stayed null forever. Always reload (or ?__sv_r= bust) when dest
- *   matches current path; allow history.replaceState(/login) then hard-reload away.
+ *   React <Navigate/> stayed null forever. Always reload when dest matches current path.
  * V34:
  * - White page fix: do NOT no-op history.replaceState(/login) — that leaves React
  *   <Navigate/> stuck returning null. Rewrite login navigations to the admin stay
@@ -93,10 +97,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V39__) {
-    console.log('[DEBUG-SHIM] already installed V39 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V40__) {
+    console.log('[DEBUG-SHIM] already installed V40 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V40__ = true;
   window.__SV_LOGIN_FALLBACK_V39__ = true;
   window.__SV_LOGIN_FALLBACK_V38__ = true;
   window.__SV_LOGIN_FALLBACK_V37__ = true;
@@ -131,7 +136,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v39', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v40', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -1155,6 +1160,83 @@
     return appHints.routes.indexOf(path) >= 0 || pageHintHtml().indexOf(path) >= 0;
   }
 
+  /** Pathname only — React Router v6 treats ?__sv_r= as part of the location and fails to match. */
+  function pathnameOnly(url) {
+    var raw = String(url || '').trim();
+    if (!raw) return '/';
+    if (raw.charAt(0) === '/') return raw.split('?')[0].split('#')[0] || '/';
+    try {
+      return new URL(raw, window.location.href).pathname || '/';
+    } catch (_e) {
+      return raw.split('?')[0].split('#')[0] || '/';
+    }
+  }
+
+  function gatewayAdminHomePathRaw() {
+    try {
+      var fromZip = String(window.__SV_ADMIN_HOME_PATH__ || '').trim();
+      if (fromZip && fromZip.charAt(0) === '/') return pathnameOnly(fromZip);
+    } catch (_e) {}
+    return '';
+  }
+
+  function pickBestAdminRouteFromHints() {
+    ensureHintsBeforeLogin();
+    var priority = [];
+    if (isLoanStyleApp()) priority.push('/admin/loans');
+    if (isStaffSetApp()) priority.push('/admin/dashboard');
+    if (isSkyPropertyApp()) priority.push('/dashboard', '/manDash');
+    priority = priority.concat([
+      '/admin/loans',
+      '/admin/dashboard',
+      '/admin/products',
+      '/admin/users',
+      '/admin',
+      '/dashboard',
+      '/manDash',
+      '/portal',
+    ]);
+    var i;
+    for (i = 0; i < priority.length; i++) {
+      if (hasRoute(priority[i])) return priority[i];
+    }
+    for (i = 0; i < appHints.routes.length; i++) {
+      var r = appHints.routes[i];
+      if (/^\/(admin|dashboard|manDash|portal)(\/|$)/i.test(r) || /\/admin\//i.test(r)) return r;
+    }
+    return '';
+  }
+
+  function sanitizeHistoryUrl(url) {
+    if (url == null || url === '') return url;
+    try {
+      var u = new URL(String(url), window.location.href);
+      u.searchParams.delete('__sv_r');
+      var rel = String(url).charAt(0) === '/';
+      if (rel) return u.pathname + u.search + u.hash;
+      return u.toString();
+    } catch (_e) {
+      return String(url)
+        .replace(/([?&])__sv_r=[^&]*/g, '$1')
+        .replace(/[?&]$/, '');
+    }
+  }
+
+  function stripBootSvQuery() {
+    try {
+      var u = new URL(window.location.href);
+      if (!u.searchParams.has('__sv_r')) return;
+      u.searchParams.delete('__sv_r');
+      var clean = u.pathname + (u.search || '') + u.hash;
+      if (window.__svNativeHistoryReplace) {
+        window.__svNativeHistoryReplace(history.state, '', clean);
+      } else {
+        history.replaceState(history.state, '', clean);
+      }
+      console.log('[DEBUG-SHIM] stripped __sv_r from boot URL →', clean);
+    } catch (_e) {}
+  }
+
   /**
    * Sync-scan bundles right before login normalize when async scan has not finished.
    * By login time <script src> tags exist; empty hints were the V12/V13 race.
@@ -1298,10 +1380,11 @@
 
   function defaultAdminHomePath() {
     ensureHintsBeforeLogin();
-    try {
-      var fromZip = String(window.__SV_ADMIN_HOME_PATH__ || '').trim();
-      if (fromZip && fromZip.charAt(0) === '/') return fromZip;
-    } catch (_e) {}
+    var gw = gatewayAdminHomePathRaw();
+    var fromHints = pickBestAdminRouteFromHints();
+    // Gateway often injects /admin/dashboard when the SPA only defines /dashboard.
+    if (gw && hasRoute(gw)) return gw;
+    if (fromHints) return fromHints;
     if (isLoanStyleApp()) return '/admin/loans';
     if (isStaffSetApp()) return '/admin/dashboard';
     if (isSkyPropertyApp()) {
@@ -1324,6 +1407,7 @@
     }
     if (hasRoute('/manDash')) return '/manDash';
     if (hasRoute('/dashboard')) return '/dashboard';
+    if (gw) return gw;
     return '/admin';
   }
 
@@ -2346,15 +2430,21 @@
     ensureHintsBeforeLogin();
     var out = [];
     function push(p) {
-      p = String(p || '').trim();
+      p = pathnameOnly(p);
       if (!p || p.charAt(0) !== '/' || out.indexOf(p) >= 0) return;
       out.push(p);
     }
     try {
       push(defaultAdminHomePath());
     } catch (_e) {}
-    push('/admin/dashboard');
+    var fromHints = pickBestAdminRouteFromHints();
+    if (fromHints) push(fromHints);
+    for (var i = 0; i < appHints.routes.length; i++) {
+      var r = appHints.routes[i];
+      if (/^\/(admin|dashboard|manDash|portal)(\/|$)/i.test(r) || /\/admin\//i.test(r)) push(r);
+    }
     push('/admin/loans');
+    push('/admin/dashboard');
     push('/admin/products');
     push('/admin');
     push('/dashboard');
@@ -2363,34 +2453,31 @@
   }
 
   function nextConcreteAdminPath(currentPath) {
-    var cur = String(currentPath || '').replace(/\?.*$/, '').replace(/\/+$/, '') || '/';
+    var cur = pathnameOnly(currentPath);
     var list = adminPathCandidates();
     for (var i = 0; i < list.length; i++) {
-      var cand = String(list[i] || '').replace(/\/+$/, '') || '/';
+      var cand = pathnameOnly(list[i]);
       if (cand !== cur) return list[i];
     }
-    return list[0] || '/admin/dashboard';
+    return list[0] || '/dashboard';
   }
 
   function pickStayAdminPath() {
-    var stay = String(location.pathname || '');
-    try {
-      var u = new URL(window.location.href);
-      u.searchParams.delete('__sv_r');
-      var qs = u.searchParams.toString();
-      if (qs) stay += '?' + qs;
-    } catch (_e) {
-      stay = String(location.pathname || '') + String(location.search || '').replace(/[?&]__sv_r=[^&]*/g, '');
-      stay = stay.replace(/\?$/, '');
-    }
-    var preferred = typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin/dashboard';
+    var stay = pathnameOnly(location.pathname || '');
+    var preferred = pathnameOnly(
+      typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin'
+    );
     if (!stay || isLoginRedirectTarget(stay)) {
       stay = preferred;
     }
-    if (isWeakAdminPath(stay) && preferred && preferred !== stay) {
+    // Gateway may land on /admin/dashboard when the SPA only has /dashboard.
+    if (stay && preferred && stay !== preferred && !hasRoute(stay) && (hasRoute(preferred) || !appHints.routes.length)) {
       stay = preferred;
     }
-    if (!stay || stay === '/') stay = '/admin/dashboard';
+    if (isWeakAdminPath(stay) && preferred && preferred !== stay && hasRoute(preferred)) {
+      stay = preferred;
+    }
+    if (!stay || stay === '/') stay = preferred || '/admin';
     return stay;
   }
 
@@ -2408,11 +2495,11 @@
   }
 
   /**
-   * Full document navigation with cache-bust — same-path location.replace/reload is a no-op
-   * and leaves React Router stuck on a null <Navigate/> render.
+   * Full document navigation — pathname only (no ?__sv_r=). Same-path uses reload
+   * so React Router always sees a clean location that matches defined routes.
    */
   function forceAdminRemount(stay, force) {
-    var dest = stay || pickStayAdminPath();
+    var dest = pathnameOnly(stay || pickStayAdminPath());
     try {
       var n = parseInt(sessionStorage.getItem('__sv_hard_doc_nav__') || '0', 10);
       if (!force && n >= 5) {
@@ -2427,14 +2514,19 @@
     console.log('[DEBUG-SHIM] force admin remount →', dest, force ? '(forced)' : '');
 
     try {
-      var destUrl = new URL(dest, window.location.href);
-      destUrl.searchParams.set('__sv_r', String(Date.now()));
-      var href = destUrl.toString();
-      if (typeof window.__svNativeLocationReplace === 'function') {
-        window.__svNativeLocationReplace(href);
+      var cur = pathnameOnly(location.pathname || '');
+      if (cur === dest) {
+        try {
+          sessionStorage.setItem('__sv_reload_bust__', String(Date.now()));
+        } catch (_b) {}
+        window.location.reload();
         return;
       }
-      window.location.replace(href);
+      if (typeof window.__svNativeLocationReplace === 'function') {
+        window.__svNativeLocationReplace(dest);
+        return;
+      }
+      window.location.replace(dest);
     } catch (_nav) {
       try {
         window.location.reload();
@@ -2443,7 +2535,7 @@
   }
 
   function unstickNavigateNull(stay) {
-    var dest = stay || pickStayAdminPath();
+    var dest = pathnameOnly(stay || pickStayAdminPath());
     try {
       applyGatewayAuthRole();
       hydratePreviewAuthAfterBounce();
@@ -2498,8 +2590,13 @@
           sessionStorage.setItem('__sv_hard_doc_nav__', '0');
         } catch (_c) {}
         var nextStay = pickStayAdminPath();
-        if (blankFix >= 1 && isWeakAdminPath(nextStay)) {
+        if (blankFix >= 1) {
           nextStay = nextConcreteAdminPath(nextStay);
+        }
+        // Prefer a route that exists in the scanned bundle.
+        if (!hasRoute(pathnameOnly(nextStay))) {
+          var hinted = pickBestAdminRouteFromHints();
+          if (hinted) nextStay = hinted;
         }
         forceAdminRemount(nextStay, true);
       } catch (_w) {}
@@ -2705,8 +2802,9 @@
       window.__svNativeHistoryPush = __svPush;
       window.__svNativeHistoryReplace = __svReplace;
       history.pushState = function (state, title, url) {
+        url = sanitizeHistoryUrl(url);
         if (url != null && shouldSuppressLoginRedirect(url)) {
-          var stay = handleLoginRedirectAttempt(url, 'history.pushState');
+          var stay = pathnameOnly(handleLoginRedirectAttempt(url, 'history.pushState'));
           return __svPush(state, title, stay);
         }
         var r = __svPush(state, title, url);
@@ -2719,8 +2817,9 @@
         return r;
       };
       history.replaceState = function (state, title, url) {
+        url = sanitizeHistoryUrl(url);
         if (url != null && shouldSuppressLoginRedirect(url)) {
-          var stay = handleLoginRedirectAttempt(url, 'history.replaceState');
+          var stay = pathnameOnly(handleLoginRedirectAttempt(url, 'history.replaceState'));
           // Must still call native replace with STAY path — no-op caused white page.
           return __svReplace(state, title, stay);
         }
@@ -2734,6 +2833,50 @@
     installBlankRootWatchdog();
   }
   installLoginRedirectGuards();
+  try {
+    stripBootSvQuery();
+  } catch (_strip) {}
+
+  function installNoRoutesMatchedRecovery() {
+    if (window.__SV_NO_ROUTE_RECOVERY__) return;
+    window.__SV_NO_ROUTE_RECOVERY__ = true;
+    function recoverFromUnmatched(locHint) {
+      try {
+        if (!getStoredAccessToken()) return;
+        var n = parseInt(sessionStorage.getItem('__sv_no_route_fix__') || '0', 10);
+        if (n >= 4) return;
+        sessionStorage.setItem('__sv_no_route_fix__', String(n + 1));
+        ensureHintsBeforeLogin();
+        var cur = pathnameOnly(location.pathname || '');
+        var next = pickBestAdminRouteFromHints() || nextConcreteAdminPath(cur) || '/dashboard';
+        next = pathnameOnly(next);
+        if (next === cur) next = nextConcreteAdminPath(cur);
+        console.warn('[DEBUG-SHIM] No routes matched — recovering', {
+          from: locHint || cur,
+          to: next,
+          attempt: n + 1,
+          routes: (appHints.routes || []).slice(0, 12),
+        });
+        try {
+          sessionStorage.setItem('__sv_hard_doc_nav__', '0');
+        } catch (_c) {}
+        forceAdminRemount(next, true);
+      } catch (_r) {}
+    }
+    try {
+      var origWarn = console.warn.bind(console);
+      console.warn = function () {
+        try {
+          var msg = Array.prototype.slice.call(arguments).join(' ');
+          if (/No routes matched location/i.test(msg)) {
+            recoverFromUnmatched(msg);
+          }
+        } catch (_w) {}
+        return origWarn.apply(console, arguments);
+      };
+    } catch (_hook) {}
+  }
+  installNoRoutesMatchedRecovery();
 
   function installBootAdminRecovery() {
     if (window.__SV_BOOT_ADMIN_RECOVERY__) return;

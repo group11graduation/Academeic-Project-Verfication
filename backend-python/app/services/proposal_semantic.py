@@ -27,7 +27,10 @@ from app.services.proposal_service import filter_proposal_peers
 
 logger = logging.getLogger(__name__)
 
-SAME_SEMESTER_REJECT = float(os.getenv("AI_SAME_SEMESTER_REJECT", "0.55"))
+SAME_SEMESTER_REJECT = float(os.getenv("AI_SAME_SEMESTER_REJECT", "0.85"))
+# Below hard-reject but above this → teacher review (do not block the student).
+# Common topics (library / hostel / school CRUD) often land in 0.55–0.80 without being copies.
+SAME_SEMESTER_FLAG = float(os.getenv("AI_SAME_SEMESTER_FLAG", "0.72"))
 PREVIOUS_SEMESTER_WARN = float(os.getenv("AI_PREVIOUS_SEMESTER_WARN", "0.50"))
 # Previous-semester flags must also clear this MiniLM floor so generic CRUD/auth
 # wording (login, admin, dashboard) cannot alone match unrelated domains
@@ -35,10 +38,17 @@ PREVIOUS_SEMESTER_WARN = float(os.getenv("AI_PREVIOUS_SEMESTER_WARN", "0.50"))
 PREVIOUS_SEMESTER_SBERT_FLOOR = float(
     os.getenv("AI_PREVIOUS_SEMESTER_SBERT_FLOOR", "0.48")
 )
-# Meaningful title-token overlap required for previous-semester warnings.
-# Without this, MiniLM often pairs unrelated CRUD apps (Finance Org vs Building Mgmt)
-# at 0.80+ because both say "management system / admin / login".
-LEGACY_DOMAIN_TITLE_MIN = float(os.getenv("AI_LEGACY_DOMAIN_TITLE_MIN", "0.15"))
+# Meaningful title-token overlap required before flagging similar ideas.
+# Without this, MiniLM often pairs unrelated CRUD apps (Hostel vs Library,
+# Finance Org vs Building Mgmt) because both say "management system / PHP / MySQL".
+LEGACY_DOMAIN_TITLE_MIN = float(os.getenv("AI_LEGACY_DOMAIN_TITLE_MIN", "0.18"))
+# Same-semester hard reject also requires domain overlap (unless near-verbatim copy).
+SAME_SEMESTER_DOMAIN_MIN = float(
+    os.getenv("AI_SAME_SEMESTER_DOMAIN_MIN", str(LEGACY_DOMAIN_TITLE_MIN))
+)
+# Lexical floor that still rejects even when titles use different domain words
+# (student renames title but pastes the same description).
+SAME_SEMESTER_NEAR_COPY_LEX = float(os.getenv("AI_SAME_SEMESTER_NEAR_COPY_LEX", "0.82"))
 USE_TFIDF_FALLBACK = os.getenv("USE_TFIDF_FALLBACK", "false").lower() in ("1", "true", "yes")
 # Always blend TF-IDF / lexical with embeddings so near-copy proposals are caught
 # (MiniLM alone often scored ~0.50–0.55 on near-identical TaskFlow texts).
@@ -115,6 +125,45 @@ _STOP_TITLE = {
     "services",
     "portal",
     "dashboard",
+    # Tech stack in titles must NOT count as domain overlap
+    # (Hostel PHP/MySQL ≠ Library PHP/MySQL).
+    "php",
+    "mysql",
+    "mariadb",
+    "mongodb",
+    "mongo",
+    "postgres",
+    "postgresql",
+    "sqlite",
+    "react",
+    "nodejs",
+    "node",
+    "express",
+    "laravel",
+    "django",
+    "flask",
+    "python",
+    "java",
+    "javascript",
+    "typescript",
+    "html",
+    "css",
+    "bootstrap",
+    "tailwind",
+    "mern",
+    "mean",
+    "jwt",
+    "rest",
+    "restful",
+    "fullstack",
+    "full",
+    "stack",
+    "frontend",
+    "backend",
+    "database",
+    "db",
+    "sql",
+    "nosql",
 }
 
 _st_model = None
@@ -130,8 +179,16 @@ def _strip_generic_webapp_noise(text: str) -> str:
 
 
 def _title_tokens(text: str) -> set[str]:
-    """Rough title tokens from the start of proposal text (title is usually first)."""
-    head = " ".join((text or "").split()[:16])
+    """Domain tokens from the proposal title line only (not description/features)."""
+    first_line = (text or "").split("\n", 1)[0]
+    # Drop trailing tech slogans: "… Using PHP and MySQL"
+    first_line = re.sub(
+        r"\b(?:using|with|built\s+with|based\s+on)\b.*$",
+        " ",
+        first_line,
+        flags=re.IGNORECASE,
+    )
+    head = " ".join(first_line.split()[:24])
     toks = re.findall(r"[a-z0-9]+", head.lower())
     return {t for t in toks if len(t) > 2 and t not in _STOP_TITLE}
 
@@ -144,6 +201,59 @@ def _domain_title_overlap(query: str, doc: str) -> float:
     return len(a & b) / float(max(len(a), len(b)))
 
 
+def _pick_peer_with_domain(
+    query: str,
+    peer_texts: list[str],
+    peer_sims: np.ndarray,
+    *,
+    domain_min: float,
+    score_floor: float,
+    suppress_below: float,
+    label: str,
+) -> tuple[float, int | None]:
+    """
+    Prefer a peer that is both semantically close AND shares domain title tokens.
+    Unrelated topics (Hostel vs Library / BookNest) are suppressed even if MiniLM
+    scores them high due to shared "management system" boilerplate.
+    """
+    if peer_sims.size == 0:
+        return 0.0, None
+
+    order = list(np.argsort(-peer_sims))
+    for idx in order:
+        score = float(peer_sims[idx])
+        if score < score_floor:
+            break
+        domain = _domain_title_overlap(query, peer_texts[int(idx)])
+        if domain >= domain_min:
+            return score, int(idx)
+
+    # Soft pass: allow slightly lower domain only when scores are clearly high
+    # AND at least one real domain token overlaps (not empty intersection).
+    soft_min = max(0.12, domain_min * 0.65)
+    for idx in order[:8]:
+        score = float(peer_sims[idx])
+        if score < max(score_floor, suppress_below):
+            continue
+        domain = _domain_title_overlap(query, peer_texts[int(idx)])
+        a = _title_tokens(query)
+        b = _title_tokens(peer_texts[int(idx)])
+        if domain >= soft_min and (a & b):
+            return score, int(idx)
+
+    top_i = int(order[0])
+    top_score = float(peer_sims[top_i])
+    top_domain = _domain_title_overlap(query, peer_texts[top_i])
+    logger.info(
+        "%s domain_reject top_score=%.3f top_domain=%.3f (min=%.3f) — unrelated topic",
+        label,
+        top_score,
+        top_domain,
+        domain_min,
+    )
+    return min(top_score, suppress_below - 0.02), None
+
+
 def _pick_legacy_with_domain(
     query: str,
     leg_texts: list[str],
@@ -152,44 +262,43 @@ def _pick_legacy_with_domain(
     domain_min: float,
     score_floor: float,
 ) -> tuple[float, int | None]:
-    """
-    Prefer a legacy peer that is both semantically close AND shares domain title tokens.
-    If the SBERT top hit is an unrelated domain (Finance vs Building), skip it.
-    """
-    if leg_sims.size == 0:
-        return 0.0, None
-
-    order = list(np.argsort(-leg_sims))
-    # First pass: peers that clear domain + floor
-    for idx in order:
-        score = float(leg_sims[idx])
-        if score < score_floor:
-            break
-        domain = _domain_title_overlap(query, leg_texts[int(idx)])
-        if domain >= domain_min:
-            return score, int(idx)
-
-    # Second pass: slightly softer domain if SBERT is very high (near-copy titles with filler words)
-    soft_min = max(0.08, domain_min * 0.55)
-    for idx in order[:8]:
-        score = float(leg_sims[idx])
-        if score < max(score_floor, PREVIOUS_SEMESTER_WARN):
-            continue
-        domain = _domain_title_overlap(query, leg_texts[int(idx)])
-        if domain >= soft_min:
-            return score, int(idx)
-
-    # No domain-aligned peer — suppress false previous-semester warnings
-    top_i = int(order[0])
-    top_score = float(leg_sims[top_i])
-    top_domain = _domain_title_overlap(query, leg_texts[top_i])
-    logger.info(
-        "legacy domain_reject top_score=%.3f top_domain=%.3f (min=%.3f) — unrelated topic",
-        top_score,
-        top_domain,
-        domain_min,
+    return _pick_peer_with_domain(
+        query,
+        leg_texts,
+        leg_sims,
+        domain_min=domain_min,
+        score_floor=score_floor,
+        suppress_below=PREVIOUS_SEMESTER_WARN,
+        label="legacy",
     )
-    return min(top_score, PREVIOUS_SEMESTER_WARN - 0.02), None
+
+
+def _same_semester_sims_from_rows(
+    score_rows: list[tuple[float, int | None, float, int | None]],
+    n_same: int,
+) -> np.ndarray:
+    """Build per-peer max score vector across SBERT / TF-IDF / lexical rows."""
+    sims = np.zeros(n_same, dtype=np.float64)
+    if n_same <= 0:
+        return sims
+    for same_max, same_i, _, _ in score_rows:
+        if same_i is None:
+            continue
+        i = int(same_i)
+        if 0 <= i < n_same:
+            sims[i] = max(sims[i], float(same_max))
+    return sims
+
+
+def _lexical_score_for_index(
+    lex_row: tuple[float, int | None, float, int | None] | None,
+    idx: int | None,
+) -> float:
+    if lex_row is None or idx is None:
+        return 0.0
+    if lex_row[1] == idx:
+        return float(lex_row[0])
+    return 0.0
 
 
 def _get_sentence_transformer():
@@ -448,8 +557,49 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
     if not score_rows:
         same_max, same_i, leg_max, leg_i = 0.0, None, 0.0, None
     else:
-        # Same-semester: keep max across scorers (catch near-copies).
-        same_max, same_i, _, _ = _pick_best_dual(score_rows)
+        # Same-semester: require domain title overlap so Hostel ≠ Library / BookNest.
+        # Near-verbatim copies (lexical) still reject even if the title was lightly edited.
+        raw_same_max, raw_same_i, _, _ = _pick_best_dual(score_rows)
+        same_max, same_i = raw_same_max, raw_same_i
+        if same_texts and raw_same_i is not None and raw_same_i < len(same_texts):
+            from difflib import SequenceMatcher
+
+            known = _same_semester_sims_from_rows(score_rows, len(same_texts))
+            best_dom_score = -1.0
+            best_dom_i: int | None = None
+            for i, peer in enumerate(same_texts):
+                if _domain_title_overlap(text, peer) < SAME_SEMESTER_DOMAIN_MIN:
+                    continue
+                sc = float(known[i]) if i < known.size and known[i] > 0 else 0.0
+                if sc <= 0:
+                    peer_lex = same_lex[i] if i < len(same_lex) else peer
+                    sc = float(SequenceMatcher(None, text_lex or text, peer_lex or peer).ratio())
+                # Prefer the hybrid raw score when this peer was the top hit
+                if i == raw_same_i:
+                    sc = max(sc, float(raw_same_max))
+                if sc > best_dom_score:
+                    best_dom_score = sc
+                    best_dom_i = i
+
+            lex_at_raw = _lexical_score_for_index(lex_row, raw_same_i)
+            if best_dom_i is not None:
+                same_max, same_i = best_dom_score, best_dom_i
+            elif lex_at_raw >= SAME_SEMESTER_NEAR_COPY_LEX:
+                logger.info(
+                    "same_semester near_copy lex=%.3f keeps reject despite domain gate",
+                    lex_at_raw,
+                )
+                same_max, same_i = raw_same_max, raw_same_i
+            else:
+                top_domain = _domain_title_overlap(text, same_texts[raw_same_i])
+                logger.info(
+                    "same_semester domain_reject top_score=%.3f top_domain=%.3f (min=%.3f)",
+                    raw_same_max,
+                    top_domain,
+                    SAME_SEMESTER_DOMAIN_MIN,
+                )
+                same_max = min(float(raw_same_max), SAME_SEMESTER_REJECT - 0.02)
+                same_i = None
 
         # Previous-semester: require domain title overlap so Finance ≠ Building Mgmt.
         if legacy_sims is not None and legacy_sims.size:
@@ -502,6 +652,9 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
 
     if same_max >= SAME_SEMESTER_REJECT:
         verdict = "reject_same_semester"
+    elif same_max >= SAME_SEMESTER_FLAG and same_i is not None:
+        # Similar topic / wording — teacher decides; student is not auto-blocked.
+        verdict = "flag_same_semester"
     elif leg_max >= PREVIOUS_SEMESTER_WARN and (sbert_row is None or sbert_leg_floor_ok) and leg_i is not None:
         verdict = "warn_previous_semester"
     else:
@@ -527,8 +680,10 @@ def analyze_proposal_semantic(payload: ProposalAnalyzeIn) -> dict[str, Any]:
         "verdict": verdict,
         "summary": (
             f"backend={backend}, same_semester={same_max:.3f}, legacy={leg_max:.3f}, "
-            f"reject_at={SAME_SEMESTER_REJECT:.2f}, warn_at={PREVIOUS_SEMESTER_WARN:.2f}, "
-            f"sbert_floor={PREVIOUS_SEMESTER_SBERT_FLOOR:.2f}, domain_min={LEGACY_DOMAIN_TITLE_MIN:.2f}"
+            f"reject_at={SAME_SEMESTER_REJECT:.2f}, flag_at={SAME_SEMESTER_FLAG:.2f}, "
+            f"warn_at={PREVIOUS_SEMESTER_WARN:.2f}, "
+            f"sbert_floor={PREVIOUS_SEMESTER_SBERT_FLOOR:.2f}, "
+            f"domain_min={LEGACY_DOMAIN_TITLE_MIN:.2f}, same_domain_min={SAME_SEMESTER_DOMAIN_MIN:.2f}"
         ),
         "backend": backend,
     }

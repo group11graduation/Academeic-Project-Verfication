@@ -216,7 +216,6 @@ const StudentProposalSubmit = () => {
                 const isRejection =
                     responseMessage === unchangedMessage ||
                     proposalStatus === 'requirements_rejected' ||
-                    proposalStatus === 'requirements_review' ||
                     proposalStatus === 'ai_rejected_same_semester' ||
                     /^rejected automatically:/i.test(responseMessage);
 
@@ -239,6 +238,7 @@ const StudentProposalSubmit = () => {
                             'Your proposal was not accepted. Update title, description, or features and try again.'
                     );
                 } else {
+                    // requirements_review is not a hard reject — show as info, not error
                     setMessage(responseMessage || 'Submitted.');
                     setError(null);
                 }
@@ -547,8 +547,19 @@ Features:
 
                 {proposal?.status === 'ai_rejected_same_semester' && (
                     <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
-                        This proposal was rejected for similarity with another project in the same semester. Please
-                        change the idea, description, and features before submitting again.
+                        <p>
+                            {proposal?.aiRecommendationText ||
+                                'This proposal was rejected for near-copy similarity with another project in the same semester.'}
+                        </p>
+                        <p className="mt-2 text-xs opacity-90">
+                            Click Submit again to re-check. Hard reject only applies to near-copies (~85%+). Soft overlap is sent to your teacher instead.
+                        </p>
+                    </div>
+                )}
+
+                {proposal?.status === 'pending_teacher_approval' && proposal?.aiRecommendationText && (
+                    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                        {proposal.aiRecommendationText}
                     </div>
                 )}
 

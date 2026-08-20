@@ -1740,13 +1740,16 @@ function collectAdminHomeHits(blob, homes) {
     /(?:to|path|navigate|href)\s*[=(]\s*['"`](\/admin(?:\/[A-Za-z0-9_-]+)?)['"`]/gi,
     /['"`](\/admin(?:\/[A-Za-z0-9_-]+)?)['"`]/g,
     /window\.location(?:\.href|\.assign|\.replace)?\s*=\s*['"`](\/admin(?:\/[A-Za-z0-9_-]+)?)['"`]/gi,
+    // Many SPAs (BMS, PayFlow, Sky Property) use /dashboard not /admin/dashboard.
+    /(?:to|path|navigate|href)\s*[=(]\s*['"`](\/(?:dashboard|manDash|portal|admindashboard)(?:\/[A-Za-z0-9_-]+)?)['"`]/gi,
+    /['"`](\/(?:dashboard|manDash|portal|admindashboard)(?:\/[A-Za-z0-9_-]+)?)['"`]/g,
   ];
   for (const re of patterns) {
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(blob))) {
       const p = String(m[1] || '').split('?')[0];
-      if (p && /^\/admin/i.test(p)) homes.add(p);
+      if (p && /^\/(admin|dashboard|manDash|portal|admindashboard)/i.test(p)) homes.add(p);
     }
   }
   // Post-login ternaries: role === 'admin' ? '/admin' : '/profile'
@@ -1843,11 +1846,12 @@ export async function discoverPrivilegedRoleFromProject(
     '/admin/dashboard',
     '/admin/products',
     '/admin/users',
+    '/dashboard',
     '/admin',
     '/admindashboard',
     '/Admin',
     '/manDash',
-    '/dashboard',
+    '/portal',
   ];
   let homePath = '';
   for (const pref of homePreference) {
