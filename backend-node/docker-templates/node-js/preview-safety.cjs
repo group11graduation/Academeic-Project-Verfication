@@ -688,12 +688,10 @@ function wrapLoginResponseForRecovery(req, res) {
   let statusCode = 200;
   const origStatus = res.status.bind(res);
   const origJson = res.json.bind(res);
-  res.status = function patchedStatus(code) {
-    statusCode = Number(code) || statusCode;
-    return origStatus(code);
-  };
-  res.json = function patchedJson(body) {
-    // Student apps often return 400 (not 401) for bad credentials — e.g. DropSafe Somali message.
+  const origSend = typeof res.send === 'function' ? res.send.bind(res) : null;
+  const origEnd = typeof res.end === 'function' ? res.end.bind(res) : null;
+
+  function tryRecover(body, passthrough) {
     const failed =
       statusCode === 400 ||
       statusCode === 401 ||
@@ -705,67 +703,82 @@ function wrapLoginResponseForRecovery(req, res) {
       !res.__svLoginRecovered &&
       (isPreviewAdminAttempt(creds.email, creds.password) ||
         isSandboxLoginFailureRecoverable(creds.email, creds.password));
+    if (!shouldRecover) return passthrough();
 
-    if (shouldRecover) {
-      res.__svLoginRecovered = true;
-      const pe = String(
-        process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@preview.demo'
-      )
-        .toLowerCase()
-        .trim();
-      const pp = String(
-        process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!'
-      );
-      const seedUser = String(
-        process.env.PREVIEW_SEED_USERNAME || process.env.ADMIN_USERNAME || pe.split('@')[0] || 'admin'
-      ).trim();
-      // Force body to seeded identity so universal login finds the preview admin row.
-      try {
-        const prev = req.body && typeof req.body === 'object' ? { ...req.body } : {};
-        req.body = {
-          ...prev,
-          email: pe.includes('@') ? pe : `${seedUser}@preview.demo`,
-          username: seedUser || (pe.includes('@') ? pe.split('@')[0] : pe),
-          password: pp,
-          identifier: pe,
-          login: pe,
-        };
-      } catch (_b) {
-        /* ignore */
-      }
-      console.log(
-        '[preview] login recovery after',
-        statusCode,
-        '— retrying with seeded admin',
-        pe,
-        '/',
-        seedUser
-      );
-      const recoverRes = {
-        statusCode: 200,
-        status(code) {
-          this.statusCode = Number(code) || 200;
-          return this;
-        },
-        json(okBody) {
-          try {
-            origStatus(200);
-          } catch (_e) {
-            /* ignore */
-          }
-          return origJson(okBody);
-        },
+    res.__svLoginRecovered = true;
+    const pe = String(
+      process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@preview.demo'
+    )
+      .toLowerCase()
+      .trim();
+    const pp = String(
+      process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!'
+    );
+    const seedUser = String(
+      process.env.PREVIEW_SEED_USERNAME || process.env.ADMIN_USERNAME || pe.split('@')[0] || 'admin'
+    ).trim();
+    try {
+      const prev = req.body && typeof req.body === 'object' ? { ...req.body } : {};
+      req.body = {
+        ...prev,
+        email: pe.includes('@') ? pe : `${seedUser}@preview.demo`,
+        username: seedUser || (pe.includes('@') ? pe.split('@')[0] : pe),
+        password: pp,
+        identifier: pe,
+        login: pe,
       };
-      return Promise.resolve(
-        previewUniversalLogin(req, recoverRes, function softNext() {
-          return origJson(body);
-        }, { softFail: false })
-      ).catch(function () {
-        return origJson(body);
-      });
+    } catch (_b) {
+      /* ignore */
     }
-    return origJson(body);
+    console.log(
+      '[preview] login recovery after',
+      statusCode,
+      '— retrying with seeded admin',
+      pe,
+      '/',
+      seedUser
+    );
+    const recoverRes = {
+      statusCode: 200,
+      status(code) {
+        this.statusCode = Number(code) || 200;
+        return this;
+      },
+      json(okBody) {
+        try {
+          origStatus(200);
+        } catch (_e) {
+          /* ignore */
+        }
+        return origJson(okBody);
+      },
+    };
+    return Promise.resolve(
+      previewUniversalLogin(req, recoverRes, function softNext() {
+        return passthrough();
+      }, { softFail: false })
+    ).catch(function () {
+      return passthrough();
+    });
+  }
+
+  res.status = function patchedStatus(code) {
+    statusCode = Number(code) || statusCode;
+    return origStatus(code);
   };
+  res.json = function patchedJson(body) {
+    return tryRecover(body, function () {
+      return origJson(body);
+    });
+  };
+  if (origSend) {
+    res.send = function patchedSend(body) {
+      // DropSafe and others: res.status(400).send({ message: '...' })
+      return tryRecover(body, function () {
+        return origSend(body);
+      });
+    };
+  }
 }
 
 /**

@@ -92,6 +92,34 @@ function buildLoginUpstreamPaths(originalPath) {
   return out;
 }
 
+/**
+ * Frontend often calls /api/students while Express mounts /students (or the reverse).
+ * Try both shapes on every API method — fixes DropSafe and most MERN ZIPs.
+ */
+function buildApiUpstreamPaths(originalPath) {
+  const pathOnly = String(originalPath).split('?')[0] || '/';
+  const qs = String(originalPath).includes('?')
+    ? originalPath.slice(originalPath.indexOf('?'))
+    : '';
+  const out = [];
+  const seen = new Set();
+  function push(p) {
+    const full = !p ? '' : p.includes('?') ? p : `${String(p).split('?')[0]}${qs}`;
+    if (!full || seen.has(full)) return;
+    seen.add(full);
+    out.push(full);
+  }
+  push(originalPath);
+  if (isWebSocketProxyPath(pathOnly)) return out;
+  if (/^\/api\//i.test(pathOnly)) {
+    const stripped = pathOnly.replace(/^\/api/i, '') || '/';
+    push(stripped);
+  } else if (pathOnly !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
+    push(`/api${pathOnly}`);
+  }
+  return out;
+}
+
 function mainRoleFromEnv() {
   return String(
     process.env.PREVIEW_FORCE_ADMIN_ROLE ||
@@ -257,6 +285,10 @@ function isApiProxyPath(pathname) {
   if (/^\/api(\/|$)/i.test(p)) return true;
   if (/^\/auth(\/|$)/i.test(p)) return true;
   if (/^\/(users|user|v1|graphql|socket\.io|uploads|static\/uploads)(\/|$)/i.test(p)) return true;
+  // DropSafe / school apps: /students, /student, …
+  if (/^\/(students|student|courses|course|teachers|teacher|classes|class|attendance|grades|risk)(\/|$)/i.test(p)) {
+    return true;
+  }
   // SYADA / Vite-proxy style: frontend calls /dashboard/summary, /members, … (no /api).
   // Bare /dashboard is often an SPA route (Sky Property) — exclude exact /dashboard.
   if (/^\/dashboard\//i.test(p)) return true;
@@ -411,13 +443,12 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
         // DropSafe / many MERN apps: UI posts /auth/login, Express mounts /api/auth/login.
         pathsToTry = buildLoginUpstreamPaths(originalPath);
         console.log('[preview-gateway] login upstream tries:', pathsToTry.join(' → '));
-      } else if (
-        !isWebSocketProxyPath(pathOnly) &&
-        !/^\/api(\/|$)/i.test(pathOnly)
-      ) {
-        // Also try /api prefix for non-api paths (including /auth/* GETs).
-        // Previously /auth was excluded, which left POST /auth/login stuck on Express 404.
-        pathsToTry.push(`/api${pathOnly}${qs}`);
+      } else if (!isWebSocketProxyPath(pathOnly)) {
+        // /api/students ↔ /students (and the reverse) for all CRUD APIs.
+        pathsToTry = buildApiUpstreamPaths(originalPath);
+        if (pathsToTry.length > 1) {
+          console.log('[preview-gateway] api upstream tries:', pathsToTry.join(' → '));
+        }
       }
 
       function attempt(index) {

@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V43:
+ * Marker V44:
+ * - Allow Log Out (stop blocking localStorage clear on admin routes).
+ * - Gateway: /api/students ↔ /students fallback for all CRUD APIs.
+ * V43:
  * - Login 400 "wrong password" recovery: seed injects preview creds; safety recovers on 400.
  * - Form autofill uses username for username fields (DropSafe admin / admin123 demos).
  * V42:
@@ -109,10 +112,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V43__) {
-    console.log('[DEBUG-SHIM] already installed V43 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V44__) {
+    console.log('[DEBUG-SHIM] already installed V44 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V44__ = true;
   window.__SV_LOGIN_FALLBACK_V43__ = true;
   window.__SV_LOGIN_FALLBACK_V42__ = true;
   window.__SV_LOGIN_FALLBACK_V41__ = true;
@@ -151,7 +155,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v43', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v44', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -3190,15 +3194,15 @@
     };
     Storage.prototype.removeItem = function (key) {
       var k = String(key || '');
-      var onAdmin =
-        /admin|dashboard|manDash|loans/i.test(String((location && location.pathname) || ''));
+      // Only block during post-login grace — blocking on admin routes forever
+      // broke Log Out (tokens never cleared → broken re-login).
       if (
         this === localStorage &&
         AUTH_CLEAR_KEYS[k] &&
         getStoredAccessToken() &&
-        (withinPostLoginGrace() || onAdmin)
+        withinPostLoginGrace()
       ) {
-        console.warn('[DEBUG-SHIM] blocked auth removeItem:', k, onAdmin ? '(admin route)' : '(grace)');
+        console.warn('[DEBUG-SHIM] blocked auth removeItem during grace:', k);
         return;
       }
       return __svNativeRemoveItem.apply(this, arguments);
