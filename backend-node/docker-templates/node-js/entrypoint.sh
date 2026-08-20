@@ -387,6 +387,34 @@ log_build_tail() {
   tail -"${lines}" "$log" 2>/dev/null || true
 }
 
+# Detect Express mount prefix (e.g. /api/v1) from student index.js — Maktabadda uses /api/v1/*.
+detect_and_export_api_prefix() {
+  if [ -n "${PREVIEW_API_PREFIX:-}" ]; then
+    export PREVIEW_API_PREFIX
+    return 0
+  fi
+  local hit=""
+  local f
+  for f in \
+    src/index.js index.js server.js app.js src/server.js src/app.js \
+    backend/src/index.js backend/index.js Backend/src/index.js; do
+    if [ -f "$f" ] && grep -qE 'app\.use\(\s*["'"'"']/api/v1' "$f" 2>/dev/null; then
+      hit="/api/v1"
+      break
+    fi
+  done
+  if [ -z "$hit" ]; then
+    hit=$(grep -RIn --include='*.js' -E 'app\.use\(\s*["'"'"']/api/v1' \
+      --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=frontend \
+      . 2>/dev/null | head -1 | grep -oE '/api/v1' | head -1 || true)
+  fi
+  if [ "$hit" = "/api/v1" ]; then
+    export PREVIEW_API_PREFIX="/api/v1"
+    export PREVIEW_LOGIN_API_PATH="${PREVIEW_LOGIN_API_PATH:-/api/v1/auth/login}"
+    echo "[preview] detected API prefix /api/v1 (login → ${PREVIEW_LOGIN_API_PATH})"
+  fi
+}
+
 write_preview_env_files() {
   if [ -z "$PREVIEW_ADMIN_EMAIL" ]; then
     return 0
@@ -487,6 +515,12 @@ write_mern_backend_env() {
       echo "ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
       echo "SEED_ADMIN_EMAIL=$PREVIEW_ADMIN_EMAIL"
       echo "SEED_ADMIN_PASSWORD=$PREVIEW_ADMIN_PASSWORD"
+    fi
+    if [ -n "${PREVIEW_API_PREFIX:-}" ]; then
+      echo "PREVIEW_API_PREFIX=$PREVIEW_API_PREFIX"
+    fi
+    if [ -n "${PREVIEW_LOGIN_API_PATH:-}" ]; then
+      echo "PREVIEW_LOGIN_API_PATH=$PREVIEW_LOGIN_API_PATH"
     fi
   } > .env.preview-runtime
   cat .env.preview-runtime > .env
@@ -705,6 +739,7 @@ start_mern_backend() {
   backend_rel="$1"
   cd "$ROOT/$backend_rel" || return 1
   echo "[preview] MERN backend in $(pwd)"
+  detect_and_export_api_prefix
   write_mern_backend_env
   export PREVIEW_BACKEND_CWD="$(pwd)"
   export BACKEND_CWD="$(pwd)"

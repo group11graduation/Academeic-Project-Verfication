@@ -159,7 +159,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v46', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v47', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -3334,6 +3334,19 @@
             }
           }
           var rawUrl = String((config && config.url) || '');
+          // Maktabadda: UI calls /categories, Express mounts /api/v1/categories.
+          try {
+            var pref = String(window.__SV_API_PREFIX__ || (window.__SV_PREVIEW_CREDS__ && window.__SV_PREVIEW_CREDS__.apiPrefix) || '').trim();
+            var pathOnly = rawUrl.split('?')[0] || '';
+            if (
+              pref &&
+              /^\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users)(\/|$)/i.test(pathOnly) &&
+              pathOnly.indexOf(pref) !== 0
+            ) {
+              config.url = pref + pathOnly + (rawUrl.indexOf('?') >= 0 ? rawUrl.slice(rawUrl.indexOf('?')) : '');
+              console.log('[DEBUG-SHIM] axios API prefix rewrite →', config.url);
+            }
+          } catch (_pr) {}
           if (isLoginUrl(rawUrl) && !config.__svLoginUrlRewritten) {
             var preferred = '';
             try {

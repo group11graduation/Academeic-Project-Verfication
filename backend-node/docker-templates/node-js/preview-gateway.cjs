@@ -48,7 +48,13 @@ function apiBaseForBrowser() {
 }
 
 function loginPath() {
-  return String(process.env.PREVIEW_LOGIN_API_PATH || '/api/users/login').trim() || '/api/users/login';
+  const explicit = String(process.env.PREVIEW_LOGIN_API_PATH || '').trim();
+  if (explicit) return explicit;
+  const prefix = String(process.env.PREVIEW_API_PREFIX || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (prefix === '/api/v1') return '/api/v1/auth/login';
+  return '/api/users/login';
 }
 
 /** Common Express login mounts — frontend often calls /auth/login while API is /api/auth/login. */
@@ -197,8 +203,24 @@ function buildApiUpstreamPaths(originalPath) {
     seen.add(full);
     out.push(full);
   }
+  if (isWebSocketProxyPath(pathOnly)) {
+    push(originalPath);
+    return out;
+  }
+
+  // Maktabadda-style: mounts are /api/v1/categories — prefer that BEFORE bare /categories
+  // so protect+handler runs on the first hop (avoids 404 spam / soft-empty).
+  const apiPrefix = String(process.env.PREVIEW_API_PREFIX || '')
+    .trim()
+    .replace(/\/$/, '');
+  const bare = pathOnly.replace(/^\/api\/v1/i, '').replace(/^\/api/i, '') || '/';
+  if (apiPrefix && bare !== '/' && !new RegExp(`^${apiPrefix.replace(/\//g, '\\/')}(\\/|$)`, 'i').test(pathOnly)) {
+    push(`${apiPrefix}${bare.startsWith('/') ? bare : `/${bare}`}`);
+  }
+  if (bare !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
+    push(`/api/v1${bare}`);
+  }
   push(originalPath);
-  if (isWebSocketProxyPath(pathOnly)) return out;
 
   function singularPlural(p) {
     const parts = String(p || '')
@@ -227,20 +249,21 @@ function buildApiUpstreamPaths(originalPath) {
     candidates.push(pathOnly.replace(/^\/api/i, '') || '/');
     candidates.push(pathOnly.replace(/^\/api\//i, '/api/v1/'));
   } else if (pathOnly !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
-    candidates.push(`/api${pathOnly}`);
     candidates.push(`/api/v1${pathOnly}`);
+    candidates.push(`/api${pathOnly}`);
   }
   // Nested admin mounts common in library / inventory MERN ZIPs.
   if (/\/(categories|category|books|book|libraries|library|shelves|shelf|locations|location|cabinets|cabinet|volumes|volume|book-placements|book-placement)(\/|$)/i.test(pathOnly)) {
-    const bare = pathOnly.replace(/^\/api\/v1/i, '').replace(/^\/api/i, '') || pathOnly;
-    candidates.push(`/api/admin${bare}`);
-    candidates.push(`/admin${bare}`);
-    candidates.push(`/api${bare}/list`);
-    candidates.push(`${bare}/list`);
-    candidates.push(`/api${bare}/all`);
-    candidates.push(`${bare}/all`);
-    candidates.push(`/api${bare}/getAll`);
-    candidates.push(`${bare}/getAll`);
+    const bareRes = pathOnly.replace(/^\/api\/v1/i, '').replace(/^\/api/i, '') || pathOnly;
+    candidates.push(`/api/v1${bareRes}`);
+    candidates.push(`/api/admin${bareRes}`);
+    candidates.push(`/admin${bareRes}`);
+    candidates.push(`/api${bareRes}/list`);
+    candidates.push(`${bareRes}/list`);
+    candidates.push(`/api${bareRes}/all`);
+    candidates.push(`${bareRes}/all`);
+    candidates.push(`/api${bareRes}/getAll`);
+    candidates.push(`${bareRes}/getAll`);
   }
   for (const c of [...candidates]) {
     for (const sp of singularPlural(c)) candidates.push(sp);
@@ -254,7 +277,9 @@ function looksLikeRouteNotFound(status, bodyBuf) {
   if (status < 400 || status >= 500) return false;
   try {
     const s = Buffer.isBuffer(bodyBuf) ? bodyBuf.toString('utf8') : String(bodyBuf || '');
-    return /route\s*not\s*found|cannot\s+(GET|POST|PUT|PATCH|DELETE)|not\s+found:\s*\//i.test(s);
+    return /route\s*not\s*found|cannot\s+(GET|POST|PUT|PATCH|DELETE)|not\s+found:\s*\/|resource\s+was\s+not\s+found|requested\s+resource\s+was\s+not\s+found/i.test(
+      s
+    );
   } catch (_e) {
     return false;
   }
@@ -305,9 +330,13 @@ function wrapHtml(html) {
       (adminEmail.includes('@') ? adminEmail.split('@')[0] : adminEmail) ||
       'admin'
   ).trim();
+  const apiPrefix = String(process.env.PREVIEW_API_PREFIX || '')
+    .trim()
+    .replace(/\/$/, '');
   const boot =
     `<meta name="sv-api-base" content="${base.replace(/"/g, '&quot;')}" />` +
     `<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=${JSON.stringify(base)};` +
+    `window.__SV_API_PREFIX__=${JSON.stringify(apiPrefix)};` +
     `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};` +
     `window.__SV_MAIN_ADMIN_ROLE__=${JSON.stringify(mainRole)};` +
     `window.__SV_ADMIN_HOME_PATH__=${JSON.stringify(adminHome)};` +
@@ -320,6 +349,7 @@ function wrapHtml(html) {
       username: seedUser,
       apiBase: base,
       loginPath: pathLogin,
+      apiPrefix: apiPrefix,
     })};</script>`;
   const fallback = loadFallbackJs();
   // Escape so a literal </script> inside the shim cannot break HTML parsing (and drop CSS links).
