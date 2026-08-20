@@ -89,30 +89,131 @@ ensure_apache_auto_prepend() {
 EOF
 }
 
-# Fix admin/user scripts that do include('includes/config.php') expecting CWD = project root.
-# Rewrites to __DIR__/../includes/... when the file lives one level under the app root.
+# Locate the real DB config and ensure includes/config.php exists where admin/index.php expects it.
+# Fixes TMS: include(__DIR__.'/../includes/config.php') when the ZIP uses another path/name.
+ensure_config_include_shims() {
+  root="${1:-$APACHE_DOCROOT}"
+  [ -d "$root" ] || return 0
+  php -r "
+    \$roots = array_values(array_unique(array_filter([
+      getenv('APACHE_DOCROOT') ?: '',
+      '$root',
+      '/var/www/html',
+      (getenv('APP_SUBDIR') && getenv('APP_SUBDIR') !== '.') ? ('/var/www/html/' . getenv('APP_SUBDIR')) : '',
+    ])));
+    foreach (glob('/var/www/html/*', GLOB_ONLYDIR) ?: [] as \$d) \$roots[] = \$d;
+
+    \$preferredNames = [
+      'config.php', 'dbconnection.php', 'db.php', 'connection.php', 'connect.php',
+      'database.php', 'conn.php', 'dbh.php', 'pdo.php',
+    ];
+    \$preferredDirs = ['includes', 'include', 'config', 'inc', 'lib', 'admin/includes', 'admin/include'];
+
+    \$candidates = [];
+    foreach (array_unique(\$roots) as \$base) {
+      if (!\$base || !is_dir(\$base)) continue;
+      foreach (\$preferredDirs as \$dir) {
+        foreach (\$preferredNames as \$name) {
+          \$p = \$base . '/' . \$dir . '/' . \$name;
+          if (is_file(\$p)) \$candidates[] = \$p;
+        }
+        \$p = \$base . '/' . \$dir . '/config.php';
+        if (is_file(\$p)) \$candidates[] = \$p;
+      }
+      foreach (\$preferredNames as \$name) {
+        \$p = \$base . '/' . \$name;
+        if (is_file(\$p)) \$candidates[] = \$p;
+      }
+      // Light recursive search for *config*.php / *connection*.php
+      try {
+        \$it = new RecursiveIteratorIterator(
+          new RecursiveDirectoryIterator(\$base, FilesystemIterator::SKIP_DOTS)
+        );
+        \$n = 0;
+        foreach (\$it as \$f) {
+          if (\$n > 120) break;
+          if (!\$f->isFile() || strtolower(\$f->getExtension()) !== 'php') continue;
+          \$path = \$f->getPathname();
+          \$baseName = strtolower(\$f->getFilename());
+          if (preg_match('#/(vendor|node_modules|\\.git)/#', \$path)) continue;
+          if (!preg_match('/config|connection|connect|database|dbconnection|dbh|pdo/i', \$baseName . \$path)) continue;
+          // Prefer files that look like DB bootstrap
+          \$c = @file_get_contents(\$path);
+          if (\$c === false) continue;
+          if (!preg_match('/mysqli|PDO|mysql:host|DB_HOST|new PDO|mysqli_connect/i', \$c)) continue;
+          \$candidates[] = \$path;
+          \$n++;
+        }
+      } catch (Throwable \$e) { /* ignore */ }
+    }
+    \$candidates = array_values(array_unique(\$candidates));
+    if (!\$candidates) {
+      fwrite(STDERR, '[preview] WARN: no DB config.php candidate found under project' . PHP_EOL);
+      exit(0);
+    }
+
+    // Prefer classic includes/config.php if present; else first candidate.
+    \$best = \$candidates[0];
+    foreach (\$candidates as \$p) {
+      if (preg_match('#/includes/config\\.php\$#i', \$p)) { \$best = \$p; break; }
+      if (preg_match('#/include/config\\.php\$#i', \$p)) { \$best = \$p; }
+    }
+    echo '[preview] DB config source → ' . \$best . PHP_EOL;
+
+    \$shimTargets = [];
+    foreach (array_unique(\$roots) as \$base) {
+      if (!\$base || !is_dir(\$base)) continue;
+      \$shimTargets[] = \$base . '/includes/config.php';
+      \$shimTargets[] = \$base . '/include/config.php';
+      if (is_dir(\$base . '/admin')) {
+        \$shimTargets[] = \$base . '/admin/includes/config.php';
+      }
+    }
+
+    foreach (array_unique(\$shimTargets) as \$shim) {
+      if (is_file(\$shim)) {
+        // Already exists — leave student file alone unless it is an empty stub we wrote.
+        continue;
+      }
+      \$dir = dirname(\$shim);
+      if (!is_dir(\$dir)) {
+        @mkdir(\$dir, 0755, true);
+      }
+      // If shim path resolves to the same file as best, skip.
+      if (realpath(\$dir) && realpath(\$best) && realpath(\$dir) === dirname(realpath(\$best))
+          && basename(\$shim) === basename(\$best)) {
+        continue;
+      }
+      \$code = \"<?php\\n/* ScholarVerify preview config shim */\\n\"
+        . \"require_once \" . var_export(\$best, true) . \";\\n\";
+      if (@file_put_contents(\$shim, \$code) !== false) {
+        echo '[preview] wrote config shim → ' . \$shim . PHP_EOL;
+      }
+    }
+  " || true
+}
+
+# Do NOT rewrite student includes to __DIR__/../… unless that path already exists.
+# Earlier rewrites broke TMS when includes/config.php was missing / named differently.
 patch_relative_includes() {
   root="${1:-$APACHE_DOCROOT}"
   [ -d "$root" ] || return 0
+  # Ensure shims first so both CWD-relative and __DIR__/../ forms work.
+  ensure_config_include_shims "$root"
+  if [ ! -f "$root/includes/config.php" ]; then
+    echo "[preview] skip include rewrite — $root/includes/config.php still missing"
+    return 0
+  fi
   for sub in admin user student teacher staff dashboard modules; do
     [ -d "$root/$sub" ] || continue
     find "$root/$sub" -maxdepth 2 -type f -name '*.php' 2>/dev/null | while read -r f; do
-      # Only touch simple relative includes of includes/* or include/* or config/*
       if grep -qE "include(_once)?\s*\(\s*['\"]includes/" "$f" 2>/dev/null \
-        || grep -qE "require(_once)?\s*\(\s*['\"]includes/" "$f" 2>/dev/null \
-        || grep -qE "include(_once)?\s*\(\s*['\"]include/" "$f" 2>/dev/null \
-        || grep -qE "include(_once)?\s+['\"]includes/" "$f" 2>/dev/null; then
-        if grep -q '__DIR__' "$f" 2>/dev/null; then
+        || grep -qE "require(_once)?\s*\(\s*['\"]includes/" "$f" 2>/dev/null; then
+        if grep -q "__DIR__" "$f" 2>/dev/null; then
           continue
         fi
         sed -i -E \
           -e "s/(include_once|require_once|include|require)[[:space:]]*\([[:space:]]*['\"]includes\//\\1(__DIR__ . '\/..\/includes\//g" \
-          -e "s/(include_once|require_once|include|require)[[:space:]]*\([[:space:]]*['\"]include\//\\1(__DIR__ . '\/..\/include\//g" \
-          -e "s/(include_once|require_once|include|require)[[:space:]]+['\"]includes\//\\1 __DIR__ . '\/..\/includes\//g" \
-          "$f" 2>/dev/null || true
-        # Close the string+paren for the (__DIR__ . '/../includes/foo.php') form when we left a bare path
-        sed -i -E \
-          -e "s/__DIR__ \. '\/\.\.\/includes\/([^'\"]+)['\"]/__DIR__ . '\/..\/includes\/\1'/g" \
           "$f" 2>/dev/null || true
         echo "[preview] patched relative includes in ${f#$root/}"
       fi
@@ -136,6 +237,8 @@ if [ -f /preview-bootstrap.php ]; then
   export PREVIEW_SANDBOX=1
 fi
 
+ensure_config_include_shims "$APACHE_DOCROOT"
+ensure_config_include_shims "$DOCROOT"
 patch_relative_includes "$APACHE_DOCROOT"
 if [ "$APACHE_DOCROOT" != "$DOCROOT" ]; then
   patch_relative_includes "$DOCROOT"

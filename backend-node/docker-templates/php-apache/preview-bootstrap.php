@@ -90,6 +90,97 @@ if ($__svAppRoot && is_dir($__svAppRoot)) {
     $GLOBALS['__sv_preview_app_root'] = $__svAppRoot;
 }
 
+/**
+ * If admin expects includes/config.php but the ZIP stores DB config elsewhere,
+ * write a tiny shim once (TMS and similar CodeCanyon layouts).
+ */
+function __sv_preview_ensure_config_shim($appRoot)
+{
+    static $done = false;
+    if ($done || !$appRoot) {
+        return;
+    }
+    $done = true;
+    $shim = rtrim($appRoot, '/') . '/includes/config.php';
+    if (is_file($shim)) {
+        return;
+    }
+    $names = [
+        'config.php',
+        'dbconnection.php',
+        'db.php',
+        'connection.php',
+        'connect.php',
+        'database.php',
+        'conn.php',
+    ];
+    $dirs = ['includes', 'include', 'config', 'inc', 'lib', 'admin/includes', ''];
+    $best = null;
+    foreach ($dirs as $dir) {
+        foreach ($names as $name) {
+            $p = rtrim($appRoot, '/') . ($dir !== '' ? '/' . $dir : '') . '/' . $name;
+            if (!is_file($p)) {
+                continue;
+            }
+            $c = @file_get_contents($p);
+            if ($c === false) {
+                continue;
+            }
+            if (!preg_match('/mysqli|PDO|mysql:host|DB_HOST|mysqli_connect|new PDO/i', $c)) {
+                continue;
+            }
+            $best = $p;
+            break 2;
+        }
+    }
+    if (!$best) {
+        // Walk a bit for any DB-looking config under the app root.
+        try {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($appRoot, FilesystemIterator::SKIP_DOTS)
+            );
+            $n = 0;
+            foreach ($it as $f) {
+                if ($n++ > 80) {
+                    break;
+                }
+                if (!$f->isFile() || strtolower($f->getExtension()) !== 'php') {
+                    continue;
+                }
+                $path = $f->getPathname();
+                if (preg_match('#/(vendor|node_modules|\.git)/#', $path)) {
+                    continue;
+                }
+                if (!preg_match('/config|connection|database|dbconnection|connect/i', $path)) {
+                    continue;
+                }
+                $c = @file_get_contents($path);
+                if ($c && preg_match('/mysqli|PDO|mysql:host|DB_HOST/i', $c)) {
+                    $best = $path;
+                    break;
+                }
+            }
+        } catch (Throwable $e) {
+            /* ignore */
+        }
+    }
+    if (!$best) {
+        return;
+    }
+    $dir = dirname($shim);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    @file_put_contents(
+        $shim,
+        "<?php\n/* ScholarVerify preview config shim */\nrequire_once " . var_export($best, true) . ";\n"
+    );
+}
+
+if (!empty($__svAppRoot)) {
+    __sv_preview_ensure_config_shim($__svAppRoot);
+}
+
 $svEnv = static function (array $keys, $default = null) {
     foreach ($keys as $key) {
         $value = getenv($key);
