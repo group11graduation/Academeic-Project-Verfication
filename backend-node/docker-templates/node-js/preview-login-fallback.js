@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V38:
+ * Marker V39:
+ * - Some apps recover auth on a weak route like `/admin`, which can be a blank shell.
+ *   Prefer a concrete admin destination such as `/admin/dashboard` and retry alternate
+ *   admin paths if `#root` stays blank after intercepting a login redirect.
+ * V38:
  * - isLoanStyleApp falsely matched loan_user/loan_token in page HTML — those strings
  *   appear in THIS shim script, so SYADA/FoundLink got role=admin instead of super_admin.
  * - Gateway __SV_MAIN_ADMIN_ROLE__ now wins over loan-style heuristics.
@@ -89,10 +93,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V38__) {
-    console.log('[DEBUG-SHIM] already installed V38 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V39__) {
+    console.log('[DEBUG-SHIM] already installed V39 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V39__ = true;
   window.__SV_LOGIN_FALLBACK_V38__ = true;
   window.__SV_LOGIN_FALLBACK_V37__ = true;
   window.__SV_LOGIN_FALLBACK_V36__ = true;
@@ -126,7 +131,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v38', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v39', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -2332,6 +2337,41 @@
     }
   }
 
+  function isWeakAdminPath(pathname) {
+    var p = String(pathname || '').replace(/\?.*$/, '').replace(/\/+$/, '') || '/';
+    return p === '/admin' || p === '/dashboard' || p === '/portal';
+  }
+
+  function adminPathCandidates() {
+    ensureHintsBeforeLogin();
+    var out = [];
+    function push(p) {
+      p = String(p || '').trim();
+      if (!p || p.charAt(0) !== '/' || out.indexOf(p) >= 0) return;
+      out.push(p);
+    }
+    try {
+      push(defaultAdminHomePath());
+    } catch (_e) {}
+    push('/admin/dashboard');
+    push('/admin/loans');
+    push('/admin/products');
+    push('/admin');
+    push('/dashboard');
+    push('/manDash');
+    return out;
+  }
+
+  function nextConcreteAdminPath(currentPath) {
+    var cur = String(currentPath || '').replace(/\?.*$/, '').replace(/\/+$/, '') || '/';
+    var list = adminPathCandidates();
+    for (var i = 0; i < list.length; i++) {
+      var cand = String(list[i] || '').replace(/\/+$/, '') || '/';
+      if (cand !== cur) return list[i];
+    }
+    return list[0] || '/admin/dashboard';
+  }
+
   function pickStayAdminPath() {
     var stay = String(location.pathname || '');
     try {
@@ -2343,8 +2383,12 @@
       stay = String(location.pathname || '') + String(location.search || '').replace(/[?&]__sv_r=[^&]*/g, '');
       stay = stay.replace(/\?$/, '');
     }
+    var preferred = typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin/dashboard';
     if (!stay || isLoginRedirectTarget(stay)) {
-      stay = typeof defaultAdminHomePath === 'function' ? defaultAdminHomePath() : '/admin/dashboard';
+      stay = preferred;
+    }
+    if (isWeakAdminPath(stay) && preferred && preferred !== stay) {
+      stay = preferred;
     }
     if (!stay || stay === '/') stay = '/admin/dashboard';
     return stay;
@@ -2453,7 +2497,11 @@
         try {
           sessionStorage.setItem('__sv_hard_doc_nav__', '0');
         } catch (_c) {}
-        forceAdminRemount(pickStayAdminPath(), true);
+        var nextStay = pickStayAdminPath();
+        if (blankFix >= 1 && isWeakAdminPath(nextStay)) {
+          nextStay = nextConcreteAdminPath(nextStay);
+        }
+        forceAdminRemount(nextStay, true);
       } catch (_w) {}
     }, 400);
   }
@@ -2583,7 +2631,10 @@
         try {
           var root = document.getElementById('root') || document.getElementById('app');
           var html = root ? String(root.innerHTML || '').replace(/\s+/g, '') : '';
-          if (html.length <= 20) forceAdminRemount(stay, true);
+          if (html.length <= 20) {
+            var retryStay = isWeakAdminPath(stay) ? nextConcreteAdminPath(stay) : stay;
+            forceAdminRemount(retryStay, true);
+          }
         } catch (_b) {}
       }, 250);
     } else {

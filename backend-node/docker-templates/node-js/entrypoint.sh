@@ -594,6 +594,25 @@ wait_for_mongo_ready() {
   return 1
 }
 
+project_has_mongoose() {
+  if [ -d node_modules/mongoose ] || [ -f node_modules/mongoose/package.json ]; then
+    return 0
+  fi
+  if [ ! -f package.json ]; then
+    return 1
+  fi
+  node -e "
+    try {
+      const fs = require('fs');
+      const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const all = Object.assign({}, pkg.dependencies || {}, pkg.devDependencies || {}, pkg.peerDependencies || {});
+      process.exit(all.mongoose ? 0 : 1);
+    } catch (_e) {
+      process.exit(1);
+    }
+  " >/dev/null 2>&1
+}
+
 wait_for_mysql_ready() {
   if [ "${PREVIEW_DB_ENGINE:-}" != "mysql" ] && [ -z "${DB_HOST:-}" ]; then
     return 0
@@ -654,6 +673,10 @@ run_preview_admin_seed() {
       return 0
     }
     grep '\[preview-seed-mysql\]' /tmp/preview-backend.log 2>/dev/null | tail -12 || true
+    return 0
+  fi
+  if ! project_has_mongoose; then
+    echo "[preview] ${label} skipped — project does not use mongoose"
     return 0
   fi
   node /preview-seed-admin.js >> /tmp/preview-backend.log 2>&1 || {
