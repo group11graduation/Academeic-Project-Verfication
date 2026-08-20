@@ -76,6 +76,12 @@ ensure_apache_auto_prepend() {
   # Most reliable on official php:*-apache images — applies to every request.
   if [ -d /usr/local/etc/php/conf.d ]; then
     printf 'auto_prepend_file=/preview-bootstrap.php\n' > /usr/local/etc/php/conf.d/zz-sv-preview-prepend.ini
+    # Hide PHP 8 undefined-key warnings that break CSS in student ZIPs (TMS header.php).
+    cat > /usr/local/etc/php/conf.d/zz-sv-preview-quiet.ini <<'EOF'
+display_errors=Off
+display_startup_errors=Off
+error_reporting=E_ALL & ~E_NOTICE & ~E_WARNING & ~E_DEPRECATED & ~E_STRICT
+EOF
     echo "[preview] php.ini auto_prepend_file → /preview-bootstrap.php"
   fi
   conf="/etc/apache2/conf-enabled/sv-preview-prepend.conf"

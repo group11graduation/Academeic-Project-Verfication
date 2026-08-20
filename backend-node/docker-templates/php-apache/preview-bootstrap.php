@@ -13,6 +13,26 @@ if (getenv('PREVIEW_SANDBOX') !== '1' && !getenv('DB_HOST')) {
     return;
 }
 
+// Student ZIPs (PHP 8+) dump "Undefined array key" warnings into HTML and break CSS.
+// Keep fatals/parse errors visible via Apache logs; hide notice/warning noise in the browser.
+if (getenv('PREVIEW_DISPLAY_ERRORS') !== '1') {
+    @ini_set('display_errors', '0');
+    @ini_set('display_startup_errors', '0');
+    @error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING & ~E_DEPRECATED & ~E_STRICT & ~E_USER_NOTICE & ~E_USER_WARNING);
+}
+
+// Soft-start session so includes/header.php can read $_SESSION without fatals.
+if (session_status() === PHP_SESSION_NONE) {
+    @session_start();
+}
+// TMS admin uses $_SESSION['alogin']; public header.php checks $_SESSION['login'].
+if (!empty($_SESSION['alogin']) && !isset($_SESSION['login'])) {
+    $_SESSION['login'] = (string) $_SESSION['alogin'];
+}
+if (!isset($_SESSION['login'])) {
+    $_SESSION['login'] = '';
+}
+
 /**
  * Find the real project root (folder that contains includes/config.php or similar).
  * Critical for /admin/index.php → include('includes/config.php').
