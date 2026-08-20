@@ -556,6 +556,36 @@ function loadPreviewEnv() {
       const verified = await passwordMatches(await reloadUserWithSecrets(user._id), rawPass);
       console.log('[preview-seed] password verify:', entry.path, verified ? 'OK' : 'FAILED');
       if (verified) anyVerified = true;
+
+      // Also reset classic demo row username=admin (DropSafe and many ZIPs show admin/admin123).
+      if (
+        String(process.env.PREVIEW_SEED_ALSO_RESET_ADMIN || '1') !== '0' &&
+        User.schema?.paths?.username
+      ) {
+        try {
+          const demoAdmin = await User.findOne({ username: /^admin$/i }).select(
+            '+passwordHash +password +passcode'
+          );
+          if (demoAdmin && String(demoAdmin._id) !== String(user._id)) {
+            await setPassword(demoAdmin, rawPass);
+            const roleFix = pickDefaultRole();
+            await User.updateOne(
+              { _id: demoAdmin._id },
+              {
+                $set: {
+                  role: roleFix,
+                  isAdmin: true,
+                  is_admin: true,
+                  ...(User.schema?.paths?.isActive ? { isActive: true } : {}),
+                },
+              }
+            );
+            console.log('[preview-seed] also reset username=admin password to preview password');
+          }
+        } catch (demoErr) {
+          console.log('[preview-seed] demo admin reset skipped:', demoErr.message || demoErr);
+        }
+      }
     }
 
     // Always also upsert raw collections — covers apps that query Mongo without the

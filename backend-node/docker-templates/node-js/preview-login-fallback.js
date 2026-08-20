@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V42:
+ * Marker V43:
+ * - Login 400 "wrong password" recovery: seed injects preview creds; safety recovers on 400.
+ * - Form autofill uses username for username fields (DropSafe admin / admin123 demos).
+ * V42:
  * - Gateway retries login POSTs across /auth/login → /api/auth/login → /api/users/login…
  *   (DropSafe and most MERN ZIPs: UI path ≠ Express mount).
  * - Shim: axios login 404 path fallbacks (fetch already had them).
@@ -106,10 +109,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V42__) {
-    console.log('[DEBUG-SHIM] already installed V42 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V43__) {
+    console.log('[DEBUG-SHIM] already installed V43 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V43__ = true;
   window.__SV_LOGIN_FALLBACK_V42__ = true;
   window.__SV_LOGIN_FALLBACK_V41__ = true;
   window.__SV_LOGIN_FALLBACK_V40__ = true;
@@ -147,7 +151,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v42', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v43', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -351,7 +355,7 @@
   }
 
   function applyPreviewCreds(creds) {
-    if (!creds || !creds.email) return;
+    if (!creds || !(creds.email || creds.username)) return;
     window.__SV_PREVIEW_CREDS__ = creds;
     if (creds.apiBase) window.__SV_API_BASE__ = String(creds.apiBase).replace(/\/$/, '');
     if (creds.loginPath) window.__SV_LOGIN_API_PATH__ = String(creds.loginPath).trim();
@@ -362,9 +366,25 @@
         var passSel = 'input[type="password"], input[name="password"], input[name="passcode"]';
         var emailEl = document.querySelector(emailSel);
         var passEl = document.querySelector(passSel);
-        if (emailEl) setNativeValue(emailEl, creds.email);
+        var loginId =
+          creds.username ||
+          (creds.email && String(creds.email).indexOf('@') > 0
+            ? String(creds.email).split('@')[0]
+            : creds.email) ||
+          'admin';
+        // Prefer username for username fields; email for email fields.
+        var fillId = loginId;
+        try {
+          if (
+            emailEl &&
+            (emailEl.type === 'email' || String(emailEl.name || '').toLowerCase() === 'email')
+          ) {
+            fillId = creds.email || loginId;
+          }
+        } catch (_t) {}
+        if (emailEl) setNativeValue(emailEl, fillId);
         if (passEl && creds.password) setNativeValue(passEl, creds.password);
-        if (!document.getElementById('sv-preview-login-banner') && creds.email) {
+        if (!document.getElementById('sv-preview-login-banner') && (creds.email || creds.username)) {
           var ban = document.createElement('div');
           ban.id = 'sv-preview-login-banner';
           ban.setAttribute(
@@ -372,7 +392,9 @@
             'position:fixed;z-index:2147483646;left:12px;right:12px;bottom:12px;background:#14532d;color:#ecfdf5;padding:10px 14px;border-radius:8px;font:13px/1.4 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25)'
           );
           ban.textContent =
-            'Preview login: ' + creds.email + (creds.password ? ' / ' + creds.password : '');
+            'Preview login: ' +
+            (creds.username || creds.email) +
+            (creds.password ? ' / ' + creds.password : '');
           document.body.appendChild(ban);
         }
       } catch (_e) {}
@@ -698,12 +720,63 @@
 
   function shouldRetry(status, bodyText) {
     if (status === 404) return true;
+    // 400/401/403 often mean wrong body shape or password — path retries still useful.
+    if (status === 400 || status === 401 || status === 403 || status === 422) return true;
     var t = String(bodyText || '').toLowerCase();
     return (
       t.indexOf('route not found') >= 0 ||
       t.indexOf('cannot post') >= 0 ||
-      t.indexOf('not found') >= 0
+      t.indexOf('not found') >= 0 ||
+      t.indexOf('khaldan') >= 0 ||
+      t.indexOf('invalid') >= 0 ||
+      t.indexOf('incorrect') >= 0 ||
+      t.indexOf('wrong') >= 0
     );
+  }
+
+  /** Expand login JSON so Express handlers that expect email OR username both work. */
+  function expandLoginRequestBody(raw) {
+    var obj = null;
+    try {
+      if (typeof raw === 'string') obj = JSON.parse(raw);
+      else if (raw && typeof raw === 'object') obj = raw;
+    } catch (_e) {
+      return raw;
+    }
+    if (!obj || typeof obj !== 'object') return raw;
+    var creds = window.__SV_PREVIEW_CREDS__ || {};
+    var id =
+      obj.username ||
+      obj.email ||
+      obj.identifier ||
+      obj.login ||
+      creds.username ||
+      creds.email ||
+      '';
+    var pass = obj.password || obj.passcode || obj.pass || creds.password || '';
+    var email =
+      obj.email ||
+      creds.email ||
+      (id && String(id).indexOf('@') >= 0 ? id : id ? String(id) + '@preview.demo' : '');
+    var username =
+      obj.username ||
+      creds.username ||
+      (id && String(id).indexOf('@') >= 0 ? String(id).split('@')[0] : id) ||
+      'admin';
+    var out = {};
+    try {
+      for (var k in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = obj[k];
+      }
+    } catch (_c) {
+      out = obj;
+    }
+    out.username = username;
+    out.email = email || out.email;
+    out.password = pass || out.password;
+    if (!out.identifier) out.identifier = username || email;
+    if (!out.login) out.login = username || email;
+    return typeof raw === 'string' ? JSON.stringify(out) : out;
   }
 
   function roleKeyOf(role) {
@@ -3170,6 +3243,10 @@
               console.log('[DEBUG-SHIM] axios login URL /auth/login → /api/auth/login');
             }
           }
+          if (isLoginUrl(String((config && config.url) || '')) && config.data != null && !config.__svLoginBodyExpanded) {
+            config.data = expandLoginRequestBody(config.data);
+            config.__svLoginBodyExpanded = true;
+          }
         } catch (_c) {}
         return config;
       });
@@ -3331,6 +3408,11 @@
         candidates: candidates.slice(),
         candidateCount: candidates.length,
       });
+      try {
+        if (init && init.body != null) {
+          init = Object.assign({}, init, { body: expandLoginRequestBody(init.body) });
+        }
+      } catch (_exp) {}
       var i = 0;
       function attempt() {
         var nextUrl = candidates[i++];

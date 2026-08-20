@@ -125,12 +125,34 @@ function wrapHtml(html) {
   const pathLogin = loginPath();
   const mainRole = mainRoleFromEnv();
   const adminHome = adminHomeFromEnv();
+  const adminEmail = String(
+    process.env.PREVIEW_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'admin@preview.demo'
+  ).trim();
+  const adminPass = String(
+    process.env.PREVIEW_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'Preview123!'
+  );
+  const seedUser = String(
+    process.env.PREVIEW_SEED_USERNAME ||
+      process.env.ADMIN_USERNAME ||
+      (adminEmail.includes('@') ? adminEmail.split('@')[0] : adminEmail) ||
+      'admin'
+  ).trim();
   const boot =
     `<meta name="sv-api-base" content="${base.replace(/"/g, '&quot;')}" />` +
     `<script>/*__SV_API_BOOT__*/window.__SV_API_BASE__=${JSON.stringify(base)};` +
     `window.__SV_LOGIN_API_PATH__=${JSON.stringify(pathLogin)};` +
     `window.__SV_MAIN_ADMIN_ROLE__=${JSON.stringify(mainRole)};` +
-    `window.__SV_ADMIN_HOME_PATH__=${JSON.stringify(adminHome)};</script>`;
+    `window.__SV_ADMIN_HOME_PATH__=${JSON.stringify(adminHome)};` +
+    `window.__SV_PREVIEW_ADMIN_EMAIL__=${JSON.stringify(adminEmail)};` +
+    `window.__SV_PREVIEW_ADMIN_PASSWORD__=${JSON.stringify(adminPass)};` +
+    `window.__SV_PREVIEW_SEED_USERNAME__=${JSON.stringify(seedUser)};` +
+    `window.__SV_PREVIEW_CREDS__=${JSON.stringify({
+      email: adminEmail,
+      password: adminPass,
+      username: seedUser,
+      apiBase: base,
+      loginPath: pathLogin,
+    })};</script>`;
   const fallback = loadFallbackJs();
   // Escape so a literal </script> inside the shim cannot break HTML parsing (and drop CSS links).
   const safeFallback = fallback ? String(fallback).replace(/<\/script/gi, '<\\/script') : '';
