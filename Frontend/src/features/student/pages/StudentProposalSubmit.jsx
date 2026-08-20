@@ -549,10 +549,11 @@ Features:
                     <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
                         <p>
                             {proposal?.aiRecommendationText ||
-                                'This proposal was rejected for near-copy similarity with another project in the same semester.'}
+                                'This proposal was previously blocked by an automatic similarity check.'}
                         </p>
                         <p className="mt-2 text-xs opacity-90">
-                            Click Submit again to re-check. Hard reject only applies to near-copies (~85%+). Soft overlap is sent to your teacher instead.
+                            Click <strong>Submit</strong> again after the backend is updated — same-semester overlap now
+                            goes to your teacher for review instead of auto-rejecting.
                         </p>
                     </div>
                 )}

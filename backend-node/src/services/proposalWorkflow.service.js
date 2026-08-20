@@ -1168,13 +1168,14 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   const verdictRaw = String(aiResult.verdict || 'ok');
   const sameScore = Number(aiResult.same_semester_max) || 0;
   let verdict = verdictRaw;
-  // Safety net: even if Python still returns reject_same_semester at ~60–80%,
-  // only hard-block near-copies. Soft overlaps go to the teacher.
-  if (verdict === 'reject_same_semester' && sameScore < AI_SAME_SEMESTER_HARD_REJECT) {
-    verdict = sameScore >= AI_SAME_SEMESTER_SOFT_FLAG ? 'flag_same_semester' : 'ok';
+  // Never auto-block students for same-semester similarity.
+  // Common topics (library, hostel, school CRUD) score high without being copies.
+  // Teacher reviews the overlap; only they can reject.
+  if (verdict === 'reject_same_semester' || verdict === 'flag_same_semester') {
     logger.info(
-      `Softened same-semester AI verdict ${verdictRaw}→${verdict} (score=${sameScore.toFixed(3)})`
+      `Same-semester AI verdict ${verdictRaw}→flag_same_semester (score=${sameScore.toFixed(3)}) — teacher review, not auto-reject`
     );
+    verdict = 'flag_same_semester';
   }
 
   let recommendation = null;
@@ -1184,21 +1185,17 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   const peerTitle = matchedPeer?.title ? String(matchedPeer.title).trim() : '';
   const samePct = Math.round(sameScore * 100);
 
-  if (verdict === 'reject_same_semester') {
-    proposal.status = 'ai_rejected_same_semester';
-    proposal.requiredNewFeaturesCount = 0;
-    recommendation = peerTitle
-      ? `Too similar to another project this semester (“${peerTitle}”, ~${samePct}% overlap). This looks like a near-copy — change the core idea.`
-      : `Too similar to another project this semester (~${samePct}% overlap). This looks like a near-copy — change the core idea.`;
-    proposal.aiRecommendationText = recommendation;
-  } else if (verdict === 'flag_same_semester') {
+  if (verdict === 'flag_same_semester') {
     proposal.status = 'pending_teacher_approval';
     proposal.requiredNewFeaturesCount = 0;
     proposal.previousFeaturesAtFlag = [];
     proposal.collaborativeTeacherReviews = { frontend: {}, backend: {} };
-    recommendation = peerTitle
-      ? `Possible same-semester overlap with “${peerTitle}” (~${samePct}%). Your proposal was sent to the teacher for review — you are not blocked.`
-      : `Possible same-semester overlap (~${samePct}%). Your proposal was sent to the teacher for review — you are not blocked.`;
+    recommendation =
+      sameScore > 0
+        ? peerTitle
+          ? `Possible same-semester overlap with “${peerTitle}” (~${samePct}%). Sent to your teacher for review — you are not blocked.`
+          : `Possible same-semester overlap (~${samePct}%). Sent to your teacher for review — you are not blocked.`
+        : 'Proposal sent to your teacher for approval.';
     proposal.aiRecommendationText = recommendation;
   } else if (verdict === 'warn_previous_semester') {
     proposal.status = 'ai_flagged_previous_semester';
@@ -1229,7 +1226,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     suggestedFeatures = built.suggestedFeatures;
     proposal.aiRecommendationText = built.text;
     proposal.aiSuggestedFeatures = built.suggestedFeatures;
-  } else if (verdict !== 'reject_same_semester' && verdict !== 'flag_same_semester') {
+  } else if (verdict !== 'flag_same_semester') {
     proposal.aiRecommendationText = '';
     proposal.aiSuggestedFeatures = [];
   }
@@ -1268,12 +1265,9 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     matchedSimilarProject,
     parsed: parsedFromFile,
     message:
-      verdict === 'reject_same_semester'
+      verdict === 'flag_same_semester'
         ? recommendation ||
-          'This proposal is too similar to another project in your current semester. Please change the idea, description, and features.'
-        : verdict === 'flag_same_semester'
-          ? recommendation ||
-            'Possible same-semester overlap. Your proposal was sent to the teacher for review.'
+          'Possible same-semester overlap. Your proposal was sent to the teacher for review.'
         : verdict === 'warn_previous_semester'
           ? 'This idea resembles an approved project from a previous semester. You can optionally add new features to strengthen originality before teacher review.'
           : proposal.status === 'requirements_review'
