@@ -2359,10 +2359,49 @@ async function importPhpSqlDumpsToMysql(mysqlName, dbName, projectRoot) {
     tableCount = 0;
   }
   if (tableCount > 0) {
-    return { importedFiles: 0, statements: 0, skipped: true, tableCount };
+    // Still import when DB has junk tables but no obvious auth/user table (common after empty CREATE).
+    let hasAuth = false;
+    try {
+      const { stdout } = await spawnProcess(
+        'docker',
+        [
+          'exec',
+          mysqlName,
+          'mariadb',
+          '-uroot',
+          `-p${PREVIEW_MYSQL_ROOT_PASSWORD}`,
+          '-N',
+          '-e',
+          `SELECT LOWER(table_name) FROM information_schema.tables WHERE table_schema='${safeDb}'`,
+        ],
+        { timeoutMs: 20_000 }
+      );
+      const names = String(stdout || '')
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      hasAuth = names.some((n) =>
+        /^(userregistration|users|user|admin|admins|registration|login)$/i.test(n)
+      );
+    } catch {
+      hasAuth = tableCount > 2;
+    }
+    if (hasAuth) {
+      return { importedFiles: 0, statements: 0, skipped: true, tableCount };
+    }
   }
 
-  const files = await discoverPhpSqlDumpFiles(projectRoot);
+  let files = await discoverPhpSqlDumpFiles(projectRoot);
+  if (!files.length) {
+    try {
+      const parent = path.dirname(projectRoot);
+      if (parent && parent !== projectRoot) {
+        files = await discoverPhpSqlDumpFiles(parent);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
   let importedFiles = 0;
   let statements = 0;
   for (const filePath of files) {

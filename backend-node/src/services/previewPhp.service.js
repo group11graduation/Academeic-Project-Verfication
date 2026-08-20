@@ -342,27 +342,74 @@ function isPhpBootstrapScript(filePath) {
 /** Discover database.sql / schema.sql style dumps in a PHP project root. */
 export async function discoverPhpSqlDumpFiles(root) {
   const found = new Set();
-  const names = ['database.sql', 'db.sql', 'schema.sql', 'dump.sql', 'data.sql'];
+  const preferredNames = [
+    'database.sql',
+    'db.sql',
+    'schema.sql',
+    'dump.sql',
+    'data.sql',
+    'install.sql',
+    'setup.sql',
+    'tables.sql',
+    'structure.sql',
+  ];
   const dirs = [root, path.join(root, 'sql'), path.join(root, 'database'), path.join(root, 'db')];
   for (const dir of dirs) {
-    for (const name of names) {
+    for (const name of preferredNames) {
       const filePath = path.join(dir, name);
       // eslint-disable-next-line no-await-in-loop
       if (await pathExists(filePath)) found.add(filePath);
     }
   }
-  for (const dir of [path.join(root, 'sql'), path.join(root, 'database')]) {
+
+  const skipDir = new Set([
+    'node_modules',
+    'vendor',
+    '.git',
+    'assets',
+    'uploads',
+    'cache',
+    'tmp',
+    'temp',
+    'images',
+    'img',
+    'css',
+    'js',
+    'fonts',
+  ]);
+
+  async function walkSql(dir, depth) {
+    if (depth > 5) return;
+    let entries;
     try {
       // eslint-disable-next-line no-await-in-loop
-      const entries = await fs.readdir(dir);
-      for (const entry of entries) {
-        if (entry.toLowerCase().endsWith('.sql')) found.add(path.join(dir, entry));
-      }
+      entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
-      /* missing dir */
+      return;
+    }
+    for (const entry of entries) {
+      if (skipDir.has(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        // eslint-disable-next-line no-await-in-loop
+        await walkSql(full, depth + 1);
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.sql')) {
+        found.add(full);
+      }
     }
   }
-  return [...found];
+
+  await walkSql(root, 0);
+
+  const score = (filePath) => {
+    const base = path.basename(filePath).toLowerCase();
+    if (preferredNames.includes(base)) return 100;
+    if (/(schema|structure|install|setup|database|dump|tables)/i.test(base)) return 80;
+    if (/create|hostel|bbms|project/i.test(base)) return 60;
+    return 10;
+  };
+
+  return [...found].sort((a, b) => score(b) - score(a) || a.length - b.length);
 }
 
 /**

@@ -43,6 +43,10 @@ EOF
 
 configure_php_docroot
 
+# Exported for SQL import / bootstrap (nested apps like /var/www/html/hostel).
+export APACHE_DOCROOT
+export APP_SUBDIR
+
 # Force PHP to load preview env overrides before any student script (works even for unknown config layouts).
 if [ -f /preview-bootstrap.php ]; then
   printf 'auto_prepend_file=/preview-bootstrap.php\n' > "$DOCROOT/.user.ini"
@@ -51,6 +55,27 @@ if [ -f /preview-bootstrap.php ]; then
   fi
   export PREVIEW_SANDBOX=1
 fi
+
+# Roots that contain the real PHP app + SQL dumps (handles APP_SUBDIR=hostel).
+preview_app_roots() {
+  echo "$DOCROOT"
+  if [ -n "$APACHE_DOCROOT" ] && [ "$APACHE_DOCROOT" != "$DOCROOT" ]; then
+    echo "$APACHE_DOCROOT"
+  fi
+  if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ] && [ -d "$DOCROOT/$APP_SUBDIR" ]; then
+    echo "$DOCROOT/$APP_SUBDIR"
+  fi
+  # One-level nested project folders (ZIP with a single app dir).
+  for d in "$DOCROOT"/*; do
+    [ -d "$d" ] || continue
+    case "$(basename "$d")" in
+      vendor|node_modules|assets|uploads|cache|tmp|temp|images|img|css|js|fonts|.git) continue ;;
+    esac
+    if [ -f "$d/index.php" ] || [ -f "$d/includes/config.php" ] || [ -d "$d/sql" ] || [ -d "$d/database" ]; then
+      echo "$d"
+    fi
+  done
+}
 
 patch_config_define() {
   file="$1"
@@ -336,40 +361,78 @@ import_sql_dumps() {
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
       ]);
       \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-      if (count(\$tables) > 0) {
+      \$lower = array_map('strtolower', \$tables);
+      \$hasAuth = false;
+      foreach (['userregistration','users','user','admin','admins','registration','login'] as \$t) {
+        if (in_array(\$t, \$lower, true)) { \$hasAuth = true; break; }
+      }
+      if (count(\$tables) > 0 && \$hasAuth) {
         echo '[preview] skip SQL import — ' . count(\$tables) . ' table(s) already present' . PHP_EOL;
         exit(0);
       }
-      \$roots = ['/var/www/html', '/var/www/html/sql', '/var/www/html/database', '/var/www/html/db'];
-      \$candidates = [];
-      foreach (['database.sql', 'db.sql', 'schema.sql', 'dump.sql', 'data.sql'] as \$name) {
-        foreach (\$roots as \$root) {
-          \$p = \$root . '/' . \$name;
-          if (is_file(\$p)) \$candidates[] = \$p;
-        }
+      if (count(\$tables) > 0 && !\$hasAuth) {
+        echo '[preview] DB has ' . count(\$tables) . ' table(s) but no auth table — importing SQL dumps' . PHP_EOL;
       }
-      foreach (glob('/var/www/html/sql/*.sql') ?: [] as \$p) \$candidates[] = \$p;
-      foreach (glob('/var/www/html/database/*.sql') ?: [] as \$p) \$candidates[] = \$p;
+      \$roots = array_values(array_unique(array_filter([
+        '/var/www/html',
+        getenv('APACHE_DOCROOT') ?: '',
+        (getenv('APP_SUBDIR') && getenv('APP_SUBDIR') !== '.') ? ('/var/www/html/' . getenv('APP_SUBDIR')) : '',
+      ])));
+      foreach (glob('/var/www/html/*', GLOB_ONLYDIR) ?: [] as \$d) {
+        \$base = basename(\$d);
+        if (preg_match('/^(vendor|node_modules|assets|uploads|cache|tmp|temp|images|img|css|js|fonts|\\.git)\$/i', \$base)) continue;
+        \$roots[] = \$d;
+      }
+      \$candidates = [];
+      \$preferred = ['database.sql','db.sql','schema.sql','dump.sql','data.sql','install.sql','setup.sql','tables.sql','structure.sql'];
+      foreach (\$roots as \$root) {
+        if (!\$root || !is_dir(\$root)) continue;
+        foreach (\$preferred as \$name) {
+          foreach ([\$root, \$root.'/sql', \$root.'/database', \$root.'/db'] as \$dir) {
+            \$p = \$dir . '/' . \$name;
+            if (is_file(\$p)) \$candidates[] = \$p;
+          }
+        }
+        // Recursive *.sql (depth-limited via RecursiveDirectoryIterator)
+        try {
+          \$it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(\$root, FilesystemIterator::SKIP_DOTS)
+          );
+          \$n = 0;
+          foreach (\$it as \$f) {
+            if (\$n > 80) break;
+            if (!\$f->isFile() || strtolower(\$f->getExtension()) !== 'sql') continue;
+            \$path = \$f->getPathname();
+            if (preg_match('#/(vendor|node_modules|\\.git)/#', \$path)) continue;
+            \$candidates[] = \$path;
+            \$n++;
+          }
+        } catch (Throwable \$e) { /* ignore */ }
+      }
       \$candidates = array_values(array_unique(\$candidates));
+      usort(\$candidates, function (\$a, \$b) use (\$preferred) {
+        \$ba = strtolower(basename(\$a));
+        \$bb = strtolower(basename(\$b));
+        \$sa = in_array(\$ba, \$preferred, true) ? 100 : ((preg_match('/schema|structure|install|setup|database|dump|tables|hostel/i', \$ba)) ? 80 : 10);
+        \$sb = in_array(\$bb, \$preferred, true) ? 100 : ((preg_match('/schema|structure|install|setup|database|dump|tables|hostel/i', \$bb)) ? 80 : 10);
+        return \$sb <=> \$sa;
+      });
       if (!\$candidates) {
         echo '[preview] no SQL dump files found to import' . PHP_EOL;
         exit(0);
       }
+      echo '[preview] SQL candidates: ' . implode(', ', array_map('basename', \$candidates)) . PHP_EOL;
       foreach (\$candidates as \$file) {
         \$sql = file_get_contents(\$file);
         if (\$sql === false || trim(\$sql) === '') continue;
         \$sql = preg_replace('/DELIMITER\\s+\\S+/i', '', \$sql);
         \$sql = preg_replace('/CREATE\\s+DEFINER=[^\\s]+\\s+/i', 'CREATE ', \$sql);
-        // Already connected to $db — drop CREATE DATABASE / USE so student dumps still apply.
         \$sql = preg_replace('/^\\s*CREATE\\s+DATABASE\\s+[^;]+;/im', '', \$sql);
         \$sql = preg_replace('/^\\s*USE\\s+[^;]+;/im', '', \$sql);
-        // Simple split — student dumps rarely embed ; inside statements. (Do NOT use /…/\\*/…/
-        // lookaheads; the /\\* terminates a /…/ regex and yields 0 statements.)
         \$parts = preg_split('/;\\s*/', \$sql);
         \$ok = 0; \$fail = 0;
         foreach (\$parts as \$stmt) {
-          // Strip full-line SQL comments; do NOT skip just because a comment precedes CREATE TABLE.
-          \$stmt = preg_replace('/^\\s*--[^\\n]*$/m', '', \$stmt);
+          \$stmt = preg_replace('/^\\s*--[^\\n]*\$/m', '', \$stmt);
           \$stmt = preg_replace('/\\/\\*.*?\\*\\//s', '', \$stmt);
           \$stmt = trim(\$stmt);
           if (\$stmt === '') continue;
@@ -384,6 +447,81 @@ import_sql_dumps() {
       echo '[preview] database ' . \$db . ' now has ' . count(\$tables) . ' table(s)' . PHP_EOL;
     } catch (Throwable \$e) {
       fwrite(STDERR, '[preview] SQL import failed: ' . \$e->getMessage() . PHP_EOL);
+    }
+  " || true
+}
+
+# If still no tables, pull CREATE TABLE statements out of setup/install PHP files.
+ensure_schema_from_php_sources() {
+  [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || return 0
+  php -r "
+    try {
+      \$host = getenv('DB_HOST');
+      \$db = preg_replace('/[^a-zA-Z0-9_]/', '', getenv('DB_NAME') ?: '');
+      if (!\$db) exit(0);
+      \$user = getenv('DB_USER') ?: 'root';
+      \$pass = getenv('DB_PASS') ?: '';
+      \$pdo = new PDO('mysql:host=' . \$host . ';dbname=' . \$db, \$user, \$pass, [
+        PDO::ATTR_TIMEOUT => 5,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+      ]);
+      \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+      if (count(\$tables) > 0) {
+        echo '[preview] schema OK — ' . count(\$tables) . ' table(s)' . PHP_EOL;
+        exit(0);
+      }
+      \$roots = array_values(array_unique(array_filter([
+        '/var/www/html',
+        getenv('APACHE_DOCROOT') ?: '',
+        (getenv('APP_SUBDIR') && getenv('APP_SUBDIR') !== '.') ? ('/var/www/html/' . getenv('APP_SUBDIR')) : '',
+      ])));
+      foreach (glob('/var/www/html/*', GLOB_ONLYDIR) ?: [] as \$d) \$roots[] = \$d;
+      \$ok = 0; \$fail = 0; \$scanned = 0;
+      foreach (array_unique(\$roots) as \$root) {
+        if (!\$root || !is_dir(\$root)) continue;
+        try {
+          \$it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(\$root, FilesystemIterator::SKIP_DOTS)
+          );
+          foreach (\$it as \$f) {
+            if (\$scanned > 120) break 2;
+            if (!\$f->isFile() || strtolower(\$f->getExtension()) !== 'php') continue;
+            \$path = \$f->getPathname();
+            \$base = \$f->getFilename();
+            if (!preg_match('/setup|install|upgrade|seed|migrate|init|database|schema|sql|create/i', \$path . \$base)
+              && !preg_match('/CREATE\\s+TABLE/i', @file_get_contents(\$path) ?: '')) {
+              continue;
+            }
+            if (preg_match('#/(vendor|node_modules|\\.git)/#', \$path)) continue;
+            \$c = @file_get_contents(\$path);
+            if (\$c === false || stripos(\$c, 'CREATE TABLE') === false) continue;
+            \$scanned++;
+            // Match CREATE TABLE … ; even inside PHP double/single quoted strings.
+            if (!preg_match_all('/CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?[\\s\\S]*?;/i', \$c, \$mm)) continue;
+            foreach (\$mm[0] as \$rawStmt) {
+              \$stmt = \$rawStmt;
+              // Undo common PHP string concatenation leftovers.
+              \$stmt = preg_replace('/\"\\s*\\.\\s*\"/', '', \$stmt);
+              \$stmt = preg_replace('/\'\\s*\\.\\s*\'/', '', \$stmt);
+              \$stmt = str_replace(['\\\\n', '\\\\r', '\\\\t'], [\"\\n\", \"\\r\", \"\\t\"], \$stmt);
+              \$stmt = trim(\$stmt);
+              if (\$stmt === '' || !preg_match('/^CREATE\\s+TABLE/i', \$stmt)) continue;
+              try {
+                \$pdo->exec(\$stmt);
+                \$ok++;
+                echo '[preview] CREATE TABLE from ' . basename(\$path) . PHP_EOL;
+              } catch (Throwable \$e) {
+                \$fail++;
+                fwrite(STDERR, '[preview] CREATE TABLE fail: ' . substr(\$e->getMessage(), 0, 140) . PHP_EOL);
+              }
+            }
+          }
+        } catch (Throwable \$e) { /* ignore */ }
+      }
+      \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+      echo '[preview] PHP-source schema: ok=' . \$ok . ' fail=' . \$fail . ' tables=' . count(\$tables) . PHP_EOL;
+    } catch (Throwable \$e) {
+      fwrite(STDERR, '[preview] PHP-source schema failed: ' . \$e->getMessage() . PHP_EOL);
     }
   " || true
 }
@@ -416,23 +554,27 @@ patch_xampp_asset_prefixes() {
 
 run_bootstrap_scripts() {
   [ -n "$DB_HOST" ] || return 0
-  for pattern in setup_db.php upgrade_db.php reset_admin.php install.php database/setup.php scripts/setup.php; do
-    script="$DOCROOT/$pattern"
-    [ -f "$script" ] || continue
-    fix_setup_use_in_script "$script"
-    echo "[preview] running $(basename "$script")"
-    php "$script" >> /tmp/preview-mysql.log 2>&1 || true
-  done
-  find "$DOCROOT" -maxdepth 3 -type f -name '*.php' 2>/dev/null | while read -r script; do
-    base=$(basename "$script")
-    case "$base" in
-      setup*|install*|upgrade*|reset*|seed*|migrate*|init*)
-        echo "$script" | grep -qiE 'setup|install|upgrade|reset|seed|migrate|init' || continue
-        fix_setup_use_in_script "$script"
-        echo "[preview] running bootstrap $base"
-        php "$script" >> /tmp/preview-mysql.log 2>&1 || true
-        ;;
-    esac
+  roots=$(preview_app_roots | sort -u)
+  for root in $roots; do
+    [ -d "$root" ] || continue
+    for pattern in setup_db.php upgrade_db.php reset_admin.php install.php database/setup.php scripts/setup.php sql/setup.php; do
+      script="$root/$pattern"
+      [ -f "$script" ] || continue
+      fix_setup_use_in_script "$script"
+      echo "[preview] running $(basename "$script") from $root"
+      php "$script" >> /tmp/preview-mysql.log 2>&1 || true
+    done
+    find "$root" -maxdepth 4 -type f -name '*.php' 2>/dev/null | while read -r script; do
+      base=$(basename "$script")
+      case "$base" in
+        setup*|install*|upgrade*|reset*|seed*|migrate*|init*)
+          echo "$script" | grep -qiE 'setup|install|upgrade|reset|seed|migrate|init' || continue
+          fix_setup_use_in_script "$script"
+          echo "[preview] running bootstrap $base ($script)"
+          php "$script" >> /tmp/preview-mysql.log 2>&1 || true
+          ;;
+      esac
+    done
   done
 }
 
@@ -541,6 +683,7 @@ if [ -n "$DB_HOST" ]; then
   run_bootstrap_scripts
   # Import again if bootstrap created empty schema only / failed
   import_sql_dumps
+  ensure_schema_from_php_sources
   check_bootstrap_tables
   wait_for_mysql || true
   if [ -f /preview-seed-admin.php ]; then
