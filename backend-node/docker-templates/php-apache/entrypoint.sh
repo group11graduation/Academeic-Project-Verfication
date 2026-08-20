@@ -12,13 +12,36 @@ configure_php_docroot() {
   target=""
   if [ -n "$APP_SUBDIR" ] && [ "$APP_SUBDIR" != "." ] && [ -d "$DOCROOT/$APP_SUBDIR" ]; then
     # Only use DocumentRoot for nested apps — never flatten via cp.
-    if [ -f "$DOCROOT/$APP_SUBDIR/index.php" ] || [ -f "$DOCROOT/$APP_SUBDIR/index.html" ]; then
+    if [ -f "$DOCROOT/$APP_SUBDIR/index.php" ] || [ -f "$DOCROOT/$APP_SUBDIR/index.html" ] \
+      || [ -f "$DOCROOT/$APP_SUBDIR/admin/index.php" ] || [ -d "$DOCROOT/$APP_SUBDIR/includes" ]; then
       target="$DOCROOT/$APP_SUBDIR"
     fi
   fi
   if [ -z "$target" ] && [ -f "$DOCROOT/public/index.php" ]; then
     if [ -d "$DOCROOT/src" ] || [ -d "$DOCROOT/app" ] || [ -d "$DOCROOT/includes" ]; then
       target="$DOCROOT/public"
+    fi
+  fi
+  # ZIP with a single nested app folder (tms/, hostel/, …) and no APP_SUBDIR.
+  if [ -z "$target" ]; then
+    count=0
+    pick=""
+    for d in "$DOCROOT"/*; do
+      [ -d "$d" ] || continue
+      base=$(basename "$d")
+      case "$base" in
+        vendor|node_modules|assets|uploads|cache|tmp|temp|images|img|css|js|fonts|.git) continue ;;
+      esac
+      if [ -f "$d/includes/config.php" ] || [ -d "$d/includes" ] || [ -f "$d/admin/index.php" ]; then
+        if [ -f "$d/index.php" ] || [ -f "$d/admin/index.php" ] || [ -f "$d/includes/config.php" ]; then
+          count=$((count + 1))
+          pick="$d"
+        fi
+      fi
+    done
+    if [ "$count" -eq 1 ] && [ -n "$pick" ]; then
+      target="$pick"
+      echo "[preview] auto-detected nested PHP app → $target"
     fi
   fi
   if [ -z "$target" ]; then
@@ -35,13 +58,70 @@ configure_php_docroot() {
     AllowOverride All
     Require all granted
   </Directory>
+  # Force sandbox bootstrap for every PHP request (more reliable than .user.ini alone).
+  <IfModule mod_php.c>
+    php_admin_value auto_prepend_file /preview-bootstrap.php
+  </IfModule>
+  <IfModule mod_php8.c>
+    php_admin_value auto_prepend_file /preview-bootstrap.php
+  </IfModule>
   ErrorLog \${APACHE_LOG_DIR}/error.log
   CustomLog \${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
 EOF
 }
 
+# Always ensure Apache loads the sandbox bootstrap (even when DocumentRoot stays /var/www/html).
+ensure_apache_auto_prepend() {
+  # Most reliable on official php:*-apache images — applies to every request.
+  if [ -d /usr/local/etc/php/conf.d ]; then
+    printf 'auto_prepend_file=/preview-bootstrap.php\n' > /usr/local/etc/php/conf.d/zz-sv-preview-prepend.ini
+    echo "[preview] php.ini auto_prepend_file → /preview-bootstrap.php"
+  fi
+  conf="/etc/apache2/conf-enabled/sv-preview-prepend.conf"
+  cat > "$conf" <<'EOF'
+<IfModule mod_php.c>
+  php_admin_value auto_prepend_file /preview-bootstrap.php
+</IfModule>
+<IfModule mod_php8.c>
+  php_admin_value auto_prepend_file /preview-bootstrap.php
+</IfModule>
+EOF
+}
+
+# Fix admin/user scripts that do include('includes/config.php') expecting CWD = project root.
+# Rewrites to __DIR__/../includes/... when the file lives one level under the app root.
+patch_relative_includes() {
+  root="${1:-$APACHE_DOCROOT}"
+  [ -d "$root" ] || return 0
+  for sub in admin user student teacher staff dashboard modules; do
+    [ -d "$root/$sub" ] || continue
+    find "$root/$sub" -maxdepth 2 -type f -name '*.php' 2>/dev/null | while read -r f; do
+      # Only touch simple relative includes of includes/* or include/* or config/*
+      if grep -qE "include(_once)?\s*\(\s*['\"]includes/" "$f" 2>/dev/null \
+        || grep -qE "require(_once)?\s*\(\s*['\"]includes/" "$f" 2>/dev/null \
+        || grep -qE "include(_once)?\s*\(\s*['\"]include/" "$f" 2>/dev/null \
+        || grep -qE "include(_once)?\s+['\"]includes/" "$f" 2>/dev/null; then
+        if grep -q '__DIR__' "$f" 2>/dev/null; then
+          continue
+        fi
+        sed -i -E \
+          -e "s/(include_once|require_once|include|require)[[:space:]]*\([[:space:]]*['\"]includes\//\\1(__DIR__ . '\/..\/includes\//g" \
+          -e "s/(include_once|require_once|include|require)[[:space:]]*\([[:space:]]*['\"]include\//\\1(__DIR__ . '\/..\/include\//g" \
+          -e "s/(include_once|require_once|include|require)[[:space:]]+['\"]includes\//\\1 __DIR__ . '\/..\/includes\//g" \
+          "$f" 2>/dev/null || true
+        # Close the string+paren for the (__DIR__ . '/../includes/foo.php') form when we left a bare path
+        sed -i -E \
+          -e "s/__DIR__ \. '\/\.\.\/includes\/([^'\"]+)['\"]/__DIR__ . '\/..\/includes\/\1'/g" \
+          "$f" 2>/dev/null || true
+        echo "[preview] patched relative includes in ${f#$root/}"
+      fi
+    done
+  done
+}
+
 configure_php_docroot
+ensure_apache_auto_prepend
 
 # Exported for SQL import / bootstrap (nested apps like /var/www/html/hostel).
 export APACHE_DOCROOT
@@ -54,6 +134,11 @@ if [ -f /preview-bootstrap.php ]; then
     printf 'auto_prepend_file=/preview-bootstrap.php\n' > "$APACHE_DOCROOT/.user.ini"
   fi
   export PREVIEW_SANDBOX=1
+fi
+
+patch_relative_includes "$APACHE_DOCROOT"
+if [ "$APACHE_DOCROOT" != "$DOCROOT" ]; then
+  patch_relative_includes "$DOCROOT"
 fi
 
 # Roots that contain the real PHP app + SQL dumps (handles APP_SUBDIR=hostel).

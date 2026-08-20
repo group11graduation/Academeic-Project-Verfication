@@ -5,9 +5,89 @@
  *
  * Also CREATE DATABASE IF NOT EXISTS for every name the student app might use
  * (fixes "Unknown database 'hostel'" when the sidecar was initialized as bbms).
+ *
+ * chdir() to the app root so admin/index.php can include('includes/config.php')
+ * the XAMPP way (TMS and most nested-folder PHP ZIPs).
  */
 if (getenv('PREVIEW_SANDBOX') !== '1' && !getenv('DB_HOST')) {
     return;
+}
+
+/**
+ * Find the real project root (folder that contains includes/config.php or similar).
+ * Critical for /admin/index.php → include('includes/config.php').
+ */
+function __sv_preview_resolve_app_root()
+{
+    $looksLikeRoot = static function ($dir) {
+        $dir = rtrim((string) $dir, '/');
+        if ($dir === '' || !is_dir($dir)) {
+            return false;
+        }
+        return is_file($dir . '/includes/config.php')
+            || is_file($dir . '/include/config.php')
+            || is_file($dir . '/config/config.php')
+            || is_file($dir . '/config/database.php')
+            || is_file($dir . '/includes/dbconnection.php')
+            || is_file($dir . '/includes/connection.php')
+            || (is_file($dir . '/index.php') && is_dir($dir . '/includes'));
+    };
+
+    $candidates = [];
+    foreach (
+        [
+            getenv('APACHE_DOCROOT') ?: '',
+            getenv('APACHE_DOCUMENT_ROOT') ?: '',
+            (getenv('APP_SUBDIR') && getenv('APP_SUBDIR') !== '.')
+                ? ('/var/www/html/' . getenv('APP_SUBDIR'))
+                : '',
+            '/var/www/html',
+        ] as $c
+    ) {
+        if ($c) {
+            $candidates[] = $c;
+        }
+    }
+
+    $script = isset($_SERVER['SCRIPT_FILENAME']) ? (string) $_SERVER['SCRIPT_FILENAME'] : '';
+    if ($script !== '' && is_file($script)) {
+        $dir = dirname($script);
+        for ($i = 0; $i < 8; $i++) {
+            $candidates[] = $dir;
+            $parent = dirname($dir);
+            if ($parent === $dir) {
+                break;
+            }
+            $dir = $parent;
+        }
+    }
+
+    foreach (glob('/var/www/html/*', GLOB_ONLYDIR) ?: [] as $d) {
+        $candidates[] = $d;
+    }
+
+    foreach (array_unique($candidates) as $dir) {
+        if ($looksLikeRoot($dir)) {
+            return rtrim($dir, '/');
+        }
+    }
+
+    $envDoc = getenv('APACHE_DOCROOT') ?: getenv('APACHE_DOCUMENT_ROOT') ?: '';
+    if ($envDoc && is_dir($envDoc)) {
+        return rtrim($envDoc, '/');
+    }
+    return '/var/www/html';
+}
+
+$__svAppRoot = __sv_preview_resolve_app_root();
+if ($__svAppRoot && is_dir($__svAppRoot)) {
+    @chdir($__svAppRoot);
+    $inc = $__svAppRoot . PATH_SEPARATOR . get_include_path();
+    @set_include_path($inc);
+    if (!getenv('APACHE_DOCROOT')) {
+        putenv('APACHE_DOCROOT=' . $__svAppRoot);
+    }
+    $GLOBALS['__sv_preview_app_root'] = $__svAppRoot;
 }
 
 $svEnv = static function (array $keys, $default = null) {
