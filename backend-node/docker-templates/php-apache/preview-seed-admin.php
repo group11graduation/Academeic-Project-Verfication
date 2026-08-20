@@ -17,7 +17,50 @@ $dbPass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
 $seedUser = trim((string) (getenv('PREVIEW_SEED_USERNAME') ?: getenv('ADMIN_USERNAME') ?: 'previewadmin'));
 $seedPass = (string) (getenv('PREVIEW_SEED_PASSWORD') ?: getenv('ADMIN_PASSWORD') ?: 'Preview123!');
 $seedEmail = trim((string) (getenv('PREVIEW_ADMIN_EMAIL') ?: getenv('ADMIN_EMAIL') ?: 'admin@preview.demo'));
-$docroot = '/var/www/html';
+if ($seedEmail === '' || strpos($seedEmail, '@') === false) {
+    $seedEmail = (strpos($seedUser, '@') !== false) ? $seedUser : ($seedUser . '@preview.local');
+}
+
+function sv_preview_docroots(): array
+{
+    $roots = [];
+    $push = static function ($p) use (&$roots) {
+        $p = rtrim((string) $p, '/');
+        if ($p !== '' && is_dir($p) && !in_array($p, $roots, true)) {
+            $roots[] = $p;
+        }
+    };
+    $push('/var/www/html');
+    $push(getenv('APACHE_DOCROOT') ?: '');
+    $push(getenv('APACHE_DOCUMENT_ROOT') ?: '');
+    $sub = trim((string) (getenv('APP_SUBDIR') ?: ''));
+    if ($sub !== '' && $sub !== '.') {
+        $push('/var/www/html/' . $sub);
+    }
+    foreach (glob('/var/www/html/*', GLOB_ONLYDIR) ?: [] as $d) {
+        $base = basename($d);
+        if (preg_match('/^(vendor|node_modules|assets|uploads|cache|tmp|temp|images|img|css|js|fonts|\.git)$/i', $base)) {
+            continue;
+        }
+        if (is_file($d . '/index.php') || is_file($d . '/login.php') || is_dir($d . '/includes')) {
+            $push($d);
+        }
+    }
+    return $roots ?: ['/var/www/html'];
+}
+
+$docroots = sv_preview_docroots();
+$docroot = $docroots[0];
+foreach ($docroots as $candidateRoot) {
+    if (
+        is_file($candidateRoot . '/index.php') ||
+        is_file($candidateRoot . '/login.php') ||
+        is_file($candidateRoot . '/auth/login.php')
+    ) {
+        $docroot = $candidateRoot;
+        break;
+    }
+}
 
 function sv_log($msg)
 {
@@ -48,16 +91,28 @@ function sv_detect_password_mode(string $docroot): string
     $candidates = [
         $docroot . '/auth/login.php',
         $docroot . '/login.php',
+        $docroot . '/index.php',
         $docroot . '/admin/login.php',
+        $docroot . '/admin/index.php',
         $docroot . '/user/login.php',
         $docroot . '/pages/login.php',
         $docroot . '/signin.php',
+        $docroot . '/includes/login.php',
     ];
     foreach (['auth', 'admin', 'user', 'pages', 'includes'] as $subdir) {
-        $extra = $docroot . '/' . $subdir . '/login.php';
-        if (is_file($extra)) {
-            $candidates[] = $extra;
+        foreach (['login.php', 'signin.php', 'authenticate.php'] as $file) {
+            $extra = $docroot . '/' . $subdir . '/' . $file;
+            if (is_file($extra)) {
+                $candidates[] = $extra;
+            }
         }
+    }
+    // Also scan sibling docroots (nested hostel app).
+    foreach (sv_preview_docroots() as $root) {
+        $candidates[] = $root . '/index.php';
+        $candidates[] = $root . '/login.php';
+        $candidates[] = $root . '/auth/login.php';
+        $candidates[] = $root . '/admin/login.php';
     }
 
     $blob = '';
@@ -202,6 +257,9 @@ function sv_default_for_column(array $colMeta, string $colName, string $seedUser
     if (in_array($name, ['email', 'user_email', 'mail'], true)) {
         return strpos($seedUser, '@') !== false ? $seedUser : $seedEmail;
     }
+    if (preg_match('/^(reg(_?no|istration|istration_?number|number)|student_?id|enrollment)$/', $name)) {
+        return preg_match('/@/', $seedUser) ? 'previewadmin' : $seedUser;
+    }
     if (in_array($name, ['role', 'user_role', 'type', 'user_type', 'usertype', 'account_type'], true)) {
         if (strpos($type, 'enum') !== false && preg_match("/'admin'/i", $type)) {
             return 'admin';
@@ -233,7 +291,10 @@ $mode = sv_detect_password_mode($docroot);
 if ($mode === '') {
     $mode = 'bcrypt';
 }
-sv_log('password mode=' . $mode . ' user=' . $seedUser . ' db=' . $dbName . ' host=' . $host);
+sv_log(
+    'password mode=' . $mode . ' user=' . $seedUser . ' email=' . $seedEmail .
+    ' db=' . $dbName . ' host=' . $host . ' docroot=' . $docroot
+);
 
 $pdo = sv_wait_pdo($host, $dbName, $dbUser, $dbPass);
 if (!$pdo) {
@@ -241,18 +302,35 @@ if (!$pdo) {
 }
 
 $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-$priority = ['users', 'user', 'admins', 'admin', 'tbl_users', 'tbl_admin', 'admin_users', 'login', 'accounts', 'staff', 'employee'];
+$priority = [
+    'userregistration',
+    'user_registration',
+    'registration',
+    'users',
+    'user',
+    'admins',
+    'admin',
+    'tbl_users',
+    'tbl_admin',
+    'admin_users',
+    'login',
+    'accounts',
+    'staff',
+    'employee',
+];
 $candidates = [];
 foreach ($priority as $name) {
-    if (in_array($name, $tables, true)) {
-        $candidates[] = $name;
+    foreach ($tables as $t) {
+        if (strcasecmp((string) $t, $name) === 0) {
+            $candidates[] = $t;
+        }
     }
 }
 foreach ($tables as $name) {
     if (in_array($name, $candidates, true)) {
         continue;
     }
-    if (preg_match('/user|admin|staff|login|account/i', (string) $name)) {
+    if (preg_match('/user|admin|staff|login|account|regist/i', (string) $name)) {
         $candidates[] = $name;
     }
 }
@@ -270,7 +348,20 @@ foreach ($candidates as $table) {
         $cols[$k] = $meta['Field'];
     }
 
-    $userCol = sv_pick_column($cols, ['username', 'user_name', 'user', 'login', 'admin_username', 'name', 'email']);
+    $userCol = sv_pick_column($cols, [
+        'username',
+        'user_name',
+        'user',
+        'login',
+        'admin_username',
+        'email',
+        'reg_no',
+        'regno',
+        'registration_number',
+        'registrationno',
+        'reg_number',
+        'name',
+    ]);
     $passCol = sv_pick_column($cols, [
         'password_hash',
         'password',
@@ -289,8 +380,30 @@ foreach ($candidates as $table) {
 
     $roleCol = sv_pick_column($cols, ['role', 'user_role', 'type', 'user_type', 'usertype', 'account_type', 'userlevel', 'level']);
     $emailCol = sv_pick_column($cols, ['email', 'user_email', 'mail']);
+    $regCol = sv_pick_column($cols, [
+        'registration_number',
+        'registrationno',
+        'reg_no',
+        'regno',
+        'reg_number',
+        'regnumber',
+        'student_id',
+        'studentid',
+        'enrollment',
+        'enrolment',
+    ]);
     $statusCol = sv_pick_column($cols, ['status', 'is_active', 'active', 'enabled']);
     $safeTable = str_replace('`', '``', $table);
+
+    // Hostel-style login by email / registration number: identity must be email-shaped when
+    // the primary login column is email.
+    $identityValue = $seedUser;
+    if (preg_match('/email/i', $userCol) && strpos($seedUser, '@') === false) {
+        $identityValue = $seedEmail;
+    }
+    if (preg_match('/reg|student/i', $userCol) && strpos($seedUser, '@') !== false) {
+        $identityValue = preg_replace('/@.*/', '', $seedUser) ?: 'previewadmin';
+    }
 
     // Sample existing hash to refine mode when auto.
     $sampleHash = null;
@@ -313,16 +426,33 @@ foreach ($candidates as $table) {
     }
     $hash = sv_encode_password($seedPass, $encodeMode === 'bcrypt' ? 'bcrypt' : ($encodeMode ?: 'auto'), is_string($sampleHash) ? $sampleHash : null);
 
-    // Prefer upserting the exact seed username; also refresh legacy admin rows' passwords
+    // Prefer upserting the exact seed identity; also refresh legacy admin rows' passwords
     // without renaming them away (keeps project default admin working).
-    $lookupValues = array_values(array_unique(array_filter([$seedUser, 'admin', 'superadmin', 'administrator', 'Admin'])));
+    $lookupValues = array_values(
+        array_unique(
+            array_filter([
+                $identityValue,
+                $seedUser,
+                $seedEmail,
+                'admin',
+                'superadmin',
+                'administrator',
+                'Admin',
+                'previewadmin',
+            ])
+        )
+    );
     $existing = null;
     foreach ($lookupValues as $lookup) {
         $stmt = $pdo->prepare('SELECT * FROM `' . $safeTable . '` WHERE `' . $userCol . '` = ? LIMIT 1');
         $stmt->execute([$lookup]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row) {
-            if (strcasecmp((string) ($row[$userCol] ?? ''), $seedUser) === 0) {
+            if (strcasecmp((string) ($row[$userCol] ?? ''), $identityValue) === 0) {
+                $existing = $row;
+                break;
+            }
+            if ($emailCol && strcasecmp((string) ($row[$emailCol] ?? ''), $seedEmail) === 0) {
                 $existing = $row;
                 break;
             }
@@ -331,10 +461,33 @@ foreach ($candidates as $table) {
             }
         }
     }
+    // Also find by email / registration number columns when login form uses those fields.
+    if ($existing === null && $emailCol) {
+        $stmt = $pdo->prepare('SELECT * FROM `' . $safeTable . '` WHERE `' . $emailCol . '` = ? LIMIT 1');
+        $stmt->execute([$seedEmail]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    if ($existing === null && $regCol) {
+        foreach ([$seedUser, 'previewadmin', 'PREVIEW001', '001'] as $regTry) {
+            $stmt = $pdo->prepare('SELECT * FROM `' . $safeTable . '` WHERE `' . $regCol . '` = ? LIMIT 1');
+            $stmt->execute([$regTry]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $existing = $row;
+                break;
+            }
+        }
+    }
 
     try {
-        if ($existing && strcasecmp((string) ($existing[$userCol] ?? ''), $seedUser) === 0) {
-            // Exact seed user exists — update password (+ role/status).
+        $matchIdentity =
+            $existing &&
+            (strcasecmp((string) ($existing[$userCol] ?? ''), $identityValue) === 0 ||
+                ($emailCol && strcasecmp((string) ($existing[$emailCol] ?? ''), $seedEmail) === 0) ||
+                ($regCol && strcasecmp((string) ($existing[$regCol] ?? ''), $seedUser) === 0));
+
+        if ($matchIdentity) {
+            // Exact seed user exists — update password (+ role/status/email/reg).
             $sets = ['`' . $passCol . '` = ?'];
             $params = [$hash];
             if ($roleCol) {
@@ -345,9 +498,13 @@ foreach ($candidates as $table) {
                 $sets[] = '`' . $statusCol . '` = ?';
                 $params[] = is_numeric($existing[$statusCol] ?? '') ? 1 : 'active';
             }
-            if ($emailCol && empty($existing[$emailCol]) && $seedEmail) {
+            if ($emailCol) {
                 $sets[] = '`' . $emailCol . '` = ?';
                 $params[] = $seedEmail;
+            }
+            if ($regCol) {
+                $sets[] = '`' . $regCol . '` = ?';
+                $params[] = preg_match('/@/', $seedUser) ? 'previewadmin' : $seedUser;
             }
             $idCol = sv_pick_column($cols, ['id', 'user_id', 'uid', 'admin_id']);
             if ($idCol && isset($existing[$idCol])) {
@@ -356,12 +513,12 @@ foreach ($candidates as $table) {
                     'UPDATE `' . $safeTable . '` SET ' . implode(', ', $sets) . ' WHERE `' . $idCol . '` = ?'
                 )->execute($params);
             } else {
-                $params[] = $seedUser;
+                $params[] = $existing[$userCol];
                 $pdo->prepare(
                     'UPDATE `' . $safeTable . '` SET ' . implode(', ', $sets) . ' WHERE `' . $userCol . '` = ?'
                 )->execute($params);
             }
-            sv_log('updated existing user in ' . $table . ' where ' . $userCol . '=' . $seedUser);
+            sv_log('updated existing user in ' . $table . ' where ' . $userCol . '=' . $identityValue);
         } else {
             // Insert seed user as a new row (do not rename project admin).
             $fields = [];
@@ -374,13 +531,16 @@ foreach ($candidates as $table) {
                 $fields[$field] = $val;
             }
             // Force identity columns even if nullable defaults were skipped.
-            $fields[$userCol] = $seedUser;
+            $fields[$userCol] = $identityValue;
             $fields[$passCol] = $hash;
             if ($roleCol) {
                 $fields[$roleCol] = 'admin';
             }
             if ($emailCol) {
-                $fields[$emailCol] = strpos($seedUser, '@') !== false ? $seedUser : $seedEmail;
+                $fields[$emailCol] = $seedEmail;
+            }
+            if ($regCol) {
+                $fields[$regCol] = preg_match('/@/', $seedUser) ? 'previewadmin' : $seedUser;
             }
             if ($statusCol) {
                 $fields[$statusCol] = isset($colMeta[strtolower($statusCol)]['Type']) &&
@@ -405,17 +565,23 @@ foreach ($candidates as $table) {
 
         // Also refresh password on classic admin row so project default login still works
         // when teachers use admin/Admin@123 from setup scripts.
-        if (strcasecmp($seedUser, 'admin') !== 0) {
-            $stmt = $pdo->prepare('SELECT `' . $userCol . '` FROM `' . $safeTable . '` WHERE `' . $userCol . '` = ? LIMIT 1');
-            $stmt->execute(['admin']);
-            if ($stmt->fetchColumn()) {
-                // Leave project admin password alone unless PREVIEW_SEED_ALSO_RESET_ADMIN=1
-                if (getenv('PREVIEW_SEED_ALSO_RESET_ADMIN') === '1') {
+        if (strcasecmp($seedUser, 'admin') !== 0 && getenv('PREVIEW_SEED_ALSO_RESET_ADMIN') === '1') {
+            foreach (['admin', 'Admin', 'administrator'] as $adminName) {
+                $stmt = $pdo->prepare(
+                    'SELECT `' . $userCol . '` FROM `' . $safeTable . '` WHERE `' . $userCol . '` = ? LIMIT 1'
+                );
+                $stmt->execute([$adminName]);
+                if ($stmt->fetchColumn()) {
                     $pdo->prepare(
                         'UPDATE `' . $safeTable . '` SET `' . $passCol . '` = ? WHERE `' . $userCol . '` = ?'
-                    )->execute([$hash, 'admin']);
-                    sv_log('also reset password for admin row');
+                    )->execute([$hash, $adminName]);
+                    sv_log('also reset password for ' . $adminName . ' row');
                 }
+            }
+            if ($emailCol) {
+                $pdo->prepare(
+                    'UPDATE `' . $safeTable . '` SET `' . $passCol . '` = ? WHERE `' . $emailCol . '` LIKE ?'
+                )->execute([$hash, '%admin%']);
             }
         }
     } catch (Throwable $e) {
@@ -423,17 +589,25 @@ foreach ($candidates as $table) {
         continue;
     }
 
-    // Verify the row can be found with the seeded username.
+    // Verify the row can be found with the seeded identity (username or email).
     $check = $pdo->prepare(
         'SELECT `' . $passCol . '`' .
         ($emailCol ? ', `' . $emailCol . '` AS __sv_email' : '') .
         ' FROM `' . $safeTable . '` WHERE `' . $userCol . '` = ? LIMIT 1'
     );
-    $check->execute([$seedUser]);
+    $check->execute([$identityValue]);
     $verifyRow = $check->fetch(PDO::FETCH_ASSOC);
+    if (!$verifyRow && $emailCol) {
+        $check = $pdo->prepare(
+            'SELECT `' . $passCol . '`, `' . $emailCol . '` AS __sv_email FROM `' . $safeTable .
+            '` WHERE `' . $emailCol . '` = ? LIMIT 1'
+        );
+        $check->execute([$seedEmail]);
+        $verifyRow = $check->fetch(PDO::FETCH_ASSOC);
+    }
     $stored = $verifyRow ? ($verifyRow[$passCol] ?? false) : false;
     if ($stored === false || $stored === null || $stored === '') {
-        sv_log('verify failed: no row with ' . $userCol . '=' . $seedUser . ' in ' . $table);
+        sv_log('verify failed: no row with ' . $userCol . '=' . $identityValue . ' in ' . $table);
         continue;
     }
 
@@ -449,7 +623,7 @@ foreach ($candidates as $table) {
     }
 
     if (!$ok) {
-        sv_log('verify failed for ' . $seedUser . ' in ' . $table . ' (stored hash does not match seed password / mode=' . $mode . ')');
+        sv_log('verify failed for ' . $identityValue . ' in ' . $table . ' (stored hash does not match seed password / mode=' . $mode . ')');
         continue;
     }
 
@@ -458,13 +632,15 @@ foreach ($candidates as $table) {
         $rowEmail = (string) $verifyRow['__sv_email'];
     } elseif ($emailCol && is_array($verifyRow) && !empty($verifyRow[$emailCol])) {
         $rowEmail = (string) $verifyRow[$emailCol];
-    } elseif (strpos($seedUser, '@') !== false) {
-        $rowEmail = $seedUser;
+    } elseif (strpos($identityValue, '@') !== false) {
+        $rowEmail = $identityValue;
+    } else {
+        $rowEmail = $seedEmail;
     }
 
     $emailPart = $rowEmail !== '' ? ' email=' . $rowEmail : '';
-    echo '[preview] ScholarVerify admin seeded in ' . $table . ': username=' . $seedUser . $emailPart . ' password=' . $seedPass . "\n";
-    sv_log('SUCCESS table=' . $table . ' username=' . $seedUser . ($rowEmail !== '' ? ' email=' . $rowEmail : '') . ' mode=' . $mode);
+    echo '[preview] ScholarVerify admin seeded in ' . $table . ': username=' . $identityValue . $emailPart . ' password=' . $seedPass . "\n";
+    sv_log('SUCCESS table=' . $table . ' username=' . $identityValue . ($rowEmail !== '' ? ' email=' . $rowEmail : '') . ' mode=' . $mode);
     $seeded = true;
     break;
 }
