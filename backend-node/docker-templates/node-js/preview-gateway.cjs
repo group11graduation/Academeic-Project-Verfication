@@ -230,6 +230,18 @@ function buildApiUpstreamPaths(originalPath) {
     candidates.push(`/api${pathOnly}`);
     candidates.push(`/api/v1${pathOnly}`);
   }
+  // Nested admin mounts common in library / inventory MERN ZIPs.
+  if (/\/(categories|category|books|book|libraries|library|shelves|shelf|locations|location|cabinets|cabinet|volumes|volume|book-placements|book-placement)(\/|$)/i.test(pathOnly)) {
+    const bare = pathOnly.replace(/^\/api\/v1/i, '').replace(/^\/api/i, '') || pathOnly;
+    candidates.push(`/api/admin${bare}`);
+    candidates.push(`/admin${bare}`);
+    candidates.push(`/api${bare}/list`);
+    candidates.push(`${bare}/list`);
+    candidates.push(`/api${bare}/all`);
+    candidates.push(`${bare}/all`);
+    candidates.push(`/api${bare}/getAll`);
+    candidates.push(`${bare}/getAll`);
+  }
   for (const c of [...candidates]) {
     for (const sp of singularPlural(c)) candidates.push(sp);
   }
@@ -446,14 +458,9 @@ function isListishApiPath(pathname) {
 }
 
 function softEmptyListBody(pathname) {
-  const p = String(pathname || '').split('?')[0] || '/';
-  const m = p.match(
-    /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(?:\/)?$/i
-  );
-  if (!m) return '[]';
-  const key = m[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-  // Most MERN list UIs accept a bare array; some wrap { categories: [...] }.
-  return JSON.stringify({ [key]: [], data: [], success: true, message: 'preview soft-empty' });
+  // Prefer bare array — most axios UIs do `const rows = res.data` then rows.map(...).
+  void pathname;
+  return '[]';
 }
 
 function looksLikeUpstreamDbFailure(status, bodyBuf) {
@@ -715,13 +722,44 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             return;
           }
 
+          // Exhausted all mounts with 404 on a list GET — soft-empty (do NOT serve SPA HTML).
+          if (
+            !isLogin &&
+            !hasMorePaths &&
+            (status === 404 || looksLikeRouteNotFound(status, Buffer.alloc(0))) &&
+            method === 'GET' &&
+            isListishApiPath(pathOnly)
+          ) {
+            up.resume();
+            console.log('[preview-gateway] list GET 404 exhausted → soft-empty', pathOnly);
+            const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
+            return send(res, 200, soft, {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Access-Control-Allow-Origin': req.headers.origin || '*',
+              'Access-Control-Allow-Credentials': 'true',
+              'X-SV-Preview-Soft-Empty': '1',
+            });
+          }
+
           if (status === 404 && hasMorePaths) {
             up.resume();
             return attempt(index + 1);
           }
-          if (status === 404 && canFallback) {
+          // Never fall back to SPA HTML for known API list/CRUD paths (breaks axios JSON parse).
+          if (status === 404 && canFallback && !isApiProxyPath(pathOnly) && !isListishApiPath(pathOnly)) {
             up.resume();
             return serveStatic(req, res);
+          }
+          if (status === 404 && isListishApiPath(pathOnly) && method === 'GET') {
+            up.resume();
+            console.log('[preview-gateway] list GET final 404 → soft-empty', pathOnly);
+            const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
+            return send(res, 200, soft, {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Access-Control-Allow-Origin': req.headers.origin || '*',
+              'Access-Control-Allow-Credentials': 'true',
+              'X-SV-Preview-Soft-Empty': '1',
+            });
           }
 
           // Express may reject demo admin/admin123 with 400 before preview-safety recovery.
