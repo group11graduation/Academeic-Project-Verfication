@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V41:
+ * Marker V42:
+ * - Gateway retries login POSTs across /auth/login → /api/auth/login → /api/users/login…
+ *   (DropSafe and most MERN ZIPs: UI path ≠ Express mount).
+ * - Shim: axios login 404 path fallbacks (fetch already had them).
+ * V41:
  * - Break login↔admin history loops: never fire popstate on every blocked /login
  *   replaceState (that re-triggers <Navigate/> and hangs the browser).
  * - History suppress is quiet after the first few hits; one remount if #root stays blank.
@@ -102,10 +106,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V41__) {
-    console.log('[DEBUG-SHIM] already installed V41 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V42__) {
+    console.log('[DEBUG-SHIM] already installed V42 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V42__ = true;
   window.__SV_LOGIN_FALLBACK_V41__ = true;
   window.__SV_LOGIN_FALLBACK_V40__ = true;
   window.__SV_LOGIN_FALLBACK_V39__ = true;
@@ -142,7 +147,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v41', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v42', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -312,13 +317,14 @@
   } catch (_setPatch) {}
 
   var PATHS = [
-    '/api' + '/auth/login',
-    '/auth' + '/login',
-    '/api' + '/user/login',
-    '/api' + '/users/login',
-    '/users' + '/login',
-    '/api' + '/login',
-    '/api' + '/v1/auth/login',
+    '/api/auth/login',
+    '/api/users/login',
+    '/api/user/login',
+    '/api/login',
+    '/api/v1/auth/login',
+    '/auth/login',
+    '/users/login',
+    '/user/login',
   ];
 
   function setNativeValue(el, value) {
@@ -420,7 +426,10 @@
   function isLoginUrl(url) {
     try {
       var u = String(url || '');
-      return /\/(api\/)?(auth\/|users\/|user\/|v1\/auth\/)?login\/?(\?|$)/i.test(u);
+      return (
+        /\/(api\/)?(auth\/|users\/|user\/|v1\/auth\/)?login\/?(\?|$)/i.test(u) ||
+        /\/(signin|sign-in|authenticate)\/?(\?|$)/i.test(u)
+      );
     } catch (_e) {
       return false;
     }
@@ -671,9 +680,13 @@
       ordered.push(buildUrl(origin, p.charAt(0) === '/' ? p : '/' + p));
     }
     if (preferred) push(preferred);
+    // Prefer /api/* before bare /auth/login (Express almost always mounts under /api).
     PATHS.forEach(push);
     var incoming = (parts.path || '').split('?')[0];
-    if (incoming && incoming !== '/login') push(incoming);
+    if (incoming && incoming !== '/login') {
+      if (!/^\/api\//i.test(incoming)) push('/api' + incoming);
+      push(incoming);
+    }
 
     // Keep original absolute URL last (if different) so we don't loop forever.
     var original = typeof url === 'string' ? url : '';
@@ -3140,6 +3153,23 @@
               config.headers.Authorization = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
             }
           }
+          var rawUrl = String((config && config.url) || '');
+          if (isLoginUrl(rawUrl) && !config.__svLoginUrlRewritten) {
+            var preferred = '';
+            try {
+              preferred = String(window.__SV_LOGIN_API_PATH__ || '').trim();
+            } catch (_p) {}
+            // Prefer discovered /api/* path; never leave bare /auth/login as the only try.
+            if (preferred && preferred.indexOf('/api/') === 0) {
+              config.url = preferred;
+              config.__svLoginUrlRewritten = true;
+              console.log('[DEBUG-SHIM] axios login URL → preferred', preferred);
+            } else if (/^\/auth\/login\/?$/i.test(rawUrl.split('?')[0] || '')) {
+              config.url = '/api/auth/login';
+              config.__svLoginUrlRewritten = true;
+              console.log('[DEBUG-SHIM] axios login URL /auth/login → /api/auth/login');
+            }
+          }
         } catch (_c) {}
         return config;
       });
@@ -3152,6 +3182,45 @@
             var status = err && err.response && err.response.status;
             var cfg = err && err.config;
             var url = cfg && (cfg.url || '');
+            var bodyText = '';
+            try {
+              var d = err.response && err.response.data;
+              bodyText = typeof d === 'string' ? d : JSON.stringify(d || '');
+            } catch (_bt) {}
+
+            // Login path mismatch: try alternate Express mounts.
+            if (
+              cfg &&
+              isLoginUrl(url) &&
+              shouldRetry(status, bodyText) &&
+              !cfg.__svLoginPathRetry
+            ) {
+              var cands = loginCandidates(url);
+              var idx = typeof cfg.__svLoginCandIdx === 'number' ? cfg.__svLoginCandIdx : 0;
+              if (idx < cands.length) {
+                var next = cands[idx];
+                cfg.__svLoginCandIdx = idx + 1;
+                cfg.__svLoginPathRetry = idx + 1 >= cands.length;
+                try {
+                  var parts = splitBaseAndPath(next);
+                  if (parts.origin && cfg.baseURL) {
+                    // Absolute candidate — drop conflicting baseURL
+                    cfg.baseURL = undefined;
+                    cfg.url = next;
+                  } else if (parts.origin) {
+                    cfg.baseURL = parts.origin;
+                    cfg.url = parts.path || '/';
+                  } else {
+                    cfg.url = parts.path || next;
+                  }
+                } catch (_u) {
+                  cfg.url = next;
+                }
+                console.warn('[DEBUG-SHIM] axios login 404 → retry', cfg.url);
+                return ax.request(cfg);
+              }
+            }
+
             if (!(status === 401 || status === 403) || !getStoredAccessToken()) {
               return Promise.reject(err);
             }

@@ -50,6 +50,48 @@ function loginPath() {
   return String(process.env.PREVIEW_LOGIN_API_PATH || '/api/users/login').trim() || '/api/users/login';
 }
 
+/** Common Express login mounts — frontend often calls /auth/login while API is /api/auth/login. */
+const LOGIN_UPSTREAM_CANDIDATES = [
+  '/api/auth/login',
+  '/api/users/login',
+  '/api/user/login',
+  '/api/login',
+  '/api/v1/auth/login',
+  '/auth/login',
+  '/users/login',
+  '/user/login',
+];
+
+function isLoginApiRequest(method, pathname) {
+  const m = String(method || 'GET').toUpperCase();
+  if (m !== 'POST' && m !== 'PUT' && m !== 'PATCH') return false;
+  const p = String(pathname || '').split('?')[0] || '/';
+  return /\/login\/?$/i.test(p) || /\/(signin|sign-in|authenticate)\/?$/i.test(p);
+}
+
+function buildLoginUpstreamPaths(originalPath) {
+  const pathOnly = String(originalPath).split('?')[0] || '/';
+  const qs = String(originalPath).includes('?')
+    ? originalPath.slice(originalPath.indexOf('?'))
+    : '';
+  const out = [];
+  const seen = new Set();
+  function push(p) {
+    const full = p.includes('?') ? p : `${p}${qs}`;
+    if (!full || seen.has(full)) return;
+    seen.add(full);
+    out.push(full);
+  }
+  push(originalPath);
+  const preferred = loginPath();
+  if (preferred && preferred !== '/login') push(preferred);
+  if (!/^\/api(\/|$)/i.test(pathOnly)) {
+    push(`/api${pathOnly}`);
+  }
+  for (const c of LOGIN_UPSTREAM_CANDIDATES) push(c);
+  return out;
+}
+
 function mainRoleFromEnv() {
   return String(
     process.env.PREVIEW_FORCE_ADMIN_ROLE ||
@@ -342,13 +384,17 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
       const qs = String(originalPath).includes('?')
         ? originalPath.slice(originalPath.indexOf('?'))
         : '';
-      const pathsToTry = [originalPath];
-      // Never rewrite /socket.io → /api/socket.io (Engine.IO sid breaks).
-      if (
+      let pathsToTry = [originalPath];
+      if (isLoginApiRequest(method, pathOnly)) {
+        // DropSafe / many MERN apps: UI posts /auth/login, Express mounts /api/auth/login.
+        pathsToTry = buildLoginUpstreamPaths(originalPath);
+        console.log('[preview-gateway] login upstream tries:', pathsToTry.join(' → '));
+      } else if (
         !isWebSocketProxyPath(pathOnly) &&
-        !/^\/api(\/|$)/i.test(pathOnly) &&
-        !/^\/auth(\/|$)/i.test(pathOnly)
+        !/^\/api(\/|$)/i.test(pathOnly)
       ) {
+        // Also try /api prefix for non-api paths (including /auth/* GETs).
+        // Previously /auth was excluded, which left POST /auth/login stuck on Express 404.
         pathsToTry.push(`/api${pathOnly}${qs}`);
       }
 

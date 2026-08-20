@@ -1551,13 +1551,13 @@ export function buildPreviewMongoUri(sessionId, { sidecarHost = null } = {}) {
 }
 
 const DEFAULT_LOGIN_PATHS = [
-  '/auth/login',
   '/api/auth/login',
-  '/api/user/login',
   '/api/users/login',
-  '/users/login',
+  '/api/user/login',
   '/api/login',
   '/api/v1/auth/login',
+  '/auth/login',
+  '/users/login',
   '/login',
 ];
 
@@ -1568,7 +1568,7 @@ const LOGIN_PATH_LITERAL_RE = /['"`](\/(?:api\/)?[^'"`]*login[^'"`]*)['"`]/gi;
 
 /**
  * Pick the best login API path from source discovery / probe results.
- * Prefers the shared candidate order (api/auth/login before auth/login, etc.).
+ * Prefer /api/* mounts — frontend often also contains the string "/auth/login".
  */
 export function preferLoginApiPath(discoveredPaths = []) {
   const found = new Set(
@@ -1577,6 +1577,11 @@ export function preferLoginApiPath(discoveredPaths = []) {
       .filter(Boolean)
       .map((p) => (p.startsWith('/') ? p : `/${p}`))
   );
+  // Prefer API-prefixed routes first (real Express mounts).
+  for (const candidate of DEFAULT_LOGIN_PATHS) {
+    if (!candidate.startsWith('/api')) continue;
+    if (found.has(candidate)) return candidate;
+  }
   for (const candidate of DEFAULT_LOGIN_PATHS) {
     if (found.has(candidate)) return candidate;
   }
