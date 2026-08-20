@@ -7,7 +7,12 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V40:
+ * Marker V41:
+ * - Break login↔admin history loops: never fire popstate on every blocked /login
+ *   replaceState (that re-triggers <Navigate/> and hangs the browser).
+ * - History suppress is quiet after the first few hits; one remount if #root stays blank.
+ * - Keep auth keys (payflow_user, token, …) while on admin routes with a token.
+ * V40:
  * - Never trust gateway __SV_ADMIN_HOME_PATH__ unless that route exists in the bundle.
  *   Prefer scanned routes (/dashboard, /admin, …) over a guessed /admin/dashboard.
  * - Stop putting ?__sv_r= on history/React Router URLs (causes "No routes matched").
@@ -97,10 +102,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V40__) {
-    console.log('[DEBUG-SHIM] already installed V40 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V41__) {
+    console.log('[DEBUG-SHIM] already installed V41 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V41__ = true;
   window.__SV_LOGIN_FALLBACK_V40__ = true;
   window.__SV_LOGIN_FALLBACK_V39__ = true;
   window.__SV_LOGIN_FALLBACK_V38__ = true;
@@ -136,7 +142,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v40', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v41', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -2409,6 +2415,7 @@
       sessionStorage.removeItem('__sv_grace_reload__');
       sessionStorage.removeItem('__sv_hard_doc_nav__');
       sessionStorage.removeItem('__sv_blank_fix__');
+      sessionStorage.removeItem('__sv_login_block_n__');
     } catch (_e) {}
   }
 
@@ -2539,14 +2546,83 @@
     try {
       applyGatewayAuthRole();
       hydratePreviewAuthAfterBounce();
-      window.dispatchEvent(new Event('storage'));
-      window.dispatchEvent(new Event('userChanged'));
-      window.dispatchEvent(new Event('sv-preview-login'));
+      // Do NOT dispatch popstate here — it re-enters React Router <Navigate to="/login"/>
+      // and floods history (Chrome: "Throttling navigation").
       if (window.__svNativeHistoryReplace) {
-        window.__svNativeHistoryReplace({}, '', dest);
-        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+        window.__svNativeHistoryReplace(history.state || {}, '', dest);
       }
     } catch (_u) {}
+  }
+
+  /**
+   * Handle forced logout navigations.
+   * history.* : quiet rewrite to stay (no popstate loop). location.* : one remount.
+   */
+  function handleLoginRedirectAttempt(target, via) {
+    var path = String(target || '');
+    try {
+      var u = new URL(path, window.location.href);
+      path = u.pathname + (u.search || '');
+    } catch (_e) {}
+    var stay = pathnameOnly(pickStayAdminPath());
+    var viaHist = via === 'history.pushState' || via === 'history.replaceState';
+
+    var n = 0;
+    try {
+      n = parseInt(sessionStorage.getItem('__sv_login_block_n__') || '0', 10) + 1;
+      sessionStorage.setItem('__sv_login_block_n__', String(n));
+    } catch (_n) {
+      n = 1;
+    }
+
+    if (n <= 3 || n === 6 || n === 12) {
+      console.log(
+        '[DEBUG-SHIM] blocked login redirect to',
+        path,
+        '→ stay',
+        stay,
+        viaHist ? '(history quiet)' : '(document remount)',
+        via || '',
+        '#' + n
+      );
+    }
+
+    applyGatewayAuthRole();
+    if (n <= 4) {
+      hydratePreviewAuthAfterBounce();
+    }
+
+    if (viaHist) {
+      // Quiet rewrite only — callers also replaceState/pushState to stay.
+      // First blank check → one remount; then stay quiet to stop Chrome throttle.
+      if (n === 1) {
+        setTimeout(function () {
+          try {
+            var root = document.getElementById('root') || document.getElementById('app');
+            var html = root ? String(root.innerHTML || '').replace(/\s+/g, '') : '';
+            if (html.length <= 40) {
+              console.warn('[DEBUG-SHIM] blank after login-block — one remount');
+              try {
+                sessionStorage.setItem('__sv_hard_doc_nav__', '0');
+                sessionStorage.setItem('__sv_login_block_n__', '0');
+              } catch (_c) {}
+              forceAdminRemount(stay, true);
+            }
+          } catch (_b) {}
+        }, 500);
+      } else if (n === 5) {
+        try {
+          sessionStorage.setItem('__sv_hard_doc_nav__', '0');
+        } catch (_c2) {}
+        forceAdminRemount(stay, true);
+      }
+      return stay;
+    }
+
+    if (n <= 3) {
+      forceAdminRemount(stay);
+    }
+    return stay;
   }
 
   /** @deprecated use forceAdminRemount */
@@ -2578,6 +2654,7 @@
           try {
             sessionStorage.removeItem('__sv_hard_doc_nav__');
             sessionStorage.removeItem('__sv_blank_fix__');
+            sessionStorage.removeItem('__sv_login_block_n__');
           } catch (_ok) {}
           clearInterval(timer);
           return;
@@ -2696,48 +2773,8 @@
     if (isCurrentlyOnLoginPage()) return false;
     if (!isLoginRedirectTarget(target)) return false;
     if (withinPostLoginGrace()) return true;
-    if (/admin|dashboard|manDash/i.test(String(location.pathname || ''))) return true;
+    if (/admin|dashboard|manDash|loans/i.test(String(location.pathname || ''))) return true;
     return false;
-  }
-
-  /**
-   * Handle forced logout navigations during grace / admin routes.
-   * history.* : rewrite to stay + unstick (no reload loop). location.* : full remount.
-   */
-  function handleLoginRedirectAttempt(target, via) {
-    var path = String(target || '');
-    try {
-      var u = new URL(path, window.location.href);
-      path = u.pathname + (u.search || '');
-    } catch (_e) {}
-    var stay = pickStayAdminPath();
-    var viaHist = via === 'history.pushState' || via === 'history.replaceState';
-    console.log(
-      '[DEBUG-SHIM] blocked login redirect to',
-      path,
-      '→ stay',
-      stay,
-      viaHist ? '(history unstick)' : '(document remount)',
-      via ? via : ''
-    );
-    applyGatewayAuthRole();
-    hydratePreviewAuthAfterBounce();
-    if (viaHist) {
-      unstickNavigateNull(stay);
-      setTimeout(function () {
-        try {
-          var root = document.getElementById('root') || document.getElementById('app');
-          var html = root ? String(root.innerHTML || '').replace(/\s+/g, '') : '';
-          if (html.length <= 20) {
-            var retryStay = isWeakAdminPath(stay) ? nextConcreteAdminPath(stay) : stay;
-            forceAdminRemount(retryStay, true);
-          }
-        } catch (_b) {}
-      }, 250);
-    } else {
-      forceAdminRemount(stay);
-    }
-    return stay;
   }
 
   function installLoginRedirectGuards() {
@@ -3067,8 +3104,15 @@
     };
     Storage.prototype.removeItem = function (key) {
       var k = String(key || '');
-      if (this === localStorage && AUTH_CLEAR_KEYS[k] && withinPostLoginGrace() && getStoredAccessToken()) {
-        console.warn('[DEBUG-SHIM] blocked auth removeItem during post-login grace:', k);
+      var onAdmin =
+        /admin|dashboard|manDash|loans/i.test(String((location && location.pathname) || ''));
+      if (
+        this === localStorage &&
+        AUTH_CLEAR_KEYS[k] &&
+        getStoredAccessToken() &&
+        (withinPostLoginGrace() || onAdmin)
+      ) {
+        console.warn('[DEBUG-SHIM] blocked auth removeItem:', k, onAdmin ? '(admin route)' : '(grace)');
         return;
       }
       return __svNativeRemoveItem.apply(this, arguments);
