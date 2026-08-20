@@ -1,4 +1,4 @@
-/* scholarverify-preview-cors-v8 — universal login upserts demo admin (admin/admin123) */
+/* scholarverify-preview-cors-v9 — api path /api↔bare retry + universal login */
 'use strict';
 const path = require('path');
 const { createRequire } = require('module');
@@ -1027,17 +1027,164 @@ function isSandboxLoginFailureRecoverable(email, password) {
   return false;
 }
 
+function isRouteNotFoundPayload(body) {
+  try {
+    const s = typeof body === 'string' ? body : JSON.stringify(body == null ? '' : body);
+    return /route\s*not\s*found|cannot\s+(GET|POST|PUT|PATCH|DELETE)|not\s+found:\s*\//i.test(s);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function toggleApiPrefixUrl(url) {
+  const raw = String(url || '/');
+  const pathOnly = raw.split('?')[0] || '/';
+  const qs = raw.includes('?') ? raw.slice(raw.indexOf('?')) : '';
+  if (/^\/api\/v1\//i.test(pathOnly)) {
+    return `${pathOnly.replace(/^\/api\/v1/i, '/api') || '/api'}${qs}`;
+  }
+  if (/^\/api\//i.test(pathOnly)) {
+    const stripped = pathOnly.replace(/^\/api/i, '') || '/';
+    return `${stripped}${qs}`;
+  }
+  if (pathOnly !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
+    return `/api${pathOnly}${qs}`;
+  }
+  return null;
+}
+
+function singularPluralPathVariants(pathOnly) {
+  const p = String(pathOnly || '').split('?')[0] || '/';
+  const parts = p.split('/').filter(Boolean);
+  if (!parts.length) return [];
+  const last = parts[parts.length - 1];
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(last)) return [];
+  const next = parts.slice();
+  if (/ies$/i.test(last) && last.length > 4) {
+    next[next.length - 1] = `${last.slice(0, -3)}y`;
+  } else if (/s$/i.test(last) && last.length > 2 && !/ss$/i.test(last)) {
+    next[next.length - 1] = last.replace(/s$/i, '');
+  } else if (/y$/i.test(last) && last.length > 2) {
+    next[next.length - 1] = `${last.slice(0, -1)}ies`;
+  } else {
+    next[next.length - 1] = `${last}s`;
+  }
+  if (next[next.length - 1] === last) return [];
+  return [`/${next.join('/')}`];
+}
+
+function buildApiPathAlternates(url) {
+  const raw = String(url || '/');
+  const pathOnly = raw.split('?')[0] || '/';
+  const qs = raw.includes('?') ? raw.slice(raw.indexOf('?')) : '';
+  const out = [];
+  const seen = new Set();
+  function push(u) {
+    if (!u || seen.has(u)) return;
+    seen.add(u);
+    out.push(u);
+  }
+  const toggled = toggleApiPrefixUrl(raw);
+  if (toggled) push(toggled);
+  for (const sp of singularPluralPathVariants(pathOnly)) {
+    push(`${sp}${qs}`);
+    const t = toggleApiPrefixUrl(`${sp}${qs}`);
+    if (t) push(t);
+  }
+  if (/^\/api\//i.test(pathOnly) && !/^\/api\/v1\//i.test(pathOnly)) {
+    push(`${pathOnly.replace(/^\/api\//i, '/api/v1/')}${qs}`);
+  }
+  if (/^\/api\/v1\//i.test(pathOnly)) {
+    push(`${pathOnly.replace(/^\/api\/v1\//i, '/api/')}${qs}`);
+    push(`${pathOnly.replace(/^\/api\/v1/i, '') || '/'}${qs}`);
+  }
+  return out.filter((u) => u !== raw);
+}
+
+/**
+ * When Express 404s on /api/students but the route is mounted at /students (or the
+ * reverse), re-dispatch once/few times before the student catch-all response is sent.
+ */
+function wrapApiPath404Retry(req, res, origHandle, out) {
+  if (!req || !res || typeof res.json !== 'function') return;
+  if (req.__svApiPathWrapped) return;
+  req.__svApiPathWrapped = true;
+
+  let statusCode = 200;
+  const origStatus = res.status.bind(res);
+  const origJson = res.json.bind(res);
+  const origSend = typeof res.send === 'function' ? res.send.bind(res) : null;
+
+  function tryAlternate(body, passthrough) {
+    if (res.headersSent) return passthrough();
+    const failed =
+      statusCode === 404 ||
+      statusCode === 405 ||
+      (statusCode >= 400 && statusCode < 500 && isRouteNotFoundPayload(body));
+    if (!failed) return passthrough();
+
+    if (!req.__svApiPathAlts) {
+      req.__svApiPathAlts = buildApiPathAlternates(req.url || req.originalUrl || '/');
+      req.__svApiPathRetryIdx = 0;
+    }
+    const alts = req.__svApiPathAlts || [];
+    const idx = Number(req.__svApiPathRetryIdx) || 0;
+    if (idx >= alts.length) return passthrough();
+
+    const from = req.url || req.originalUrl || '/';
+    const nextAlt = alts[idx];
+    req.__svApiPathRetryIdx = idx + 1;
+    req.url = nextAlt;
+    try {
+      req.originalUrl = nextAlt;
+    } catch (_o) {
+      /* ignore */
+    }
+    statusCode = 200;
+    try {
+      res.statusCode = 200;
+    } catch (_s) {
+      /* ignore */
+    }
+    console.log('[preview] api path 404 → retry', from, '→', nextAlt);
+    try {
+      return origHandle(req, res, out);
+    } catch (err) {
+      console.log('[preview] api path retry failed:', err && err.message ? err.message : err);
+      return passthrough();
+    }
+  }
+
+  res.status = function patchedStatus(code) {
+    statusCode = Number(code) || statusCode;
+    return origStatus(code);
+  };
+  res.json = function patchedJson(body) {
+    return tryAlternate(body, function () {
+      return origJson(body);
+    });
+  };
+  if (origSend) {
+    res.send = function patchedSend(body) {
+      return tryAlternate(body, function () {
+        return origSend(body);
+      });
+    };
+  }
+}
+
 function installPreviewCorsFix(app) {
   if (!app || typeof app.use !== 'function') return;
   installPreviewRuntimeGuards();
 
-  // Catch student login 401s regardless of route registration order.
+  // Catch student login 401s + /api vs bare path 404s regardless of route order.
   if (!app.__svHandlePatch && typeof app.handle === 'function') {
     app.__svHandlePatch = true;
     const origHandle = app.handle.bind(app);
     app.handle = function svHandle(req, res, out) {
       try {
         wrapLoginResponseForRecovery(req, res);
+        wrapApiPath404Retry(req, res, origHandle, out);
       } catch (_e) {
         /* ignore */
       }
@@ -1163,7 +1310,7 @@ function installPreviewCorsFix(app) {
     }
   }
 
-  console.log('[preview] CORS + universal login installed (v8 upsert)');
+  console.log('[preview] CORS + universal login installed (v9 api-path retry)');
 }
 
 /**

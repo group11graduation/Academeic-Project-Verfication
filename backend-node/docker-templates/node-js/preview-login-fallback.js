@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V44:
+ * Marker V45:
+ * - Automatic CRUD path retries: /api/students ↔ /students ↔ singular/plural (/api/v1).
+ *   Layers: Express safety re-dispatch, gateway upstream tries, axios+fetch shim.
+ * V44:
  * - Allow Log Out (stop blocking localStorage clear on admin routes).
  * - Gateway: /api/students ↔ /students fallback for all CRUD APIs.
  * V43:
@@ -112,10 +115,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V44__) {
-    console.log('[DEBUG-SHIM] already installed V44 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V45__) {
+    console.log('[DEBUG-SHIM] already installed V45 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V45__ = true;
   window.__SV_LOGIN_FALLBACK_V44__ = true;
   window.__SV_LOGIN_FALLBACK_V43__ = true;
   window.__SV_LOGIN_FALLBACK_V42__ = true;
@@ -155,7 +159,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v44', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v45', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -736,6 +740,68 @@
       t.indexOf('incorrect') >= 0 ||
       t.indexOf('wrong') >= 0
     );
+  }
+
+  /** CRUD only — do not retry auth failures as path misses. */
+  function shouldRetryApiPath(status, bodyText) {
+    if (status === 404 || status === 405) return true;
+    var t = String(bodyText || '').toLowerCase();
+    return (
+      t.indexOf('route not found') >= 0 ||
+      /cannot\s+(get|post|put|patch|delete)/i.test(t) ||
+      /not\s+found:\s*\//i.test(t)
+    );
+  }
+
+  function apiPathCandidates(url) {
+    var parts = splitBaseAndPath(url);
+    var pathOnly = (parts.path || '/').split('?')[0] || '/';
+    var qs = (parts.path || '').indexOf('?') >= 0 ? (parts.path || '').slice((parts.path || '').indexOf('?')) : '';
+    var origin = parts.origin || '';
+    var ordered = [];
+    var seen = {};
+    function pushPath(p) {
+      if (!p || seen[p]) return;
+      seen[p] = true;
+      ordered.push(buildUrl(origin, p.charAt(0) === '/' ? p : '/' + p));
+    }
+    function singularPlural(p) {
+      var segs = String(p || '')
+        .split('?')[0]
+        .split('/')
+        .filter(Boolean);
+      if (!segs.length) return [];
+      var last = segs[segs.length - 1];
+      if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(last)) return [];
+      var next = segs.slice();
+      if (/ies$/i.test(last) && last.length > 4) next[next.length - 1] = last.slice(0, -3) + 'y';
+      else if (/s$/i.test(last) && last.length > 2 && !/ss$/i.test(last)) next[next.length - 1] = last.replace(/s$/i, '');
+      else if (/y$/i.test(last) && last.length > 2) next[next.length - 1] = last.slice(0, -1) + 'ies';
+      else next[next.length - 1] = last + 's';
+      if (next[next.length - 1] === last) return [];
+      return ['/' + next.join('/')];
+    }
+    var cands = [pathOnly];
+    if (/^\/api\/v1\//i.test(pathOnly)) {
+      cands.push(pathOnly.replace(/^\/api\/v1\//i, '/api/'));
+      cands.push(pathOnly.replace(/^\/api\/v1/i, '') || '/');
+    } else if (/^\/api\//i.test(pathOnly)) {
+      cands.push(pathOnly.replace(/^\/api/i, '') || '/');
+      cands.push(pathOnly.replace(/^\/api\//i, '/api/v1/'));
+    } else if (pathOnly !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
+      cands.push('/api' + pathOnly);
+      cands.push('/api/v1' + pathOnly);
+    }
+    var i;
+    for (i = 0; i < cands.length; i++) {
+      var sp = singularPlural(cands[i]);
+      if (sp.length) cands.push(sp[0]);
+    }
+    for (i = 0; i < cands.length; i++) {
+      if (cands[i] === pathOnly) continue;
+      pushPath(cands[i] + qs);
+    }
+    return ordered;
   }
 
   /** Expand login JSON so Express handlers that expect email OR username both work. */
@@ -3302,6 +3368,43 @@
               }
             }
 
+            // CRUD path mismatch: /api/students ↔ /students ↔ singular/plural.
+            if (
+              cfg &&
+              !isLoginUrl(url) &&
+              isApiRequestUrl(url) &&
+              shouldRetryApiPath(status, bodyText) &&
+              !cfg.__svApiPathExhausted
+            ) {
+              if (!cfg.__svApiPathCands) {
+                var fullForCands = url;
+                try {
+                  if (cfg.baseURL && !/^https?:/i.test(String(url || ''))) {
+                    fullForCands = String(cfg.baseURL).replace(/\/$/, '') + '/' + String(url || '').replace(/^\//, '');
+                  }
+                } catch (_f) {}
+                cfg.__svApiPathCands = apiPathCandidates(fullForCands || url);
+                cfg.__svApiPathIdx = 0;
+              }
+              var apiCands = cfg.__svApiPathCands || [];
+              var apiIdx = typeof cfg.__svApiPathIdx === 'number' ? cfg.__svApiPathIdx : 0;
+              if (apiIdx < apiCands.length) {
+                var apiNext = apiCands[apiIdx];
+                cfg.__svApiPathIdx = apiIdx + 1;
+                if (cfg.__svApiPathIdx >= apiCands.length) cfg.__svApiPathExhausted = true;
+                try {
+                  var apiParts = splitBaseAndPath(apiNext);
+                  cfg.baseURL = undefined;
+                  cfg.url = apiNext;
+                  if (apiParts.path && !apiParts.origin) cfg.url = apiParts.path;
+                } catch (_au) {
+                  cfg.url = apiNext;
+                }
+                console.warn('[DEBUG-SHIM] axios API path 404 → retry', cfg.url);
+                return ax.request(cfg);
+              }
+            }
+
             if (!(status === 401 || status === 403) || !getStoredAccessToken()) {
               return Promise.reject(err);
             }
@@ -3377,11 +3480,47 @@
       // Always timeout loopback leftovers so the UI cannot stick on "Please wait…".
       var needsTimeout = isLoopbackOrigin(url) || (method === 'POST' && isLoginUrl(url));
       if (method !== 'POST' || !isLoginUrl(url)) {
-        var fetchCtx = { input: input, init: init, retried: false };
+        var fetchCtx = { input: input, init: init, retried: false, apiPathIdx: 0, apiPathCands: null };
         function afterApi(res) {
-          return softSessionIfUnauthorized(res, url, fetchCtx).then(function (r2) {
-            return rewriteJsonApiResponse(r2, url);
-          });
+          return Promise.resolve()
+            .then(function () {
+              if (
+                !res ||
+                !shouldRetryApiPath(res.status) ||
+                isLoginUrl(url) ||
+                !isApiRequestUrl(url)
+              ) {
+                return res;
+              }
+              if (!fetchCtx.apiPathCands) {
+                fetchCtx.apiPathCands = apiPathCandidates(url);
+              }
+              var cands = fetchCtx.apiPathCands || [];
+              if (fetchCtx.apiPathIdx >= cands.length) return res;
+              return res
+                .clone()
+                .text()
+                .then(function (text) {
+                  if (!shouldRetryApiPath(res.status, text)) return res;
+                  if (fetchCtx.apiPathIdx >= cands.length) return res;
+                  var nextUrl = cands[fetchCtx.apiPathIdx++];
+                  console.warn('[DEBUG-SHIM] fetch API path 404 → retry', nextUrl);
+                  var nextInput = nextUrl;
+                  if (typeof input !== 'string' && typeof Request !== 'undefined') {
+                    try {
+                      nextInput = new Request(nextUrl, input);
+                    } catch (_nr) {
+                      nextInput = nextUrl;
+                    }
+                  }
+                  return origFetch.call(window, nextInput, init).then(afterApi);
+                });
+            })
+            .then(function (r1) {
+              return softSessionIfUnauthorized(r1, url, fetchCtx).then(function (r2) {
+                return rewriteJsonApiResponse(r2, url);
+              });
+            });
         }
         if (!needsTimeout) {
           return origFetch.call(this, input, init).then(afterApi);

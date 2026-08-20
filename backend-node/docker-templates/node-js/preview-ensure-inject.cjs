@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MARKER = 'scholarverify-preview-cors-v8';
+const MARKER = 'scholarverify-preview-cors-v9';
 const GUARD_MARKER = 'scholarverify-mongo-guard-v7';
 const CORS_FILE = 'scholarverify-preview-cors.cjs';
 const root = process.argv[2] || process.cwd();

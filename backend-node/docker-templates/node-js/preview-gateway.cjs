@@ -182,7 +182,7 @@ function buildLoginUpstreamPaths(originalPath) {
 
 /**
  * Frontend often calls /api/students while Express mounts /students (or the reverse).
- * Try both shapes on every API method — fixes DropSafe and most MERN ZIPs.
+ * Also try singular/plural and /api/v1 — fixes DropSafe and most MERN ZIPs automatically.
  */
 function buildApiUpstreamPaths(originalPath) {
   const pathOnly = String(originalPath).split('?')[0] || '/';
@@ -199,13 +199,53 @@ function buildApiUpstreamPaths(originalPath) {
   }
   push(originalPath);
   if (isWebSocketProxyPath(pathOnly)) return out;
-  if (/^\/api\//i.test(pathOnly)) {
-    const stripped = pathOnly.replace(/^\/api/i, '') || '/';
-    push(stripped);
-  } else if (pathOnly !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
-    push(`/api${pathOnly}`);
+
+  function singularPlural(p) {
+    const parts = String(p || '')
+      .split('?')[0]
+      .split('/')
+      .filter(Boolean);
+    if (!parts.length) return [];
+    const last = parts[parts.length - 1];
+    if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(last)) return [];
+    const next = parts.slice();
+    if (/ies$/i.test(last) && last.length > 4) next[next.length - 1] = `${last.slice(0, -3)}y`;
+    else if (/s$/i.test(last) && last.length > 2 && !/ss$/i.test(last)) {
+      next[next.length - 1] = last.replace(/s$/i, '');
+    } else if (/y$/i.test(last) && last.length > 2) {
+      next[next.length - 1] = `${last.slice(0, -1)}ies`;
+    } else next[next.length - 1] = `${last}s`;
+    if (next[next.length - 1] === last) return [];
+    return [`/${next.join('/')}`];
   }
+
+  const candidates = [pathOnly];
+  if (/^\/api\/v1\//i.test(pathOnly)) {
+    candidates.push(pathOnly.replace(/^\/api\/v1\//i, '/api/'));
+    candidates.push(pathOnly.replace(/^\/api\/v1/i, '') || '/');
+  } else if (/^\/api\//i.test(pathOnly)) {
+    candidates.push(pathOnly.replace(/^\/api/i, '') || '/');
+    candidates.push(pathOnly.replace(/^\/api\//i, '/api/v1/'));
+  } else if (pathOnly !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
+    candidates.push(`/api${pathOnly}`);
+    candidates.push(`/api/v1${pathOnly}`);
+  }
+  for (const c of [...candidates]) {
+    for (const sp of singularPlural(c)) candidates.push(sp);
+  }
+  for (const c of candidates) push(c);
   return out;
+}
+
+function looksLikeRouteNotFound(status, bodyBuf) {
+  if (status === 404 || status === 405) return true;
+  if (status < 400 || status >= 500) return false;
+  try {
+    const s = Buffer.isBuffer(bodyBuf) ? bodyBuf.toString('utf8') : String(bodyBuf || '');
+    return /route\s*not\s*found|cannot\s+(GET|POST|PUT|PATCH|DELETE)|not\s+found:\s*\//i.test(s);
+  } catch (_e) {
+    return false;
+  }
 }
 
 function mainRoleFromEnv() {
@@ -552,7 +592,45 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
 
         const upstream = http.request(opts, (up) => {
           const status = up.statusCode || 502;
-          if (status === 404 && index + 1 < pathsToTry.length) {
+          const isLogin = isLoginApiRequest(method, pathOnly);
+          const hasMorePaths = index + 1 < pathsToTry.length;
+
+          // Buffer error bodies so we can detect "Route not found" even when status is 400,
+          // and retry /api ↔ bare / singular ↔ plural automatically.
+          if (
+            hasMorePaths &&
+            !isLogin &&
+            status >= 400 &&
+            status < 500
+          ) {
+            const errChunks = [];
+            up.on('data', (c) => errChunks.push(c));
+            up.on('end', () => {
+              const errBuf = Buffer.concat(errChunks);
+              if (looksLikeRouteNotFound(status, errBuf)) {
+                console.log(
+                  '[preview-gateway] api 404/route-miss → next path',
+                  tryPath,
+                  '→',
+                  pathsToTry[index + 1]
+                );
+                return attempt(index + 1);
+              }
+              const outHeaders = { ...up.headers };
+              outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+              outHeaders['access-control-allow-credentials'] = 'true';
+              outHeaders['content-length'] = String(errBuf.length);
+              delete outHeaders['transfer-encoding'];
+              res.writeHead(status, outHeaders);
+              res.end(errBuf);
+            });
+            up.on('error', () => {
+              if (!res.headersSent) jsonError(res, 502, 'Upstream response error');
+            });
+            return;
+          }
+
+          if (status === 404 && hasMorePaths) {
             up.resume();
             return attempt(index + 1);
           }
@@ -561,7 +639,6 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             return serveStatic(req, res);
           }
 
-          const isLogin = isLoginApiRequest(method, pathOnly);
           // Express may reject demo admin/admin123 with 400 before preview-safety recovery.
           // Mint JWT at the gateway so login works regardless of inject order.
           if (
