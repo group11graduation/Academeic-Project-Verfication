@@ -417,6 +417,14 @@ function isApiProxyPath(pathname) {
   if (/^\/(students|student|courses|course|teachers|teacher|classes|class|attendance|grades|risk)(\/|$)/i.test(p)) {
     return true;
   }
+  // Maktabadda / library catalog apps (bare paths, no /api prefix).
+  if (
+    /^\/(categories|category|locations|location|cabinets|cabinet|libraries|library|shelves|shelf|books|book|volumes|volume|book-placements|book-placement|authors|author|publishers|publisher|placements|placement)(\/|$)/i.test(
+      p
+    )
+  ) {
+    return true;
+  }
   // SYADA / Vite-proxy style: frontend calls /dashboard/summary, /members, … (no /api).
   // Bare /dashboard is often an SPA route (Sky Property) — exclude exact /dashboard.
   if (/^\/dashboard\//i.test(p)) return true;
@@ -427,6 +435,37 @@ function isApiProxyPath(pathname) {
   if (/^\/(loans|repayments|loan-documents|loan-types)(\/|$)/i.test(p)) return true;
   if (/\/login\/?$/i.test(p) && /^\/(api|auth|users|user|v1)\b/i.test(p)) return true;
   return false;
+}
+
+/** GET list endpoints that can soft-empty when Express/Mongo returns 500. */
+function isListishApiPath(pathname) {
+  const p = String(pathname || '').split('?')[0] || '/';
+  return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(\/)?$/i.test(
+    p
+  );
+}
+
+function softEmptyListBody(pathname) {
+  const p = String(pathname || '').split('?')[0] || '/';
+  const m = p.match(
+    /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(?:\/)?$/i
+  );
+  if (!m) return '[]';
+  const key = m[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  // Most MERN list UIs accept a bare array; some wrap { categories: [...] }.
+  return JSON.stringify({ [key]: [], data: [], success: true, message: 'preview soft-empty' });
+}
+
+function looksLikeUpstreamDbFailure(status, bodyBuf) {
+  if (status < 500) return false;
+  try {
+    const s = Buffer.isBuffer(bodyBuf) ? bodyBuf.toString('utf8') : String(bodyBuf || '');
+    return /mongo|mongoose|ECONNREFUSED|ETIMEDOUT|buffering timed out|failed to connect|ServerSelectionError|topology was destroyed|not connected|CastError|ValidationError|Internal Server Error/i.test(
+      s
+    );
+  } catch (_e) {
+    return status >= 500;
+  }
 }
 
 /** Socket.IO / raw WS must not get the /api prefix fallback — that breaks Engine.IO sessions. */
@@ -597,24 +636,70 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
 
           // Buffer error bodies so we can detect "Route not found" even when status is 400,
           // and retry /api ↔ bare / singular ↔ plural automatically.
+          // Also buffer 500s on list GETs so we can soft-empty when Mongo/Express crashes
+          // (Maktabadda /categories → 500 spam + POST hang).
           if (
             hasMorePaths &&
             !isLogin &&
-            status >= 400 &&
-            status < 500
+            ((status >= 400 && status < 500) || (status >= 500 && isListishApiPath(pathOnly)))
           ) {
             const errChunks = [];
             up.on('data', (c) => errChunks.push(c));
             up.on('end', () => {
               const errBuf = Buffer.concat(errChunks);
-              if (looksLikeRouteNotFound(status, errBuf)) {
+              if (
+                looksLikeRouteNotFound(status, errBuf) ||
+                (status >= 500 && isListishApiPath(pathOnly))
+              ) {
                 console.log(
-                  '[preview-gateway] api 404/route-miss → next path',
+                  '[preview-gateway] api',
+                  status,
+                  '→ next path',
                   tryPath,
                   '→',
                   pathsToTry[index + 1]
                 );
                 return attempt(index + 1);
+              }
+              const outHeaders = { ...up.headers };
+              outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+              outHeaders['access-control-allow-credentials'] = 'true';
+              outHeaders['content-length'] = String(errBuf.length);
+              delete outHeaders['transfer-encoding'];
+              res.writeHead(status, outHeaders);
+              res.end(errBuf);
+            });
+            up.on('error', () => {
+              if (!res.headersSent) jsonError(res, 502, 'Upstream response error');
+            });
+            return;
+          }
+
+          // Last path still 500 on a list GET — return empty JSON so SPA stays usable.
+          if (
+            !isLogin &&
+            status >= 500 &&
+            method === 'GET' &&
+            isListishApiPath(pathOnly)
+          ) {
+            const errChunks = [];
+            up.on('data', (c) => errChunks.push(c));
+            up.on('end', () => {
+              const errBuf = Buffer.concat(errChunks);
+              if (looksLikeUpstreamDbFailure(status, errBuf) || status >= 500) {
+                console.log(
+                  '[preview-gateway] list GET',
+                  status,
+                  '→ soft-empty',
+                  pathOnly
+                );
+                const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
+                return send(res, 200, soft, {
+                  'Content-Type': 'application/json; charset=utf-8',
+                  'Access-Control-Allow-Origin': req.headers.origin || '*',
+                  'Access-Control-Allow-Credentials': 'true',
+                  'X-SV-Preview-Soft-Empty': '1',
+                });
               }
               const outHeaders = { ...up.headers };
               outHeaders['access-control-allow-origin'] = req.headers.origin || '*';

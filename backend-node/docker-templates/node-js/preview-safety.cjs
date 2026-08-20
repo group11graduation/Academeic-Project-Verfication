@@ -224,7 +224,25 @@ function installPreviewRuntimeGuards() {
         } else if (!uri || String(uri).trim() === '' || isExternalMongoUri(uri)) {
           console.warn('[preview] mongoose.connect() → sandbox MONGO_URI');
         }
-        return origConnect(fixed, options, callback);
+        // Fail fast in preview — Atlas/hanging connects caused POST /categories timeouts.
+        const opts =
+          typeof options === 'function'
+            ? {
+                serverSelectionTimeoutMS: 5000,
+                connectTimeoutMS: 5000,
+                socketTimeoutMS: 15000,
+              }
+            : {
+                ...(options && typeof options === 'object' ? options : {}),
+                serverSelectionTimeoutMS:
+                  (options && options.serverSelectionTimeoutMS) || 5000,
+                connectTimeoutMS: (options && options.connectTimeoutMS) || 5000,
+                socketTimeoutMS: (options && options.socketTimeoutMS) || 15000,
+              };
+        if (typeof options === 'function') {
+          return origConnect(fixed, opts, options);
+        }
+        return origConnect(fixed, opts, callback);
       };
       mongoose.__svPatchedConnect = true;
     }

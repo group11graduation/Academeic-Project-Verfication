@@ -159,7 +159,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v45', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v46', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -745,12 +745,43 @@
   /** CRUD only — do not retry auth failures as path misses. */
   function shouldRetryApiPath(status, bodyText) {
     if (status === 404 || status === 405) return true;
+    // Maktabadda: Express often 500s on wrong mount / Mongo — try /api ↔ bare.
+    if (status >= 500) return true;
     var t = String(bodyText || '').toLowerCase();
     return (
       t.indexOf('route not found') >= 0 ||
       /cannot\s+(get|post|put|patch|delete)/i.test(t) ||
       /not\s+found:\s*\//i.test(t)
     );
+  }
+
+  function isListishApiUrl(url) {
+    try {
+      var p = new URL(String(url || ''), window.location.href).pathname || '';
+      return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(\/)?$/i.test(
+        p
+      );
+    } catch (_e) {
+      return /\/(categories|locations|cabinets|libraries|shelves|books|volumes)(\/)?$/i.test(String(url || ''));
+    }
+  }
+
+  function softEmptyListPayload(url) {
+    try {
+      var p = new URL(String(url || ''), window.location.href).pathname || '';
+      var m = p.match(
+        /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(?:\/)?$/i
+      );
+      if (m) {
+        var key = m[1].replace(/-([a-z])/g, function (_a, c) {
+          return c.toUpperCase();
+        });
+        var o = { data: [], success: true, message: 'preview soft-empty' };
+        o[key] = [];
+        return o;
+      }
+    } catch (_e2) {}
+    return [];
   }
 
   function apiPathCandidates(url) {
@@ -2896,7 +2927,13 @@
       var abs = new URL(u, window.location.href);
       var p = abs.pathname || '';
       if (/^\/api(\/|$)/i.test(p)) return true;
-      if (/^\/(auth|users|user|admin|loans|products|books|orders|dashboard|members)\b/i.test(p)) return true;
+      if (
+        /^\/(auth|users|user|admin|loans|products|books|orders|dashboard|members|categories|locations|cabinets|libraries|shelves|volumes|book-placements|authors|publishers)\b/i.test(
+          p
+        )
+      ) {
+        return true;
+      }
       var apiBase = detectApiBase();
       if (apiBase && String(abs.origin) === String(new URL(apiBase, window.location.href).origin)) {
         return !/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)(\?|$)/i.test(p);
@@ -3330,6 +3367,38 @@
             var cfg = err && err.config;
             var url = cfg && (cfg.url || '');
             var bodyText = '';
+
+            // Network timeout / connection reset (POST /categories hang).
+            if (!status && cfg && isListishApiUrl(url)) {
+              var method = String(cfg.method || 'get').toLowerCase();
+              if (method === 'get') {
+                console.warn('[DEBUG-SHIM] axios network fail list GET → soft-empty', url);
+                return Promise.resolve({
+                  data: softEmptyListPayload(url),
+                  status: 200,
+                  statusText: 'OK',
+                  headers: { 'x-sv-preview-soft-empty': '1' },
+                  config: cfg,
+                  request: err.request,
+                });
+              }
+              console.warn('[DEBUG-SHIM] axios network fail write → reject soft', url);
+              return Promise.reject(
+                Object.assign(err, {
+                  response: {
+                    data: {
+                      message: 'Preview API unreachable (timeout). Redeploy preview or check Mongo.',
+                      error: 'preview_network',
+                      success: false,
+                    },
+                    status: 504,
+                    statusText: 'Timeout',
+                    headers: {},
+                    config: cfg,
+                  },
+                })
+              );
+            }
             try {
               var d = err.response && err.response.data;
               bodyText = typeof d === 'string' ? d : JSON.stringify(d || '');
@@ -3403,6 +3472,49 @@
                 console.warn('[DEBUG-SHIM] axios API path 404 → retry', cfg.url);
                 return ax.request(cfg);
               }
+            }
+
+            // List GET 500 after path retries — soft-empty so SPA stays usable.
+            if (
+              status >= 500 &&
+              cfg &&
+              String(cfg.method || 'get').toLowerCase() === 'get' &&
+              isListishApiUrl(url)
+            ) {
+              console.warn('[DEBUG-SHIM] axios list GET', status, '→ soft-empty', url);
+              return Promise.resolve({
+                data: softEmptyListPayload(url),
+                status: 200,
+                statusText: 'OK',
+                headers: { 'x-sv-preview-soft-empty': '1' },
+                config: cfg,
+                request: err.request,
+              });
+            }
+
+            // POST/PUT hang or 500: fail fast with JSON (avoid endless spinner).
+            if (
+              status >= 500 &&
+              cfg &&
+              /^(post|put|patch)$/i.test(String(cfg.method || '')) &&
+              isListishApiUrl(url)
+            ) {
+              console.warn('[DEBUG-SHIM] axios write', status, '→ soft error body', url);
+              return Promise.reject(
+                Object.assign(err, {
+                  response: {
+                    data: {
+                      message: 'Preview API error — check Mongo / Express logs',
+                      error: 'preview_upstream_500',
+                      success: false,
+                    },
+                    status: status,
+                    statusText: 'Error',
+                    headers: {},
+                    config: cfg,
+                  },
+                })
+              );
             }
 
             if (!(status === 401 || status === 403) || !getStoredAccessToken()) {
