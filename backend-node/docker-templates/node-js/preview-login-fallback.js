@@ -159,7 +159,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v49', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v50', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -2547,12 +2547,14 @@
       }
       if (
         !pref &&
-        /^\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements)(\/|$)/i.test(p2)
+        /^\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements)(\/|$)/i.test(p2) &&
+        !/^\/admin\//i.test(p2)
       ) {
         pref = '/api/v1';
       }
       if (
         pref &&
+        !/^\/admin\//i.test(p2) &&
         /^\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users)(\/|$)/i.test(p2) &&
         p2.indexOf(pref) !== 0
       ) {

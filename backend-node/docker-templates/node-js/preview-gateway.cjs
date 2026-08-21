@@ -208,16 +208,26 @@ function buildApiUpstreamPaths(originalPath) {
     return out;
   }
 
-  // Maktabadda-style: mounts are /api/v1/categories — prefer that BEFORE bare /categories
-  // so protect+handler runs on the first hop (avoids 404 spam / soft-empty).
+  // Maktabadda-style: mounts are /api/v1/categories — prefer that BEFORE bare /categories.
+  // Do NOT prefix /api/v1 onto LoanFlow paths like /admin/loans (that produced
+  // "not found /api/v1/admin/loans" as the browser document response).
   const apiPrefix = String(process.env.PREVIEW_API_PREFIX || '')
     .trim()
     .replace(/\/$/, '');
   const bare = pathOnly.replace(/^\/api\/v1/i, '').replace(/^\/api/i, '') || '/';
-  if (apiPrefix && bare !== '/' && !new RegExp(`^${apiPrefix.replace(/\//g, '\\/')}(\\/|$)`, 'i').test(pathOnly)) {
+  const isLibraryBare =
+    /^\/(categories|category|locations|location|cabinets|cabinet|libraries|library|shelves|shelf|books|book|volumes|volume|book-placements|book-placement)(\/|$)/i.test(
+      bare
+    );
+  if (
+    apiPrefix &&
+    isLibraryBare &&
+    bare !== '/' &&
+    !new RegExp(`^${apiPrefix.replace(/\//g, '\\/')}(\\/|$)`, 'i').test(pathOnly)
+  ) {
     push(`${apiPrefix}${bare.startsWith('/') ? bare : `/${bare}`}`);
   }
-  if (bare !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
+  if (isLibraryBare && bare !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
     push(`/api/v1${bare}`);
   }
   push(originalPath);
@@ -249,8 +259,16 @@ function buildApiUpstreamPaths(originalPath) {
     candidates.push(pathOnly.replace(/^\/api/i, '') || '/');
     candidates.push(pathOnly.replace(/^\/api\//i, '/api/v1/'));
   } else if (pathOnly !== '/' && !/^\/api(\/|$)/i.test(pathOnly)) {
-    candidates.push(`/api/v1${pathOnly}`);
-    candidates.push(`/api${pathOnly}`);
+    if (isLibraryBare) {
+      candidates.push(`/api/v1${pathOnly}`);
+      candidates.push(`/api${pathOnly}`);
+    } else if (/^\/admin\//i.test(pathOnly) || /^\/(loans|repayments|loan-documents|loan-types)(\/|$)/i.test(pathOnly)) {
+      // LoanFlow: keep bare /admin/loans — do not invent /api/v1/admin/loans.
+      candidates.push(`/api${pathOnly}`);
+    } else {
+      candidates.push(`/api${pathOnly}`);
+      candidates.push(`/api/v1${pathOnly}`);
+    }
   }
   // Nested admin mounts common in library / inventory MERN ZIPs.
   if (/\/(categories|category|books|book|libraries|library|shelves|shelf|locations|location|cabinets|cabinet|volumes|volume|book-placements|book-placement)(\/|$)/i.test(pathOnly)) {
