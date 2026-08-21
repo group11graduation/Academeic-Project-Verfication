@@ -31,70 +31,51 @@ function walk(dir, out = [], depth = 0) {
 
 function ensureSafeArrayExpr(expr) {
   const e = String(expr).trim();
-  return `(Array.isArray(${e})?${e}:(${e}&&(Array.isArray(${e}.data)?${e}.data:Array.isArray(${e}.items)?${e}.items:Array.isArray(${e}.users)?${e}.users:Array.isArray(${e}.results)?${e}.results:Array.isArray(${e}.rows)?${e}.rows:Array.isArray(${e}.list)?${e}.list:[]))||[])`;
+  return `(Array.isArray(${e})?${e}:(${e}&&(Array.isArray(${e}.data)?${e}.data:Array.isArray(${e}.items)?${e}.items:Array.isArray(${e}.users)?${e}.users:Array.isArray(${e}.students)?${e}.students:Array.isArray(${e}.results)?${e}.results:Array.isArray(${e}.rows)?${e}.rows:Array.isArray(${e}.list)?${e}.list:Array.isArray(${e}.docs)?${e}.docs:[]))||[])`;
+}
+
+function ensureSafeLengthExpr(expr) {
+  return `((${ensureSafeArrayExpr(expr)}).length)`;
 }
 
 function patchContent(content) {
   let next = content;
   const before = content;
 
-  // response.data.map( / res.data.map( / data.map( when likely API payload
-  next = next.replace(
-    /\b((?:response|res|result|payload|json|body|r)\.data)\.map\s*\(/g,
-    (_, expr) => `${ensureSafeArrayExpr(expr)}.map(`
-  );
-
-  // setX(something); later x.map — hard; instead fix: users.map / items.map after common fetch assigns
-  next = next.replace(
-    /\b((?:users|items|rows|results|list|products|orders|posts|comments|notifications|appointments|patients|doctors|bookings|services|categories|projects|tasks|tickets|messages|invoices|payments|transactions|stats|charts|series|labels)\s*)\.map\s*\(/gi,
-    (match, name) => {
-      const n = name.trim();
-      // Avoid double-wrapping
-      if (match.includes('Array.isArray')) return match;
-      return `${ensureSafeArrayExpr(n)}.map(`;
-    }
-  );
-
-  // Optional chaining forms: data?.map( already safe-ish but data.map without ?
-  // (await api.get(...)).data.map(
-  next = next.replace(
-    /\)\.data\.map\s*\(/g,
-    `).(d=>${ensureSafeArrayExpr('d')}).map(`
-  );
-  // Fix botched replace above — `).(d=>...).map(` is wrong after `).data.map`
-  // Revert that specific bad pattern if we introduced it incorrectly.
-  // Better dedicated replace:
-  next = before; // reset and apply carefully
-
+  // response.data.map( / res.data.map(
   next = next.replace(
     /\b((?:response|res|result|payload|json|body|r)\.data)\.map\s*\(/g,
     (_, expr) => `${ensureSafeArrayExpr(expr)}.map(`
   );
 
   next = next.replace(
-    /\b(users|items|rows|results|list|products|orders|posts|comments|notifications|appointments|patients|doctors|bookings|services|categories|projects|tasks|tickets|messages|invoices|payments|transactions|stats|books|bookList|allBooks|bookData)\.map\s*\(/g,
+    /\b(users|items|rows|results|list|products|orders|posts|comments|notifications|appointments|patients|doctors|bookings|services|categories|projects|tasks|tickets|messages|invoices|payments|transactions|stats|books|bookList|allBooks|bookData|students|studentList)\.map\s*\(/g,
     (_, name) => `${ensureSafeArrayExpr(name)}.map(`
   );
 
-  // Any identifier.data.map / foo.items.map
+  // identifier.data.map / foo.items.map
   next = next.replace(
-    /\b([A-Za-z_$][\w$]*\.(?:data|items|users|results|list|rows|records))\s*\.map\s*\(/g,
+    /\b([A-Za-z_$][\w$]*\.(?:data|items|users|students|results|list|rows|records|docs))\s*\.map\s*\(/g,
     (_, expr) => `${ensureSafeArrayExpr(expr)}.map(`
   );
 
-  // setX(await …) style: (await fetchJson()).map — rare
+  // DropSafe blank page: students.length / data.length / res.data.length when undefined
   next = next.replace(
-    /(\w+)\s*=\s*(?:await\s+)?(?:res|response|result)\.data\b/g,
-    (full) => full // keep assignment; map sites handled above
+    /\b((?:students|studentList|users|items|rows|results|list|products|orders|categories|books|docs))\s*\.length\b/g,
+    (_, name) => ensureSafeLengthExpr(name)
+  );
+  next = next.replace(
+    /\b((?:response|res|result|payload|json|body|r)\.data)\s*\.length\b/g,
+    (_, expr) => ensureSafeLengthExpr(expr)
+  );
+  next = next.replace(
+    /\b([A-Za-z_$][\w$]*\.data)\s*\.length\b/g,
+    (_, expr) => ensureSafeLengthExpr(expr)
   );
 
-  // setState(res.data) common — leave alone
-
-  // Inject helper once near top if file uses .map and looks like a page/component
   if (next !== before && !next.includes('__svSafeArray') && /\breturn\s*\(|createElement|jsx|<[A-Z]/.test(next)) {
     const helper =
-      "const __svSafeArray=(v)=>Array.isArray(v)?v:(v&&(Array.isArray(v.data)?v.data:Array.isArray(v.items)?v.items:Array.isArray(v.users)?v.users:Array.isArray(v.results)?v.results:Array.isArray(v.rows)?v.rows:Array.isArray(v.list)?v.list:[]))||[];\n";
-    // Prefer after imports
+      "const __svSafeArray=(v)=>Array.isArray(v)?v:(v&&(Array.isArray(v.data)?v.data:Array.isArray(v.items)?v.items:Array.isArray(v.users)?v.users:Array.isArray(v.students)?v.students:Array.isArray(v.results)?v.results:Array.isArray(v.rows)?v.rows:Array.isArray(v.list)?v.list:Array.isArray(v.docs)?v.docs:[]))||[];\n";
     const importBlock = next.match(/^(?:import[\s\S]*?;\s*)+/m);
     if (importBlock) {
       const end = importBlock[0].length;
@@ -102,7 +83,6 @@ function patchContent(content) {
     } else {
       next = helper + next;
     }
-    // Optionally rewrite ensureSafeArrayExpr usages to __svSafeArray(...) for readability — already inlined
   }
 
   return next;

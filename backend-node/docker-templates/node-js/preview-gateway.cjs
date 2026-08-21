@@ -551,10 +551,9 @@ function isApiProxyPath(pathname) {
 /** GET list endpoints that can soft-empty when Express/Mongo returns 500. */
 function isListishApiPath(pathname) {
   const p = String(pathname || '').split('?')[0] || '/';
-  // Do not soft-empty SPA shells that share a path with APIs when the request is a
-  // document navigation — handled in isBrowserNavigationRequest. Soft-empty only
-  // for bare resource list paths (and /admin/loans for axios, which sends Accept: json).
-  return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(\/)?$/i.test(
+  if (/\/students\/stats(\/)?$/i.test(p) || /\/student\/stats(\/)?$/i.test(p)) return true;
+  if (/\/admin\/loans(\/)?$/i.test(p)) return true;
+  return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|student|products|orders|items|loans|notifications|members|authors|publishers)(\/)?$/i.test(
     p
   );
 }
@@ -569,6 +568,25 @@ function requestWantsHtml(req) {
 
 function softEmptyListBody(pathname) {
   const p = String(pathname || '').split('?')[0] || '/';
+  // DropSafe dashboard — UI does res.data.data.length / stats fields.
+  if (/\/students\/stats(\/)?$/i.test(p) || /\/student\/stats(\/)?$/i.test(p)) {
+    return JSON.stringify({
+      status: true,
+      success: true,
+      data: {
+        total: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        droppedOut: 0,
+        avgGpa: '0',
+        avgAttendance: '0',
+      },
+    });
+  }
+  if (/\/students(\/)?$/i.test(p) || /\/student(\/)?$/i.test(p)) {
+    return JSON.stringify({ status: true, success: true, count: 0, data: [], students: [] });
+  }
   // Maktabadda fetchData expects { status, data: { docs, totalDocs, ... } }
   if (
     /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users)(\/)?$/i.test(
@@ -591,7 +609,7 @@ function softEmptyListBody(pathname) {
       },
     });
   }
-  return '[]';
+  return JSON.stringify({ status: true, success: true, data: [], count: 0 });
 }
 
 function looksLikeUpstreamDbFailure(status, bodyBuf) {

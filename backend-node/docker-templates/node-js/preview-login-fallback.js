@@ -7,7 +7,11 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V46:
+ * Marker V47:
+ * - NEVER soft-succeed list/CRUD 401s with a session user body (DropSafe blank page:
+ *   students.length on undefined after grace soft-401).
+ * - DropSafe soft-empty shapes: {status,count,data:[]} and /students/stats totals.
+ * V46:
  * - Replace junk Authorization (Bearer undefined/null) — student apps set
  *   `Authorization: Bearer ${token}` before token exists → Express jwt.verify → 500.
  * - getStoredAccessToken ignores "undefined"/"null"; attachBearer overwrites junk.
@@ -120,10 +124,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V46__) {
-    console.log('[DEBUG-SHIM] already installed V46 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V47__) {
+    console.log('[DEBUG-SHIM] already installed V47 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V47__ = true;
   window.__SV_LOGIN_FALLBACK_V46__ = true;
   window.__SV_LOGIN_FALLBACK_V45__ = true;
   window.__SV_LOGIN_FALLBACK_V44__ = true;
@@ -764,17 +769,56 @@
   function isListishApiUrl(url) {
     try {
       var p = new URL(String(url || ''), window.location.href).pathname || '';
-      return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(\/)?$/i.test(
+      return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|student|products|orders|items|loans|notifications|members|authors|publishers|stats|dashboard)(\/|$)/i.test(
         p
       );
     } catch (_e) {
-      return /\/(categories|locations|cabinets|libraries|shelves|books|volumes)(\/)?$/i.test(String(url || ''));
+      return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|students|stats)(\/)?$/i.test(String(url || ''));
     }
   }
 
   function softEmptyListPayload(url) {
     try {
       var p = new URL(String(url || ''), window.location.href).pathname || '';
+      // DropSafe dashboard
+      if (/\/students\/stats(\/)?$/i.test(p) || /\/student\/stats(\/)?$/i.test(p)) {
+        return {
+          status: true,
+          success: true,
+          data: {
+            total: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            droppedOut: 0,
+            avgGpa: '0',
+            avgAttendance: '0',
+          },
+        };
+      }
+      if (/\/students(\/)?$/i.test(p) || /\/student(\/)?$/i.test(p)) {
+        return { status: true, success: true, count: 0, data: [], students: [] };
+      }
+      // Maktabadda paginate
+      if (
+        /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements)(\/)?$/i.test(p)
+      ) {
+        return {
+          status: true,
+          data: {
+            docs: [],
+            totalDocs: 0,
+            limit: 10,
+            totalPages: 0,
+            page: 1,
+            pagingCounter: 1,
+            hasPrevPage: false,
+            hasNextPage: false,
+            prevPage: null,
+            nextPage: null,
+          },
+        };
+      }
       var m = p.match(
         /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(?:\/)?$/i
       );
@@ -782,12 +826,21 @@
         var key = m[1].replace(/-([a-z])/g, function (_a, c) {
           return c.toUpperCase();
         });
-        var o = { data: [], success: true, message: 'preview soft-empty' };
+        var o = { data: [], success: true, status: true, message: 'preview soft-empty' };
         o[key] = [];
         return o;
       }
     } catch (_e2) {}
-    return [];
+    return { status: true, success: true, data: [], count: 0 };
+  }
+
+  /** Soft body for failed list/CRUD — never a session/user object. */
+  function softEmptyApiResponse(url) {
+    return new Response(JSON.stringify(softEmptyListPayload(url)), {
+      status: 200,
+      statusText: 'OK',
+      headers: { 'Content-Type': 'application/json', 'X-SV-Preview-Soft-Empty': '1' },
+    });
   }
 
   function apiPathCandidates(url) {
@@ -3412,6 +3465,11 @@
     }
 
     if (withinPostLoginGrace() && isApiRequestUrl(url)) {
+      // List/CRUD must NOT get a session user body — DropSafe does data.data.length.
+      if (isListishApiUrl(url)) {
+        console.warn('[DEBUG-SHIM] soft-empty list/CRUD 401 during grace', String(url || ''));
+        return Promise.resolve(softEmptyApiResponse(url));
+      }
       console.warn('[DEBUG-SHIM] soft-succeed API 401 during grace', String(url || ''));
       return Promise.resolve(syntheticSessionResponse());
     }
@@ -3737,6 +3795,17 @@
               return ax.request(cfg);
             }
             if (withinPostLoginGrace() && isApiRequestUrl(url)) {
+              if (isListishApiUrl(url)) {
+                console.warn('[DEBUG-SHIM] axios soft-empty list/CRUD 401 during grace', url);
+                return Promise.resolve({
+                  data: softEmptyListPayload(url),
+                  status: 200,
+                  statusText: 'OK',
+                  headers: { 'x-sv-preview-soft-empty': '1' },
+                  config: cfg,
+                  request: err.request,
+                });
+              }
               console.warn('[DEBUG-SHIM] axios soft-succeed API 401 during grace', url);
               return Promise.resolve({
                 data: syntheticSessionBody(),
@@ -4073,13 +4142,15 @@
               function svNormalizeLists() {
                 try {
                   if (xhr.readyState !== 4) return;
-                  // Soft-succeed session probes (and any API 401 during grace) to prevent logout bounce.
+                  // Soft-succeed session probes; list/CRUD get empty list shapes (not user body).
                   if (
                     (xhr.status === 401 || xhr.status === 403) &&
                     getStoredAccessToken() &&
                     (isSessionProbeUrl(url) || (withinPostLoginGrace() && isApiRequestUrl(url)))
                   ) {
-                    var soft = JSON.stringify(syntheticSessionBody());
+                    var soft = isListishApiUrl(url)
+                      ? JSON.stringify(softEmptyListPayload(url))
+                      : JSON.stringify(syntheticSessionBody());
                     try {
                       Object.defineProperty(xhr, 'status', {
                         configurable: true,
@@ -4105,7 +4176,11 @@
                           return JSON.parse(soft);
                         },
                       });
-                      console.warn('[DEBUG-SHIM] xhr session soft-succeed', url);
+                      console.warn(
+                        '[DEBUG-SHIM] xhr',
+                        isListishApiUrl(url) ? 'list soft-empty' : 'session soft-succeed',
+                        url
+                      );
                     } catch (_soft) {}
                     return;
                   }
