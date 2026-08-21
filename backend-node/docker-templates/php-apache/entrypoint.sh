@@ -795,6 +795,107 @@ ensure_schema_from_php_sources() {
   " || true
 }
 
+# Blog Management ZIPs often ship no SQL dump — create posts tables so add_post.php works.
+ensure_blog_post_tables() {
+  [ -n "$DB_HOST" ] || return 0
+  php -r "
+    try {
+      \$host = getenv('DB_HOST');
+      if (!\$host) exit(0);
+      \$user = getenv('DB_USER') ?: 'root';
+      \$pass = getenv('DB_PASS') ?: '';
+      \$dbs = [];
+      \$push = function (\$n) use (&\$dbs) {
+        \$safe = preg_replace('/[^a-zA-Z0-9_]/', '', (string)\$n);
+        if (\$safe !== '') \$dbs[\$safe] = true;
+      };
+      \$push(getenv('DB_NAME') ?: 'bbms');
+      \$push('blogdb');
+      \$push('blog');
+      \$push('bbms');
+      \$ddl = [
+        'CREATE TABLE IF NOT EXISTS \`posts\` (
+          \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          \`title\` VARCHAR(255) NOT NULL DEFAULT \"\",
+          \`content\` MEDIUMTEXT NULL,
+          \`category\` VARCHAR(120) NULL DEFAULT \"\",
+          \`author\` VARCHAR(120) NULL DEFAULT \"\",
+          \`image\` VARCHAR(255) NULL DEFAULT \"\",
+          \`created_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+        'CREATE TABLE IF NOT EXISTS \`blog\` (
+          \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          \`title\` VARCHAR(255) NOT NULL DEFAULT \"\",
+          \`content\` MEDIUMTEXT NULL,
+          \`category\` VARCHAR(120) NULL DEFAULT \"\",
+          \`created_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+        'CREATE TABLE IF NOT EXISTS \`blog_posts\` (
+          \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          \`title\` VARCHAR(255) NOT NULL DEFAULT \"\",
+          \`content\` MEDIUMTEXT NULL,
+          \`category\` VARCHAR(120) NULL DEFAULT \"\",
+          \`created_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+      ];
+      // Infer INSERT INTO table(cols) from add_post.php etc.
+      \$inferred = [];
+      try {
+        \$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator('/var/www/html', FilesystemIterator::SKIP_DOTS));
+        \$n = 0;
+        foreach (\$it as \$f) {
+          if (\$n++ > 80) break;
+          if (!\$f->isFile() || strtolower(\$f->getExtension()) !== 'php') continue;
+          \$path = \$f->getPathname();
+          if (!preg_match('/add_post|create_post|new_post|post|blog/i', \$path)) continue;
+          \$c = @file_get_contents(\$path);
+          if (\$c && preg_match_all('/INSERT\s+INTO\s+[\`]?(\w+)[\`]?\s*\(([^)]+)\)/i', \$c, \$mm, PREG_SET_ORDER)) {
+            foreach (\$mm as \$m) {
+              \$t = preg_replace('/[^a-zA-Z0-9_]/', '', \$m[1]);
+              if (!\$t) continue;
+              \$cols = [];
+              foreach (preg_split('/\s*,\s*/', \$m[2]) ?: [] as \$col) {
+                \$col = preg_replace('/[^a-zA-Z0-9_]/', '', \$col);
+                if (\$col) \$cols[] = \$col;
+              }
+              if (\$cols) \$inferred[\$t] = array_values(array_unique(array_merge(\$inferred[\$t] ?? [], \$cols)));
+            }
+          }
+        }
+      } catch (Throwable \$e) { /* ignore */ }
+      foreach (\$inferred as \$t => \$cols) {
+        \$parts = ['\`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT'];
+        foreach (\$cols as \$col) {
+          if (strtolower(\$col) === 'id') continue;
+          if (preg_match('/content|body|description|text/i', \$col)) {
+            \$parts[] = '\`' . \$col . '\` MEDIUMTEXT NULL';
+          } else {
+            \$parts[] = '\`' . \$col . '\` VARCHAR(255) NULL DEFAULT \"\"';
+          }
+        }
+        \$parts[] = '\`created_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP';
+        \$parts[] = 'PRIMARY KEY (\`id\`)';
+        \$ddl[] = 'CREATE TABLE IF NOT EXISTS \`' . \$t . '\` (' . implode(', ', \$parts) . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4';
+      }
+      foreach (array_keys(\$dbs) as \$db) {
+        \$pdo = new PDO('mysql:host=' . \$host . ';dbname=' . \$db, \$user, \$pass, [
+          PDO::ATTR_TIMEOUT => 5,
+          PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+        foreach (\$ddl as \$sql) {
+          try { \$pdo->exec(\$sql); } catch (Throwable \$e) { /* ignore */ }
+        }
+        echo '[preview] ensured blog/post tables in ' . \$db . PHP_EOL;
+      }
+    } catch (Throwable \$e) {
+      fwrite(STDERR, '[preview] blog table ensure failed: ' . \$e->getMessage() . PHP_EOL);
+    }
+  " || true
+}
+
 # XAMPP-style absolute asset prefixes (/project-name/assets/...) break on preview root.
 # Rewrite to /assets/... and add Apache Alias as a safety net.
 patch_xampp_asset_prefixes() {
@@ -953,6 +1054,7 @@ if [ -n "$DB_HOST" ]; then
   # Import again if bootstrap created empty schema only / failed
   import_sql_dumps
   ensure_schema_from_php_sources
+  ensure_blog_post_tables
   check_bootstrap_tables
   wait_for_mysql || true
   if [ -f /preview-seed-admin.php ]; then

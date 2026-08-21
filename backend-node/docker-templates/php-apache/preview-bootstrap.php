@@ -440,10 +440,250 @@ function __sv_preview_discover_database_names()
 }
 
 if ($svHost && (class_exists('mysqli') || extension_loaded('mysqli'))) {
+    if (function_exists('mysqli_report')) {
+        // PHP 8.1+ throws mysqli_sql_exception by default → empty HTTP 500 on INSERT
+        // into a missing table. Keep warnings in Apache logs instead.
+        @mysqli_report(MYSQLI_REPORT_OFF);
+    }
     foreach (__sv_preview_discover_database_names() as $__svDb) {
         __sv_preview_ensure_database($__svDb);
     }
     if ($svName) {
         __sv_preview_ensure_database($svName);
     }
+    __sv_preview_ensure_blog_tables();
+}
+
+/**
+ * Create minimal blog/post tables so add_post.php INSERT does not 500
+ * when the student ZIP has no SQL dump / CREATE TABLE.
+ */
+function __sv_preview_ensure_blog_tables()
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $host = getenv('DB_HOST') ?: '';
+    if ($host === '') {
+        return;
+    }
+    $user = getenv('DB_USER') ?: (getenv('DB_USERNAME') ?: 'root');
+    $pass = getenv('DB_PASS');
+    if ($pass === false || $pass === null || $pass === '') {
+        $pass = getenv('DB_PASSWORD');
+    }
+    if ($pass === false || $pass === null) {
+        $pass = '';
+    }
+    $dbs = __sv_preview_discover_database_names();
+    if (!$dbs) {
+        $env = getenv('DB_NAME') ?: getenv('DB_DATABASE') ?: getenv('MYSQL_DATABASE') ?: 'bbms';
+        $dbs = [$env];
+    }
+
+    $ddl = [
+        'posts' =>
+            'CREATE TABLE IF NOT EXISTS `posts` (
+              `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+              `title` VARCHAR(255) NOT NULL DEFAULT \'\',
+              `content` MEDIUMTEXT NULL,
+              `category` VARCHAR(120) NULL DEFAULT \'\',
+              `author` VARCHAR(120) NULL DEFAULT \'\',
+              `image` VARCHAR(255) NULL DEFAULT \'\',
+              `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+        'blog' =>
+            'CREATE TABLE IF NOT EXISTS `blog` (
+              `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+              `title` VARCHAR(255) NOT NULL DEFAULT \'\',
+              `content` MEDIUMTEXT NULL,
+              `category` VARCHAR(120) NULL DEFAULT \'\',
+              `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+        'blog_posts' =>
+            'CREATE TABLE IF NOT EXISTS `blog_posts` (
+              `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+              `title` VARCHAR(255) NOT NULL DEFAULT \'\',
+              `content` MEDIUMTEXT NULL,
+              `category` VARCHAR(120) NULL DEFAULT \'\',
+              `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+    ];
+
+    // Infer extra tables/columns from INSERT INTO … in student PHP (esp. add_post.php).
+    $inferred = __sv_preview_infer_insert_schemas();
+    foreach ($inferred as $table => $cols) {
+        if (isset($ddl[$table])) {
+            continue;
+        }
+        $parts = ['`id` INT UNSIGNED NOT NULL AUTO_INCREMENT'];
+        foreach ($cols as $col) {
+            $c = preg_replace('/[^a-zA-Z0-9_]/', '', $col);
+            if ($c === '' || strtolower($c) === 'id') {
+                continue;
+            }
+            if (preg_match('/content|body|description|text/i', $c)) {
+                $parts[] = '`' . $c . '` MEDIUMTEXT NULL';
+            } else {
+                $parts[] = '`' . $c . '` VARCHAR(255) NULL DEFAULT \'\'';
+            }
+        }
+        $parts[] = '`created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP';
+        $parts[] = 'PRIMARY KEY (`id`)';
+        $ddl[$table] = 'CREATE TABLE IF NOT EXISTS `' . $table . '` (' . implode(', ', $parts) . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4';
+    }
+
+    try {
+        if (function_exists('mysqli_report')) {
+            mysqli_report(MYSQLI_REPORT_OFF);
+        }
+        foreach ($dbs as $db) {
+            $safeDb = preg_replace('/[^a-zA-Z0-9_]/', '', (string) $db);
+            if ($safeDb === '') {
+                continue;
+            }
+            $m = @new mysqli($host, $user, $pass, $safeDb);
+            if (!($m instanceof mysqli) || $m->connect_errno) {
+                continue;
+            }
+            foreach ($ddl as $sql) {
+                @$m->query($sql);
+            }
+            // Add missing columns onto existing posts-like tables (student dump may omit category).
+            foreach (['posts', 'blog', 'blog_posts'] as $t) {
+                $res = @$m->query('SHOW TABLES LIKE \'' . $m->real_escape_string($t) . '\'');
+                if (!$res || $res->num_rows < 1) {
+                    continue;
+                }
+                $colsRes = @$m->query('SHOW COLUMNS FROM `' . $t . '`');
+                $have = [];
+                if ($colsRes) {
+                    while ($row = $colsRes->fetch_assoc()) {
+                        $have[strtolower($row['Field'])] = true;
+                    }
+                }
+                foreach (['title' => 'VARCHAR(255) NULL DEFAULT \'\'', 'content' => 'MEDIUMTEXT NULL', 'category' => 'VARCHAR(120) NULL DEFAULT \'\'', 'author' => 'VARCHAR(120) NULL DEFAULT \'\'', 'image' => 'VARCHAR(255) NULL DEFAULT \'\'', 'created_at' => 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP'] as $col => $def) {
+                    if (!isset($have[$col])) {
+                        @$m->query('ALTER TABLE `' . $t . '` ADD COLUMN `' . $col . '` ' . $def);
+                    }
+                }
+            }
+            $m->close();
+        }
+    } catch (Throwable $e) {
+        /* ignore */
+    }
+}
+
+/** @return array<string, string[]> table => column names from INSERT INTO statements */
+function __sv_preview_infer_insert_schemas()
+{
+    $out = [];
+    $roots = ['/var/www/html'];
+    $doc = getenv('APACHE_DOCROOT') ?: getenv('APACHE_DOCUMENT_ROOT') ?: '';
+    if ($doc !== '' && is_dir($doc)) {
+        $roots[] = $doc;
+    }
+    foreach (array_unique($roots) as $root) {
+        if (!is_dir($root)) {
+            continue;
+        }
+        try {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+            );
+            $n = 0;
+            foreach ($it as $f) {
+                if ($n++ > 100) {
+                    break;
+                }
+                if (!$f->isFile() || strtolower($f->getExtension()) !== 'php') {
+                    continue;
+                }
+                $path = $f->getPathname();
+                if (preg_match('#/(vendor|node_modules|\.git)/#', $path)) {
+                    continue;
+                }
+                if (!preg_match('/add_post|create_post|new_post|post|blog|insert|admin/i', $path . $f->getFilename())) {
+                    continue;
+                }
+                $c = @file_get_contents($path);
+                if ($c === false) {
+                    continue;
+                }
+                if (preg_match_all(
+                    '/INSERT\s+INTO\s+[`]?(\w+)[`]?\s*\(([^)]+)\)/i',
+                    $c,
+                    $mm,
+                    PREG_SET_ORDER
+                )) {
+                    foreach ($mm as $m) {
+                        $table = preg_replace('/[^a-zA-Z0-9_]/', '', $m[1]);
+                        if ($table === '') {
+                            continue;
+                        }
+                        $cols = preg_split('/\s*,\s*/', $m[2]) ?: [];
+                        $clean = [];
+                        foreach ($cols as $col) {
+                            $col = preg_replace('/[^a-zA-Z0-9_]/', '', $col);
+                            if ($col !== '') {
+                                $clean[] = $col;
+                            }
+                        }
+                        if ($clean) {
+                            $out[$table] = array_values(array_unique(array_merge($out[$table] ?? [], $clean)));
+                        }
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            /* ignore */
+        }
+    }
+    return $out;
+}
+
+// Surface fatal/uncaught errors in preview so "Add Post" is not a blank HTTP 500.
+if (getenv('PREVIEW_SANDBOX') === '1' || getenv('DB_HOST')) {
+    @set_exception_handler(static function ($e) {
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: text/html; charset=UTF-8');
+        }
+        $msg = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+        $file = htmlspecialchars(basename((string) $e->getFile()), ENT_QUOTES, 'UTF-8');
+        $line = (int) $e->getLine();
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview error</title></head><body style="font-family:system-ui;padding:1.5rem;background:#fff7ed;color:#7c2d12">';
+        echo '<h1 style="margin:0 0 .5rem">Preview PHP error</h1>';
+        echo '<p style="margin:0 0 1rem">The student app crashed while handling this request (often a missing DB table/column).</p>';
+        echo '<pre style="white-space:pre-wrap;background:#fff;border:1px solid #fdba74;padding:1rem;border-radius:8px">' . $msg . "\n\nin {$file}:{$line}</pre>";
+        echo '<p style="opacity:.8;font-size:.9rem">ScholarVerify preview — this detail is hidden in production student hosting.</p>';
+        echo '</body></html>';
+    });
+    @register_shutdown_function(static function () {
+        $err = error_get_last();
+        if (!$err) {
+            return;
+        }
+        $type = (int) ($err['type'] ?? 0);
+        if (!in_array($type, [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
+            return;
+        }
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: text/html; charset=UTF-8');
+        }
+        $msg = htmlspecialchars((string) ($err['message'] ?? 'fatal'), ENT_QUOTES, 'UTF-8');
+        $file = htmlspecialchars(basename((string) ($err['file'] ?? '')), ENT_QUOTES, 'UTF-8');
+        $line = (int) ($err['line'] ?? 0);
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview error</title></head><body style="font-family:system-ui;padding:1.5rem;background:#fff7ed;color:#7c2d12">';
+        echo '<h1 style="margin:0 0 .5rem">Preview PHP fatal error</h1>';
+        echo '<pre style="white-space:pre-wrap;background:#fff;border:1px solid #fdba74;padding:1rem;border-radius:8px">' . $msg . "\n\nin {$file}:{$line}</pre>";
+        echo '</body></html>';
+    });
 }
