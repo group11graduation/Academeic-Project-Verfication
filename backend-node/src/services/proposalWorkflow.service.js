@@ -219,6 +219,98 @@ function collectRequirementIssueLabels(requirementCheck) {
   return labels;
 }
 
+/**
+ * Re-run the requirement gate for stale requirements_rejected rows.
+ * Clears false bans (e.g. PHP disallowed on a PHP Final Assignment when the
+ * requirements file only listed mysql/postgresql) so teacher/student UIs update
+ * without forcing a full student rewrite.
+ */
+export async function healStaleRequirementsRejection(proposal, assignment) {
+  if (!proposal?._id) return proposal;
+
+  const status = String(proposal.status || '');
+  const failed = proposal.requirementCheckPassed === false;
+  const summary = String(proposal.requirementCheckSummary || '');
+  const looksLikeTechBan =
+    /disallowed technolog/i.test(summary) ||
+    (Array.isArray(proposal.requirementDisallowedTech) &&
+      proposal.requirementDisallowedTech.length > 0);
+
+  if (status !== 'requirements_rejected' && !(failed && looksLikeTechBan)) {
+    return proposal;
+  }
+
+  const asg = assignment || proposal.assignment;
+  if (!asg || typeof asg !== 'object' || !asg._id) return proposal;
+
+  let check;
+  try {
+    check = await evaluateProposalAgainstAssignmentRequirements(asg, proposal);
+  } catch (e) {
+    logger.warn(`[healRequirements] check failed for ${proposal._id}: ${e.message}`);
+    return proposal;
+  }
+
+  if (!check.passed) {
+    if (check.summary && check.summary !== summary) {
+      await Proposal.updateOne(
+        { _id: proposal._id },
+        {
+          $set: {
+            requirementCheckSummary: check.summary,
+            requirementDisallowedTech: check.disallowedMentionedTech || [],
+            requirementMissingKeywords: check.missingKeywords || [],
+            requirementMissingAllowedTech: check.missingAllowedTech || [],
+            requirementMissingImplicitTerms: check.missingImplicitTerms || [],
+          },
+        }
+      );
+      proposal.requirementCheckSummary = check.summary;
+      proposal.requirementDisallowedTech = check.disallowedMentionedTech || [];
+    }
+    return proposal;
+  }
+
+  const historyEntry = buildSubmissionHistoryEntry(proposal, {
+    outcome: 'requirements_healed',
+    requirementCheck: check,
+    contentChanged: false,
+  });
+
+  const nextSummary = check.summary || 'Structural requirement gate passed.';
+  await Proposal.updateOne(
+    { _id: proposal._id },
+    {
+      $set: {
+        status: 'pending_teacher_approval',
+        requirementCheckPassed: true,
+        requirementCheckSummary: nextSummary,
+        requirementDisallowedTech: [],
+        requirementMissingKeywords: check.missingKeywords || [],
+        requirementMissingAllowedTech: check.missingAllowedTech || [],
+        requirementMissingImplicitTerms: check.missingImplicitTerms || [],
+        requirementAllowedTechMatched: check.matchedAllowedTech || [],
+        requirementNeedsTeacherReview: Boolean(check.needsReview),
+      },
+      $push: { submissionHistory: historyEntry },
+    }
+  );
+
+  proposal.status = 'pending_teacher_approval';
+  proposal.requirementCheckPassed = true;
+  proposal.requirementCheckSummary = nextSummary;
+  proposal.requirementDisallowedTech = [];
+  proposal.requirementMissingKeywords = check.missingKeywords || [];
+  proposal.requirementMissingAllowedTech = check.missingAllowedTech || [];
+  proposal.requirementMissingImplicitTerms = check.missingImplicitTerms || [];
+  proposal.requirementAllowedTechMatched = check.matchedAllowedTech || [];
+  proposal.requirementNeedsTeacherReview = Boolean(check.needsReview);
+
+  logger.info(`[healRequirements] cleared false rejection for proposal ${proposal._id}`);
+  notifyTeachersOfPendingProposal(asg, proposal);
+  return proposal;
+}
+
 function buildSubmissionHistoryEntry(proposal, { outcome, requirementCheck, aiResult = null, contentChanged = true }) {
   const previous = Array.isArray(proposal?.submissionHistory)
     ? proposal.submissionHistory[proposal.submissionHistory.length - 1]
@@ -1717,7 +1809,7 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     .populate({
       path: 'assignment',
       select:
-        'title description requirementText requiredKeywords allowedTechnologies class subject semester academicYear submissionMode isCollaborative teacher coTeacherId frontendTeacherId backendTeacherId frontendTechRequirements backendTechRequirements',
+        'title description requirementText requiredKeywords allowedTechnologies assignmentFile class subject semester academicYear submissionMode isCollaborative teacher coTeacherId frontendTeacherId backendTeacherId frontendTechRequirements backendTechRequirements',
       populate: [
         { path: 'class', select: 'code name' },
         { path: 'subject', select: 'code name' },
@@ -1739,6 +1831,14 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
         await Proposal.updateOne({ _id: p._id }, { status: 'pending_teacher_approval' });
         p.status = 'pending_teacher_approval';
       }
+    }
+    // Clear false "PHP disallowed" (etc.) after requirement-gate fixes.
+    if (
+      p.status === 'requirements_rejected' ||
+      (p.requirementCheckPassed === false &&
+        /disallowed technolog/i.test(String(p.requirementCheckSummary || '')))
+    ) {
+      await healStaleRequirementsRejection(p, p.assignment);
     }
   }
 
@@ -1841,7 +1941,10 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
 
 export async function getProposalForStudent(userId, proposalId) {
   const p = await Proposal.findById(proposalId)
-    .populate('assignment')
+    .populate({
+      path: 'assignment',
+      populate: [{ path: 'subject', select: 'code name' }],
+    })
     .populate('group')
     .populate('aiMatchedLegacyId');
   if (!p) {
@@ -1863,6 +1966,7 @@ export async function getProposalForStudent(userId, proposalId) {
       throw err;
     }
   }
+  await healStaleRequirementsRejection(p, p.assignment);
   return p;
 }
 
