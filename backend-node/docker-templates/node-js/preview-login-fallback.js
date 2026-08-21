@@ -159,7 +159,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v47', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v48', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -2531,6 +2531,36 @@
         }
       }
     } catch (_e0) {}
+
+    // Maktabadda / library apps: UI calls /categories, Express mounts /api/v1/categories.
+    // XHR showed POST …/categories → 404; rewrite before the request leaves the browser.
+    try {
+      var abs2 = new URL(next, window.location.href);
+      var p2 = abs2.pathname || '';
+      var pref = String(
+        window.__SV_API_PREFIX__ ||
+          (window.__SV_PREVIEW_CREDS__ && window.__SV_PREVIEW_CREDS__.apiPrefix) ||
+          ''
+      ).trim();
+      if (!pref && /\/api\/v1\//i.test(String(window.__SV_LOGIN_API_PATH__ || ''))) {
+        pref = '/api/v1';
+      }
+      if (
+        !pref &&
+        /^\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements)(\/|$)/i.test(p2)
+      ) {
+        pref = '/api/v1';
+      }
+      if (
+        pref &&
+        /^\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users)(\/|$)/i.test(p2) &&
+        p2.indexOf(pref) !== 0
+      ) {
+        abs2.pathname = pref + p2;
+        next = abs2.toString();
+        console.log('[DEBUG-SHIM] API prefix rewrite →', next);
+      }
+    } catch (_ePref) {}
 
     // Baked host:PORT from Vite (UI :8091, API :8576) → same-origin gateway.
     try {
