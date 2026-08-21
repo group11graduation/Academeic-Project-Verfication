@@ -482,9 +482,20 @@ function isApiProxyPath(pathname) {
 /** GET list endpoints that can soft-empty when Express/Mongo returns 500. */
 function isListishApiPath(pathname) {
   const p = String(pathname || '').split('?')[0] || '/';
+  // Do not soft-empty SPA shells that share a path with APIs when the request is a
+  // document navigation — handled in isBrowserNavigationRequest. Soft-empty only
+  // for bare resource list paths (and /admin/loans for axios, which sends Accept: json).
   return /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users|students|products|orders|items|loans|notifications|members|authors|publishers)(\/)?$/i.test(
     p
   );
+}
+
+function requestWantsHtml(req) {
+  const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+  const mode = String(req.headers['sec-fetch-mode'] || '').toLowerCase();
+  if (dest === 'document' || mode === 'navigate') return true;
+  const accept = String(req.headers.accept || '');
+  return /text\/html/i.test(accept) && !/application\/json/i.test(accept);
 }
 
 function softEmptyListBody(pathname) {
@@ -562,16 +573,20 @@ function normalizeApiListBody(body, reqPath) {
 function isBrowserNavigationRequest(req, pathname) {
   const method = String(req.method || 'GET').toUpperCase();
   if (method !== 'GET' && method !== 'HEAD') return false;
-  if (isApiProxyPath(pathname)) return false;
   if (isStaticAssetRequest(pathname)) return false;
 
   const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
   const mode = String(req.headers['sec-fetch-mode'] || '').toLowerCase();
   // Real top-level navigations (address bar, location.assign, link click).
+  // MUST win over isApiProxyPath — LoanFlow uses the same URL for SPA (/admin/loans)
+  // and axios GET /admin/loans. Document navigations were getting raw JSON "[]".
   if (dest === 'document' || mode === 'navigate') return true;
 
+  // XHR/fetch to dual SPA/API paths → proxy to Express (not SPA).
+  if (isApiProxyPath(pathname)) return false;
+
   const accept = String(req.headers.accept || '');
-  // Explicit document request.
+  // Explicit document request (older browsers without Sec-Fetch-*).
   if (/text\/html/i.test(accept) && !/application\/json/i.test(accept)) return true;
 
   // Do NOT treat Accept: */* as navigation — fetch() defaults to */* and SYADA
@@ -713,11 +728,13 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
           }
 
           // Last path still 500 on a list GET — return empty JSON so SPA stays usable.
+          // Never soft-empty a browser document navigation (LoanFlow /admin/loans → raw []).
           if (
             !isLogin &&
             status >= 500 &&
             method === 'GET' &&
-            isListishApiPath(pathOnly)
+            isListishApiPath(pathOnly) &&
+            !requestWantsHtml(req)
           ) {
             const errChunks = [];
             up.on('data', (c) => errChunks.push(c));
@@ -752,7 +769,8 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             return;
           }
 
-          // Exhausted all mounts with 404 on a list GET — soft-empty (do NOT serve SPA HTML).
+          // Exhausted all mounts with 404 on a list GET — soft-empty (do NOT serve SPA HTML)
+          // unless this is a document navigation to a dual SPA/API path.
           if (
             !isLogin &&
             !hasMorePaths &&
@@ -761,6 +779,10 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             isListishApiPath(pathOnly)
           ) {
             up.resume();
+            if (requestWantsHtml(req)) {
+              console.log('[preview-gateway] list GET 404 + HTML nav → SPA', pathOnly);
+              return serveStatic(req, res);
+            }
             console.log('[preview-gateway] list GET 404 exhausted → soft-empty', pathOnly);
             const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
             return send(res, 200, soft, {
@@ -782,6 +804,10 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
           }
           if (status === 404 && isListishApiPath(pathOnly) && method === 'GET') {
             up.resume();
+            if (requestWantsHtml(req)) {
+              console.log('[preview-gateway] list GET final 404 + HTML nav → SPA', pathOnly);
+              return serveStatic(req, res);
+            }
             console.log('[preview-gateway] list GET final 404 → soft-empty', pathOnly);
             const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
             return send(res, 200, soft, {
@@ -853,6 +879,12 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
           // Also skip when Content-Type is missing but Authorization is present
           // (typical XHR API call).
           const hasAuth = Boolean(req.headers.authorization || req.headers.Authorization);
+          // Document navigation accidentally proxied: Express returned [] for /admin/loans.
+          if (method === 'GET' && requestWantsHtml(req) && !looksHtml) {
+            up.resume();
+            console.log('[preview-gateway] HTML nav got non-HTML upstream → SPA', pathOnly);
+            return serveStatic(req, res);
+          }
           if (
             preferSpaOnNonHtml &&
             canFallback &&
