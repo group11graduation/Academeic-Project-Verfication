@@ -155,7 +155,7 @@ function tokenHitsZip(tokens, zipTokenSet, zipLower) {
   return tokens.filter((t) => tokenInZip(t, zipTokenSet, zipLower));
 }
 
-/** ZIP side of option 1: README + package.json identity + routes + models + filename. */
+/** ZIP side of option 1: README + package identity + path names + routes/models + filename. */
 function buildZipCorpus({ evidence = {}, originalFilename = '' } = {}) {
   const nameHint = String(originalFilename || '')
     .replace(/\.zip$/i, '')
@@ -164,6 +164,7 @@ function buildZipCorpus({ evidence = {}, originalFilename = '' } = {}) {
     nameHint,
     evidence.package_identity || '',
     evidence.readme_text || '',
+    evidence.path_hints || '',
     Array.isArray(evidence.routes) ? evidence.routes.join(' ') : '',
     Array.isArray(evidence.models) ? evidence.models.join(' ') : '',
   ]
@@ -296,10 +297,10 @@ export function scoreProposalZipFunctionality({
   const pct = Math.round(score * 100);
   const missingHint = missingTitleTokens.slice(0, 6).join(', ');
   const message =
-    `REJECTED - not related to your proposal (keyword/feature overlap ${pct}%). ` +
+    `REJECTED - technology can match but the project topic does not (keyword/feature overlap ${pct}%). ` +
     `This ZIP does not implement what you proposed` +
     (missingHint ? ` (missing from ZIP: ${missingHint})` : '') +
-    '. Upload the project that matches your approved proposal title and features - same technology alone is not enough.';
+    '. Upload your Attendance (or other topic) project ZIP — PHP/MySQL alone is not enough if the code/README never mentions your proposal topic.';
 
   return {
     ok: false,

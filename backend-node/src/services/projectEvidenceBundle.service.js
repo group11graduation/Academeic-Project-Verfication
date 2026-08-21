@@ -182,24 +182,40 @@ async function readReadmeText(extractDir) {
   }
 }
 
-/** Shallow find of package.json / README only (option-1 gate - no code walk). */
-export async function buildLightFunctionalityEvidence(extractDir, { maxFiles = 40, maxDepth = 4 } = {}) {
+/** Split file/folder names into topic tokens (AttendanceController → attendance controller). */
+function pathNameToHint(name) {
+  const base = String(name || '')
+    .replace(/\.[a-z0-9]+$/i, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[-_]+/g, ' ')
+    .toLowerCase()
+    .trim();
+  return base.length >= 3 ? base : '';
+}
+
+/**
+ * Shallow README / package.json / composer.json + path name hints (option-1 gate).
+ * Path hints catch real topic apps (e.g. AttendanceController.php) when README is thin;
+ * still rejects unrelated ZIPs like ModernSystem with no domain words in names.
+ */
+export async function buildLightFunctionalityEvidence(extractDir, { maxFiles = 80, maxDepth = 5 } = {}) {
   const empty = {
     detected_tech: [],
     readme_text: '',
     routes: [],
     models: [],
     package_identity: '',
+    path_hints: '',
   };
   if (!extractDir || !fsSync.existsSync(extractDir)) return empty;
 
   let packageIdentity = '';
   let readmeOnly = '';
   let seen = 0;
+  const pathHints = [];
 
   async function walk(dir, depth) {
     if (seen >= maxFiles || depth > maxDepth) return;
-    if (packageIdentity && readmeOnly) return;
     let entries;
     try {
       entries = await fs.readdir(dir, { withFileTypes: true });
@@ -207,10 +223,12 @@ export async function buildLightFunctionalityEvidence(extractDir, { maxFiles = 4
       return;
     }
     for (const ent of entries) {
-      if (seen >= maxFiles || (packageIdentity && readmeOnly)) return;
+      if (seen >= maxFiles) return;
       const name = ent.name;
       if (name.startsWith('.')) continue;
       const abs = path.join(dir, name);
+      const hint = pathNameToHint(name);
+      if (hint) pushUnique(pathHints, hint, 120);
       if (ent.isDirectory()) {
         if (SKIP_DIR_NAMES.has(name.toLowerCase())) continue;
         await walk(abs, depth + 1);
@@ -247,13 +265,15 @@ export async function buildLightFunctionalityEvidence(extractDir, { maxFiles = 4
   }
 
   await walk(extractDir, 0);
-  const readme_text = [packageIdentity, readmeOnly].filter(Boolean).join('\n\n').slice(0, 8000);
+  const path_hints = pathHints.join(' ').slice(0, 4000);
+  const readme_text = [packageIdentity, readmeOnly, path_hints].filter(Boolean).join('\n\n').slice(0, 8000);
   return {
     detected_tech: [],
     readme_text,
     routes: [],
     models: [],
     package_identity: packageIdentity,
+    path_hints,
   };
 }
 
