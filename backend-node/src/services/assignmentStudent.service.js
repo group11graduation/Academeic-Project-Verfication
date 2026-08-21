@@ -1,7 +1,7 @@
 import { Enrollment } from '../models/Enrollment.js';
 import { Assignment } from '../models/Assignment.js';
 import { Proposal } from '../models/Proposal.js';
-import { resolveStoredProposalRecommendation } from './proposalWorkflow.service.js';
+import { resolveStoredProposalRecommendation, healDifferentiatedPreviousSemesterFlag } from './proposalWorkflow.service.js';
 import { resolveSimilarMatchedProject } from './verifiedGallery.service.js';
 import { Group } from '../models/Group.js';
 import { ProjectSubmission } from '../models/ProjectSubmission.js';
@@ -365,13 +365,12 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
 
     let proposalOut = proposal || null;
     if (proposalOut) {
-      const hasPreviousMatch = Boolean(
-        proposalOut.aiMatchedProposalId ||
-          proposalOut.aiMatchedLegacyId ||
-          String(proposalOut.aiMatchedLegacyKey || '').trim()
-      );
+      if (proposalOut.status === 'ai_flagged_previous_semester') {
+        proposalOut = await healDifferentiatedPreviousSemesterFlag(proposalOut);
+      }
       const flaggedPrevious = proposalOut.status === 'ai_flagged_previous_semester';
-      if (flaggedPrevious || hasPreviousMatch) {
+      // Recommendation UI only while still flagged — clear after student differentiates / teacher approves.
+      if (flaggedPrevious) {
         const [rec, matchedSimilarProject] = await Promise.all([
           resolveStoredProposalRecommendation(proposalOut),
           resolveSimilarMatchedProject(proposalOut),
@@ -381,6 +380,15 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
           recommendation: rec.recommendation,
           suggestedFeatures: rec.suggestedFeatures,
           matchedSimilarProject,
+        };
+      } else {
+        proposalOut = {
+          ...proposalOut,
+          recommendation: null,
+          suggestedFeatures: [],
+          matchedSimilarProject: null,
+          aiRecommendationText: '',
+          aiSuggestedFeatures: [],
         };
       }
     }

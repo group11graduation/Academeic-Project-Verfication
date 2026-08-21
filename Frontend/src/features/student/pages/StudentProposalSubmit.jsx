@@ -40,15 +40,21 @@ const StudentProposalSubmit = () => {
                     setTitle(p.title || '');
                     setDescription(p.description || '');
                     setFeatures(p.features?.length ? p.features : ['']);
-                    setRecommendation(p.recommendation || p.aiRecommendationText || null);
-                    setSuggestedFeatures(
-                        Array.isArray(p.suggestedFeatures) && p.suggestedFeatures.length
-                            ? p.suggestedFeatures
-                            : Array.isArray(p.aiSuggestedFeatures)
-                              ? p.aiSuggestedFeatures
-                              : []
-                    );
-                    setMatchedSimilarProject(p.matchedSimilarProject || null);
+                    if (p.status === 'ai_flagged_previous_semester') {
+                        setRecommendation(p.recommendation || p.aiRecommendationText || null);
+                        setSuggestedFeatures(
+                            Array.isArray(p.suggestedFeatures) && p.suggestedFeatures.length
+                                ? p.suggestedFeatures
+                                : Array.isArray(p.aiSuggestedFeatures)
+                                  ? p.aiSuggestedFeatures
+                                  : []
+                        );
+                        setMatchedSimilarProject(p.matchedSimilarProject || null);
+                    } else {
+                        setRecommendation(null);
+                        setSuggestedFeatures([]);
+                        setMatchedSimilarProject(null);
+                    }
                 }
             }
         } catch (e) {
@@ -241,15 +247,24 @@ const StudentProposalSubmit = () => {
                     /^rejected automatically:/i.test(responseMessage);
 
                 syncProposalFromResponse(res.data);
-                setRecommendation(res.data?.recommendation || res.data?.proposal?.aiRecommendationText || null);
-                setSuggestedFeatures(
-                    Array.isArray(res.data?.suggestedFeatures) && res.data.suggestedFeatures.length
-                        ? res.data.suggestedFeatures
-                        : Array.isArray(res.data?.proposal?.aiSuggestedFeatures)
-                          ? res.data.proposal.aiSuggestedFeatures
-                          : []
-                );
-                setMatchedSimilarProject(res.data?.matchedSimilarProject || res.data?.proposal?.matchedSimilarProject || null);
+                const nextStatus = res.data?.proposal?.status || '';
+                if (nextStatus === 'ai_flagged_previous_semester') {
+                    setRecommendation(res.data?.recommendation || res.data?.proposal?.aiRecommendationText || null);
+                    setSuggestedFeatures(
+                        Array.isArray(res.data?.suggestedFeatures) && res.data.suggestedFeatures.length
+                            ? res.data.suggestedFeatures
+                            : Array.isArray(res.data?.proposal?.aiSuggestedFeatures)
+                              ? res.data.proposal.aiSuggestedFeatures
+                              : []
+                    );
+                    setMatchedSimilarProject(
+                        res.data?.matchedSimilarProject || res.data?.proposal?.matchedSimilarProject || null
+                    );
+                } else {
+                    setRecommendation(null);
+                    setSuggestedFeatures([]);
+                    setMatchedSimilarProject(null);
+                }
 
                 if (isRejection) {
                     setMessage(null);
