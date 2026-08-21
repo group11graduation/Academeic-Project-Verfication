@@ -177,6 +177,17 @@ export function inferRequiredTechFromSubject(subject) {
   return [...new Set(required)];
 }
 
+/**
+ * Primary languages/frameworks from course subject + assignment title
+ * (e.g. "PHP Final Assignment" / subject "PHP And My SQL" → php).
+ */
+export function inferContextPrimaryStack(assignment, block = null) {
+  const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
+  const titleBlob = `${assignment?.title || ''} ${block?.title || ''}`;
+  const fromTitle = detectMentionedTechnologies(titleBlob);
+  return primaryStackTechs([...fromSubject, ...fromTitle]);
+}
+
 /** @deprecated Use inferRequiredTechFromSubject - kept for callers that still import it. */
 export function inferRequiredTechFromAssignmentContext(assignment) {
   return inferRequiredTechFromSubject(assignment?.subject);
@@ -191,36 +202,48 @@ export function resolveRequiredTechnologiesForProposal(assignment, block) {
     block?._extractedFileText || assignment?._extractedAssignmentFileText || ''
   ).trim();
 
+  let resolved = [];
+
   if (allowedTechnologies.length > 0) {
-    return canonicalizeTechList(allowedTechnologies);
+    resolved = canonicalizeTechList(allowedTechnologies);
+  } else {
+    const fromTeacherText = detectMentionedTechnologies(
+      `${requirementText} ${description} ${fileText}`
+    );
+    if (fromTeacherText.length > 0) {
+      resolved = fromTeacherText;
+    } else {
+      // Requirements file was uploaded but could not be read - prefer teacher review (empty
+      // stack) rather than inventing from subject alone when a file was expected.
+      const fileRef = String(
+        block?.assignmentFile ||
+          assignment?.assignmentFile ||
+          block?.requirementFile ||
+          ''
+      ).trim();
+      if (fileRef && !fileText) {
+        return [];
+      }
+
+      const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
+      if (fromSubject.length > 0) {
+        resolved = fromSubject;
+      } else {
+        // Assignment title often encodes the stack (e.g. "PHP and MYSQL").
+        resolved = detectMentionedTechnologies(String(assignment?.title || ''));
+      }
+    }
   }
 
-  const fromTeacherText = detectMentionedTechnologies(
-    `${requirementText} ${description} ${fileText}`
-  );
-  if (fromTeacherText.length > 0) {
-    return fromTeacherText;
+  // Always keep the course language (PHP on a PHP assignment) even when the
+  // requirements file only lists databases (MySQL / PostgreSQL). Otherwise PHP
+  // is wrongly treated as "disallowed".
+  const contextPrimary = inferContextPrimaryStack(assignment, block);
+  if (contextPrimary.length) {
+    resolved = canonicalizeTechList([...resolved, ...contextPrimary]);
   }
 
-  // Requirements file was uploaded but could not be read - prefer teacher review (empty
-  // stack) rather than inventing from subject alone when a file was expected.
-  const fileRef = String(
-    block?.assignmentFile ||
-      assignment?.assignmentFile ||
-      block?.requirementFile ||
-      ''
-  ).trim();
-  if (fileRef && !fileText) {
-    return [];
-  }
-
-  const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
-  if (fromSubject.length > 0) {
-    return fromSubject;
-  }
-
-  // Assignment title often encodes the stack (e.g. "PHP and MYSQL").
-  return detectMentionedTechnologies(String(assignment?.title || ''));
+  return resolved;
 }
 
 export function validateAssignmentTechnologyConsistency({
@@ -709,7 +732,7 @@ export function evaluateRequirementBlock(
   ).trim();
 
   // Prefer explicit allow-list; else tech inferred from requirements file / text / subject.
-  const requiredStack = canonicalizeTechList(
+  let requiredStack = canonicalizeTechList(
     Array.isArray(options.requiredStackOverride) && options.requiredStackOverride.length
       ? options.requiredStackOverride
       : allowedTechnologies.length > 0
@@ -720,6 +743,12 @@ export function evaluateRequirementBlock(
             _extractedFileText: extractedFileText,
           })
   );
+  // Merge course/title primary stack even when corpus override is DB-only
+  // (mysql, postgresql) so PHP Final Assignment does not ban PHP.
+  const contextPrimary = inferContextPrimaryStack(assignmentContext, block);
+  if (contextPrimary.length) {
+    requiredStack = canonicalizeTechList([...requiredStack, ...contextPrimary]);
+  }
 
   const proposalText = buildProposalRequirementText(proposalLike).toLowerCase();
   const mentionedTechnologies = detectMentionedTechnologies(proposalText);
@@ -730,11 +759,13 @@ export function evaluateRequirementBlock(
     requiredPrimary.length ? requiredPrimary : requiredStack
   );
 
-  // Hard fail: student proposes a different language/framework than teacher requirements
-  // (e.g. PHP when the uploaded file requires Spring Boot - even if both mention MySQL).
-  const disallowedMentionedTech = hasRequiredStack
-    ? mentionedPrimary.filter((t) => !allowedExpanded.includes(t))
-    : [];
+  // Hard fail only when the assignment states a language/framework and the student
+  // proposes a different one (e.g. PHP vs Spring Boot). DB-only lists must not ban
+  // the course language.
+  const disallowedMentionedTech =
+    hasRequiredStack && requiredPrimary.length > 0
+      ? mentionedPrimary.filter((t) => !allowedExpanded.includes(t))
+      : [];
   const noDisallowedTechPassed = disallowedMentionedTech.length === 0;
 
   // Cover each required OR-group (e.g. PostgreSQL or MySQL; Java or Spring Boot).

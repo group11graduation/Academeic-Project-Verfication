@@ -90,6 +90,58 @@ export function inferRequiredTechFromSubject(subject) {
   return [...new Set(required)];
 }
 
+const PRIMARY_STACK_TECHS = new Set([
+  'php',
+  'laravel',
+  'java',
+  'spring boot',
+  'python',
+  'django',
+  'react',
+  'node.js',
+  'flutter',
+]);
+
+const TECH_OR_GROUPS = [
+  ['mysql', 'postgresql'],
+  ['java', 'spring boot'],
+  ['php', 'laravel'],
+  ['python', 'django'],
+];
+
+function primaryStackTechs(techList) {
+  return canonicalizeTechList(techList).filter((t) => PRIMARY_STACK_TECHS.has(t));
+}
+
+function requiredTechGroups(techList) {
+  const required = new Set(canonicalizeTechList(techList));
+  if (!required.size) return [];
+  const groups = [];
+  const consumed = new Set();
+  for (const group of TECH_OR_GROUPS) {
+    const hit = group.filter((t) => required.has(t));
+    if (hit.length) {
+      groups.push(hit);
+      hit.forEach((t) => consumed.add(t));
+    }
+  }
+  for (const tech of required) {
+    if (!consumed.has(tech)) groups.push([tech]);
+  }
+  return groups;
+}
+
+function formatTechGroup(group) {
+  return group.length > 1 ? group.join(' or ') : group[0];
+}
+
+/** Primary languages from subject + assignment title (PHP Final Assignment → php). */
+export function inferContextPrimaryStack(assignment) {
+  const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
+  const fromTitle = detectMentionedTechnologies(String(assignment?.title || ''));
+  return primaryStackTechs([...fromSubject, ...fromTitle]);
+}
+
 function expandTechFamily(techList) {
   const expanded = new Set();
   for (const tech of canonicalizeTechList(techList)) {
@@ -118,22 +170,31 @@ export function resolveRequiredTechnologiesForProposal(assignment, block) {
   const requirementText = String(block?.requirementText || '').trim();
   const description = String(block?.description || assignment?.description || '').trim();
 
+  let resolved = [];
+
   if (allowedTechnologies.length > 0) {
-    return canonicalizeTechList(allowedTechnologies);
+    resolved = canonicalizeTechList(allowedTechnologies);
+  } else {
+    const fromTeacherText = detectMentionedTechnologies(`${requirementText} ${description}`);
+    if (fromTeacherText.length > 0) {
+      resolved = fromTeacherText;
+    } else {
+      const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
+      if (fromSubject.length > 0) {
+        resolved = fromSubject;
+      } else {
+        // Assignment title often encodes the stack (e.g. "PHP and MYSQL").
+        resolved = detectMentionedTechnologies(String(assignment?.title || ''));
+      }
+    }
   }
 
-  const fromTeacherText = detectMentionedTechnologies(`${requirementText} ${description}`);
-  if (fromTeacherText.length > 0) {
-    return fromTeacherText;
+  const contextPrimary = inferContextPrimaryStack(assignment);
+  if (contextPrimary.length) {
+    resolved = canonicalizeTechList([...resolved, ...contextPrimary]);
   }
 
-  const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
-  if (fromSubject.length > 0) {
-    return fromSubject;
-  }
-
-  // Assignment title often encodes the stack (e.g. "PHP and MYSQL").
-  return detectMentionedTechnologies(String(assignment?.title || ''));
+  return resolved;
 }
 
 function proposalCoversRequiredTech(proposalText, requiredTerm) {
@@ -192,9 +253,21 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
   const requiredKeywords = toList(assignment?.requiredKeywords);
   const allowedTechnologies = toList(assignment?.allowedTechnologies);
   const requirementText = String(assignment?.requirementText || '').trim();
-  const implicitRequiredTerms = resolveRequiredTechnologiesForProposal(assignment, assignment);
+  let requiredStack = resolveRequiredTechnologiesForProposal(assignment, assignment);
+  const contextPrimary = inferContextPrimaryStack(assignment);
+  if (contextPrimary.length) {
+    requiredStack = canonicalizeTechList([...requiredStack, ...contextPrimary]);
+  }
   const canonicalAllowedTech = canonicalizeTechList(allowedTechnologies);
-  const expandedAllowed = expandTechFamily(canonicalAllowedTech);
+  const requiredPrimary = primaryStackTechs(
+    canonicalAllowedTech.length ? canonicalAllowedTech : requiredStack
+  );
+  const stackForAllow = requiredPrimary.length
+    ? requiredPrimary
+    : canonicalAllowedTech.length
+      ? canonicalAllowedTech
+      : requiredStack;
+  const expandedAllowed = expandTechFamily(stackForAllow);
 
   const proposalText = [
     payload?.title || '',
@@ -206,30 +279,36 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
 
   const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
   const mentionedTechnologies = detectMentionedTechnologies(proposalText);
-  const missingAllowedTech = canonicalAllowedTech.filter(
-    (t) => !proposalCoversRequiredTech(proposalText, t)
+  const mentionedPrimary = primaryStackTechs(mentionedTechnologies);
+
+  // OR-groups: MySQL or PostgreSQL counts as one requirement.
+  const stackForGroups = requiredPrimary.length
+    ? [...requiredPrimary, ...requiredStack.filter((t) => t === 'mysql' || t === 'postgresql' || t === 'mongodb')]
+    : requiredStack.length
+      ? requiredStack
+      : canonicalAllowedTech;
+  const missingGroups = requiredTechGroups(stackForGroups).filter(
+    (g) => !g.some((t) => proposalCoversRequiredTech(proposalText, t))
   );
-  const missingImplicitTerms = implicitRequiredTerms.filter(
-    (t) => !proposalCoversRequiredTech(proposalText, t)
-  );
+  const missingRequiredStack = missingGroups.map((g) => formatTechGroup(g));
+  const missingAllowedTech = missingRequiredStack;
+  const missingImplicitTerms = missingRequiredStack;
+
+  // Only ban languages when a primary stack is stated (not DB-only mysql/postgres).
   const disallowedMentionedTech =
-    allowedTechnologies.length > 0
-      ? mentionedTechnologies.filter((t) => !expandedAllowed.includes(t))
+    requiredPrimary.length > 0
+      ? mentionedPrimary.filter((t) => !expandedAllowed.includes(t))
       : [];
+
   const hasRules =
     Boolean(requirementText) ||
     requiredKeywords.length > 0 ||
     allowedTechnologies.length > 0 ||
-    implicitRequiredTerms.length > 0;
+    requiredStack.length > 0;
 
   const minChars = 80;
   const tooShort = proposalText.replace(/\s+/g, ' ').trim().length < minChars;
-  const missingRequiredStack = [
-    ...new Set([...(missingAllowedTech || []), ...(missingImplicitTerms || [])]),
-  ];
 
-  // Hard client gate: must cover required stack (same intent as backend structural gate).
-  // Meaning/paraphrase quality is still checked by MiniLM on the server after this.
   const passed =
     !tooShort && disallowedMentionedTech.length === 0 && missingRequiredStack.length === 0;
 
@@ -238,7 +317,7 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
     requiredKeywords,
     allowedTechnologies,
     requirementText,
-    implicitRequiredTerms,
+    implicitRequiredTerms: requiredStack,
     missingKeywords,
     missingAllowedTech,
     missingImplicitTerms,
