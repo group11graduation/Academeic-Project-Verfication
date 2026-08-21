@@ -62,6 +62,23 @@ const StudentProposalSubmit = () => {
         load();
     }, [assignmentId]);
 
+    /** Clear one-shot submit errors when the student edits or locally satisfies requirements. */
+    const clearSubmissionFeedback = () => {
+        setError(null);
+        setMessage(null);
+    };
+
+    // Hide stale submit errors once the draft locally satisfies teacher requirements.
+    useEffect(() => {
+        if (!error || !row?.assignment) return;
+        const normalized = features.map((f) => String(f || '').trim()).filter(Boolean);
+        const check = evaluateProposalRequirementCoverage(row.assignment, {
+            title,
+            description,
+            features: normalized,
+        });
+        if (check.passed) setError(null);
+    }, [error, row, title, description, features]);
     const clearAttachedProposalFile = () => {
         setProposalFile(null);
         setFileParseError(null);
@@ -91,16 +108,19 @@ const StudentProposalSubmit = () => {
 
     const addFeature = () => {
         setFeatures([...features, '']);
+        clearSubmissionFeedback();
         if (proposalFile) clearAttachedProposalFile();
     };
     const removeFeature = (i) => {
         setFeatures(features.filter((_, j) => j !== i));
+        clearSubmissionFeedback();
         if (proposalFile) clearAttachedProposalFile();
     };
     const setFeature = (i, v) => {
         const next = [...features];
         next[i] = v;
         setFeatures(next);
+        clearSubmissionFeedback();
         if (proposalFile) clearAttachedProposalFile();
     };
 
@@ -111,6 +131,7 @@ const StudentProposalSubmit = () => {
         if (existing.includes(value.toLowerCase())) return;
         const cleaned = features.map((f) => String(f || '').trim()).filter(Boolean);
         setFeatures([...cleaned, value]);
+        clearSubmissionFeedback();
         if (proposalFile) clearAttachedProposalFile();
     };
 
@@ -232,11 +253,16 @@ const StudentProposalSubmit = () => {
 
                 if (isRejection) {
                     setMessage(null);
-                    setError(
-                        res.data?.recommendation ||
-                            responseMessage ||
-                            'Your proposal was not accepted. Update title, description, or features and try again.'
-                    );
+                    // requirements_rejected uses the status banner only — avoid duplicate red boxes.
+                    if (proposalStatus === 'requirements_rejected') {
+                        setError(null);
+                    } else {
+                        setError(
+                            res.data?.recommendation ||
+                                responseMessage ||
+                                'Your proposal was not accepted. Update title, description, or features and try again.'
+                        );
+                    }
                 } else {
                     // requirements_review is not a hard reject — show as info, not error
                     setMessage(responseMessage || 'Submitted.');
@@ -303,6 +329,9 @@ const StudentProposalSubmit = () => {
         hasAnyTextInput &&
         (!requirementCheck.passed || requirementCheck.advisoryOnly);
     const canSubmitFinal = !lockedByApproval && beforeDeadline && requirementCheck.passed;
+    // Past reject banners stay only while the gate still fails; hide once the draft is fixed.
+    const showRequirementsRejectedBanner =
+        proposal?.status === 'requirements_rejected' && !requirementCheck.passed;
 
     if (!canEdit) {
         return (
@@ -552,8 +581,8 @@ Features:
                                 'This proposal was previously blocked by an automatic similarity check.'}
                         </p>
                         <p className="mt-2 text-xs opacity-90">
-                            Click <strong>Submit</strong> again after the backend is updated — same-semester overlap now
-                            goes to your teacher for review instead of auto-rejecting.
+                            Click <strong>Submit</strong> again after updating your proposal — same-semester overlap goes
+                            to your teacher for review instead of staying blocked forever.
                         </p>
                     </div>
                 )}
@@ -564,7 +593,7 @@ Features:
                     </div>
                 )}
 
-                {proposal?.status === 'requirements_rejected' && (
+                {showRequirementsRejectedBanner && (
                     <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
                         Your proposal did not meaningfully match teacher requirements and was automatically rejected.
                         Casual English or only listing technology names is not enough - rewrite in full sentences that address the requirements.
@@ -678,6 +707,7 @@ Features:
                             value={title}
                             onChange={(e) => {
                                 setTitle(e.target.value);
+                                clearSubmissionFeedback();
                                 if (proposalFile) clearAttachedProposalFile();
                             }}
                             className={`${Z_INPUT} text-[var(--sv-text)] dark:text-[var(--sv-text)] placeholder:text-[var(--sv-muted)]`}
@@ -693,6 +723,7 @@ Features:
                             value={description}
                             onChange={(e) => {
                                 setDescription(e.target.value);
+                                clearSubmissionFeedback();
                                 if (proposalFile) clearAttachedProposalFile();
                             }}
                             rows={5}
