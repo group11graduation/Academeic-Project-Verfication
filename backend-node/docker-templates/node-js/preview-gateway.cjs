@@ -616,6 +616,44 @@ function looksLikeDuplicateKeyError(bodyBuf) {
   }
 }
 
+function looksLikeJwtAuthError(bodyBuf) {
+  try {
+    const s = Buffer.isBuffer(bodyBuf) ? bodyBuf.toString('utf8') : String(bodyBuf || '');
+    return /jwt\s+malformed|jwt\s+invalid|invalid\s+token|JsonWebTokenError|TokenExpiredError|jwt expired/i.test(
+      s
+    );
+  } catch (_e) {
+    return false;
+  }
+}
+
+function isJunkBearerHeader(auth) {
+  const s = String(auth || '').trim();
+  if (!s) return true;
+  const m = s.match(/^Bearer\s+(.*)$/i);
+  const tok = (m ? m[1] : s).trim();
+  if (!tok) return true;
+  if (/^(undefined|null|nan|true|false|\[object Object\])$/i.test(tok)) return true;
+  if (tok.split('.').length < 3) return true;
+  return false;
+}
+
+let _cachedPreviewBearer = '';
+async function getPreviewInjectBearer() {
+  if (_cachedPreviewBearer && !isJunkBearerHeader(_cachedPreviewBearer)) {
+    return _cachedPreviewBearer;
+  }
+  const forced = await tryGatewayForceLogin(Buffer.from('{}', 'utf8'));
+  const body = forced && forced.body ? forced.body : null;
+  const tok =
+    (body && (body.token || body.accessToken || body.access_token)) ||
+    (body && body.data && (body.data.token || body.data.accessToken)) ||
+    '';
+  if (!tok || isJunkBearerHeader(tok)) return '';
+  _cachedPreviewBearer = /^Bearer\s+/i.test(tok) ? tok : `Bearer ${tok}`;
+  return _cachedPreviewBearer;
+}
+
 function rewriteDuplicateKeyBody(bodyBuf) {
   let msg = 'A record with this name already exists';
   try {
@@ -762,17 +800,44 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
   const canFallback = isSafeStaticFallbackMethod(method);
 
   readRequestBody(req)
-    .then((body) => {
+    .then(async (body) => {
       const headers = { ...req.headers, host: `${API_HOST}:${API_PORT}` };
       delete headers['accept-encoding'];
       delete headers['transfer-encoding'];
       headers['content-length'] = String(body.length);
       // Node lowercases incoming headers; Express protect often reads Authorization.
-      const auth =
+      let auth =
         req.headers.authorization ||
         req.headers.Authorization ||
         headers.authorization ||
-        headers.Authorization;
+        headers.Authorization ||
+        '';
+      // Student UIs send "Bearer undefined" → Express jwt.verify → 500. Strip + inject.
+      if (auth && isJunkBearerHeader(auth)) {
+        console.log('[preview-gateway] stripped junk Authorization');
+        auth = '';
+        delete headers.authorization;
+        delete headers.Authorization;
+        delete req.headers.authorization;
+        delete req.headers.Authorization;
+      }
+      const pathOnlyEarly = String(req.url || '/').split('?')[0] || '/';
+      if (
+        !auth &&
+        isApiProxyPath(pathOnlyEarly) &&
+        !isLoginApiRequest(method, pathOnlyEarly) &&
+        !isWebSocketProxyPath(pathOnlyEarly)
+      ) {
+        try {
+          const injected = await getPreviewInjectBearer();
+          if (injected) {
+            auth = injected;
+            console.log('[preview-gateway] injected preview Authorization for', pathOnlyEarly);
+          }
+        } catch (_inj) {
+          /* ignore */
+        }
+      }
       if (auth) {
         headers.authorization = auth;
         headers.Authorization = auth;
@@ -796,7 +861,7 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
         }
       }
 
-      function attempt(index) {
+      function attempt(index, authRetried) {
         const tryPath = pathsToTry[index];
         const opts = {
           hostname: API_HOST,
@@ -828,6 +893,33 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
               const tryPathOnly = String(tryPath || '').split('?')[0] || '';
               // /api/v1/* returned 500 (real handler crash) — do NOT wander to /api/categories.
               if (/^\/api\/v1(\/|$)/i.test(tryPathOnly) && status >= 500) {
+                if (
+                  !authRetried &&
+                  looksLikeJwtAuthError(errBuf) &&
+                  !isLogin
+                ) {
+                  return Promise.resolve(getPreviewInjectBearer()).then((bearer) => {
+                    if (!bearer || res.headersSent) {
+                      const soft = Buffer.from(
+                        JSON.stringify({ status: false, message: 'Not authorized' }),
+                        'utf8'
+                      );
+                      return send(res, 401, soft, {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Access-Control-Allow-Origin': req.headers.origin || '*',
+                        'Access-Control-Allow-Credentials': 'true',
+                        'X-SV-Preview-Jwt-Fix': '1',
+                      });
+                    }
+                    headers.authorization = bearer;
+                    headers.Authorization = bearer;
+                    console.log(
+                      '[preview-gateway] /api/v1 jwt error → retry with preview bearer',
+                      tryPathOnly
+                    );
+                    return attempt(index, true);
+                  });
+                }
                 if (method === 'GET' && isListishApiPath(pathOnly) && !requestWantsHtml(req)) {
                   console.log(
                     '[preview-gateway] /api/v1 list',
@@ -890,7 +982,7 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
                   '→',
                   pathsToTry[index + 1]
                 );
-                return attempt(index + 1);
+                  return attempt(index + 1, authRetried);
               }
               const outHeaders = { ...up.headers };
               outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
@@ -958,6 +1050,29 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             up.on('data', (c) => errChunks.push(c));
             up.on('end', () => {
               const errBuf = Buffer.concat(errChunks);
+              if (!authRetried && looksLikeJwtAuthError(errBuf)) {
+                return Promise.resolve(getPreviewInjectBearer()).then((bearer) => {
+                  if (!bearer || res.headersSent) {
+                    const soft = Buffer.from(
+                      JSON.stringify({ status: false, message: 'Not authorized' }),
+                      'utf8'
+                    );
+                    return send(res, 401, soft, {
+                      'Content-Type': 'application/json; charset=utf-8',
+                      'Access-Control-Allow-Origin': req.headers.origin || '*',
+                      'Access-Control-Allow-Credentials': 'true',
+                      'X-SV-Preview-Jwt-Fix': '1',
+                    });
+                  }
+                  headers.authorization = bearer;
+                  headers.Authorization = bearer;
+                  console.log(
+                    '[preview-gateway] write jwt error → retry with preview bearer',
+                    pathOnly
+                  );
+                  return attempt(index, true);
+                });
+              }
               if (looksLikeDuplicateKeyError(errBuf)) {
                 console.log(
                   '[preview-gateway] duplicate key',
@@ -1020,7 +1135,7 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
 
           if (status === 404 && hasMorePaths) {
             up.resume();
-            return attempt(index + 1);
+                  return attempt(index + 1, authRetried);
           }
           // Never fall back to SPA HTML for known API list/CRUD paths (breaks axios JSON parse).
           if (status === 404 && canFallback && !isApiProxyPath(pathOnly) && !isListishApiPath(pathOnly)) {
@@ -1190,14 +1305,14 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
         upstream.on('timeout', () => {
           upstream.destroy();
           if (res.headersSent) return;
-          if (index + 1 < pathsToTry.length) return attempt(index + 1);
+          if (index + 1 < pathsToTry.length) return attempt(index + 1, authRetried);
           if (canFallback) return serveStatic(req, res);
           return jsonError(res, 504, 'Upstream API timeout');
         });
 
         upstream.on('error', (err) => {
           if (res.headersSent) return;
-          if (index + 1 < pathsToTry.length) return attempt(index + 1);
+          if (index + 1 < pathsToTry.length) return attempt(index + 1, authRetried);
           if (canFallback) return serveStatic(req, res);
           return jsonError(
             res,

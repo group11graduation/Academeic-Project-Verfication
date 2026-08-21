@@ -7,7 +7,12 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V45:
+ * Marker V46:
+ * - Replace junk Authorization (Bearer undefined/null) — student apps set
+ *   `Authorization: Bearer ${token}` before token exists → Express jwt.verify → 500.
+ * - getStoredAccessToken ignores "undefined"/"null"; attachBearer overwrites junk.
+ * - Axios/XHR: on 500 jwt malformed/invalid, sync real JWT and retry once.
+ * V45:
  * - Automatic CRUD path retries: /api/students ↔ /students ↔ singular/plural (/api/v1).
  *   Layers: Express safety re-dispatch, gateway upstream tries, axios+fetch shim.
  * V44:
@@ -115,10 +120,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V45__) {
-    console.log('[DEBUG-SHIM] already installed V45 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V46__) {
+    console.log('[DEBUG-SHIM] already installed V46 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V46__ = true;
   window.__SV_LOGIN_FALLBACK_V45__ = true;
   window.__SV_LOGIN_FALLBACK_V44__ = true;
   window.__SV_LOGIN_FALLBACK_V43__ = true;
@@ -2899,18 +2905,36 @@
     }, 400);
   }
 
+  function isJunkAuthToken(value) {
+    var s = String(value == null ? '' : value).trim();
+    if (!s) return true;
+    var tok = s;
+    var m = s.match(/^Bearer\s+(.*)$/i);
+    if (m) tok = String(m[1] || '').trim();
+    if (!tok) return true;
+    if (/^(undefined|null|nan|true|false|\[object object\])$/i.test(tok)) return true;
+    // Real JWTs are three base64 segments.
+    if (tok.indexOf('.') >= 0 && tok.split('.').length < 3) return true;
+    if (tok.length < 20 && tok.indexOf('.') < 0) return true;
+    return false;
+  }
+
   function getStoredAccessToken() {
     try {
-      return (
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        localStorage.getItem('access_token') ||
-        localStorage.getItem('jwt') ||
-        localStorage.getItem('loan_token') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken') ||
-        ''
-      );
+      var keys = [
+        'token',
+        'accessToken',
+        'access_token',
+        'jwt',
+        'loan_token',
+      ];
+      for (var i = 0; i < keys.length; i++) {
+        var v =
+          localStorage.getItem(keys[i]) ||
+          (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(keys[i]) : null);
+        if (v && !isJunkAuthToken(v)) return String(v).replace(/^Bearer\s+/i, '').trim();
+      }
+      return '';
     } catch (_e) {
       return '';
     }
@@ -2919,7 +2943,7 @@
   /** Sync login so /api/v1 protect gets a real JWT (missing Bearer → student next() → 404). */
   function ensurePreviewApiTokenSync() {
     var existing = getStoredAccessToken();
-    if (existing) return existing;
+    if (existing && !isJunkAuthToken(existing)) return existing;
     if (typeof OrigXHR !== 'function') return '';
     var creds = window.__SV_PREVIEW_CREDS__ || {};
     var user = String(creds.username || window.__SV_PREVIEW_SEED_USERNAME__ || 'admin').trim() || 'admin';
@@ -2977,22 +3001,35 @@
 
   function attachBearerToXhr(xhr, setHeaderFn, headersObj, url) {
     try {
-      var hasAuth = false;
+      var existingAuth = '';
       for (var hk in headersObj) {
-        if (/^authorization$/i.test(hk) && headersObj[hk]) hasAuth = true;
+        if (/^authorization$/i.test(hk) && headersObj[hk]) {
+          existingAuth = String(headersObj[hk]);
+          break;
+        }
       }
-      if (hasAuth) return;
       var needs =
         isApiRequestUrl(url) ||
         isSessionProbeUrl(url) ||
         /\/api\/v1\//i.test(String(url || ''));
       if (!needs) return;
+      // Student apps often set Authorization: Bearer undefined before login completes.
+      // That is "present" but causes Express jwt.verify → 500 jwt malformed.
+      if (existingAuth && !isJunkAuthToken(existingAuth)) return;
       var tok = getStoredAccessToken() || ensurePreviewApiTokenSync();
-      if (!tok) return;
+      if (!tok || isJunkAuthToken(tok)) return;
       var bearer = /^Bearer\s+/i.test(tok) ? tok : 'Bearer ' + tok;
-      setHeaderFn.call(xhr, 'Authorization', bearer);
+      try {
+        setHeaderFn.call(xhr, 'Authorization', bearer);
+      } catch (_set) {
+        /* header may already be sent with junk — still update our map for retries */
+      }
       headersObj.Authorization = bearer;
-      console.log('[DEBUG-SHIM] xhr attached Authorization for', url);
+      console.log(
+        '[DEBUG-SHIM] xhr attached Authorization for',
+        url,
+        existingAuth ? '(replaced junk)' : ''
+      );
     } catch (_e) {}
   }
 
@@ -3286,8 +3323,8 @@
   }
 
   function forceAuthHeaders(headersLike) {
-    var token = getStoredAccessToken();
-    if (!token) return headersLike;
+    var token = getStoredAccessToken() || ensurePreviewApiTokenSync();
+    if (!token || isJunkAuthToken(token)) return headersLike;
     var bearer = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
     try {
       if (headersLike && typeof Headers !== 'undefined' && headersLike instanceof Headers) {
@@ -3303,23 +3340,21 @@
 
   function ensureAuthOnHeaders(headersLike, url) {
     if (!isApiRequestUrl(url) && !isSessionProbeUrl(url)) return headersLike;
-    var token = getStoredAccessToken();
-    if (!token) return headersLike;
+    var token = getStoredAccessToken() || ensurePreviewApiTokenSync();
+    if (!token || isJunkAuthToken(token)) return headersLike;
     var bearer = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
     try {
       if (headersLike && typeof Headers !== 'undefined' && headersLike instanceof Headers) {
-        if (!headersLike.get('Authorization') && !headersLike.get('authorization')) {
+        var cur = headersLike.get('Authorization') || headersLike.get('authorization') || '';
+        if (!cur || isJunkAuthToken(cur)) {
           headersLike.set('Authorization', bearer);
         }
         return headersLike;
       }
     } catch (_h) {}
     var out = headersLike && typeof headersLike === 'object' ? Object.assign({}, headersLike) : {};
-    var has =
-      out.Authorization ||
-      out.authorization ||
-      (out.get && (out.get('Authorization') || out.get('authorization')));
-    if (!has) out.Authorization = bearer;
+    var has = out.Authorization || out.authorization;
+    if (!has || isJunkAuthToken(has)) out.Authorization = bearer;
     return out;
   }
 
@@ -3439,9 +3474,10 @@
       ax.interceptors.request.use(function (config) {
         try {
           var token = getStoredAccessToken() || ensurePreviewApiTokenSync();
-          if (token) {
+          if (token && !isJunkAuthToken(token)) {
             config.headers = config.headers || {};
-            if (!config.headers.Authorization && !config.headers.authorization) {
+            var curAuth = config.headers.Authorization || config.headers.authorization || '';
+            if (!curAuth || isJunkAuthToken(curAuth)) {
               config.headers.Authorization = /^Bearer\s+/i.test(token) ? token : 'Bearer ' + token;
             }
           }
@@ -3529,6 +3565,41 @@
               var d = err.response && err.response.data;
               bodyText = typeof d === 'string' ? d : JSON.stringify(d || '');
             } catch (_bt) {}
+
+            // Bearer undefined/null → Express protect returns 500 "jwt malformed".
+            // Sync a real preview JWT and retry once before soft-failing the write.
+            if (
+              status >= 500 &&
+              cfg &&
+              !cfg.__svJwtRetried &&
+              typeof ax.request === 'function' &&
+              /jwt\s+malformed|jwt\s+invalid|invalid\s+token|JsonWebTokenError|Not authorized/i.test(
+                bodyText
+              )
+            ) {
+              cfg.__svJwtRetried = true;
+              try {
+                ['token', 'accessToken', 'access_token', 'jwt'].forEach(function (k) {
+                  try {
+                    var cur = localStorage.getItem(k);
+                    if (cur && isJunkAuthToken(cur)) localStorage.removeItem(k);
+                  } catch (_rm) {}
+                });
+              } catch (_clr) {}
+              var fresh = ensurePreviewApiTokenSync() || getStoredAccessToken();
+              if (fresh && !isJunkAuthToken(fresh)) {
+                cfg.headers = cfg.headers || {};
+                cfg.headers.Authorization = /^Bearer\s+/i.test(fresh)
+                  ? fresh
+                  : 'Bearer ' + fresh;
+                console.warn(
+                  '[DEBUG-SHIM] axios retrying once after jwt error',
+                  status,
+                  url
+                );
+                return ax.request(cfg);
+              }
+            }
 
             // Login path mismatch: try alternate Express mounts.
             if (
@@ -3877,6 +3948,11 @@
       };
       var _setHeader = xhr.setRequestHeader;
       xhr.setRequestHeader = function (k, v) {
+        if (/^authorization$/i.test(String(k || '')) && isJunkAuthToken(v)) {
+          console.warn('[DEBUG-SHIM] blocked junk Authorization:', String(v));
+          headers[k] = '';
+          return;
+        }
         headers[k] = v;
         return _setHeader.apply(xhr, arguments);
       };

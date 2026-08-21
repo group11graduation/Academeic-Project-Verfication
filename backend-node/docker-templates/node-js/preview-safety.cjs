@@ -212,9 +212,13 @@ function installPreviewRuntimeGuards() {
 
   // Maktabadda: app.set('query parser','extended') turns ?options={"page":1} into an
   // object, then controllers do JSON.parse(req.query.options) → 500. Tolerate objects.
+  // Also: body-parser may pass a Buffer — never treat Buffer as "already parsed".
   if (!JSON.__svSafeParse) {
     const origParse = JSON.parse.bind(JSON);
     JSON.parse = function svSafeParse(text, reviver) {
+      if (Buffer.isBuffer(text)) {
+        return origParse(text.toString('utf8'), reviver);
+      }
       if (text != null && typeof text === 'object') return text;
       return origParse(text, reviver);
     };
@@ -1288,6 +1292,25 @@ function installPreviewCorsFix(app) {
   // Attach req.user from Bearer payload early (Maktabadda protect often 404s without it).
   if (!app.__svPreviewAttachUser) {
     app.__svPreviewAttachUser = true;
+    app.use(function previewStripJunkBearer(req, _res, next) {
+      try {
+        const hdr = String(req.headers.authorization || req.headers.Authorization || '');
+        const m = hdr.match(/Bearer\s+(\S*)/i);
+        const tok = m ? String(m[1] || '').trim() : '';
+        if (
+          hdr &&
+          (!tok ||
+            /^(undefined|null|nan|true|false|\[object Object\])$/i.test(tok) ||
+            tok.split('.').length < 3)
+        ) {
+          delete req.headers.authorization;
+          delete req.headers.Authorization;
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+      return next();
+    });
     app.use(function previewAttachUserFromJwt(req, res, next) {
       try {
         if (String(process.env.PREVIEW_SANDBOX || '') !== '1') return next();
