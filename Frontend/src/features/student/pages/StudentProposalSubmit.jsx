@@ -465,16 +465,11 @@ const StudentProposalSubmit = () => {
                                 Disallowed technologies detected: {requirementCheck.disallowedMentionedTech.join(', ')}
                             </p>
                         )}
-                        {requirementCheck.advisoryOnly && requirementCheck.passed && (
-                            <p className="mt-1 text-[12px] font-medium opacity-90">
-                                Tip: explain how you use{' '}
-                                {[
-                                    ...requirementCheck.missingAllowedTech,
-                                    ...requirementCheck.missingImplicitTerms,
-                                ]
-                                    .filter(Boolean)
-                                    .join(', ') || 'the required technologies'}{' '}
-                                in context - do not only list the words.
+                        {requirementCheck.missingRequiredStack?.length > 0 && (
+                            <p className="font-semibold">
+                                Missing required technology in the proposal:{' '}
+                                {requirementCheck.missingRequiredStack.join(', ')}. Name and explain these
+                                technologies in the title, description, or features.
                             </p>
                         )}
                     </div>

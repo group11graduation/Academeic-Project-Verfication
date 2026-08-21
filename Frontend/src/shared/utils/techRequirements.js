@@ -112,7 +112,7 @@ function formatTechList(list) {
   return canonicalizeTechList(list).join(', ');
 }
 
-/** What students must mention - teacher-stated stack first, subject only as fallback. */
+/** What students must mention - teacher-stated stack first, subject/title as fallback. */
 export function resolveRequiredTechnologiesForProposal(assignment, block) {
   const allowedTechnologies = toList(block?.allowedTechnologies);
   const requirementText = String(block?.requirementText || '').trim();
@@ -127,7 +127,27 @@ export function resolveRequiredTechnologiesForProposal(assignment, block) {
     return fromTeacherText;
   }
 
-  return inferRequiredTechFromSubject(assignment?.subject);
+  const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
+  if (fromSubject.length > 0) {
+    return fromSubject;
+  }
+
+  // Assignment title often encodes the stack (e.g. "PHP and MYSQL").
+  return detectMentionedTechnologies(String(assignment?.title || ''));
+}
+
+function proposalCoversRequiredTech(proposalText, requiredTerm) {
+  const canonical = canonicalizeTechList([requiredTerm])[0] || String(requiredTerm || '').toLowerCase();
+  const item = TECH_ALIASES.find((t) => t.key === canonical);
+  const aliases = item ? item.aliases : [canonical];
+  // Require naming the tech (or a direct alias), not merely a related family member.
+  // e.g. mentioning PHP does not satisfy a MySQL requirement.
+  if (aliases.some((alias) => hasAlias(proposalText, alias))) return true;
+  // Laravel implies PHP stack coverage for a PHP requirement.
+  if (canonical === 'php' && hasAlias(proposalText, 'laravel')) return true;
+  if (canonical === 'spring boot' && hasAlias(proposalText, 'java')) return true;
+  if (canonical === 'django' && hasAlias(proposalText, 'python')) return true;
+  return false;
 }
 
 export function validateAssignmentTechnologyConsistency({
@@ -185,9 +205,13 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
     .toLowerCase();
 
   const missingKeywords = requiredKeywords.filter((k) => !proposalText.includes(k.toLowerCase()));
-  const missingAllowedTech = allowedTechnologies.filter((t) => !proposalText.includes(t.toLowerCase()));
-  const missingImplicitTerms = implicitRequiredTerms.filter((t) => !proposalText.includes(t.toLowerCase()));
   const mentionedTechnologies = detectMentionedTechnologies(proposalText);
+  const missingAllowedTech = canonicalAllowedTech.filter(
+    (t) => !proposalCoversRequiredTech(proposalText, t)
+  );
+  const missingImplicitTerms = implicitRequiredTerms.filter(
+    (t) => !proposalCoversRequiredTech(proposalText, t)
+  );
   const disallowedMentionedTech =
     allowedTechnologies.length > 0
       ? mentionedTechnologies.filter((t) => !expandedAllowed.includes(t))
@@ -200,9 +224,15 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
 
   const minChars = 80;
   const tooShort = proposalText.replace(/\s+/g, ' ').trim().length < minChars;
+  const missingRequiredStack = [
+    ...new Set([...(missingAllowedTech || []), ...(missingImplicitTerms || [])]),
+  ];
 
-  // Client gate: block empty/chatty shells and wrong stack only.
-  // Meaning match (paraphrase vs teacher requirements) is decided by MiniLM on the server.
+  // Hard client gate: must cover required stack (same intent as backend structural gate).
+  // Meaning/paraphrase quality is still checked by MiniLM on the server after this.
+  const passed =
+    !tooShort && disallowedMentionedTech.length === 0 && missingRequiredStack.length === 0;
+
   return {
     hasRules,
     requiredKeywords,
@@ -212,9 +242,10 @@ export function evaluateProposalRequirementCoverage(assignment, payload) {
     missingKeywords,
     missingAllowedTech,
     missingImplicitTerms,
+    missingRequiredStack,
     disallowedMentionedTech,
     tooShort,
-    advisoryOnly: missingKeywords.length > 0 || missingAllowedTech.length > 0 || missingImplicitTerms.length > 0,
-    passed: !tooShort && disallowedMentionedTech.length === 0,
+    advisoryOnly: false,
+    passed,
   };
 }

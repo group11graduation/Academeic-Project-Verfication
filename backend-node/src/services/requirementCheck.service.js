@@ -202,8 +202,8 @@ export function resolveRequiredTechnologiesForProposal(assignment, block) {
     return fromTeacherText;
   }
 
-  // Requirements file was uploaded but could not be read - do NOT invent a stack from the
-  // course subject (that falsely rejects Spring Boot proposals on a PHP-named subject, etc.).
+  // Requirements file was uploaded but could not be read - prefer teacher review (empty
+  // stack) rather than inventing from subject alone when a file was expected.
   const fileRef = String(
     block?.assignmentFile ||
       assignment?.assignmentFile ||
@@ -214,7 +214,13 @@ export function resolveRequiredTechnologiesForProposal(assignment, block) {
     return [];
   }
 
-  return inferRequiredTechFromSubject(assignment?.subject);
+  const fromSubject = inferRequiredTechFromSubject(assignment?.subject);
+  if (fromSubject.length > 0) {
+    return fromSubject;
+  }
+
+  // Assignment title often encodes the stack (e.g. "PHP and MYSQL").
+  return detectMentionedTechnologies(String(assignment?.title || ''));
 }
 
 export function validateAssignmentTechnologyConsistency({
