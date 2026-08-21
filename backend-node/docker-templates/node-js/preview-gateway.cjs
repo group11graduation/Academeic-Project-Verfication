@@ -254,6 +254,16 @@ function buildApiUpstreamPaths(originalPath) {
     return [`/${next.join('/')}`];
   }
 
+  // When path is already /api/v1/categories, do not explode into /list /getAll /admin variants.
+  if (/^\/api\/v1\//i.test(pathOnly)) {
+    push(originalPath);
+    // Only mild fallbacks if the v1 route is truly missing (not for 500 handler crashes).
+    const bareRes = pathOnly.replace(/^\/api\/v1/i, '') || '/';
+    push(`/api${bareRes}`);
+    push(bareRes);
+    return out;
+  }
+
   // Maktabadda-style: mounts are /api/v1/categories — prefer that BEFORE bare /categories.
   const apiPrefix = String(process.env.PREVIEW_API_PREFIX || '')
     .trim()
@@ -332,13 +342,15 @@ function looksLikeRouteNotFound(status, bodyBuf) {
   }
 }
 
-/** Do not downgrade /api/v1/* to /api or bare — that breaks Maktabadda POST. */
+/** Do not downgrade /api/v1/* to /api or bare — that breaks Maktabadda POST/GET. */
 function shouldRetryUpstreamPath(status, bodyBuf, fromPath, method) {
   const pathOnly = String(fromPath || '').split('?')[0] || '/';
+  // Canonical Maktabadda mounts — never strip /api/v1 on 404 OR 500.
   if (/^\/api\/v1(\/|$)/i.test(pathOnly)) {
     return false;
   }
   if (status === 401 || status === 403) return false;
+  if (status >= 500) return false;
   return looksLikeRouteNotFound(status, bodyBuf);
 }
 
@@ -766,9 +778,45 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             up.on('data', (c) => errChunks.push(c));
             up.on('end', () => {
               const errBuf = Buffer.concat(errChunks);
+              const tryPathOnly = String(tryPath || '').split('?')[0] || '';
+              // /api/v1/* returned 500 (real handler crash) — do NOT wander to /api/categories.
+              if (/^\/api\/v1(\/|$)/i.test(tryPathOnly) && status >= 500) {
+                if (method === 'GET' && isListishApiPath(pathOnly) && !requestWantsHtml(req)) {
+                  console.log(
+                    '[preview-gateway] /api/v1 list',
+                    status,
+                    '→ soft-empty (no path downgrade)',
+                    tryPathOnly
+                  );
+                  const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
+                  return send(res, 200, soft, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': req.headers.origin || '*',
+                    'Access-Control-Allow-Credentials': 'true',
+                    'X-SV-Preview-Soft-Empty': '1',
+                    'X-SV-Upstream-Status': String(status),
+                  });
+                }
+                const outHeaders = { ...up.headers };
+                outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+                outHeaders['access-control-allow-credentials'] = 'true';
+                outHeaders['content-length'] = String(errBuf.length);
+                delete outHeaders['transfer-encoding'];
+                console.log(
+                  '[preview-gateway] /api/v1',
+                  status,
+                  'body=',
+                  errBuf.toString('utf8').slice(0, 300)
+                );
+                res.writeHead(status, outHeaders);
+                res.end(errBuf);
+                return;
+              }
               if (
                 shouldRetryUpstreamPath(status, errBuf, tryPath, method) ||
-                (status >= 500 && isListishApiPath(pathOnly))
+                (status >= 500 &&
+                  isListishApiPath(pathOnly) &&
+                  !/^\/api\/v1(\/|$)/i.test(tryPathOnly))
               ) {
                 console.log(
                   '[preview-gateway] api',

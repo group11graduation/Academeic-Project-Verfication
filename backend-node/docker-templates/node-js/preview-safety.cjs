@@ -210,6 +210,17 @@ function installPreviewRuntimeGuards() {
   global.__scholarVerifyRuntimeGuards = true;
   longJwtSecret();
 
+  // Maktabadda: app.set('query parser','extended') turns ?options={"page":1} into an
+  // object, then controllers do JSON.parse(req.query.options) → 500. Tolerate objects.
+  if (!JSON.__svSafeParse) {
+    const origParse = JSON.parse.bind(JSON);
+    JSON.parse = function svSafeParse(text, reviver) {
+      if (text != null && typeof text === 'object') return text;
+      return origParse(text, reviver);
+    };
+    JSON.__svSafeParse = true;
+  }
+
   // Always force sandbox Mongo in preview — student code often hardcodes Atlas SRV.
   try {
     const mongoose = requireFromCwd('mongoose');
