@@ -300,6 +300,7 @@ export async function getVerifiedProjectById(proposalId) {
 /**
  * Linked verified / legacy project shown when AI flags previous-semester similarity.
  * Ignore filler title words so "Management System" alone cannot pair Finance with Building Mgmt.
+ * Also ignore generic education words (student/school) so Attendance ≠ Result Management.
  */
 const TITLE_STOP_WORDS = new Set([
   'the',
@@ -318,6 +319,7 @@ const TITLE_STOP_WORDS = new Set([
   'web',
   'management',
   'managing',
+  'manager',
   'information',
   'comprehensive',
   'complete',
@@ -331,21 +333,116 @@ const TITLE_STOP_WORDS = new Set([
   'services',
   'portal',
   'dashboard',
+  'student',
+  'students',
+  'school',
+  'college',
+  'university',
+  'campus',
+  'academic',
+  'education',
+  'educational',
+  'institute',
+  'institution',
+  'class',
+  'classes',
+  'record',
+  'records',
+  'data',
+  'online',
+  'digital',
+  'automated',
+  'admin',
+  'administrator',
+  'user',
+  'users',
+  'php',
+  'mysql',
+  'mongodb',
+  'react',
+  'nodejs',
+  'node',
+  'express',
+  'laravel',
+  'django',
+  'python',
+  'java',
+  'javascript',
+  'html',
+  'css',
 ]);
 
+/** Mutually exclusive product domains — Attendance vs Results must not link. */
+const DOMAIN_FAMILIES = [
+  new Set(['attendance', 'absentee', 'absenteeism', 'absent', 'present', 'rollcall', 'roll', 'biometric']),
+  new Set([
+    'result',
+    'results',
+    'grade',
+    'grades',
+    'grading',
+    'mark',
+    'marks',
+    'exam',
+    'exams',
+    'examination',
+    'transcript',
+    'gpa',
+    'cgpa',
+    'score',
+    'scores',
+    'scoring',
+  ]),
+  new Set(['library', 'book', 'books', 'catalog', 'catalogue', 'borrow', 'borrowing', 'lending', 'librarian']),
+  new Set(['hostel', 'dormitory', 'dorm', 'boarding', 'lodging']),
+  new Set(['hospital', 'clinic', 'patient', 'patients', 'medical', 'pharmacy', 'doctor', 'doctors']),
+  new Set(['ecommerce', 'ecom', 'shop', 'shopping', 'store', 'cart', 'checkout', 'inventory', 'pos']),
+  new Set(['hotel', 'booking', 'reservation', 'reservations', 'tourism']),
+  new Set(['payroll', 'salary', 'salaries', 'wage', 'wages', 'hr', 'employee', 'employees']),
+  new Set(['loan', 'loans', 'repayment', 'repayments', 'credit', 'microfinance']),
+  new Set(['restaurant', 'food', 'menu', 'canteen', 'cafe']),
+  new Set(['parking', 'vehicle', 'vehicles', 'garage']),
+];
+
 function titleDomainTokens(title = '') {
+  const cleaned = String(title)
+    .toLowerCase()
+    .replace(/\b(?:using|with|built\s+with|based\s+on)\b.*$/i, ' ');
   return new Set(
-    String(title)
-      .toLowerCase()
+    cleaned
       .split(/[^a-z0-9]+/)
       .filter((w) => w.length > 2 && !TITLE_STOP_WORDS.has(w))
   );
+}
+
+function exclusiveDomainFamilies(tokens) {
+  const hits = new Set();
+  DOMAIN_FAMILIES.forEach((fam, i) => {
+    for (const t of tokens) {
+      if (fam.has(t)) {
+        hits.add(i);
+        break;
+      }
+    }
+  });
+  return hits;
+}
+
+function domainsConflict(tokensA, tokensB) {
+  const fa = exclusiveDomainFamilies(tokensA);
+  const fb = exclusiveDomainFamilies(tokensB);
+  if (!fa.size || !fb.size) return false;
+  for (const i of fa) {
+    if (fb.has(i)) return false;
+  }
+  return true;
 }
 
 function titleOverlapScore(a = '', b = '') {
   const wordsA = titleDomainTokens(a);
   const wordsB = titleDomainTokens(b);
   if (!wordsA.size || !wordsB.size) return 0;
+  if (domainsConflict(wordsA, wordsB)) return 0;
   let shared = 0;
   for (const w of wordsA) {
     if (wordsB.has(w)) shared += 1;

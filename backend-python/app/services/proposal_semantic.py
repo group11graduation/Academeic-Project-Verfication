@@ -110,6 +110,7 @@ _STOP_TITLE = {
     "web",
     "management",
     "managing",
+    "manager",
     "information",
     "comprehensive",
     "complete",
@@ -125,6 +126,30 @@ _STOP_TITLE = {
     "services",
     "portal",
     "dashboard",
+    # Generic education / org words — shared by attendance, results, library, etc.
+    "student",
+    "students",
+    "school",
+    "college",
+    "university",
+    "campus",
+    "academic",
+    "education",
+    "educational",
+    "institute",
+    "institution",
+    "class",
+    "classes",
+    "record",
+    "records",
+    "data",
+    "online",
+    "digital",
+    "automated",
+    "admin",
+    "administrator",
+    "user",
+    "users",
     # Tech stack in titles must NOT count as domain overlap
     # (Hostel PHP/MySQL ≠ Library PHP/MySQL).
     "php",
@@ -166,6 +191,92 @@ _STOP_TITLE = {
     "nosql",
 }
 
+# Mutually exclusive product domains. If two titles land in different families,
+# they are not "similar ideas" even when MiniLM scores high on school CRUD wording
+# (Attendance Management ≠ Result/Marks Management).
+_DOMAIN_FAMILIES: tuple[frozenset[str], ...] = (
+    frozenset(
+        {
+            "attendance",
+            "absentee",
+            "absenteeism",
+            "absent",
+            "present",
+            "rollcall",
+            "roll",
+            "biometric",
+        }
+    ),
+    frozenset(
+        {
+            "result",
+            "results",
+            "grade",
+            "grades",
+            "grading",
+            "mark",
+            "marks",
+            "exam",
+            "exams",
+            "examination",
+            "transcript",
+            "gpa",
+            "cgpa",
+            "score",
+            "scores",
+            "scoring",
+            "marksentry",
+        }
+    ),
+    frozenset(
+        {
+            "library",
+            "book",
+            "books",
+            "catalog",
+            "catalogue",
+            "borrow",
+            "borrowing",
+            "lending",
+            "librarian",
+            "bookshelf",
+        }
+    ),
+    frozenset({"hostel", "dormitory", "dorm", "boarding", "lodging"}),
+    frozenset(
+        {
+            "hospital",
+            "clinic",
+            "patient",
+            "patients",
+            "medical",
+            "pharmacy",
+            "doctor",
+            "doctors",
+        }
+    ),
+    frozenset(
+        {
+            "ecommerce",
+            "ecom",
+            "shop",
+            "shopping",
+            "store",
+            "cart",
+            "checkout",
+            "inventory",
+            "pos",
+        }
+    ),
+    frozenset({"hotel", "booking", "reservation", "reservations", "tourism"}),
+    frozenset({"payroll", "salary", "salaries", "wage", "wages", "hr", "employee", "employees"}),
+    frozenset({"loan", "loans", "repayment", "repayments", "credit", "microfinance"}),
+    frozenset({"restaurant", "food", "menu", "canteen", "cafe"}),
+    frozenset({"parking", "vehicle", "vehicles", "garage"}),
+)
+
+_ALL_DOMAIN_FAMILY_TOKENS: frozenset[str] = frozenset().union(*_DOMAIN_FAMILIES)
+
 _st_model = None
 
 
@@ -193,10 +304,47 @@ def _title_tokens(text: str) -> set[str]:
     return {t for t in toks if len(t) > 2 and t not in _STOP_TITLE}
 
 
+def _domain_cue_tokens(text: str) -> set[str]:
+    """
+    Title tokens plus early-body domain cues (attendance / results / library…).
+    Generic words like student/management are stripped so they cannot fake overlap.
+    """
+    toks = set(_title_tokens(text))
+    body = "\n".join((text or "").split("\n")[1:4])
+    if body:
+        body_toks = {
+            t
+            for t in re.findall(r"[a-z0-9]+", body.lower())
+            if len(t) > 2 and t not in _STOP_TITLE and t in _ALL_DOMAIN_FAMILY_TOKENS
+        }
+        toks |= body_toks
+    return toks
+
+
+def _exclusive_domain_families(tokens: set[str]) -> set[int]:
+    hits: set[int] = set()
+    for i, fam in enumerate(_DOMAIN_FAMILIES):
+        if tokens & fam:
+            hits.add(i)
+    return hits
+
+
+def _domains_conflict(a: set[str], b: set[str]) -> bool:
+    """True when each side hits a different exclusive product domain."""
+    fa = _exclusive_domain_families(a)
+    fb = _exclusive_domain_families(b)
+    if not fa or not fb:
+        return False
+    return fa.isdisjoint(fb)
+
+
 def _domain_title_overlap(query: str, doc: str) -> float:
-    a = _title_tokens(query)
-    b = _title_tokens(doc)
+    a = _domain_cue_tokens(query)
+    b = _domain_cue_tokens(doc)
     if not a or not b:
+        return 0.0
+    # Attendance vs Results (etc.) are different products — never treat as similar ideas.
+    if _domains_conflict(a, b):
         return 0.0
     return len(a & b) / float(max(len(a), len(b)))
 
@@ -213,8 +361,8 @@ def _pick_peer_with_domain(
 ) -> tuple[float, int | None]:
     """
     Prefer a peer that is both semantically close AND shares domain title tokens.
-    Unrelated topics (Hostel vs Library / BookNest) are suppressed even if MiniLM
-    scores them high due to shared "management system" boilerplate.
+    Unrelated topics (Hostel vs Library / Attendance vs Results) are suppressed even if
+    MiniLM scores them high due to shared "student management system" boilerplate.
     """
     if peer_sims.size == 0:
         return 0.0, None
@@ -229,15 +377,19 @@ def _pick_peer_with_domain(
             return score, int(idx)
 
     # Soft pass: allow slightly lower domain only when scores are clearly high
-    # AND at least one real domain token overlaps (not empty intersection).
+    # AND at least one real domain token overlaps (not empty intersection),
+    # and domains are not in conflict.
     soft_min = max(0.12, domain_min * 0.65)
     for idx in order[:8]:
         score = float(peer_sims[idx])
         if score < max(score_floor, suppress_below):
             continue
-        domain = _domain_title_overlap(query, peer_texts[int(idx)])
-        a = _title_tokens(query)
-        b = _title_tokens(peer_texts[int(idx)])
+        peer = peer_texts[int(idx)]
+        domain = _domain_title_overlap(query, peer)
+        a = _domain_cue_tokens(query)
+        b = _domain_cue_tokens(peer)
+        if _domains_conflict(a, b):
+            continue
         if domain >= soft_min and (a & b):
             return score, int(idx)
 
