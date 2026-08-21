@@ -25,6 +25,11 @@ const API_HOST = process.env.PREVIEW_API_UPSTREAM_HOST || '127.0.0.1';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.cjs': 'application/javascript; charset=utf-8',
+  '.jsx': 'application/javascript; charset=utf-8',
+  '.ts': 'application/javascript; charset=utf-8',
+  '.tsx': 'application/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
@@ -39,6 +44,11 @@ const MIME = {
   '.map': 'application/json',
   '.txt': 'text/plain; charset=utf-8',
 };
+
+/** When set (e.g. http://127.0.0.1:5173), proxy SPA/assets to Vite instead of raw source. */
+const SPA_UPSTREAM = String(process.env.PREVIEW_SPA_UPSTREAM || '')
+  .trim()
+  .replace(/\/$/, '');
 
 function apiBaseForBrowser() {
   const ui = String(process.env.PREVIEW_PUBLIC_UI_URL || '').replace(/\/$/, '');
@@ -1492,6 +1502,39 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
         upstream.on('error', (err) => {
           if (res.headersSent) return;
           if (index + 1 < pathsToTry.length) return attempt(index + 1, authRetried);
+          // React-only previews have no Express — avoid 502 spam; soft-empty lists.
+          const msg = err && err.message ? String(err.message) : '';
+          if (/ECONNREFUSED|ECONNRESET|ETIMEDOUT/i.test(msg) || err && err.code === 'ECONNREFUSED') {
+            if (method === 'GET' && isListishApiPath(pathOnly) && !requestWantsHtml(req)) {
+              console.log('[preview-gateway] API down → soft-empty', pathOnly);
+              const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
+              return send(res, 200, soft, {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': req.headers.origin || '*',
+                'Access-Control-Allow-Credentials': 'true',
+                'X-SV-Preview-Soft-Empty': '1',
+              });
+            }
+            return send(
+              res,
+              200,
+              Buffer.from(
+                JSON.stringify({
+                  status: false,
+                  success: false,
+                  message: 'No API in this preview (frontend-only project)',
+                  data: null,
+                }),
+                'utf8'
+              ),
+              {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': req.headers.origin || '*',
+                'Access-Control-Allow-Credentials': 'true',
+                'X-SV-Preview-No-Api': '1',
+              }
+            );
+          }
           if (canFallback) return serveStatic(req, res);
           return jsonError(
             res,
@@ -1541,6 +1584,12 @@ function serveStatic(req, res) {
     });
   }
 
+  // React-only / failed Vite build: transform JSX via Vite instead of raw source
+  // (raw .jsx as application/octet-stream → blank page).
+  if (SPA_UPSTREAM) {
+    return proxySpaUpstream(req, res);
+  }
+
   let filePath = safeJoin(STATIC_ROOT, reqPath);
   if (!filePath) return send(res, 403, 'Forbidden');
 
@@ -1567,6 +1616,88 @@ function serveStatic(req, res) {
   });
 }
 
+function proxySpaUpstream(req, res) {
+  let host = '127.0.0.1';
+  let port = 5173;
+  try {
+    const u = new URL(SPA_UPSTREAM);
+    host = u.hostname || host;
+    port = Number(u.port || 5173);
+  } catch (_e) {
+    /* defaults */
+  }
+  const headers = { ...req.headers, host: `${host}:${port}` };
+  delete headers['accept-encoding'];
+  const up = http.request(
+    {
+      hostname: host,
+      port,
+      path: req.url || '/',
+      method: req.method || 'GET',
+      headers,
+      timeout: 30000,
+    },
+    (upRes) => {
+      const status = upRes.statusCode || 502;
+      const ct = String(upRes.headers['content-type'] || '').toLowerCase();
+      if (ct.includes('text/html')) {
+        const chunks = [];
+        upRes.on('data', (c) => chunks.push(c));
+        upRes.on('end', () => {
+          try {
+            return sendHtml(res, Buffer.concat(chunks));
+          } catch (_e) {
+            if (!res.headersSent) jsonError(res, 502, 'SPA upstream HTML error');
+          }
+        });
+        upRes.on('error', () => {
+          if (!res.headersSent) jsonError(res, 502, 'SPA upstream HTML stream error');
+        });
+        return;
+      }
+      const outHeaders = { ...upRes.headers };
+      outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+      outHeaders['access-control-allow-credentials'] = 'true';
+      // Vite serves .jsx/.tsx as JS modules — never leave octet-stream.
+      if (
+        !ct ||
+        ct === 'application/octet-stream' ||
+        /\.(jsx|tsx|ts|mjs)(\?|$)/i.test(String(req.url || ''))
+      ) {
+        outHeaders['content-type'] = 'application/javascript; charset=utf-8';
+      }
+      res.writeHead(status, outHeaders);
+      upRes.pipe(res);
+    }
+  );
+  up.on('timeout', () => {
+    up.destroy();
+    if (!res.headersSent) jsonError(res, 504, 'Vite SPA upstream timeout');
+  });
+  up.on('error', (err) => {
+    console.log(
+      '[preview-gateway] SPA upstream error:',
+      err && err.message ? err.message : err
+    );
+    if (!res.headersSent) {
+      return send(
+        res,
+        503,
+        Buffer.from(
+          '<!doctype html><meta charset="utf-8"/><title>Preview</title><body style="font-family:system-ui;padding:2rem"><h1>Preview starting</h1><p>Vite is still booting. Refresh in a few seconds.</p></body>',
+          'utf8'
+        ),
+        { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }
+      );
+    }
+  });
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    up.end();
+  } else {
+    req.pipe(up);
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (String(req.method || '').toUpperCase() === 'OPTIONS') {
     return send(res, 204, '', {
@@ -1587,6 +1718,15 @@ const server = http.createServer((req, res) => {
   }
 
   if (isStaticAssetRequest(pathname)) return serveStatic(req, res);
+
+  // Vite HMR / module graph (React-only transform server).
+  if (
+    SPA_UPSTREAM &&
+    (/^\/(@vite|@react-refresh|@fs|src|node_modules)(\/|$)/i.test(pathname) ||
+      /\.(jsx|tsx|ts|mjs|css)(\?|$)/i.test(pathname))
+  ) {
+    return serveStatic(req, res);
+  }
 
   // Never proxy SPA shell HTML to Express (was spamming /index.html → /api/index.html).
   if (/\.html?$/i.test(pathname) || pathname === '/' || pathname === '/index.html') {

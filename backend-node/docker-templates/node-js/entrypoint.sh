@@ -380,6 +380,54 @@ ensure_vite_binary() {
   return 1
 }
 
+ensure_vite_react_plugin() {
+  if ! is_vite_project; then
+    return 0
+  fi
+  if ! grep -qE '"react"|"react-dom"' package.json 2>/dev/null; then
+    return 0
+  fi
+  if [ -d node_modules/@vitejs/plugin-react ] || [ -d node_modules/@vitejs/plugin-react-swc ]; then
+    return 0
+  fi
+  echo "[preview] installing @vitejs/plugin-react for JSX build"
+  NODE_ENV=development npm install --include=dev --no-audit --no-fund --legacy-peer-deps @vitejs/plugin-react@4.3.4 2>&1 \
+    || npm install --no-audit --no-fund @vitejs/plugin-react@4.3.4 2>&1 \
+    || true
+}
+
+# When production build fails (React-only blank MIME page), run Vite transform server
+# and let the gateway proxy SPA traffic to it.
+start_vite_spa_upstream() {
+  local vite_port="${PREVIEW_VITE_PORT:-5173}"
+  if tcp_port_open "$vite_port"; then
+    echo "[preview] Vite already on :${vite_port}"
+    export PREVIEW_SPA_UPSTREAM="http://127.0.0.1:${vite_port}"
+    return 0
+  fi
+  ensure_vite_binary || true
+  ensure_vite_react_plugin || true
+  echo "[preview] starting Vite transform server on 127.0.0.1:${vite_port} (React JSX)"
+  : > /tmp/preview-vite-dev.log
+  (
+    export HOST=127.0.0.1
+    export PORT="$vite_port"
+    if [ -e node_modules/.bin/vite ]; then
+      ./node_modules/.bin/vite --host 127.0.0.1 --port "$vite_port" --strictPort
+    else
+      npx --yes vite@5.4.11 --host 127.0.0.1 --port "$vite_port" --strictPort
+    fi
+  ) >> /tmp/preview-vite-dev.log 2>&1 &
+  if wait_for_tcp_port "$vite_port" "vite SPA" 90; then
+    export PREVIEW_SPA_UPSTREAM="http://127.0.0.1:${vite_port}"
+    echo "[preview] PREVIEW_SPA_UPSTREAM=${PREVIEW_SPA_UPSTREAM}"
+    return 0
+  fi
+  echo "[preview] WARN: Vite transform server did not start — see /tmp/preview-vite-dev.log"
+  log_build_tail /tmp/preview-vite-dev.log 40
+  return 1
+}
+
 log_build_tail() {
   log="$1"
   lines="${2:-50}"
@@ -1017,6 +1065,7 @@ run_frontend_preview() {
   fi
   ensure_node_modules "npm"
   ensure_vite_binary || true
+  ensure_vite_react_plugin || true
   if grep -q '"seed"' package.json 2>/dev/null; then
     echo "[preview] npm run seed…"
     npm run seed 2>&1 || true
@@ -1051,14 +1100,16 @@ run_frontend_preview() {
       serve_dir "$(pwd)/dist"
     fi
 
-    if [ "$build_ok" != "1" ]; then
+    if [ "$build_ok" != "1" ] || [ ! -f dist/index.html ]; then
       # Soft warning only — do NOT use "[preview] ERROR:" (that fails the whole teacher session).
       echo "[preview] WARN: Vite build did not produce dist/ — see /tmp/preview-frontend-build.log"
       log_build_tail /tmp/preview-frontend-build.log 80
-      # Last resort: vite preview / dev still needs deps; prefer holding a clear page over blank MIME errors.
-      if [ -f index.html ] && [ -d src ]; then
-        echo "[preview] WARN: serving unbuilt source is last resort (styles/JS may break)"
+      # Never serve raw /src/*.jsx (MIME octet-stream → blank React-only page).
+      # Run Vite transform server and proxy SPA through the gateway.
+      if start_vite_spa_upstream; then
+        serve_dir "$(pwd)"
       fi
+      echo "[preview] WARN: serving unbuilt source is last resort (styles/JS may break)"
     fi
   fi
   if grep -q 'react-scripts' package.json 2>/dev/null; then
@@ -1084,6 +1135,12 @@ run_frontend_preview() {
     fi
     if [ -d build ] && [ -f build/index.html ]; then
       serve_dir "$(pwd)/build"
+    fi
+  fi
+  # Vite/React with index.html but no dist — prefer transform server over raw source.
+  if is_vite_project && [ -f index.html ] && [ ! -f dist/index.html ]; then
+    if start_vite_spa_upstream; then
+      serve_dir "$(pwd)"
     fi
   fi
   if [ -f index.html ]; then
