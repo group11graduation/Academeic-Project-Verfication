@@ -159,7 +159,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v50', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v52', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -2916,6 +2916,86 @@
     }
   }
 
+  /** Sync login so /api/v1 protect gets a real JWT (missing Bearer → student next() → 404). */
+  function ensurePreviewApiTokenSync() {
+    var existing = getStoredAccessToken();
+    if (existing) return existing;
+    if (typeof OrigXHR !== 'function') return '';
+    var creds = window.__SV_PREVIEW_CREDS__ || {};
+    var user = String(creds.username || window.__SV_PREVIEW_SEED_USERNAME__ || 'admin').trim() || 'admin';
+    var pass = String(
+      creds.password || window.__SV_PREVIEW_ADMIN_PASSWORD__ || 'password123'
+    );
+    var email = String(
+      creds.email ||
+        window.__SV_PREVIEW_ADMIN_EMAIL__ ||
+        (user.indexOf('@') >= 0 ? user : user + '@example.com')
+    );
+    var paths = [
+      String(window.__SV_LOGIN_API_PATH__ || '').trim(),
+      '/api/v1/auth/login',
+      '/api/auth/login',
+      '/api/users/login',
+      '/auth/login',
+    ].filter(Boolean);
+    var body = JSON.stringify({
+      username: user,
+      email: email,
+      password: pass,
+      login: user,
+      identifier: user,
+    });
+    for (var i = 0; i < paths.length; i++) {
+      try {
+        var x = new OrigXHR();
+        x.open('POST', paths[i], false);
+        x.setRequestHeader('Content-Type', 'application/json');
+        x.send(body);
+        if (x.status >= 200 && x.status < 300) {
+          var parsed = JSON.parse(String(x.responseText || '{}'));
+          var token =
+            parsed.token ||
+            parsed.accessToken ||
+            parsed.access_token ||
+            (parsed.data && (parsed.data.token || parsed.data.accessToken)) ||
+            '';
+          if (token) {
+            try {
+              localStorage.setItem('token', token);
+              localStorage.setItem('accessToken', token);
+              localStorage.setItem('access_token', token);
+            } catch (_s) {}
+            console.log('[DEBUG-SHIM] synced API token via', paths[i]);
+            return token;
+          }
+        }
+      } catch (_e) {}
+    }
+    console.warn('[DEBUG-SHIM] could not sync API token');
+    return '';
+  }
+
+  function attachBearerToXhr(xhr, setHeaderFn, headersObj, url) {
+    try {
+      var hasAuth = false;
+      for (var hk in headersObj) {
+        if (/^authorization$/i.test(hk) && headersObj[hk]) hasAuth = true;
+      }
+      if (hasAuth) return;
+      var needs =
+        isApiRequestUrl(url) ||
+        isSessionProbeUrl(url) ||
+        /\/api\/v1\//i.test(String(url || ''));
+      if (!needs) return;
+      var tok = getStoredAccessToken() || ensurePreviewApiTokenSync();
+      if (!tok) return;
+      var bearer = /^Bearer\s+/i.test(tok) ? tok : 'Bearer ' + tok;
+      setHeaderFn.call(xhr, 'Authorization', bearer);
+      headersObj.Authorization = bearer;
+      console.log('[DEBUG-SHIM] xhr attached Authorization for', url);
+    } catch (_e) {}
+  }
+
   function getStoredUserObject() {
     var keys = [
       'user',
@@ -3906,21 +3986,8 @@
         body = b;
         if (method !== 'POST' || !isLoginUrl(url)) {
           // Attach Bearer if the SPA forgot (common when AuthContext is stale).
-          try {
-            var hasAuth = false;
-            for (var hk in headers) {
-              if (/^authorization$/i.test(hk) && headers[hk]) hasAuth = true;
-            }
-            if (!hasAuth && getStoredAccessToken() && (isApiRequestUrl(url) || isSessionProbeUrl(url) || /\/api\/v1\//i.test(String(url || '')))) {
-              var tok = getStoredAccessToken();
-              var bearer = /^Bearer\s+/i.test(tok) ? tok : 'Bearer ' + tok;
-              try {
-                _setHeader.call(xhr, 'Authorization', bearer);
-                headers.Authorization = bearer;
-                console.log('[DEBUG-SHIM] xhr attached Authorization for', url);
-              } catch (_ah) {}
-            }
-          } catch (_authX) {}
+          // Missing Bearer on Maktabadda → protect calls next() → catch-all 404.
+          attachBearerToXhr(xhr, _setHeader, headers, url);
           // Capture-phase listener runs before axios onreadystatechange, so we can
           // rewrite responseText before data.loans.length is evaluated.
           try {
