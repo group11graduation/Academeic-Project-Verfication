@@ -3438,7 +3438,7 @@
       ax.__svAuthPatched = true;
       ax.interceptors.request.use(function (config) {
         try {
-          var token = getStoredAccessToken();
+          var token = getStoredAccessToken() || ensurePreviewApiTokenSync();
           if (token) {
             config.headers = config.headers || {};
             if (!config.headers.Authorization && !config.headers.authorization) {
@@ -3452,6 +3452,7 @@
             var pathOnly = rawUrl.split('?')[0] || '';
             if (
               pref &&
+              !/^\/admin\//i.test(pathOnly) &&
               /^\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users)(\/|$)/i.test(pathOnly) &&
               pathOnly.indexOf(pref) !== 0
             ) {
