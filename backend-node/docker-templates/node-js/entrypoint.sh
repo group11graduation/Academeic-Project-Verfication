@@ -412,10 +412,40 @@ start_vite_spa_upstream() {
   (
     export HOST=127.0.0.1
     export PORT="$vite_port"
+    # Merge student vite.config and disable HMR (gateway WS was flaky; not needed for teacher preview).
+    cat > /tmp/sv-vite-preview.config.mjs <<EOF
+import { defineConfig, loadConfigFromFile, mergeConfig } from 'vite';
+import path from 'path';
+import fs from 'fs';
+
+let user = {};
+try {
+  for (const f of ['vite.config.ts', 'vite.config.mjs', 'vite.config.js', 'vite.config.cjs']) {
+    const abs = path.resolve(process.cwd(), f);
+    if (!fs.existsSync(abs)) continue;
+    const loaded = await loadConfigFromFile({ command: 'serve', mode: 'development' }, abs);
+    if (loaded && loaded.config) user = loaded.config;
+    break;
+  }
+} catch (_e) {}
+
+export default mergeConfig(
+  user,
+  defineConfig({
+    server: {
+      host: '127.0.0.1',
+      port: ${vite_port},
+      strictPort: true,
+      hmr: false,
+      watch: null,
+    },
+  })
+);
+EOF
     if [ -e node_modules/.bin/vite ]; then
-      ./node_modules/.bin/vite --host 127.0.0.1 --port "$vite_port" --strictPort
+      ./node_modules/.bin/vite --config /tmp/sv-vite-preview.config.mjs --host 127.0.0.1 --port "$vite_port" --strictPort
     else
-      npx --yes vite@5.4.11 --host 127.0.0.1 --port "$vite_port" --strictPort
+      npx --yes vite@5.4.11 --config /tmp/sv-vite-preview.config.mjs --host 127.0.0.1 --port "$vite_port" --strictPort
     fi
   ) >> /tmp/preview-vite-dev.log 2>&1 &
   if wait_for_tcp_port "$vite_port" "vite SPA" 90; then

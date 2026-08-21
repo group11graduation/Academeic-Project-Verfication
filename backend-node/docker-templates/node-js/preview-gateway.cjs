@@ -1746,8 +1746,7 @@ const server = http.createServer((req, res) => {
   return proxyTryThenStatic(req, res, { preferSpaOnNonHtml: true });
 });
 
-// Socket.IO upgrades WebSocket after polling — without this, clients open ws://API_PORT
-// while XHR polling hits the UI gateway → Engine.IO sid mismatch → 400 Bad Request.
+// Socket.IO / Vite HMR upgrades.
 server.on('upgrade', (req, socket, head) => {
   let pathname = '/';
   try {
@@ -1755,6 +1754,59 @@ server.on('upgrade', (req, socket, head) => {
   } catch (_e) {
     pathname = '/';
   }
+
+  // React-only: proxy Vite websocket to SPA_UPSTREAM (not Express :5050).
+  if (SPA_UPSTREAM) {
+    let host = '127.0.0.1';
+    let port = 5173;
+    try {
+      const u = new URL(SPA_UPSTREAM);
+      host = u.hostname || host;
+      port = Number(u.port || 5173);
+    } catch (_e) {
+      /* defaults */
+    }
+    const headers = { ...req.headers, host: `${host}:${port}` };
+    delete headers['accept-encoding'];
+    const upstreamReq = http.request({
+      hostname: host,
+      port,
+      path: req.url || '/',
+      method: req.method || 'GET',
+      headers,
+    });
+    upstreamReq.on('upgrade', (upRes, upSocket, upHead) => {
+      try {
+        let out = 'HTTP/1.1 101 Switching Protocols\r\n';
+        const h = upRes.headers || {};
+        for (const [k, v] of Object.entries(h)) {
+          if (v == null) continue;
+          if (Array.isArray(v)) v.forEach((x) => (out += `${k}: ${x}\r\n`));
+          else out += `${k}: ${v}\r\n`;
+        }
+        out += '\r\n';
+        socket.write(out);
+        if (upHead && upHead.length) socket.write(upHead);
+        upSocket.pipe(socket);
+        socket.pipe(upSocket);
+      } catch (_e) {
+        try {
+          socket.destroy();
+        } catch (_d) {}
+        try {
+          upSocket.destroy();
+        } catch (_d2) {}
+      }
+    });
+    upstreamReq.on('error', () => {
+      try {
+        socket.destroy();
+      } catch (_d) {}
+    });
+    upstreamReq.end();
+    return;
+  }
+
   if (!isWebSocketProxyPath(pathname) && !isApiProxyPath(pathname)) {
     try {
       socket.destroy();

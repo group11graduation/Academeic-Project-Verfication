@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
  * ScholarVerify preview — harden student React frontends before Vite/CRA build.
- * Fixes common "x.map is not a function" crashes when APIs return objects
- * ({ data: [...] }, { users: [...] }) instead of bare arrays.
+ * Fixes common "x.map is not a function" / ".length of undefined" crashes.
+ *
+ * CRITICAL: never rewrite the bare name inside `state.students.length` as
+ * `state.(Array.isArray(students)?…).length` — that is invalid JSX and blanks
+ * React-only Vite previews (Students.jsx / Exams.jsx 500 Expected ident).
  */
 'use strict';
 
@@ -11,6 +14,8 @@ const path = require('path');
 
 const ROOT = process.argv[2] || process.cwd();
 const SKIP = new Set(['node_modules', 'dist', 'build', '.git', 'coverage', '.next', 'out']);
+const LIST_NAMES =
+  'users|items|rows|results|list|products|orders|posts|comments|notifications|appointments|patients|doctors|bookings|services|categories|projects|tasks|tickets|messages|invoices|payments|transactions|stats|books|bookList|allBooks|bookData|students|studentList|docs';
 
 function walk(dir, out = [], depth = 0) {
   if (depth > 10) return out;
@@ -38,39 +43,69 @@ function ensureSafeLengthExpr(expr) {
   return `((${ensureSafeArrayExpr(expr)}).length)`;
 }
 
-function patchContent(content) {
-  let next = content;
-  const before = content;
+/** Undo corrupt rewrites from older patch versions. */
+function repairBrokenSafeMap(content) {
+  let next = String(content || '');
+  next = next.replace(
+    /(\w+)\.\(\(\(Array\.isArray\((students|users|items|rows|results|list|products|orders|categories|books|docs|studentList)\)[\s\S]*?\|\|\[\]\)\)\.length\)/g,
+    (_, obj, key) => ensureSafeLengthExpr(`${obj}.${key}`)
+  );
+  next = next.replace(
+    /(\w+)\.\(Array\.isArray\((students|users|items|rows|results|list|products|orders|categories|books|docs|studentList)\)[\s\S]*?\|\|\[\]\)\.map\s*\(/g,
+    (_, obj, key) => `${ensureSafeArrayExpr(`${obj}.${key}`)}.map(`
+  );
+  next = next.replace(
+    /\(\(\(Array\.isArray\((students|users|items|rows|results|list)\)[\s\S]*?\|\|\[\]\)\)\.length\)/g,
+    (_, key) => ensureSafeLengthExpr(key)
+  );
+  return next;
+}
 
-  // response.data.map( / res.data.map(
+function patchContent(content) {
+  let next = repairBrokenSafeMap(content);
+  const before = next;
+
+  next = next.replace(
+    new RegExp(
+      `\\b((?:state|props|this\\.state|data|store|ctx|context)\\.(?:${LIST_NAMES}))\\s*\\.map\\s*\\(`,
+      'g'
+    ),
+    (_, expr) => `${ensureSafeArrayExpr(expr)}.map(`
+  );
+  next = next.replace(
+    new RegExp(
+      `\\b((?:state|props|this\\.state|data|store|ctx|context)\\.(?:${LIST_NAMES}))\\s*\\.length\\b`,
+      'g'
+    ),
+    (_, expr) => ensureSafeLengthExpr(expr)
+  );
+
   next = next.replace(
     /\b((?:response|res|result|payload|json|body|r)\.data)\.map\s*\(/g,
     (_, expr) => `${ensureSafeArrayExpr(expr)}.map(`
-  );
-
-  next = next.replace(
-    /\b(users|items|rows|results|list|products|orders|posts|comments|notifications|appointments|patients|doctors|bookings|services|categories|projects|tasks|tickets|messages|invoices|payments|transactions|stats|books|bookList|allBooks|bookData|students|studentList)\.map\s*\(/g,
-    (_, name) => `${ensureSafeArrayExpr(name)}.map(`
-  );
-
-  // identifier.data.map / foo.items.map
-  next = next.replace(
-    /\b([A-Za-z_$][\w$]*\.(?:data|items|users|students|results|list|rows|records|docs))\s*\.map\s*\(/g,
-    (_, expr) => `${ensureSafeArrayExpr(expr)}.map(`
-  );
-
-  // DropSafe blank page: students.length / data.length / res.data.length when undefined
-  next = next.replace(
-    /\b((?:students|studentList|users|items|rows|results|list|products|orders|categories|books|docs))\s*\.length\b/g,
-    (_, name) => ensureSafeLengthExpr(name)
   );
   next = next.replace(
     /\b((?:response|res|result|payload|json|body|r)\.data)\s*\.length\b/g,
     (_, expr) => ensureSafeLengthExpr(expr)
   );
+
   next = next.replace(
-    /\b([A-Za-z_$][\w$]*\.data)\s*\.length\b/g,
+    /\b([A-Za-z_$][\w$]*\.(?:data|items|users|students|results|list|rows|records|docs))\s*\.map\s*\(/g,
+    (_, expr) => `${ensureSafeArrayExpr(expr)}.map(`
+  );
+  next = next.replace(
+    /\b([A-Za-z_$][\w$]*\.(?:data|items|users|students|results|list|rows|records|docs))\s*\.length\b/g,
     (_, expr) => ensureSafeLengthExpr(expr)
+  );
+
+  // Bare listName.map / .length — NOT when preceded by a dot (obj.students).
+  next = next.replace(
+    new RegExp(`(?<![.\\w$])(${LIST_NAMES})\\.map\\s*\\(`, 'g'),
+    (_, name) => `${ensureSafeArrayExpr(name)}.map(`
+  );
+  next = next.replace(
+    new RegExp(`(?<![.\\w$])(${LIST_NAMES})\\.length\\b`, 'g'),
+    (_, name) => ensureSafeLengthExpr(name)
   );
 
   if (next !== before && !next.includes('__svSafeArray') && /\breturn\s*\(|createElement|jsx|<[A-Z]/.test(next)) {
@@ -97,58 +132,28 @@ function injectRuntimeHelper(frontendRoot) {
 export function svSafeArray(v) {
   if (Array.isArray(v)) return v;
   if (!v || typeof v !== 'object') return [];
-  for (const k of ['data', 'items', 'users', 'results', 'rows', 'list', 'records', 'docs', 'books', 'products', 'orders']) {
+  for (const k of ['data', 'items', 'users', 'students', 'results', 'rows', 'list', 'records', 'docs', 'books', 'products', 'orders']) {
     if (Array.isArray(v[k])) return v[k];
   }
   if (v.data && typeof v.data === 'object') {
-    for (const k of ['items', 'users', 'results', 'rows', 'list']) {
+    for (const k of ['items', 'users', 'students', 'results', 'rows', 'list']) {
       if (Array.isArray(v.data[k])) return v.data[k];
     }
   }
   return [];
 }
-
 export default svSafeArray;
-
-try {
-  if (typeof window !== 'undefined') {
-    window.__svSafeArray = svSafeArray;
-    // Soft-patch Array.prototype usage is too dangerous — instead patch axios if present after load
-    const installAxios = () => {
-      try {
-        const ax = window.axios;
-        if (!ax || ax.__svSafeArray) return;
-        ax.interceptors.response.use((res) => {
-          try {
-            if (res && res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
-              const unwrapped = svSafeArray(res.data);
-              // Only attach helper; don't replace data (would break object responses)
-              res.data.__svList = unwrapped;
-            }
-          } catch (_e) {}
-          return res;
-        });
-        ax.__svSafeArray = true;
-      } catch (_e) {}
-    };
-    installAxios();
-    setTimeout(installAxios, 0);
-    setTimeout(installAxios, 500);
-  }
-} catch (_e) {}
 `;
 
   fs.mkdirSync(path.dirname(helperPath), { recursive: true });
   fs.writeFileSync(helperPath, helper, 'utf8');
 
-  // Import from main entry
   for (const entry of ['main.jsx', 'main.tsx', 'main.js', 'index.jsx', 'index.tsx', 'index.js', 'App.jsx', 'App.tsx']) {
     const p = path.join(srcDir, entry);
     if (!fs.existsSync(p)) continue;
     let body = fs.readFileSync(p, 'utf8');
     if (body.includes('sv-preview-safe-array')) return true;
-    const importLine = `import './sv-preview-safe-array';\n`;
-    body = importLine + body;
+    body = `import './sv-preview-safe-array';\n` + body;
     fs.writeFileSync(p, body, 'utf8');
     return true;
   }
@@ -158,31 +163,39 @@ try {
 function main() {
   const root = path.resolve(ROOT);
   if (!fs.existsSync(root)) {
-    console.log('[preview-patch-frontend] skip: missing ' + root);
-    process.exit(0);
+    console.log('[preview-safe-map] skip — root missing', root);
+    return;
   }
-
-  injectRuntimeHelper(root);
-
   const files = walk(root);
-  let patched = 0;
+  let changed = 0;
   for (const file of files) {
-    if (file.includes('sv-preview-safe-array')) continue;
-    let content;
+    let src;
     try {
-      content = fs.readFileSync(file, 'utf8');
+      src = fs.readFileSync(file, 'utf8');
     } catch {
       continue;
     }
-    if (!/\.map\s*\(/.test(content)) continue;
-    const next = patchContent(content);
-    if (next !== content) {
-      fs.writeFileSync(file, next, 'utf8');
-      patched += 1;
-      console.log('[preview-patch-frontend] patched ' + path.relative(root, file));
+    const next = patchContent(src);
+    if (next !== src) {
+      try {
+        fs.writeFileSync(file, next, 'utf8');
+        changed += 1;
+        console.log('[preview-safe-map] patched', path.relative(root, file));
+      } catch (_e) {
+        /* ignore */
+      }
     }
   }
-  console.log(`[preview-patch-frontend] done — ${patched} file(s) in ${root}`);
+  try {
+    injectRuntimeHelper(root);
+  } catch (_e) {
+    /* ignore */
+  }
+  console.log('[preview-safe-map] done — files changed:', changed);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { patchContent, repairBrokenSafeMap, ensureSafeArrayExpr };
