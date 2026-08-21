@@ -208,9 +208,53 @@ function buildApiUpstreamPaths(originalPath) {
     return out;
   }
 
+  // LoanFlow / dual SPA+API paths: ALWAYS try the bare path first. Never invent
+  // /api/v1/admin/loans (Express catch-all → JSON "not found" in the browser).
+  if (
+    /^\/api\/v1\/admin\//i.test(pathOnly) ||
+    /^\/api\/admin\//i.test(pathOnly)
+  ) {
+    const stripped = pathOnly.replace(/^\/api\/v1/i, '').replace(/^\/api/i, '') || '/';
+    push(stripped);
+    push(originalPath);
+    push(`/api${stripped}`);
+    return out;
+  }
+  if (
+    /^\/admin\//i.test(pathOnly) ||
+    /^\/(loans|repayments|loan-documents|loan-types)(\/|$)/i.test(pathOnly)
+  ) {
+    push(originalPath);
+    if (!/^\/api(\/|$)/i.test(pathOnly)) {
+      push(`/api${pathOnly}`);
+    }
+    for (const sp of singularPluralPathVariantsLocal(pathOnly)) {
+      push(sp);
+      push(`/api${sp}`);
+    }
+    return out;
+  }
+
+  function singularPluralPathVariantsLocal(p) {
+    const parts = String(p || '')
+      .split('?')[0]
+      .split('/')
+      .filter(Boolean);
+    if (!parts.length) return [];
+    const last = parts[parts.length - 1];
+    if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(last)) return [];
+    const next = parts.slice();
+    if (/ies$/i.test(last) && last.length > 4) next[next.length - 1] = `${last.slice(0, -3)}y`;
+    else if (/s$/i.test(last) && last.length > 2 && !/ss$/i.test(last)) {
+      next[next.length - 1] = last.replace(/s$/i, '');
+    } else if (/y$/i.test(last) && last.length > 2) {
+      next[next.length - 1] = `${last.slice(0, -1)}ies`;
+    } else next[next.length - 1] = `${last}s`;
+    if (next[next.length - 1] === last) return [];
+    return [`/${next.join('/')}`];
+  }
+
   // Maktabadda-style: mounts are /api/v1/categories — prefer that BEFORE bare /categories.
-  // Do NOT prefix /api/v1 onto LoanFlow paths like /admin/loans (that produced
-  // "not found /api/v1/admin/loans" as the browser document response).
   const apiPrefix = String(process.env.PREVIEW_API_PREFIX || '')
     .trim()
     .replace(/\/$/, '');
@@ -233,22 +277,7 @@ function buildApiUpstreamPaths(originalPath) {
   push(originalPath);
 
   function singularPlural(p) {
-    const parts = String(p || '')
-      .split('?')[0]
-      .split('/')
-      .filter(Boolean);
-    if (!parts.length) return [];
-    const last = parts[parts.length - 1];
-    if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(last)) return [];
-    const next = parts.slice();
-    if (/ies$/i.test(last) && last.length > 4) next[next.length - 1] = `${last.slice(0, -3)}y`;
-    else if (/s$/i.test(last) && last.length > 2 && !/ss$/i.test(last)) {
-      next[next.length - 1] = last.replace(/s$/i, '');
-    } else if (/y$/i.test(last) && last.length > 2) {
-      next[next.length - 1] = `${last.slice(0, -1)}ies`;
-    } else next[next.length - 1] = `${last}s`;
-    if (next[next.length - 1] === last) return [];
-    return [`/${next.join('/')}`];
+    return singularPluralPathVariantsLocal(p);
   }
 
   const candidates = [pathOnly];

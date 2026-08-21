@@ -388,9 +388,16 @@ log_build_tail() {
 }
 
 # Detect Express mount prefix (e.g. /api/v1) from student index.js — Maktabadda uses /api/v1/*.
+# Skip when LoanFlow-style /admin/loans mounts exist (prefixing /api/v1 breaks SPA navigations).
 detect_and_export_api_prefix() {
   if [ -n "${PREVIEW_API_PREFIX:-}" ]; then
     export PREVIEW_API_PREFIX
+    return 0
+  fi
+  if grep -RIn --include='*.js' --include='*.ts' -E 'app\.use\(\s*["'"'"']/admin/(loans|repayments)' \
+    --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=frontend \
+    . 2>/dev/null | head -1 | grep -q .; then
+    echo "[preview] LoanFlow-style /admin/loans detected — skip PREVIEW_API_PREFIX=/api/v1"
     return 0
   fi
   local hit=""
