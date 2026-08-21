@@ -370,7 +370,9 @@ function __sv_preview_discover_database_names()
         '/\$(?:dbname|database|db_name)\s*=\s*[\'"](\w+)[\'"]/i',
         '/define\s*\(\s*[\'"]DB_NAME[\'"]\s*,\s*[\'"](\w+)[\'"]\s*\)/i',
         '/dbname=(\w+)/i',
+        '/DB_DATABASE\s*=\s*[\'"]?(\w+)/i',
         '/CREATE\s+DATABASE(?:\s+IF\s+NOT\s+EXISTS)?\s+[`\'"]?(\w+)/i',
+        '/USE\s+[`\'"]?(\w+)/i',
     ];
 
     foreach (array_unique($roots) as $root) {
@@ -383,7 +385,7 @@ function __sv_preview_discover_database_names()
             );
             $nFiles = 0;
             foreach ($it as $f) {
-                if ($nFiles > 80) {
+                if ($nFiles > 120) {
                     break;
                 }
                 if (!$f->isFile()) {
@@ -391,18 +393,23 @@ function __sv_preview_discover_database_names()
                 }
                 $path = $f->getPathname();
                 $base = $f->getFilename();
-                if (!preg_match('/\.php$/i', $base)) {
-                    continue;
-                }
-                if (!preg_match('/config|database|db|connection|setup|install|connect/i', $path . $base)) {
-                    continue;
-                }
+                $ext = strtolower($f->getExtension());
                 if (preg_match('#/(vendor|node_modules|\.git)/#', $path)) {
+                    continue;
+                }
+                $looksDb = preg_match(
+                    '/config|database|db|connection|setup|install|connect|schema|dump|sql|\.env/i',
+                    $path . $base
+                ) || in_array($ext, ['sql', 'env'], true);
+                if ($ext !== 'php' && !$looksDb) {
                     continue;
                 }
                 $nFiles++;
                 $c = @file_get_contents($path);
                 if ($c === false || $c === '') {
+                    continue;
+                }
+                if ($ext === 'php' && !$looksDb && !preg_match('/dbname|mysqli|PDO|DB_NAME|CREATE\s+DATABASE/i', $c)) {
                     continue;
                 }
                 foreach ($patterns as $re) {
@@ -421,6 +428,10 @@ function __sv_preview_discover_database_names()
         foreach (glob($root . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
             $push(basename($dir));
         }
+    }
+
+    foreach (['bbms', 'blogdb', 'blog', 'blog_management', 'phpblog'] as $common) {
+        $push($common);
     }
 
     $list = array_keys($names);

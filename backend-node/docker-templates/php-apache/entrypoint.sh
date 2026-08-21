@@ -330,6 +330,21 @@ patch_pdo_localhost() {
   sed -i -E "s|mysqli_connect\(\s*['\"][^'\"]+['\"]|mysqli_connect(getenv('DB_HOST') ?: 'localhost'|g" "$file" 2>/dev/null || true
   sed -i -E "s|new mysqli\(\s*['\"][^'\"]+['\"]|new mysqli(getenv('DB_HOST') ?: 'localhost'|g" "$file" 2>/dev/null || true
   sed -i -E "s|new \\\\mysqli\(\s*['\"][^'\"]+['\"]|new \\\\mysqli(getenv('DB_HOST') ?: 'localhost'|g" "$file" 2>/dev/null || true
+  # Student PDO DSN often keeps dbname=blogdb while sidecar DB is bbms → Unknown database
+  if [ -n "${DB_NAME:-}" ]; then
+    sed -i -E "s|dbname=[A-Za-z0-9_]+|dbname=${DB_NAME}|g" "$file" 2>/dev/null || true
+    sed -i -E "s|DB_NAME=[A-Za-z0-9_]+|DB_NAME=${DB_NAME}|g" "$file" 2>/dev/null || true
+    # new mysqli(host, user, pass, 'blogdb') → use preview DB_NAME
+    sed -i -E \
+      "s|(new[[:space:]]+mysqli\(getenv\('DB_HOST'\)[[:space:]]*\?:[[:space:]]*'localhost',[[:space:]]*'[^']*',[[:space:]]*'[^']*',[[:space:]]*)'[^']+'|\1'${DB_NAME}'|g" \
+      "$file" 2>/dev/null || true
+    sed -i -E \
+      "s|(new[[:space:]]+mysqli\(getenv\('DB_HOST'\)[[:space:]]*\?:[[:space:]]*'localhost',[[:space:]]*\"[^\"]*\",[[:space:]]*\"[^\"]*\",[[:space:]]*)\"[^\"]+\"|\1\"${DB_NAME}\"|g" \
+      "$file" 2>/dev/null || true
+    sed -i -E \
+      "s|(mysqli_connect\(getenv\('DB_HOST'\)[[:space:]]*\?:[[:space:]]*'localhost',[[:space:]]*'[^']*',[[:space:]]*'[^']*',[[:space:]]*)'[^']+'|\1'${DB_NAME}'|g" \
+      "$file" 2>/dev/null || true
+  fi
 }
 
 # Rewrite empty MySQL password only in new mysqli(..., '', ...) forms.
@@ -518,7 +533,7 @@ ensure_preview_database() {
       foreach (preg_split('/[,\s]+/', getenv('PREVIEW_CREATE_DATABASES') ?: '') ?: [] as \$n) {
         if (\$n !== '') \$push(\$n);
       }
-      // Scan student PHP configs for literal DB names (hostel, bbms, …).
+      // Scan student PHP / SQL / env for literal DB names (blogdb, hostel, bbms, …).
       \$roots = ['/var/www/html'];
       \$patterns = [
         '/new\s+mysqli\s*\(\s*[^,]+,\s*[^,]+,\s*[^,]+,\s*[\'\"](\w+)[\'\"]/i',
@@ -526,7 +541,10 @@ ensure_preview_database() {
         '/\\\$(?:dbname|database|db_name)\s*=\s*[\'\"](\w+)[\'\"]/i',
         '/define\s*\(\s*[\'\"]DB_NAME[\'\"]\s*,\s*[\'\"](\w+)[\'\"]\s*\)/i',
         '/dbname=(\w+)/i',
-        '/CREATE\s+DATABASE(?:\s+IF\s+NOT\s+EXISTS)?\s+(\w+)/i',
+        '/DB_DATABASE\s*=\s*[\'\"]?(\w+)/i',
+        '/MYSQL_DATABASE\s*=\s*[\'\"]?(\w+)/i',
+        '/CREATE\s+DATABASE(?:\s+IF\s+NOT\s+EXISTS)?\s+[\\\`\'\"]?(\w+)/i',
+        '/USE\s+[\\\`\'\"]?(\w+)/i',
       ];
       foreach (\$roots as \$root) {
         if (!is_dir(\$root)) continue;
@@ -540,14 +558,26 @@ ensure_preview_database() {
           );
           \$nFiles = 0;
           foreach (\$it as \$f) {
-            if (\$nFiles > 100) break;
-            if (!\$f->isFile() || strtolower(\$f->getExtension()) !== 'php') continue;
+            if (\$nFiles > 160) break;
+            if (!\$f->isFile()) continue;
             \$path = \$f->getPathname();
-            if (!preg_match('/config|database|db|connection|setup|install|connect/i', \$path)) continue;
+            \$ext = strtolower(\$f->getExtension());
+            \$base = \$f->getFilename();
             if (preg_match('#/(vendor|node_modules|\.git)/#', \$path)) continue;
+            \$looksDb =
+              preg_match('/config|database|db|connection|setup|install|connect|schema|dump|sql|\.env/i', \$path . \$base)
+              || in_array(\$ext, ['sql', 'env'], true);
+            if (!\$looksDb && \$ext !== 'php') continue;
+            // Always scan PHP for dbname= / mysqli 4th arg (Blog Management ZIPs).
+            if (\$ext === 'php' && !\$looksDb) {
+              // still allow — cheap string check below
+            }
             \$nFiles++;
             \$c = @file_get_contents(\$path);
             if (\$c === false) continue;
+            if (\$ext === 'php' && !\$looksDb && !preg_match('/dbname|mysqli|PDO|DB_NAME|CREATE\s+DATABASE/i', \$c)) {
+              continue;
+            }
             foreach (\$patterns as \$re) {
               if (preg_match_all(\$re, \$c, \$mm)) {
                 foreach (\$mm[1] as \$hit) \$push(\$hit);
@@ -555,6 +585,10 @@ ensure_preview_database() {
             }
           }
         } catch (Throwable \$e) { /* ignore */ }
+      }
+      // Always keep a few common student names so Unknown database 'blogdb' cannot slip through.
+      foreach (['bbms', 'blogdb', 'blog', 'blog_management', 'phpblog'] as \$common) {
+        \$push(\$common);
       }
       if (!\$names) {
         \$push('bbms');
@@ -577,26 +611,14 @@ import_sql_dumps() {
   php -r "
     try {
       \$host = getenv('DB_HOST');
-      \$db = preg_replace('/[^a-zA-Z0-9_]/', '', getenv('DB_NAME') ?: '');
-      if (!\$db) exit(0);
+      \$primary = preg_replace('/[^a-zA-Z0-9_]/', '', getenv('DB_NAME') ?: '');
+      if (!\$primary) exit(0);
       \$user = getenv('DB_USER') ?: 'root';
       \$pass = getenv('DB_PASS') ?: '';
-      \$pdo = new PDO('mysql:host=' . \$host . ';dbname=' . \$db, \$user, \$pass, [
-        PDO::ATTR_TIMEOUT => 5,
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-      ]);
-      \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-      \$lower = array_map('strtolower', \$tables);
-      \$hasAuth = false;
-      foreach (['userregistration','users','user','admin','admins','registration','login'] as \$t) {
-        if (in_array(\$t, \$lower, true)) { \$hasAuth = true; break; }
-      }
-      if (count(\$tables) > 0 && \$hasAuth) {
-        echo '[preview] skip SQL import — ' . count(\$tables) . ' table(s) already present' . PHP_EOL;
-        exit(0);
-      }
-      if (count(\$tables) > 0 && !\$hasAuth) {
-        echo '[preview] DB has ' . count(\$tables) . ' table(s) but no auth table — importing SQL dumps' . PHP_EOL;
+      \$targets = [\$primary => true, 'blogdb' => true, 'blog' => true, 'bbms' => true];
+      foreach (preg_split('/[,\s]+/', getenv('PREVIEW_CREATE_DATABASES') ?: '') ?: [] as \$n) {
+        \$safe = preg_replace('/[^a-zA-Z0-9_]/', '', (string)\$n);
+        if (\$safe !== '') \$targets[\$safe] = true;
       }
       \$roots = array_values(array_unique(array_filter([
         '/var/www/html',
@@ -618,7 +640,6 @@ import_sql_dumps() {
             if (is_file(\$p)) \$candidates[] = \$p;
           }
         }
-        // Recursive *.sql (depth-limited via RecursiveDirectoryIterator)
         try {
           \$it = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator(\$root, FilesystemIterator::SKIP_DOTS)
@@ -638,38 +659,61 @@ import_sql_dumps() {
       usort(\$candidates, function (\$a, \$b) use (\$preferred) {
         \$ba = strtolower(basename(\$a));
         \$bb = strtolower(basename(\$b));
-        \$sa = in_array(\$ba, \$preferred, true) ? 100 : ((preg_match('/schema|structure|install|setup|database|dump|tables|hostel/i', \$ba)) ? 80 : 10);
-        \$sb = in_array(\$bb, \$preferred, true) ? 100 : ((preg_match('/schema|structure|install|setup|database|dump|tables|hostel/i', \$bb)) ? 80 : 10);
+        \$sa = in_array(\$ba, \$preferred, true) ? 100 : ((preg_match('/schema|structure|install|setup|database|dump|tables|hostel|blog/i', \$ba)) ? 80 : 10);
+        \$sb = in_array(\$bb, \$preferred, true) ? 100 : ((preg_match('/schema|structure|install|setup|database|dump|tables|hostel|blog/i', \$bb)) ? 80 : 10);
         return \$sb <=> \$sa;
       });
-      if (!\$candidates) {
-        echo '[preview] no SQL dump files found to import' . PHP_EOL;
-        exit(0);
-      }
-      echo '[preview] SQL candidates: ' . implode(', ', array_map('basename', \$candidates)) . PHP_EOL;
-      foreach (\$candidates as \$file) {
-        \$sql = file_get_contents(\$file);
-        if (\$sql === false || trim(\$sql) === '') continue;
-        \$sql = preg_replace('/DELIMITER\\s+\\S+/i', '', \$sql);
-        \$sql = preg_replace('/CREATE\\s+DEFINER=[^\\s]+\\s+/i', 'CREATE ', \$sql);
-        \$sql = preg_replace('/^\\s*CREATE\\s+DATABASE\\s+[^;]+;/im', '', \$sql);
-        \$sql = preg_replace('/^\\s*USE\\s+[^;]+;/im', '', \$sql);
-        \$parts = preg_split('/;\\s*/', \$sql);
-        \$ok = 0; \$fail = 0;
-        foreach (\$parts as \$stmt) {
-          \$stmt = preg_replace('/^\\s*--[^\\n]*\$/m', '', \$stmt);
-          \$stmt = preg_replace('/\\/\\*.*?\\*\\//s', '', \$stmt);
-          \$stmt = trim(\$stmt);
-          if (\$stmt === '') continue;
-          try { \$pdo->exec(\$stmt); \$ok++; } catch (Throwable \$e) {
-            \$fail++;
-            fwrite(STDERR, '[preview] SQL stmt fail: ' . substr(\$e->getMessage(), 0, 160) . PHP_EOL);
-          }
+
+      foreach (array_keys(\$targets) as \$db) {
+        \$admin = new PDO('mysql:host=' . \$host, \$user, \$pass, [PDO::ATTR_TIMEOUT => 5, PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        \$admin->exec('CREATE DATABASE IF NOT EXISTS `' . \$db . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+        \$pdo = new PDO('mysql:host=' . \$host . ';dbname=' . \$db, \$user, \$pass, [
+          PDO::ATTR_TIMEOUT => 5,
+          PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+        \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+        \$lower = array_map('strtolower', \$tables);
+        \$hasAuth = false;
+        foreach (['userregistration','users','user','admin','admins','registration','login','posts','blog'] as \$t) {
+          if (in_array(\$t, \$lower, true)) { \$hasAuth = true; break; }
         }
-        echo '[preview] imported ' . basename(\$file) . \" (ok=\$ok fail=\$fail)\" . PHP_EOL;
+        if (count(\$tables) > 0 && \$hasAuth) {
+          echo '[preview] skip SQL import for ' . \$db . ' — ' . count(\$tables) . ' table(s) already present' . PHP_EOL;
+          continue;
+        }
+        if (!\$candidates) {
+          if (\$db === \$primary) echo '[preview] no SQL dump files found to import' . PHP_EOL;
+          continue;
+        }
+        if (\$db === \$primary) {
+          echo '[preview] SQL candidates: ' . implode(', ', array_map('basename', \$candidates)) . PHP_EOL;
+        }
+        foreach (\$candidates as \$file) {
+          \$sql = file_get_contents(\$file);
+          if (\$sql === false || trim(\$sql) === '') continue;
+          \$sql = preg_replace('/DELIMITER\\s+\\S+/i', '', \$sql);
+          \$sql = preg_replace('/CREATE\\s+DEFINER=[^\\s]+\\s+/i', 'CREATE ', \$sql);
+          \$sql = preg_replace('/^\\s*CREATE\\s+DATABASE\\s+[^;]+;/im', '', \$sql);
+          \$sql = preg_replace('/^\\s*USE\\s+[^;]+;/im', '', \$sql);
+          \$parts = preg_split('/;\\s*/', \$sql);
+          \$ok = 0; \$fail = 0;
+          foreach (\$parts as \$stmt) {
+            \$stmt = preg_replace('/^\\s*--[^\\n]*\$/m', '', \$stmt);
+            \$stmt = preg_replace('/\\/\\*.*?\\*\\//s', '', \$stmt);
+            \$stmt = trim(\$stmt);
+            if (\$stmt === '') continue;
+            try { \$pdo->exec(\$stmt); \$ok++; } catch (Throwable \$e) {
+              \$fail++;
+              if (\$db === \$primary) {
+                fwrite(STDERR, '[preview] SQL stmt fail: ' . substr(\$e->getMessage(), 0, 160) . PHP_EOL);
+              }
+            }
+          }
+          echo '[preview] imported ' . basename(\$file) . ' → ' . \$db . \" (ok=\$ok fail=\$fail)\" . PHP_EOL;
+        }
+        \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+        echo '[preview] database ' . \$db . ' now has ' . count(\$tables) . ' table(s)' . PHP_EOL;
       }
-      \$tables = \$pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-      echo '[preview] database ' . \$db . ' now has ' . count(\$tables) . ' table(s)' . PHP_EOL;
     } catch (Throwable \$e) {
       fwrite(STDERR, '[preview] SQL import failed: ' . \$e->getMessage() . PHP_EOL);
     }
