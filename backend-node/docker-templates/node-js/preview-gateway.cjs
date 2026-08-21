@@ -568,8 +568,29 @@ function requestWantsHtml(req) {
 }
 
 function softEmptyListBody(pathname) {
-  // Prefer bare array — most axios UIs do `const rows = res.data` then rows.map(...).
-  void pathname;
+  const p = String(pathname || '').split('?')[0] || '/';
+  // Maktabadda fetchData expects { status, data: { docs, totalDocs, ... } }
+  if (
+    /\/(categories|locations|cabinets|libraries|shelves|books|volumes|book-placements|users)(\/)?$/i.test(
+      p
+    )
+  ) {
+    return JSON.stringify({
+      status: true,
+      data: {
+        docs: [],
+        totalDocs: 0,
+        limit: 10,
+        totalPages: 0,
+        page: 1,
+        pagingCounter: 1,
+        hasPrevPage: false,
+        hasNextPage: false,
+        prevPage: null,
+        nextPage: null,
+      },
+    });
+  }
   return '[]';
 }
 
@@ -583,6 +604,32 @@ function looksLikeUpstreamDbFailure(status, bodyBuf) {
   } catch (_e) {
     return status >= 500;
   }
+}
+
+/** Student createItem often returns 500 on Mongo E11000 when duplicateMsg is omitted. */
+function looksLikeDuplicateKeyError(bodyBuf) {
+  try {
+    const s = Buffer.isBuffer(bodyBuf) ? bodyBuf.toString('utf8') : String(bodyBuf || '');
+    return /E11000|duplicate key|dup key/i.test(s);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function rewriteDuplicateKeyBody(bodyBuf) {
+  let msg = 'A record with this name already exists';
+  try {
+    const s = Buffer.isBuffer(bodyBuf) ? bodyBuf.toString('utf8') : String(bodyBuf || '');
+    const j = JSON.parse(s);
+    if (j && typeof j.message === 'string' && j.message.trim()) {
+      msg = /E11000|dup key/i.test(j.message)
+        ? 'A record with this name already exists'
+        : j.message;
+    }
+  } catch (_e) {
+    /* keep default */
+  }
+  return Buffer.from(JSON.stringify({ status: false, message: msg }), 'utf8');
 }
 
 /** Socket.IO / raw WS must not get the /api prefix fallback — that breaks Engine.IO sessions. */
@@ -786,7 +833,9 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
                     '[preview-gateway] /api/v1 list',
                     status,
                     '→ soft-empty (no path downgrade)',
-                    tryPathOnly
+                    tryPathOnly,
+                    'body=',
+                    errBuf.toString('utf8').slice(0, 300)
                   );
                   const soft = Buffer.from(softEmptyListBody(pathOnly), 'utf8');
                   return send(res, 200, soft, {
@@ -795,6 +844,21 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
                     'Access-Control-Allow-Credentials': 'true',
                     'X-SV-Preview-Soft-Empty': '1',
                     'X-SV-Upstream-Status': String(status),
+                  });
+                }
+                if (looksLikeDuplicateKeyError(errBuf)) {
+                  console.log(
+                    '[preview-gateway] /api/v1 duplicate key',
+                    status,
+                    '→ 400',
+                    tryPathOnly
+                  );
+                  const soft = rewriteDuplicateKeyBody(errBuf);
+                  return send(res, 400, soft, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': req.headers.origin || '*',
+                    'Access-Control-Allow-Credentials': 'true',
+                    'X-SV-Preview-Duplicate': '1',
                   });
                 }
                 const outHeaders = { ...up.headers };
@@ -875,6 +939,52 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
               outHeaders['access-control-allow-credentials'] = 'true';
               outHeaders['content-length'] = String(errBuf.length);
               delete outHeaders['transfer-encoding'];
+              res.writeHead(status, outHeaders);
+              res.end(errBuf);
+            });
+            up.on('error', () => {
+              if (!res.headersSent) jsonError(res, 502, 'Upstream response error');
+            });
+            return;
+          }
+
+          // Mutating CRUD: map Mongo duplicate-key 500 → 400 (student createItem omission).
+          if (
+            !isLogin &&
+            status >= 500 &&
+            (method === 'POST' || method === 'PUT' || method === 'PATCH')
+          ) {
+            const errChunks = [];
+            up.on('data', (c) => errChunks.push(c));
+            up.on('end', () => {
+              const errBuf = Buffer.concat(errChunks);
+              if (looksLikeDuplicateKeyError(errBuf)) {
+                console.log(
+                  '[preview-gateway] duplicate key',
+                  status,
+                  '→ 400',
+                  pathOnly
+                );
+                const soft = rewriteDuplicateKeyBody(errBuf);
+                return send(res, 400, soft, {
+                  'Content-Type': 'application/json; charset=utf-8',
+                  'Access-Control-Allow-Origin': req.headers.origin || '*',
+                  'Access-Control-Allow-Credentials': 'true',
+                  'X-SV-Preview-Duplicate': '1',
+                });
+              }
+              const outHeaders = { ...up.headers };
+              outHeaders['access-control-allow-origin'] = req.headers.origin || '*';
+              outHeaders['access-control-allow-credentials'] = 'true';
+              outHeaders['content-length'] = String(errBuf.length);
+              delete outHeaders['transfer-encoding'];
+              console.log(
+                '[preview-gateway]',
+                method,
+                status,
+                'body=',
+                errBuf.toString('utf8').slice(0, 300)
+              );
               res.writeHead(status, outHeaders);
               res.end(errBuf);
             });

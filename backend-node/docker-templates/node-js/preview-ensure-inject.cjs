@@ -146,3 +146,56 @@ for (const rel of candidates) {
 if (!changedFiles) {
   console.log('[preview-inject] inject already present or no express entry found');
 }
+
+/** Harden mongoose-paginate helpers: E11000 → 400 even when duplicateMsg is omitted. */
+function patchQueryUtils(startDir) {
+  const skip = new Set(['node_modules', 'dist', 'build', '.git', 'coverage']);
+  const MARK = 'sv-query-dup-v1';
+  let n = 0;
+  function walk(dir, depth) {
+    if (depth > 8) return;
+    let ents;
+    try {
+      ents = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of ents) {
+      if (skip.has(ent.name)) continue;
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        walk(abs, depth + 1);
+        continue;
+      }
+      if (!/(^|[\\/])query\.js$/i.test(abs)) continue;
+      let src;
+      try {
+        src = fs.readFileSync(abs, 'utf8');
+      } catch {
+        continue;
+      }
+      if (src.includes(MARK)) continue;
+      if (!/error\.code\s*===\s*11000/.test(src)) continue;
+      let next = src.replace(
+        /if\s*\(\s*error\.code\s*===\s*11000\s*&&\s*duplicateMsg\s*\)/g,
+        `if (error.code === 11000 /* ${MARK} */)`
+      );
+      next = next.replace(
+        /return\s+res\.status\(400\)\.json\(\{\s*status:\s*false,\s*message:\s*duplicateMsg\s*\}\)/g,
+        `return res.status(400).json({ status: false, message: duplicateMsg || 'A record with this name already exists' })`
+      );
+      if (next === src) continue;
+      try {
+        fs.writeFileSync(abs, next, 'utf8');
+        n += 1;
+        console.log('[preview-inject] query.js duplicate-key harden →', path.relative(startDir, abs));
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+  }
+  walk(startDir, 0);
+  return n;
+}
+
+patchQueryUtils(root);
