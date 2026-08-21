@@ -637,7 +637,7 @@ function looksLikeDuplicateKeyError(bodyBuf) {
 function looksLikeJwtAuthError(bodyBuf) {
   try {
     const s = Buffer.isBuffer(bodyBuf) ? bodyBuf.toString('utf8') : String(bodyBuf || '');
-    return /jwt\s+malformed|jwt\s+invalid|invalid\s+token|JsonWebTokenError|TokenExpiredError|jwt expired/i.test(
+    return /jwt\s+malformed|jwt\s+invalid|invalid\s+token|JsonWebTokenError|TokenExpiredError|jwt expired|token\s+is\s+not\s+valid|token\s+.*expired|not\s+authorized|token\s+missing/i.test(
       s
     );
   } catch (_e) {
@@ -657,9 +657,106 @@ function isJunkBearerHeader(auth) {
 }
 
 let _cachedPreviewBearer = '';
+let _cachedPreviewBearerSource = '';
+
+/** Prefer a JWT minted by the student Express login handler (same secret as protect). */
+function httpStudentLoginForBearer() {
+  return new Promise((resolve) => {
+    const user =
+      process.env.PREVIEW_ADMIN_USERNAME ||
+      process.env.PREVIEW_SEED_USERNAME ||
+      'admin';
+    const pass =
+      process.env.PREVIEW_ADMIN_PASSWORD ||
+      process.env.PREVIEW_SEED_PASSWORD ||
+      'admin123';
+    const email =
+      process.env.PREVIEW_ADMIN_EMAIL ||
+      (String(user).includes('@') ? user : `${user}@preview.local`);
+    const payload = JSON.stringify({
+      username: user,
+      email,
+      password: pass,
+      login: user,
+      identifier: user,
+    });
+    const paths = [
+      process.env.PREVIEW_LOGIN_API_PATH,
+      '/api/auth/login',
+      '/api/users/login',
+      '/auth/login',
+      '/api/login',
+      '/api/v1/auth/login',
+    ].filter(Boolean);
+    let i = 0;
+    const tryNext = () => {
+      if (i >= paths.length) return resolve('');
+      const p = paths[i++];
+      const req = http.request(
+        {
+          hostname: API_HOST,
+          port: API_PORT,
+          path: p,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+          },
+          timeout: 8000,
+        },
+        (up) => {
+          const chunks = [];
+          up.on('data', (c) => chunks.push(c));
+          up.on('end', () => {
+            const status = up.statusCode || 0;
+            const raw = Buffer.concat(chunks).toString('utf8');
+            if (status < 200 || status >= 300) return tryNext();
+            try {
+              const j = JSON.parse(raw);
+              const tok =
+                j.token ||
+                j.accessToken ||
+                j.access_token ||
+                (j.data && (j.data.token || j.data.accessToken)) ||
+                '';
+              if (tok && !isJunkBearerHeader(tok)) {
+                console.log('[preview-gateway] real Express login OK via', p);
+                return resolve(/^Bearer\s+/i.test(tok) ? tok : `Bearer ${tok}`);
+              }
+            } catch (_e) {
+              /* next */
+            }
+            return tryNext();
+          });
+        }
+      );
+      req.on('error', () => tryNext());
+      req.on('timeout', () => {
+        try {
+          req.destroy();
+        } catch (_d) {}
+        tryNext();
+      });
+      req.write(payload);
+      req.end();
+    };
+    tryNext();
+  });
+}
+
 async function getPreviewInjectBearer() {
   if (_cachedPreviewBearer && !isJunkBearerHeader(_cachedPreviewBearer)) {
     return _cachedPreviewBearer;
+  }
+  try {
+    const fromHttp = await httpStudentLoginForBearer();
+    if (fromHttp) {
+      _cachedPreviewBearer = fromHttp;
+      _cachedPreviewBearerSource = 'express-login';
+      return _cachedPreviewBearer;
+    }
+  } catch (_e) {
+    /* fall through */
   }
   const forced = await tryGatewayForceLogin(Buffer.from('{}', 'utf8'));
   const body = forced && forced.body ? forced.body : null;
@@ -669,6 +766,8 @@ async function getPreviewInjectBearer() {
     '';
   if (!tok || isJunkBearerHeader(tok)) return '';
   _cachedPreviewBearer = /^Bearer\s+/i.test(tok) ? tok : `Bearer ${tok}`;
+  _cachedPreviewBearerSource = 'force-mint';
+  console.log('[preview-gateway] inject bearer via force-mint (express login failed)');
   return _cachedPreviewBearer;
 }
 
@@ -916,6 +1015,8 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
                   looksLikeJwtAuthError(errBuf) &&
                   !isLogin
                 ) {
+                  _cachedPreviewBearer = '';
+                  _cachedPreviewBearerSource = '';
                   return Promise.resolve(getPreviewInjectBearer()).then((bearer) => {
                     if (!bearer || res.headersSent) {
                       const soft = Buffer.from(
@@ -1058,21 +1159,29 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             return;
           }
 
-          // Mutating CRUD: map Mongo duplicate-key 500 → 400 (student createItem omission).
+          // Mutating CRUD: 401 invalid token → re-login via Express; duplicate-key 500 → 400.
           if (
             !isLogin &&
-            status >= 500 &&
-            (method === 'POST' || method === 'PUT' || method === 'PATCH')
+            (method === 'POST' || method === 'PUT' || method === 'PATCH') &&
+            (status === 401 || status === 403 || status >= 500)
           ) {
             const errChunks = [];
             up.on('data', (c) => errChunks.push(c));
             up.on('end', () => {
               const errBuf = Buffer.concat(errChunks);
-              if (!authRetried && looksLikeJwtAuthError(errBuf)) {
+              if (
+                !authRetried &&
+                (status === 401 || status === 403 || looksLikeJwtAuthError(errBuf))
+              ) {
+                _cachedPreviewBearer = '';
+                _cachedPreviewBearerSource = '';
                 return Promise.resolve(getPreviewInjectBearer()).then((bearer) => {
                   if (!bearer || res.headersSent) {
                     const soft = Buffer.from(
-                      JSON.stringify({ status: false, message: 'Not authorized' }),
+                      JSON.stringify({
+                        status: false,
+                        message: 'Not authorized',
+                      }),
                       'utf8'
                     );
                     return send(res, 401, soft, {
@@ -1085,13 +1194,15 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
                   headers.authorization = bearer;
                   headers.Authorization = bearer;
                   console.log(
-                    '[preview-gateway] write jwt error → retry with preview bearer',
+                    '[preview-gateway] write',
+                    status,
+                    '→ retry with express-login bearer',
                     pathOnly
                   );
                   return attempt(index, true);
                 });
               }
-              if (looksLikeDuplicateKeyError(errBuf)) {
+              if (status >= 500 && looksLikeDuplicateKeyError(errBuf)) {
                 console.log(
                   '[preview-gateway] duplicate key',
                   status,
@@ -1176,19 +1287,52 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             });
           }
 
-          // Express may reject demo admin/admin123 with 400 before preview-safety recovery.
-          // Mint JWT at the gateway so login works regardless of inject order.
+          // Login: try every mount first. Only mint a preview JWT after all paths fail.
+          // Minting early (e.g. after /api/v1/auth/login 400) stored a token DropSafe
+          // protect rejects → "Token is not valid or expired" on POST /students.
           if (
             isLogin &&
-            (status === 400 || status === 401 || status === 403 || status === 422)
+            (status === 400 || status === 401 || status === 403 || status === 422 || status === 404)
           ) {
+            if (hasMorePaths) {
+              up.resume();
+              console.log(
+                '[preview-gateway] login',
+                status,
+                '→ next path',
+                tryPath,
+                '→',
+                pathsToTry[index + 1]
+              );
+              return attempt(index + 1, authRetried);
+            }
             const errChunks = [];
             up.on('data', (c) => errChunks.push(c));
             up.on('end', () => {
-              Promise.resolve(tryGatewayForceLogin(body))
+              // Prefer a real Express-signed JWT when any login mount works via side-channel.
+              Promise.resolve(httpStudentLoginForBearer())
+                .then((bearer) => {
+                  if (res.headersSent) return null;
+                  if (bearer) {
+                    const tok = bearer.replace(/^Bearer\s+/i, '');
+                    const forced = {
+                      body: {
+                        success: true,
+                        token: tok,
+                        accessToken: tok,
+                        access_token: tok,
+                        message: 'Login successful',
+                        data: { token: tok, success: true },
+                      },
+                    };
+                    console.log('[preview-gateway] login recovered via express-login side-channel');
+                    return sendForcedLogin(res, req, forced);
+                  }
+                  return tryGatewayForceLogin(body);
+                })
                 .then((forced) => {
-                  if (res.headersSent) return;
-                  if (forced) {
+                  if (res.headersSent || forced == null) return;
+                  if (forced && forced.body) {
                     console.log(
                       '[preview-gateway] login force OK after upstream',
                       status,

@@ -7,7 +7,10 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V47:
+ * Marker V48:
+ * - On 401 "Token is not valid or expired", clear junk/minted tokens and re-login
+ *   via real /api/auth/login (DropSafe actions after force-mint login).
+ * V47:
  * - NEVER soft-succeed list/CRUD 401s with a session user body (DropSafe blank page:
  *   students.length on undefined after grace soft-401).
  * - DropSafe soft-empty shapes: {status,count,data:[]} and /students/stats totals.
@@ -124,10 +127,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V47__) {
-    console.log('[DEBUG-SHIM] already installed V47 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V48__) {
+    console.log('[DEBUG-SHIM] already installed V48 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V48__ = true;
   window.__SV_LOGIN_FALLBACK_V47__ = true;
   window.__SV_LOGIN_FALLBACK_V46__ = true;
   window.__SV_LOGIN_FALLBACK_V45__ = true;
@@ -2994,26 +2998,37 @@
   }
 
   /** Sync login so /api/v1 protect gets a real JWT (missing Bearer → student next() → 404). */
-  function ensurePreviewApiTokenSync() {
+  function ensurePreviewApiTokenSync(forceRefresh) {
     var existing = getStoredAccessToken();
-    if (existing && !isJunkAuthToken(existing)) return existing;
+    if (!forceRefresh && existing && !isJunkAuthToken(existing)) return existing;
     if (typeof OrigXHR !== 'function') return '';
+    if (forceRefresh) {
+      try {
+        ['token', 'accessToken', 'access_token', 'jwt'].forEach(function (k) {
+          try {
+            localStorage.removeItem(k);
+          } catch (_r) {}
+        });
+      } catch (_c) {}
+    }
     var creds = window.__SV_PREVIEW_CREDS__ || {};
     var user = String(creds.username || window.__SV_PREVIEW_SEED_USERNAME__ || 'admin').trim() || 'admin';
     var pass = String(
-      creds.password || window.__SV_PREVIEW_ADMIN_PASSWORD__ || 'password123'
+      creds.password || window.__SV_PREVIEW_ADMIN_PASSWORD__ || 'admin123'
     );
     var email = String(
       creds.email ||
         window.__SV_PREVIEW_ADMIN_EMAIL__ ||
         (user.indexOf('@') >= 0 ? user : user + '@example.com')
     );
+    // Prefer DropSafe /api/auth/login before /api/v1 (v1 often 400 → bad force-mint token).
     var paths = [
-      String(window.__SV_LOGIN_API_PATH__ || '').trim(),
-      '/api/v1/auth/login',
       '/api/auth/login',
       '/api/users/login',
+      String(window.__SV_LOGIN_API_PATH__ || '').trim(),
       '/auth/login',
+      '/api/login',
+      '/api/v1/auth/login',
     ].filter(Boolean);
     var body = JSON.stringify({
       username: user,
@@ -3624,14 +3639,14 @@
               bodyText = typeof d === 'string' ? d : JSON.stringify(d || '');
             } catch (_bt) {}
 
-            // Bearer undefined/null → Express protect returns 500 "jwt malformed".
-            // Sync a real preview JWT and retry once before soft-failing the write.
+            // Bearer undefined/null OR force-minted JWT DropSafe rejects as
+            // "Token is not valid or expired" → re-login via /api/auth/login and retry.
             if (
-              status >= 500 &&
+              (status === 401 || status >= 500) &&
               cfg &&
               !cfg.__svJwtRetried &&
               typeof ax.request === 'function' &&
-              /jwt\s+malformed|jwt\s+invalid|invalid\s+token|JsonWebTokenError|Not authorized/i.test(
+              /jwt\s+malformed|jwt\s+invalid|invalid\s+token|JsonWebTokenError|Not authorized|token\s+is\s+not\s+valid|token\s+.*expired|token\s+missing/i.test(
                 bodyText
               )
             ) {
@@ -3639,19 +3654,18 @@
               try {
                 ['token', 'accessToken', 'access_token', 'jwt'].forEach(function (k) {
                   try {
-                    var cur = localStorage.getItem(k);
-                    if (cur && isJunkAuthToken(cur)) localStorage.removeItem(k);
+                    localStorage.removeItem(k);
                   } catch (_rm) {}
                 });
               } catch (_clr) {}
-              var fresh = ensurePreviewApiTokenSync() || getStoredAccessToken();
+              var fresh = ensurePreviewApiTokenSync(true) || getStoredAccessToken();
               if (fresh && !isJunkAuthToken(fresh)) {
                 cfg.headers = cfg.headers || {};
                 cfg.headers.Authorization = /^Bearer\s+/i.test(fresh)
                   ? fresh
                   : 'Bearer ' + fresh;
                 console.warn(
-                  '[DEBUG-SHIM] axios retrying once after jwt error',
+                  '[DEBUG-SHIM] axios retrying once after jwt/auth error',
                   status,
                   url
                 );
