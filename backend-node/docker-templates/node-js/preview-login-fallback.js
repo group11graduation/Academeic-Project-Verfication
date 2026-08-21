@@ -7,7 +7,9 @@
  * the node-backend overlays this file into each preview container at start, so new
  * student projects get these fixes without per-project patches.
  *
- * Marker V48:
+ * Marker V49:
+ * - After login, refresh token via /api/auth/login so DropSafe protect accepts it.
+ * V48:
  * - On 401 "Token is not valid or expired", clear junk/minted tokens and re-login
  *   via real /api/auth/login (DropSafe actions after force-mint login).
  * V47:
@@ -127,10 +129,11 @@
  * V9: rewrite Vite-proxy style paths (/dashboard/summary → /api/dashboard/summary).
  */
 (function () {
-  if (window.__SV_LOGIN_FALLBACK_V48__) {
-    console.log('[DEBUG-SHIM] already installed V48 — skip');
+  if (window.__SV_LOGIN_FALLBACK_V49__) {
+    console.log('[DEBUG-SHIM] already installed V49 — skip');
     return;
   }
+  window.__SV_LOGIN_FALLBACK_V49__ = true;
   window.__SV_LOGIN_FALLBACK_V48__ = true;
   window.__SV_LOGIN_FALLBACK_V47__ = true;
   window.__SV_LOGIN_FALLBACK_V46__ = true;
@@ -2449,6 +2452,23 @@
         localStorage.setItem('jwt', token);
         sessionStorage.setItem('token', token);
         sessionStorage.setItem('accessToken', token);
+        // Prefer Express /api/auth/login JWT over gateway force-mint (DropSafe protect).
+        try {
+          if (typeof ensurePreviewApiTokenSync === 'function') {
+            var refreshed = ensurePreviewApiTokenSync(true);
+            if (refreshed && !isJunkAuthToken(refreshed)) {
+              token = refreshed;
+              out.token = refreshed;
+              out.accessToken = refreshed;
+              if (out.data) out.data.token = refreshed;
+              localStorage.setItem('token', refreshed);
+              localStorage.setItem('accessToken', refreshed);
+              localStorage.setItem('access_token', refreshed);
+              localStorage.setItem('jwt', refreshed);
+              console.log('[DEBUG-SHIM] refreshed login token via /api/auth/login');
+            }
+          }
+        } catch (_rf) {}
       }
       if (user) {
         var userJson = JSON.stringify(user);

@@ -666,20 +666,17 @@ function httpStudentLoginForBearer() {
       process.env.PREVIEW_ADMIN_USERNAME ||
       process.env.PREVIEW_SEED_USERNAME ||
       'admin';
-    const pass =
-      process.env.PREVIEW_ADMIN_PASSWORD ||
-      process.env.PREVIEW_SEED_PASSWORD ||
-      'admin123';
     const email =
       process.env.PREVIEW_ADMIN_EMAIL ||
       (String(user).includes('@') ? user : `${user}@preview.local`);
-    const payload = JSON.stringify({
-      username: user,
-      email,
-      password: pass,
-      login: user,
-      identifier: user,
-    });
+    const passCandidates = [
+      process.env.PREVIEW_ADMIN_PASSWORD,
+      process.env.PREVIEW_SEED_PASSWORD,
+      'admin123',
+      'password123',
+      'Preview123!',
+      'admin',
+    ].filter(Boolean);
     const paths = [
       process.env.PREVIEW_LOGIN_API_PATH,
       '/api/auth/login',
@@ -688,10 +685,24 @@ function httpStudentLoginForBearer() {
       '/api/login',
       '/api/v1/auth/login',
     ].filter(Boolean);
-    let i = 0;
+    let pi = 0;
+    let ci = 0;
     const tryNext = () => {
-      if (i >= paths.length) return resolve('');
-      const p = paths[i++];
+      if (ci >= passCandidates.length) return resolve('');
+      if (pi >= paths.length) {
+        pi = 0;
+        ci += 1;
+        return tryNext();
+      }
+      const p = paths[pi++];
+      const pass = passCandidates[ci];
+      const payload = JSON.stringify({
+        username: user,
+        email,
+        password: pass,
+        login: user,
+        identifier: user,
+      });
       const req = http.request(
         {
           hostname: API_HOST,
@@ -929,7 +940,7 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
         headers.authorization ||
         headers.Authorization ||
         '';
-      // Student UIs send "Bearer undefined" → Express jwt.verify → 500. Strip + inject.
+      // Student UIs send "Bearer undefined" → Express jwt.verify → 500. Strip junk.
       if (auth && isJunkBearerHeader(auth)) {
         console.log('[preview-gateway] stripped junk Authorization');
         auth = '';
@@ -939,8 +950,10 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
         delete req.headers.Authorization;
       }
       const pathOnlyEarly = String(req.url || '/').split('?')[0] || '/';
+      // DropSafe: UI stores a force-minted JWT that protect rejects as
+      // "Token is not valid or expired". Always prefer an Express-signed token
+      // from real /api/auth/login for non-login API proxy (preview sandbox only).
       if (
-        !auth &&
         isApiProxyPath(pathOnlyEarly) &&
         !isLoginApiRequest(method, pathOnlyEarly) &&
         !isWebSocketProxyPath(pathOnlyEarly)
@@ -949,7 +962,11 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
           const injected = await getPreviewInjectBearer();
           if (injected) {
             auth = injected;
-            console.log('[preview-gateway] injected preview Authorization for', pathOnlyEarly);
+            console.log(
+              '[preview-gateway] express-login Authorization for',
+              pathOnlyEarly,
+              _cachedPreviewBearerSource || ''
+            );
           }
         } catch (_inj) {
           /* ignore */
@@ -994,13 +1011,13 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
           const isLogin = isLoginApiRequest(method, pathOnly);
           const hasMorePaths = index + 1 < pathsToTry.length;
 
-          // Buffer error bodies so we can detect "Route not found" even when status is 400,
-          // and retry /api ↔ bare / singular ↔ plural automatically.
-          // Also buffer 500s on list GETs so we can soft-empty when Mongo/Express crashes
-          // (Maktabadda /categories → 500 spam + POST hang).
+          // Buffer path-fallback errors. NEVER path-retry 401/403 — that forwards
+          // "Token is not valid" before we can swap in an Express-signed bearer.
           if (
             hasMorePaths &&
             !isLogin &&
+            status !== 401 &&
+            status !== 403 &&
             ((status >= 400 && status < 500) || (status >= 500 && isListishApiPath(pathOnly)))
           ) {
             const errChunks = [];
