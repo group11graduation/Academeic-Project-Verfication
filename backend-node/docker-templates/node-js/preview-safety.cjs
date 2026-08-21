@@ -1048,7 +1048,9 @@ function isSandboxLoginFailureRecoverable(email, password) {
 function isRouteNotFoundPayload(body) {
   try {
     const s = typeof body === 'string' ? body : JSON.stringify(body == null ? '' : body);
-    return /route\s*not\s*found|cannot\s+(GET|POST|PUT|PATCH|DELETE)|not\s+found:\s*\//i.test(s);
+    return /route\s*not\s*found|cannot\s+(GET|POST|PUT|PATCH|DELETE)|not\s+found:\s*\/|resource\s+was\s+not\s+found|requested\s+resource\s+was\s+not\s+found/i.test(
+      s
+    );
   } catch (_e) {
     return false;
   }
@@ -1140,6 +1142,26 @@ function wrapApiPath404Retry(req, res, origHandle, out) {
       statusCode === 405 ||
       (statusCode >= 400 && statusCode < 500 && isRouteNotFoundPayload(body));
     if (!failed) return passthrough();
+
+    const pathOnly = String(req.url || req.originalUrl || '/').split('?')[0] || '/';
+    // Maktabadda mounts are /api/v1/* — never "fix" a 404 by stripping to /api or bare
+    // /categories (that guarantees another 404 and breaks POST create).
+    if (/^\/api\/v1(\/|$)/i.test(pathOnly)) {
+      return passthrough();
+    }
+    // Auth failures must not be treated as missing routes.
+    if (statusCode === 401 || statusCode === 403) {
+      return passthrough();
+    }
+    if (
+      statusCode === 404 &&
+      body &&
+      /unauthorized|unauth|token|jwt|forbidden|not\s+authenticated|login/i.test(
+        typeof body === 'string' ? body : JSON.stringify(body)
+      )
+    ) {
+      return passthrough();
+    }
 
     if (!req.__svApiPathAlts) {
       req.__svApiPathAlts = buildApiPathAlternates(req.url || req.originalUrl || '/');

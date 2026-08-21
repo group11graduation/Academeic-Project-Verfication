@@ -159,7 +159,7 @@
   window.__SV_LOGIN_FALLBACK_V8__ = true;
   window.__SV_LOGIN_FALLBACK_V7__ = true;
   window.__SV_LOGIN_FALLBACK__ = true;
-  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v48', {
+  console.log('[DEBUG-SHIM] preview-login-fallback ACTIVE v49', {
     href: String(location.href || ''),
     apiBase: window.__SV_API_BASE__ || null,
     loginPath: window.__SV_LOGIN_API_PATH__ || null,
@@ -3909,12 +3909,13 @@
             for (var hk in headers) {
               if (/^authorization$/i.test(hk) && headers[hk]) hasAuth = true;
             }
-            if (!hasAuth && getStoredAccessToken() && (isApiRequestUrl(url) || isSessionProbeUrl(url))) {
+            if (!hasAuth && getStoredAccessToken() && (isApiRequestUrl(url) || isSessionProbeUrl(url) || /\/api\/v1\//i.test(String(url || '')))) {
               var tok = getStoredAccessToken();
               var bearer = /^Bearer\s+/i.test(tok) ? tok : 'Bearer ' + tok;
               try {
                 _setHeader.call(xhr, 'Authorization', bearer);
                 headers.Authorization = bearer;
+                console.log('[DEBUG-SHIM] xhr attached Authorization for', url);
               } catch (_ah) {}
             }
           } catch (_authX) {}

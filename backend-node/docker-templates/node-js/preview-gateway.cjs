@@ -285,6 +285,16 @@ function looksLikeRouteNotFound(status, bodyBuf) {
   }
 }
 
+/** Do not downgrade /api/v1/* to /api or bare — that breaks Maktabadda POST. */
+function shouldRetryUpstreamPath(status, bodyBuf, fromPath, method) {
+  const pathOnly = String(fromPath || '').split('?')[0] || '/';
+  if (/^\/api\/v1(\/|$)/i.test(pathOnly)) {
+    return false;
+  }
+  if (status === 401 || status === 403) return false;
+  return looksLikeRouteNotFound(status, bodyBuf);
+}
+
 function mainRoleFromEnv() {
   return String(
     process.env.PREVIEW_FORCE_ADMIN_ROLE ||
@@ -651,6 +661,16 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
       delete headers['accept-encoding'];
       delete headers['transfer-encoding'];
       headers['content-length'] = String(body.length);
+      // Node lowercases incoming headers; Express protect often reads Authorization.
+      const auth =
+        req.headers.authorization ||
+        req.headers.Authorization ||
+        headers.authorization ||
+        headers.Authorization;
+      if (auth) {
+        headers.authorization = auth;
+        headers.Authorization = auth;
+      }
 
       const originalPath = req.url || '/';
       const pathOnly = String(originalPath).split('?')[0] || '/';
@@ -700,7 +720,7 @@ function proxyTryThenStatic(req, res, { preferSpaOnNonHtml = false } = {}) {
             up.on('end', () => {
               const errBuf = Buffer.concat(errChunks);
               if (
-                looksLikeRouteNotFound(status, errBuf) ||
+                shouldRetryUpstreamPath(status, errBuf, tryPath, method) ||
                 (status >= 500 && isListishApiPath(pathOnly))
               ) {
                 console.log(
