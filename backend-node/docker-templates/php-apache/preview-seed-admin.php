@@ -267,6 +267,80 @@ function sv_pick_column(array $cols, array $candidates): ?string
     return null;
 }
 
+/**
+ * Leave/HR portals compare JSON user_type === "Admin". ENUM may be Admin/Employee.
+ * Prefer the casing the schema (or frontend JS) actually uses.
+ */
+function sv_role_seed_value(array $colMeta, string $colName): string
+{
+    $type = strtolower((string) ($colMeta['Type'] ?? ''));
+    $wanted = ['Admin', 'Administrator', 'admin', 'HR', 'Manager', 'Super Admin', 'superadmin'];
+    if (preg_match('/enum\s*\((.+)\)/i', $type, $m)) {
+        preg_match_all("/'([^']+)'/", $m[1], $opts);
+        $options = $opts[1] ?? [];
+        foreach ($wanted as $want) {
+            foreach ($options as $opt) {
+                if (strcasecmp((string) $opt, $want) === 0) {
+                    return (string) $opt;
+                }
+            }
+        }
+        if ($options) {
+            return (string) $options[0];
+        }
+    }
+    $fromJs = sv_discover_frontend_user_type();
+    return $fromJs !== '' ? $fromJs : 'Admin';
+}
+
+function sv_discover_frontend_user_type(): string
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $cached = '';
+    $roots = sv_preview_docroots();
+    foreach ($roots as $root) {
+        try {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+            );
+            $n = 0;
+            foreach ($it as $f) {
+                if ($n++ > 80) {
+                    break;
+                }
+                if (!$f->isFile()) {
+                    continue;
+                }
+                $ext = strtolower($f->getExtension());
+                if (!in_array($ext, ['js', 'php', 'html', 'htm'], true)) {
+                    continue;
+                }
+                $path = $f->getPathname();
+                if (preg_match('#/(vendor|node_modules|\.git)/#', $path)) {
+                    continue;
+                }
+                if (!preg_match('/login|auth|sign|ajax|script/i', $path . $f->getFilename())) {
+                    continue;
+                }
+                $c = (string) @file_get_contents($path);
+                if ($c === '') {
+                    continue;
+                }
+                if (preg_match('/user_type\s*(?:==|===|:)\s*[\'"]([A-Za-z_ ]+)[\'"]/i', $c, $m)) {
+                    $cached = trim($m[1]);
+                    return $cached;
+                }
+            }
+        } catch (Throwable $e) {
+            /* ignore */
+        }
+    }
+    return $cached;
+}
+
 function sv_default_for_column(array $colMeta, string $colName, string $seedUser, string $seedEmail, string $hash): ?string
 {
     $name = strtolower($colName);
@@ -298,10 +372,7 @@ function sv_default_for_column(array $colMeta, string $colName, string $seedUser
         return preg_match('/@/', $seedUser) ? 'previewadmin' : $seedUser;
     }
     if (in_array($name, ['role', 'user_role', 'type', 'user_type', 'usertype', 'account_type'], true)) {
-        if (strpos($type, 'enum') !== false && preg_match("/'admin'/i", $type)) {
-            return 'admin';
-        }
-        return 'admin';
+        return sv_role_seed_value($colMeta, $colName);
     }
     if (in_array($name, ['status', 'is_active', 'active', 'enabled'], true)) {
         if (strpos($type, 'int') !== false || strpos($type, 'tinyint') !== false || strpos($type, 'bit') !== false) {
@@ -470,6 +541,8 @@ foreach ($candidates as $table) {
     }
     $hash = sv_encode_password($seedPass, $encodeMode === 'bcrypt' ? 'bcrypt' : ($encodeMode ?: 'auto'), is_string($sampleHash) ? $sampleHash : null);
 
+    $roleValue = $roleCol ? sv_role_seed_value($colMeta[strtolower($roleCol)] ?? ['Type' => ''], $roleCol) : 'Admin';
+
     // Prefer upserting the exact seed identity; also refresh legacy admin rows' passwords
     // without renaming them away (keeps project default admin working).
     $lookupValues = array_values(
@@ -536,7 +609,7 @@ foreach ($candidates as $table) {
             $params = [$hash];
             if ($roleCol) {
                 $sets[] = '`' . $roleCol . '` = ?';
-                $params[] = 'admin';
+                $params[] = $roleValue;
             }
             if ($statusCol) {
                 $sets[] = '`' . $statusCol . '` = ?';
@@ -578,7 +651,7 @@ foreach ($candidates as $table) {
             $fields[$userCol] = $identityValue;
             $fields[$passCol] = $hash;
             if ($roleCol) {
-                $fields[$roleCol] = 'admin';
+                $fields[$roleCol] = $roleValue;
             }
             if ($emailCol) {
                 $fields[$emailCol] = $seedEmail;
@@ -626,7 +699,7 @@ foreach ($candidates as $table) {
                             $adminFields[$emailCol] = 'admin@preview.local';
                         }
                         if ($roleCol) {
-                            $adminFields[$roleCol] = 'admin';
+                            $adminFields[$roleCol] = $roleValue;
                         }
                         if ($statusCol) {
                             $adminFields[$statusCol] = isset($colMeta[strtolower($statusCol)]['Type']) &&

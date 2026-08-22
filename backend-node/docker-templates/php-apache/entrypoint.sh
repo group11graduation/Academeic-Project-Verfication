@@ -1036,8 +1036,46 @@ wait_for_mysql() {
   return 1
 }
 
+# Student ZIPs often load SweetAlert CSS with <script src="...min.css"> → browser MIME refuse.
+patch_css_loaded_as_script() {
+  php <<'PHP' || true
+$roots = array_values(array_unique(array_filter([
+  '/var/www/html',
+  getenv('APACHE_DOCROOT') ?: '',
+])));
+foreach ($roots as $root) {
+  if (!$root || !is_dir($root)) continue;
+  try {
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    $n = 0;
+    foreach ($it as $f) {
+      if ($n > 120) break;
+      if (!$f->isFile()) continue;
+      $ext = strtolower($f->getExtension());
+      if (!in_array($ext, ['php', 'html', 'htm'], true)) continue;
+      $path = $f->getPathname();
+      if (preg_match('#/(vendor|node_modules|\.git)/#', $path)) continue;
+      $c = @file_get_contents($path);
+      if ($c === false || stripos($c, '.css') === false) continue;
+      $n++;
+      $fixed = preg_replace(
+        '/<script([^>]*\ssrc=["\'][^"\']+\.css["\'][^>]*)>\s*<\/script>/i',
+        '<link rel="stylesheet"$1>',
+        $c
+      );
+      if (is_string($fixed) && $fixed !== $c) {
+        @file_put_contents($path, $fixed);
+        echo '[preview] rewrote CSS-as-script in ' . basename($path) . PHP_EOL;
+      }
+    }
+  } catch (Throwable $e) { /* ignore */ }
+}
+PHP
+}
+
 patch_php_config
 patch_xampp_asset_prefixes
+patch_css_loaded_as_script
 
 if [ -f "$DOCROOT/composer.json" ]; then
   if command -v composer >/dev/null 2>&1; then
