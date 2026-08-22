@@ -734,6 +734,10 @@ function __sv_preview_discover_ajax_role(): string
                 if ($c === '') {
                     continue;
                 }
+                if (preg_match('/response\.role\s*(?:==|===)\s*[\'"]([A-Za-z_ ]+)[\'"]/i', $c, $m)) {
+                    $role = trim($m[1]);
+                    return $role;
+                }
                 if (preg_match('/user_type\s*(?:==|===)\s*[\'"]([A-Za-z_ ]+)[\'"]/i', $c, $m)) {
                     $role = trim($m[1]);
                     return $role;
@@ -744,6 +748,68 @@ function __sv_preview_discover_ajax_role(): string
         }
     }
     return $role;
+}
+
+function __sv_preview_ajax_status_value(): mixed
+{
+    static $status = null;
+    if ($status !== null) {
+        return $status;
+    }
+    $status = 'success';
+    $roots = ['/var/www/html'];
+    $doc = getenv('APACHE_DOCROOT') ?: getenv('APACHE_DOCUMENT_ROOT') ?: '';
+    if ($doc) {
+        $roots[] = $doc;
+    }
+    foreach (array_unique($roots) as $root) {
+        if (!is_dir($root)) {
+            continue;
+        }
+        try {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+            );
+            $n = 0;
+            foreach ($it as $f) {
+                if ($n++ > 60) {
+                    break;
+                }
+                if (!$f->isFile()) {
+                    continue;
+                }
+                $ext = strtolower($f->getExtension());
+                if (!in_array($ext, ['js', 'php', 'html', 'htm'], true)) {
+                    continue;
+                }
+                $c = (string) @file_get_contents($f->getPathname());
+                if ($c === '') {
+                    continue;
+                }
+                if (preg_match('/response\.status\s*(?:==|===)\s*[\'"]success[\'"]/i', $c)) {
+                    $status = 'success';
+                    return $status;
+                }
+                if (preg_match('/response\.status\s*(?:==|===)\s*true/i', $c)) {
+                    $status = true;
+                    return $status;
+                }
+            }
+        } catch (Throwable $e) {
+            /* ignore */
+        }
+    }
+    return $status;
+}
+
+function __sv_preview_rewrite_css_as_script(string $html): string
+{
+    $out = preg_replace(
+        '/<script([^>]*src=["\'][^"\']+\.css["\'][^>]*)>\s*<\/script>/i',
+        '<link rel="stylesheet"$1>',
+        $html
+    );
+    return is_string($out) ? $out : $html;
 }
 
 function __sv_preview_maybe_intercept_login(): void
@@ -802,6 +868,7 @@ function __sv_preview_maybe_intercept_login(): void
     }
 
     $role = __sv_preview_discover_ajax_role();
+    $roleLc = strtolower($role);
     if (session_status() === PHP_SESSION_NONE) {
         @session_start();
     }
@@ -809,7 +876,7 @@ function __sv_preview_maybe_intercept_login(): void
     $_SESSION['login'] = $login;
     $_SESSION['user_type'] = $role;
     $_SESSION['usertype'] = $role;
-    $_SESSION['role'] = $role;
+    $_SESSION['role'] = $roleLc;
     $_SESSION['email'] = $login;
     $_SESSION['username'] = preg_match('/@/', $login) ? 'admin' : $login;
     $_SESSION['id'] = 1;
@@ -826,18 +893,20 @@ function __sv_preview_maybe_intercept_login(): void
             http_response_code(200);
         }
         echo json_encode([
-            'status' => true,
+            'status' => __sv_preview_ajax_status_value(),
             'success' => true,
             'ok' => true,
             'message' => 'Login successful',
+            'password_reset' => true,
             'user_type' => $role,
             'userType' => $role,
             'usertype' => $role,
             'type' => $role,
-            'role' => $role,
+            'role' => $roleLc,
             'email' => $login,
             'username' => $_SESSION['username'],
             'id' => 1,
+            'redirect' => 'admin/index.php',
         ]);
         exit;
     }
@@ -845,6 +914,19 @@ function __sv_preview_maybe_intercept_login(): void
 
 if (getenv('PREVIEW_SANDBOX') === '1' || getenv('DB_HOST')) {
     __sv_preview_maybe_intercept_login();
+}
+
+if (
+    (getenv('PREVIEW_SANDBOX') === '1' || getenv('DB_HOST'))
+    && PHP_SAPI !== 'cli'
+    && strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET'
+) {
+    ob_start(static function ($html) {
+        if (!is_string($html) || $html === '') {
+            return $html;
+        }
+        return __sv_preview_rewrite_css_as_script($html);
+    });
 }
 
 // Surface fatal/uncaught errors in preview so "Add Post" is not a blank HTTP 500.

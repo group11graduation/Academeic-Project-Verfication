@@ -1059,7 +1059,7 @@ foreach ($roots as $root) {
       if ($c === false || stripos($c, '.css') === false) continue;
       $n++;
       $fixed = preg_replace(
-        '/<script([^>]*\ssrc=["\'][^"\']+\.css["\'][^>]*)>\s*<\/script>/i',
+        '/<script([^>]*src=["\'][^"\']+\.css["\'][^>]*)>\s*<\/script>/i',
         '<link rel="stylesheet"$1>',
         $c
       );
