@@ -267,6 +267,11 @@ const TeacherAssignmentProposals = () => {
                                                 <span className="text-[10px] font-semibold text-amber-700">
                                                     Legacy similarity warning
                                                 </span>
+                                            ) : getProposalAiSimilarityContext(p).level === 'flag' ||
+                                              getProposalAiSimilarityContext(p).level === 'reject' ? (
+                                                <span className="text-[10px] font-semibold text-amber-700">
+                                                    AI overlap · {getProposalAiSimilarityContext(p).samePct} — review
+                                                </span>
                                             ) : Number.isFinite(p.aiSameSemesterMaxScore) ? (
                                                 <span className="text-[10px] font-semibold text-emerald-700">
                                                     AI cleared · {getProposalAiSimilarityContext(p).samePct} advisory

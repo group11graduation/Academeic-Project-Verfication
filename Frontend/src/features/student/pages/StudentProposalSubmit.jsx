@@ -588,11 +588,10 @@ Features:
                     <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
                         <p>
                             {proposal?.aiRecommendationText ||
-                                'This proposal was previously blocked by an automatic similarity check.'}
+                                'This proposal was blocked because it is too similar to another project in this class/semester.'}
                         </p>
                         <p className="mt-2 text-xs opacity-90">
-                            Click <strong>Submit</strong> again after updating your proposal — same-semester overlap goes
-                            to your teacher for review instead of staying blocked forever.
+                            Change the <strong>title, description, and features</strong> so this is a different project, then submit again.
                         </p>
                     </div>
                 )}

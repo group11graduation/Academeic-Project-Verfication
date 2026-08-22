@@ -47,16 +47,33 @@ export function getProposalAiSimilarityContext(proposal) {
     };
   }
 
-  const highSameButCleared =
-    sameNum != null && sameNum >= SAME_SEMESTER_REJECT && status === 'pending_teacher_approval';
+  if (sameNum != null && sameNum >= SAME_SEMESTER_REJECT) {
+    return {
+      level: 'reject',
+      samePct,
+      legacyPct,
+      headline: 'High same-semester overlap',
+      detail: `Same-semester similarity ${samePct} is at or above the ${Math.round(SAME_SEMESTER_REJECT * 100)}% copy line. Review before approving.`,
+      studentBlocked: status === 'ai_rejected_same_semester',
+    };
+  }
+
+  if (sameNum != null && sameNum >= 0.72) {
+    return {
+      level: 'flag',
+      samePct,
+      legacyPct,
+      headline: 'Needs review - same-semester overlap',
+      detail: `Same-semester overlap ${samePct} is high. Teacher review required (not auto-cleared).`,
+      studentBlocked: false,
+    };
+  }
 
   return {
     level: 'ok',
     samePct,
     legacyPct,
-    headline: highSameButCleared
-      ? 'Pending your review'
-      : 'Cleared - unique enough for review',
+    headline: 'Cleared - unique enough for review',
     detail:
       sameNum != null
         ? `Same-semester overlap ${samePct} is below the ${Math.round(SAME_SEMESTER_REJECT * 100)}% auto-reject line. Previous-semester overlaps only produce recommendations (from ${Math.round(PREVIOUS_SEMESTER_WARN * 100)}%), not rejection.`

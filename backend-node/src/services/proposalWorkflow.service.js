@@ -191,6 +191,54 @@ function normalizeText(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+const TITLE_FILLER = new Set([
+  'the',
+  'and',
+  'or',
+  'of',
+  'for',
+  'a',
+  'an',
+  'to',
+  'in',
+  'ms',
+  'system',
+  'systems',
+  'management',
+  'portal',
+  'app',
+  'application',
+  'web',
+  'using',
+  'based',
+]);
+
+function titleIdeaTokens(title) {
+  return new Set(
+    normalizeText(title)
+      .replace(/[–—-]/g, ' ')
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length > 1 && !TITLE_FILLER.has(t))
+  );
+}
+
+/** True when two titles are the same project idea (exact or near-duplicate wording). */
+function titlesAreSameIdea(a, b) {
+  const na = normalizeText(a).replace(/[–—-]/g, ' ');
+  const nb = normalizeText(b).replace(/[–—-]/g, ' ');
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const A = titleIdeaTokens(a);
+  const B = titleIdeaTokens(b);
+  if (!A.size || !B.size) return false;
+  let inter = 0;
+  for (const t of A) {
+    if (B.has(t)) inter += 1;
+  }
+  const union = new Set([...A, ...B]).size;
+  return union > 0 && inter / union >= 0.85 && Math.min(A.size, B.size) >= 2;
+}
+
 function normalizeFeatures(features) {
   return (Array.isArray(features) ? features : [])
     .map((f) => normalizeText(f))
@@ -500,6 +548,50 @@ function clearPreviousSemesterRecommendation(proposal) {
   proposal.aiRecommendationText = '';
   proposal.aiSuggestedFeatures = [];
   proposal.requiredNewFeaturesCount = 0;
+}
+
+/**
+ * Pending copies that should have been auto-rejected (same class/semester idea
+ * already approved, or ≥85% same-term overlap) — apply on teacher roster load.
+ */
+async function healStaleSameSemesterCopies(list) {
+  if (!Array.isArray(list) || list.length < 2) return;
+  const approved = list.filter((p) => String(p.status) === 'teacher_approved');
+  for (const p of list) {
+    const status = String(p.status || '');
+    if (!['pending_teacher_approval', 'submitted', 'requirements_review'].includes(status)) continue;
+    const vsApproved = approved.find(
+      (a) => String(a._id) !== String(p._id) && titlesAreSameIdea(p.title, a.title)
+    );
+    const score = Number(p.aiSameSemesterMaxScore) || 0;
+    const vsPeer = list.find(
+      (o) => String(o._id) !== String(p._id) && titlesAreSameIdea(p.title, o.title)
+    );
+    if (!vsApproved && !(score >= AI_SAME_SEMESTER_HARD_REJECT && vsPeer)) continue;
+
+    const peer = vsApproved || vsPeer;
+    const pct = Math.round(score * 100);
+    const summary = peer?.title
+      ? `Rejected — this idea is already used this class/semester (“${peer.title}”, ~${pct}% overlap). Change the title, description, and features so it is a different project.`
+      : `Rejected — too similar to another proposal in this class/semester (~${pct}% overlap).`;
+
+    await Proposal.updateOne(
+      { _id: p._id },
+      {
+        $set: {
+          status: 'ai_rejected_same_semester',
+          aiRecommendationText: summary,
+          aiSuggestedFeatures: [],
+          ...(peer?._id && mongoose.Types.ObjectId.isValid(String(peer._id))
+            ? { aiMatchedProposalId: peer._id }
+            : {}),
+        },
+      }
+    );
+    p.status = 'ai_rejected_same_semester';
+    p.aiRecommendationText = summary;
+    logger.info(`[healSameSemester] rejected copy proposal ${p._id} vs ${peer?._id || 'peer'}`);
+  }
 }
 
 /**
@@ -1224,7 +1316,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   })
     .sort({ updatedAt: -1 })
     .limit(Math.max(0, AI_SAME_SEMESTER_MAX_CANDIDATES))
-    .select('_id title description features')
+    .select('_id title description features status')
     .lean();
 
   const sameSemesterPayload = sameSemesterOthers.map((p) => ({
@@ -1337,24 +1429,48 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
   const verdictRaw = String(aiResult.verdict || 'ok');
   const sameScore = Number(aiResult.same_semester_max) || 0;
   let verdict = verdictRaw;
-  // Never auto-block students for same-semester similarity.
-  // Common topics (library, hostel, school CRUD) score high without being copies.
-  // Teacher reviews the overlap; only they can reject.
-  if (verdict === 'reject_same_semester' || verdict === 'flag_same_semester') {
-    logger.info(
-      `Same-semester AI verdict ${verdictRaw}→flag_same_semester (score=${sameScore.toFixed(3)}) — teacher review, not auto-reject`
-    );
+
+  const matchedPeer = sameSemesterOthers.find((p) => String(p._id) === matchedSameSemesterId);
+  const identicalTitlePeer = sameSemesterOthers.find((p) => titlesAreSameIdea(proposal.title, p.title));
+  const approvedCopyPeer = sameSemesterOthers.find(
+    (p) =>
+      titlesAreSameIdea(proposal.title, p.title) &&
+      ['teacher_approved', 'pending_teacher_approval'].includes(String(p.status || ''))
+  );
+
+  // Honor near-copy / already-accepted same-class same-semester work.
+  // Do not downgrade Python reject_same_semester to a silent "AI cleared".
+  if (
+    verdictRaw === 'reject_same_semester' ||
+    sameScore >= AI_SAME_SEMESTER_HARD_REJECT ||
+    Boolean(approvedCopyPeer)
+  ) {
+    verdict = 'reject_same_semester';
+  } else if (verdictRaw === 'flag_same_semester' || sameScore >= AI_SAME_SEMESTER_SOFT_FLAG) {
     verdict = 'flag_same_semester';
   }
 
   let recommendation = null;
   let suggestedFeatures = [];
 
-  const matchedPeer = sameSemesterOthers.find((p) => String(p._id) === matchedSameSemesterId);
-  const peerTitle = matchedPeer?.title ? String(matchedPeer.title).trim() : '';
+  const copyPeer = approvedCopyPeer || identicalTitlePeer || matchedPeer;
+  const peerTitle = copyPeer?.title ? String(copyPeer.title).trim() : '';
   const samePct = Math.round(sameScore * 100);
 
-  if (verdict === 'flag_same_semester') {
+  if (verdict === 'reject_same_semester') {
+    proposal.status = 'ai_rejected_same_semester';
+    proposal.requiredNewFeaturesCount = 0;
+    proposal.previousFeaturesAtFlag = [];
+    proposal.collaborativeTeacherReviews = { frontend: {}, backend: {} };
+    recommendation = peerTitle
+      ? `Rejected — this idea is already used this class/semester (“${peerTitle}”, ~${samePct}% overlap). Change the title, description, and features so it is a different project.`
+      : `Rejected — too similar to another proposal in this class/semester (~${samePct}% overlap). Change the title, description, and features, then resubmit.`;
+    proposal.aiRecommendationText = recommendation;
+    proposal.aiSuggestedFeatures = [];
+    if (copyPeer?._id && mongoose.Types.ObjectId.isValid(String(copyPeer._id))) {
+      proposal.aiMatchedProposalId = copyPeer._id;
+    }
+  } else if (verdict === 'flag_same_semester') {
     proposal.status = 'pending_teacher_approval';
     proposal.requiredNewFeaturesCount = 0;
     proposal.previousFeaturesAtFlag = [];
@@ -1416,7 +1532,7 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     suggestedFeatures = [];
     proposal.aiRecommendationText = '';
     proposal.aiSuggestedFeatures = [];
-  } else if (verdict !== 'flag_same_semester') {
+  } else if (verdict !== 'flag_same_semester' && verdict !== 'reject_same_semester') {
     proposal.aiRecommendationText = '';
     proposal.aiSuggestedFeatures = [];
   }
@@ -1455,7 +1571,10 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     matchedSimilarProject,
     parsed: parsedFromFile,
     message:
-      verdict === 'flag_same_semester'
+      verdict === 'reject_same_semester'
+        ? recommendation ||
+          'Rejected — another student already submitted this idea in this class/semester. Change the project, then resubmit.'
+        : verdict === 'flag_same_semester'
         ? recommendation ||
           'Possible same-semester overlap. Your proposal was sent to the teacher for review.'
         : proposal.status === 'ai_flagged_previous_semester'
@@ -1942,6 +2061,7 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
       await healStaleRequirementsRejection(p, p.assignment);
     }
   }
+  await healStaleSameSemesterCopies(list);
 
   const ids = list.map((p) => p._id);
   /** Latest project ZIP per proposal (for teacher download + preview UX) */
