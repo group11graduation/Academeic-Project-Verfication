@@ -519,31 +519,6 @@ function uniqueFeatureList(features) {
   return out;
 }
 
-/** How many features were added since the previous-semester warning baseline. */
-function countNewFeaturesSinceFlag(proposal) {
-  const baseline = new Set(
-    (Array.isArray(proposal?.previousFeaturesAtFlag) ? proposal.previousFeaturesAtFlag : [])
-      .map((x) => normalizeText(x))
-      .filter(Boolean)
-  );
-  if (!baseline.size) return 0;
-  let n = 0;
-  for (const raw of Array.isArray(proposal?.features) ? proposal.features : []) {
-    const key = normalizeText(raw);
-    if (key && !baseline.has(key)) n += 1;
-  }
-  return n;
-}
-
-/**
- * Student already added the required differentiators after a previous-semester flag.
- * Promote to teacher review and stop showing the recommendation block.
- */
-function hasDifferentiatedFromPreviousFlag(proposal) {
-  const required = Math.max(1, Number(proposal?.requiredNewFeaturesCount) || 2);
-  return countNewFeaturesSinceFlag(proposal) >= required;
-}
-
 function clearPreviousSemesterRecommendation(proposal) {
   proposal.aiRecommendationText = '';
   proposal.aiSuggestedFeatures = [];
@@ -595,44 +570,37 @@ async function healStaleSameSemesterCopies(list) {
 }
 
 /**
- * If the student already added enough features after a previous-semester flag,
- * promote to pending_teacher_approval so the yellow recommendation block goes away.
+ * Keep previous-semester matches on the recommendation status.
+ * Revert mistaken "differentiating features → pending" heals. Same-semester reject is unchanged.
  */
 export async function healDifferentiatedPreviousSemesterFlag(proposal) {
   if (!proposal?._id) return proposal;
-  if (String(proposal.status || '') !== 'ai_flagged_previous_semester') return proposal;
+  const status = String(proposal.status || '');
+  const legacy = Number(proposal.aiPreviousSemesterMaxScore || 0);
+  const same = Number(proposal.aiSameSemesterMaxScore || 0);
+  const rec = String(proposal.aiRecommendationText || '');
+  const sameSemesterCopy =
+    rec.includes('already used this class') || rec.includes('Possible same-semester overlap');
+  const wronglyAccepted =
+    status === 'pending_teacher_approval' &&
+    legacy >= 0.5 &&
+    same < AI_SAME_SEMESTER_HARD_REJECT &&
+    !sameSemesterCopy;
 
-  const enoughNew = hasDifferentiatedFromPreviousFlag(proposal);
-  const suggested = uniqueFeatureList(proposal.aiSuggestedFeatures || []);
-  const blob = buildProposalSearchBlob(proposal.title, proposal.description, proposal.features);
-  const currentSet = new Set(
-    (Array.isArray(proposal.features) ? proposal.features : [])
-      .map((x) => normalizeText(x))
-      .filter(Boolean)
-  );
-  const adoptedSuggested =
-    suggested.length > 0 &&
-    suggested.filter((f) => isFeatureCoveredInProposal(f, blob, currentSet)).length >=
-      Math.min(2, suggested.length);
+  if (!wronglyAccepted) return proposal;
 
-  if (!enoughNew && !adoptedSuggested) return proposal;
-
+  const restored = 'ai_flagged_previous_semester';
   await Proposal.updateOne(
     { _id: proposal._id },
     {
       $set: {
-        status: 'pending_teacher_approval',
-        aiRecommendationText: '',
-        aiSuggestedFeatures: [],
-        requiredNewFeaturesCount: 0,
+        status: restored,
+        requiredNewFeaturesCount: Math.max(2, Number(proposal.requiredNewFeaturesCount) || 2),
       },
     }
   );
-  proposal.status = 'pending_teacher_approval';
-  proposal.aiRecommendationText = '';
-  proposal.aiSuggestedFeatures = [];
-  proposal.requiredNewFeaturesCount = 0;
-  logger.info(`[healPreviousSemester] cleared recommendation UI for proposal ${proposal._id}`);
+  proposal.status = restored;
+  logger.info(`[healPreviousSemester] restored recommendation flag for proposal ${proposal._id}`);
   return proposal;
 }
 
@@ -1045,9 +1013,6 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       : { assignment: assignment._id, submittedBy: userId, group: null }
   );
 
-  /** Features saved before this submit (used as previous-semester baseline). */
-  let featuresBeforeThisSubmit = null;
-
   if (!proposal) {
     proposal = new Proposal({
       assignment: assignment._id,
@@ -1065,7 +1030,6 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
       features: Array.isArray(proposal.features) ? [...proposal.features] : [],
       status: proposal.status,
     };
-    featuresBeforeThisSubmit = previousSnapshot.features;
 
     if (finalize && proposal.status === 'teacher_approved') {
       const err = new Error('Proposal already approved. You cannot submit another one for this assignment.');
@@ -1483,24 +1447,10 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
         : 'Proposal sent to your teacher for approval.';
     proposal.aiRecommendationText = recommendation;
   } else if (verdict === 'warn_previous_semester') {
-    // First warning: remember current feature set as baseline.
+    proposal.status = 'ai_flagged_previous_semester';
+    proposal.requiredNewFeaturesCount = Math.max(2, Number(proposal.requiredNewFeaturesCount) || 2);
     if (!Array.isArray(proposal.previousFeaturesAtFlag) || !proposal.previousFeaturesAtFlag.length) {
-      proposal.previousFeaturesAtFlag = Array.isArray(featuresBeforeThisSubmit) && featuresBeforeThisSubmit.length
-        ? [...featuresBeforeThisSubmit]
-        : [...(proposal.features || [])];
-      proposal.requiredNewFeaturesCount = Math.max(2, Number(proposal.requiredNewFeaturesCount) || 2);
-    }
-
-    // Student added enough differentiators → stop looping the yellow recommendation UI.
-    if (hasDifferentiatedFromPreviousFlag(proposal)) {
-      proposal.status = 'pending_teacher_approval';
-      clearPreviousSemesterRecommendation(proposal);
-      proposal.collaborativeTeacherReviews = { frontend: {}, backend: {} };
-      recommendation = null;
-      suggestedFeatures = [];
-    } else {
-      proposal.status = 'ai_flagged_previous_semester';
-      proposal.requiredNewFeaturesCount = Math.max(2, Number(proposal.requiredNewFeaturesCount) || 2);
+      proposal.previousFeaturesAtFlag = [...(proposal.features || [])];
     }
   } else if (proposal.requirementNeedsTeacherReview) {
     proposal.status = 'requirements_review';
@@ -1527,11 +1477,6 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
     suggestedFeatures = built.suggestedFeatures;
     proposal.aiRecommendationText = built.text;
     proposal.aiSuggestedFeatures = built.suggestedFeatures;
-  } else if (verdict === 'warn_previous_semester' && proposal.status === 'pending_teacher_approval') {
-    recommendation = null;
-    suggestedFeatures = [];
-    proposal.aiRecommendationText = '';
-    proposal.aiSuggestedFeatures = [];
   } else if (verdict !== 'flag_same_semester' && verdict !== 'reject_same_semester') {
     proposal.aiRecommendationText = '';
     proposal.aiSuggestedFeatures = [];
@@ -1578,12 +1523,10 @@ export async function upsertAndSubmitProposal(userId, assignmentId, body, propos
         ? recommendation ||
           'Possible same-semester overlap. Your proposal was sent to the teacher for review.'
         : proposal.status === 'ai_flagged_previous_semester'
-          ? 'This idea resembles an approved project from a previous semester. You can optionally add new features to strengthen originality before teacher review.'
+          ? 'This idea resembles an approved project from a previous semester. Review the recommended features below — you are not blocked, but this is not an automatic accept.'
           : proposal.status === 'requirements_review'
             ? 'Proposal passed plagiarism checks but needs teacher review for requirement meaning match.'
-            : verdict === 'warn_previous_semester'
-              ? 'Differentiating features noted. Your proposal was sent to your teacher for approval.'
-              : 'Proposal sent to your teacher for approval.',
+            : 'Proposal sent to your teacher for approval.',
   };
 }
 
@@ -2062,6 +2005,9 @@ export async function listProposalsForTeacher(teacherId, assignmentId) {
     }
   }
   await healStaleSameSemesterCopies(list);
+  for (const p of list) {
+    await healDifferentiatedPreviousSemesterFlag(p);
+  }
 
   const ids = list.map((p) => p._id);
   /** Latest project ZIP per proposal (for teacher download + preview UX) */

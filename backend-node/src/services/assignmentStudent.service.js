@@ -365,7 +365,10 @@ export async function listAssignmentsWithProposalsForStudent(userId) {
 
     let proposalOut = proposal || null;
     if (proposalOut) {
-      if (proposalOut.status === 'ai_flagged_previous_semester') {
+      if (
+        proposalOut.status === 'ai_flagged_previous_semester' ||
+        proposalOut.status === 'pending_teacher_approval'
+      ) {
         proposalOut = await healDifferentiatedPreviousSemesterFlag(proposalOut);
       }
       const flaggedPrevious = proposalOut.status === 'ai_flagged_previous_semester';
